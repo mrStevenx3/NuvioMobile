@@ -15,7 +15,7 @@ final class HomeBodyCounter: ObservableObject {
     static let shared = HomeBodyCounter()
 
     /// Names in the order the label prints them.
-    static let names = ["HomeView", "HomeRowsList", "CatalogRowView", "ContinueWatchingRow",
+    static let names = ["HomeView", "HomeRowsList", "HomeRowsList.top", "CatalogRowView", "ContinueWatchingRow",
                         "UpcomingRow", "CollectionRowView", "InlineTrailerCard", "PosterCard"]
 
     private var counts: [String: Int] = [:]
