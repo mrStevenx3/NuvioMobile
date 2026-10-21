@@ -80,6 +80,7 @@ jobs:
       - name: Build NuvioTV (tvOS device, Release, unsigned)
         run: |
           set -o pipefail
+          status=0
           xcodebuild build \
             -project iosApp/iosApp.xcodeproj \
             -scheme NuvioTV \
@@ -90,7 +91,27 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             NUVIO_BETA_TAG="steven-$(git rev-parse --short=8 HEAD)" \
-            | tail -40
+            > xcodebuild.log 2>&1 || status=$?
+          tail -60 xcodebuild.log
+          if [ "$status" -ne 0 ]; then
+            # Surface the compiler errors as run annotations (readable from the API
+            # without the raw log): 10 as errors, the next 10 as warnings, 10 notices.
+            grep -E "(error|fatal error): " xcodebuild.log \
+              | sed -E "s#^.*/iosApp/##" | awk '!seen[$0]++' > errors.txt || true
+            if [ ! -s errors.txt ]; then
+              grep -E "\*\* BUILD FAILED|Command .* failed|failed with" xcodebuild.log \
+                | awk '!seen[$0]++' | head -30 > errors.txt || true
+            fi
+            n=0
+            while IFS= read -r line; do
+              msg="$(printf '%s' "$line" | cut -c1-900 | sed 's/%/%25/g')"
+              if [ $n -lt 10 ]; then echo "::error::$msg"
+              elif [ $n -lt 20 ]; then echo "::warning::$msg"
+              else echo "::notice::$msg"; fi
+              n=$((n+1))
+            done < <(head -30 errors.txt)
+            exit "$status"
+          fi
 
       - name: Package IPA
         run: |
