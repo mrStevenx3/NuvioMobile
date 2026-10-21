@@ -854,7 +854,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.media.NuvioTV.NuvioTopShelf;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mrstevenx3.orbit.NuvioTopShelf;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = appletvos;
@@ -885,7 +885,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.media.NuvioTV.NuvioTopShelf;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mrstevenx3.orbit.NuvioTopShelf;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = appletvos;
@@ -925,7 +925,7 @@
 					"-framework",
 					SharedCore,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.media.NuvioTV;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mrstevenx3.orbit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = appletvos;
@@ -965,7 +965,7 @@
 					"-framework",
 					SharedCore,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.media.NuvioTV;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mrstevenx3.orbit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = appletvos;

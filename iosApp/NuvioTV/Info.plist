@@ -33,6 +33,9 @@
 		<string>senplayer</string>
 		<string>nativeplayer</string>
 	</array>
+	<!-- Steven's fork: the name under the icon. -->
+	<key>CFBundleDisplayName</key>
+	<string>Orbit</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
