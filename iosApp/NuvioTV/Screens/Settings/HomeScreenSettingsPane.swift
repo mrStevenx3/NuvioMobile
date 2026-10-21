@@ -58,6 +58,9 @@ struct HomeScreenSettingsPane: View {
     /// next airing episodes, directly under Continue Watching. Default ON. Local-only.
     @AppStorage("home_upcoming_row_enabled") private var upcomingRowEnabled = true
 
+    /// Steven's fork: mirrors the Home rows' `FocusLeadsRow.defaultsKey`. Default ON. Local-only.
+    @AppStorage(FocusLeadsRow.defaultsKey) private var focusLeadsRow = true
+
     /// FEAT-25: mirrors HomeView's `hero_trailer_autoplay` key — the hero plays its own trailer
     /// with no focus required. Default OFF. Local-only, not synced.
     @AppStorage("hero_trailer_autoplay") private var heroTrailerAutoplay = false
@@ -106,6 +109,15 @@ struct HomeScreenSettingsPane: View {
                     : String(localized: "No Upcoming row on Home"),
                 isOn: $upcomingRowEnabled,
                 descriptionID: .homeUpcoming
+            )
+
+            // Steven's fork: see `FocusLeadsRow`. Outside the catalog branch, like the row above.
+            SettingsToggleRow(
+                title: String(localized: "Selected Title First"),
+                subtitle: focusLeadsRow
+                    ? String(localized: "The row slides so the selected title is always first, like wako or Netflix")
+                    : String(localized: "Rows scroll only as far as needed to show the selected title"),
+                isOn: $focusLeadsRow
             )
 
             if model.catalogs.isEmpty {

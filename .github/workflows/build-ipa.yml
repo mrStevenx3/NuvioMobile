@@ -1,0 +1,116 @@
+name: Build IPA (Apple TV)
+
+# Steven's fork: builds an UNSIGNED tvOS device IPA from this branch, to sign with
+# Signulous (or any re-signer) and install on the Apple TV. Run it by hand from
+# the Actions tab ("Run workflow"); the IPA is attached to the run as an artifact.
+# Based on the upstream fork's tvos-sim-build.yml and scripts/release-beta.sh.
+on:
+  workflow_dispatch:
+  # Also on every push to the tvOS branch, so a new change builds by itself.
+  push:
+    branches: ["tvos-shared-extraction"]
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_OPTS: -Xmx4g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=1g
+  KOTLIN_DAEMON_JVMARGS: -Xmx3g
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Init MPVKit submodule
+        run: git submodule update --init MPVKit
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.konan
+          key: gradle-konan-device-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-konan-device-${{ runner.os }}-
+            gradle-konan-${{ runner.os }}-
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          xcrun --sdk appletvos --show-sdk-version
+          java -version
+
+      # Same pinned scaffolding checkout as tvos-sim-build.yml: :shared's tvOS
+      # cinterop needs the patched quickjs-kt 1.0.5-tvos in mavenLocal.
+      - uses: actions/checkout@v4
+        with:
+          repository: youngchris29-art/NuvioTV
+          ref: 6265f00ec0b19b8a1301488f2ede523c8768de84
+          path: outer-scaffolding
+          sparse-checkout: scaffolding
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/io/github/dokar3
+          key: quickjs-tvos-${{ hashFiles('outer-scaffolding/scaffolding/quickjs-kt-tvos.patch', 'outer-scaffolding/scaffolding/build-quickjs-tvos.sh') }}
+
+      - name: Publish quickjs-kt 1.0.5-tvos to mavenLocal
+        run: |
+          if [ -d "$HOME/.m2/repository/io/github/dokar3/quickjs-kt/1.0.5-tvos" ]; then
+            echo "quickjs-kt 1.0.5-tvos already in mavenLocal (cache hit)"
+            exit 0
+          fi
+          bash outer-scaffolding/scaffolding/build-quickjs-tvos.sh "$HOME/quickjs-kt-tvos"
+
+      # The Xcode build phase runs this same task; isolated here so a Kotlin
+      # error shows up in its own step instead of mid-xcodebuild.
+      - name: Link shared Kotlin framework (tvOS device, Release)
+        run: ./gradlew :shared:linkReleaseFrameworkTvosArm64 --no-daemon --stacktrace
+
+      - name: Build NuvioTV (tvOS device, Release, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme NuvioTV \
+            -configuration Release \
+            -destination "generic/platform=tvOS" \
+            -derivedDataPath iosApp/build/tvos-ipa \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            NUVIO_BETA_TAG="steven-$(git rev-parse --short=8 HEAD)" \
+            | tail -40
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          PRODUCTS="iosApp/build/tvos-ipa/Build/Products/Release-appletvos"
+          APP="$(ls -d "$PRODUCTS"/*.app | head -1)"
+          echo "App: $APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :NuvioCommitSHA' "$APP/Info.plist" || true
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          # Same as release-beta.sh: re-signers mangle the Top Shelf appex and
+          # tvOS kills it on launch, so the PlugIns folder is dropped.
+          rm -rf "out/Payload/$(basename "$APP")/PlugIns"
+          (cd out && zip -qry NuvioTV.ipa Payload)
+          ls -lh out/NuvioTV.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NuvioTV-ipa
+          path: out/NuvioTV.ipa
+          retention-days: 14
+          compression-level: 0

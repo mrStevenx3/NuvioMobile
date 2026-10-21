@@ -317,6 +317,8 @@ struct StageStripHome: View {
                              prefetch: { model.continueWatching.prefix(8).flatMap { heroBackdropPrefetchURLs(for: $0) } })
             }
         )
+        // Steven's fork: the focused card leads the row (`FocusLeadsRow`).
+        .environment(\.homeRowFocusLeads, true)
     }
 
     private var upcomingRow: some View {
@@ -344,6 +346,8 @@ struct StageStripHome: View {
         )
         // BUG-35: localize this row's leading items when it scrolls into view.
         .onAppear { model.rowAppeared(sectionKey: section.key) }
+        // Steven's fork: the focused card leads the row (`FocusLeadsRow`).
+        .environment(\.homeRowFocusLeads, true)
     }
 
     private func collectionRow(_ collection: NuvioCollection) -> some View {

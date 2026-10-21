@@ -34833,6 +34833,16 @@
         }
       }
     },
+    "Rows scroll only as far as needed to show the selected title": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les rangées défilent juste assez pour afficher le titre sélectionné"
+          }
+        }
+      }
+    },
     "Run enabled plugin providers when loading streams.": {
       "localizations": {
         "de": {
@@ -36190,6 +36200,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nhấn chọn để hiện hoặc ẩn các nhà cung cấp của kho này. Mỗi nhà cung cấp có công tắc riêng."
+          }
+        }
+      }
+    },
+    "Selected Title First": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titre sélectionné en premier"
           }
         }
       }
@@ -44827,6 +44847,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Con cáo nâu nhanh nhẹn"
+          }
+        }
+      }
+    },
+    "The row slides so the selected title is always first, like wako or Netflix": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La rangée glisse pour que le titre sélectionné soit toujours en premier, comme sur wako ou Netflix"
           }
         }
       }

@@ -130,6 +130,8 @@ struct HomeRowsList: View {
             )
             // rc14 (BUG-122): the short-row floor — see `shortRowLinkFrameFloor`.
             .environment(\.rowCardLinkFrameFloor, shortRowLinkFrameFloor)
+            // Steven's fork: the focused card leads the row (`FocusLeadsRow`).
+            .environment(\.homeRowFocusLeads, true)
         }
 
         // Upcoming: next airing episode per followed show, directly under Continue
@@ -295,6 +297,8 @@ struct HomeCatalogRowCell: View, Equatable {
             // UX-7 (see HomeView.reportRowFocus for the gating rationale).
             onItemFocusChange: { [actions, section] item in actions.catalogFocus(item, section) }
         )
+        // Steven's fork: the focused card leads the row (`FocusLeadsRow`).
+        .environment(\.homeRowFocusLeads, true)
     }
 }
 

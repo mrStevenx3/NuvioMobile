@@ -5197,6 +5197,27 @@ struct ContinueWatchingRow: View {
     /// the strip (`StripRowScrollRestore`), so Classic's row is structurally unchanged.
     @State private var hScroll = RowHScrollBox()
     @State private var rowPosition = ScrollPosition()
+    /// Steven's fork: see `FocusLeadsRow` (Home sets the flag; Settings → Home Screen owns the switch).
+    @Environment(\.homeRowFocusLeads) private var homeRowFocusLeads
+    @AppStorage(FocusLeadsRow.defaultsKey) private var focusLeadsEnabled = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var focusLeads: Bool { homeRowFocusLeads && focusLeadsEnabled }
+
+    /// Steven's fork (`FocusLeadsRow`): glides the shelf so the focused card sits on the leading
+    /// edge, through the row's own horizontal `ScrollPosition` (attached whenever this is on).
+    private func alignFocusedCardToLeading(_ id: String?) {
+        guard focusLeads, let id, let sample = hScroll.sample,
+              let index = entries.firstIndex(where: { $0.videoId == id }),
+              let x = FocusLeadsRow.offset(index: index, cardWidth: Theme.Size.landscapeWidth,
+                                           gap: Theme.Spacing.rowGap, sample: sample) else { return }
+        if reduceMotion {
+            var tx = Transaction()
+            tx.disablesAnimations = true
+            withTransaction(tx) { rowPosition.scrollTo(x: x) }
+        } else {
+            withAnimation(FocusLeadsRow.animation) { rowPosition.scrollTo(x: x) }
+        }
+    }
 
     /// rc14 (BUG-122): see `PinnedRowGeometry.shortRowLayoutCompensation`. The natural label is
     /// what `LandscapeCard` lays out inside the reaches — its fixed height plus the caption when
@@ -5237,8 +5258,13 @@ struct ContinueWatchingRow: View {
             }
             return
         }
-        guard let x = StripRowRestore.offset(index: index, cardWidth: Theme.Size.landscapeWidth,
-                                             gap: Theme.Spacing.rowGap, sample: sample) else { return }
+        // Steven's fork: a remounted row puts its remembered card back on the leading edge.
+        let offset = focusLeads
+            ? FocusLeadsRow.offset(index: index, cardWidth: Theme.Size.landscapeWidth,
+                                   gap: Theme.Spacing.rowGap, sample: sample)
+            : StripRowRestore.offset(index: index, cardWidth: Theme.Size.landscapeWidth,
+                                     gap: Theme.Spacing.rowGap, sample: sample)
+        guard let x = offset else { return }
         var tx = Transaction()
         tx.disablesAnimations = true
         withTransaction(tx) { rowPosition.scrollTo(x: x) }
@@ -5316,6 +5342,17 @@ struct ContinueWatchingRow: View {
                             // catalog rows; Classic and Stage both use this row).
                             .zIndex(focusedVideoId == entry.videoId ? 1 : 0)
                         }
+
+                        // Steven's fork (`FocusLeadsRow`): room for the last card to reach the
+                        // leading edge. Not focusable.
+                        if focusLeads {
+                            Color.clear
+                                .frame(width: FocusLeadsRow.trailingRoom(expandedCardWidth: Theme.Size.landscapeWidth,
+                                                                         gap: Theme.Spacing.rowGap),
+                                       height: 1)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
                     // Always positive — the reach lives inside the buttons (see CatalogRowView).
                     // BUG-146: 12 on top inside the Stage strip, `lg` on Classic (`StripShelfPadding`).
@@ -5323,7 +5360,7 @@ struct ContinueWatchingRow: View {
                 }
                 .scrollClipDisabled()
                 // Review r1 (A P2-3): the strip's restore path; absent outside the strip.
-                .modifier(StripRowScrollRestore(enabled: stripFocusMemory != nil,
+                .modifier(StripRowScrollRestore(enabled: stripFocusMemory != nil || focusLeads,
                                                 box: hScroll,
                                                 position: $rowPosition))
                 // BUG-118: see `RowEdgeEffectStyleModifier`.
@@ -5392,6 +5429,7 @@ struct ContinueWatchingRow: View {
                                    firstId: entries.first?.videoId,
                                    focus: $focusedVideoId)
         .onChange(of: focusedVideoId) { _, newId in
+            alignFocusedCardToLeading(newId)
             onItemFocusChange?(newId.flatMap { id in entries.first { $0.videoId == id } })
         }
     }

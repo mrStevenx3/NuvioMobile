@@ -85,6 +85,50 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Focus leads the row (Steven's fork, wako / Netflix style)
+
+/// Steven's fork: Home's rows (Classic and Stage) ask their horizontal shelves to keep the FOCUSED
+/// card on the row's leading edge, like wako / Netflix: each Left/Right glides the whole row so the
+/// selected title is always first. False for every other host (Search, Library, Discover, the
+/// catalog grid), which keep the system's minimal focus scroll. The user switch is
+/// `FocusLeadsRow.defaultsKey` (Settings → Home Screen, on by default).
+private struct HomeRowFocusLeadsKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var homeRowFocusLeads: Bool {
+        get { self[HomeRowFocusLeadsKey.self] }
+        set { self[HomeRowFocusLeadsKey.self] = newValue }
+    }
+}
+
+nonisolated enum FocusLeadsRow {
+    static let defaultsKey = "home_focus_leads_row"
+    /// The glide that brings the focused card to the leading edge. Short enough to keep up with a
+    /// held Right, long enough to read as the row sliding under a fixed selection.
+    static let animation = Animation.easeOut(duration: 0.32)
+
+    /// Raw `ScrollPosition.scrollTo(x:)` offset that puts card `index` on the viewport's leading
+    /// edge (uniform resting widths before it), clamped to the row's scrollable range. Nil when the
+    /// row already rests there.
+    static func offset(index: Int, cardWidth: CGFloat, gap: CGFloat, sample: RowHScrollSample) -> CGFloat? {
+        guard index >= 0, cardWidth > 0, sample.viewportWidth > 0 else { return nil }
+        let leading = CGFloat(index) * (cardWidth + gap)
+        let maxOffset = max(0, sample.paddedContentWidth - sample.viewportWidth)
+        let target = min(max(leading, 0), maxOffset)
+        guard abs(target - sample.paddedVisibleMinX) > 0.5 else { return nil }
+        return target - sample.insetLeading
+    }
+
+    /// Empty room after a row's last card, so the LAST card can still reach the leading edge
+    /// (otherwise the row stops scrolling once its end is on screen). The screen width less the
+    /// widest the card can get is always enough; any surplus is just blank space at the row's end.
+    @MainActor static func trailingRoom(expandedCardWidth: CGFloat, gap: CGFloat) -> CGFloat {
+        max(0, UIScreen.main.bounds.width - expandedCardWidth - gap)
+    }
+}
+
 extension EnvironmentValues {
     var rowCardTopReach: CGFloat {
         get { self[RowCardTopReachKey.self] }
@@ -5003,6 +5047,15 @@ struct CatalogRowView: View {
     /// reads it (see `expansionChanged`'s "Path shipped" note: the re-render check was not run).
     @State private var rowPosition = ScrollPosition()
 
+    /// Steven's fork: see `FocusLeadsRow`. Only Home sets the environment flag; the setting lets the
+    /// user turn it back off without a rebuild.
+    @Environment(\.homeRowFocusLeads) private var homeRowFocusLeads
+    @AppStorage(FocusLeadsRow.defaultsKey) private var focusLeadsEnabled = true
+    /// Needs the row's own `ScrollPosition`, which the proxy fallback does not attach.
+    private var focusLeads: Bool {
+        homeRowFocusLeads && focusLeadsEnabled && !RowMorphScroll.useProxyFallback
+    }
+
     /// BUG-29: an inline-trailer expansion widens its card in place without moving focus, so tvOS's
     /// automatic focus-driven scroll never fires — the row has to scroll itself, and Reduce Motion
     /// governs whether that scroll animates (see `expansionChanged(for:expanded:proxy:)`).
@@ -5342,6 +5395,17 @@ struct CatalogRowView: View {
                             // tracker's `focusedItemId != nil` test changes meaning.
                             .focused($focusedItemId, equals: Self.seeAllFocusKey)
                         }
+
+                        // Steven's fork (`FocusLeadsRow`): room for the last card to reach the
+                        // leading edge. Not focusable, so the engine never lands on it.
+                        if focusLeads {
+                            Color.clear
+                                .frame(width: FocusLeadsRow.trailingRoom(expandedCardWidth: posterStyle.trailerCardWidth,
+                                                                         gap: Theme.Spacing.rowGap),
+                                       height: 1)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
                     // ALWAYS positive — the reach lives inside the buttons' labels, the row's
                     // frame contains it whole, and nothing pokes outside the focus section.
@@ -5443,6 +5507,7 @@ struct CatalogRowView: View {
             if oldId != nil, newId != nil {
                 CollectionFocusFrameSampler.shared.arm(rowKey: "h:\(section.key)", gif: false)
             }
+            alignFocusedCardToLeading(newId)
             onItemFocusChange?(newId.flatMap { id in section.items.first { $0.id == id } })
         }
         // beta.19-rc1 verdict (M3, BUG-126): see `rowPlayingKey`. The subject is a
@@ -5714,9 +5779,40 @@ struct CatalogRowView: View {
             return
         }
         let cardWidth = posterStyle.cardWidth  // BUG-162: the row's real card width
-        guard let x = StripRowRestore.offset(index: index, cardWidth: cardWidth,
-                                             gap: Theme.Spacing.rowGap, sample: sample) else { return }
+        // Steven's fork: a remounted row puts its remembered card back on the leading edge.
+        let offset = focusLeads
+            ? FocusLeadsRow.offset(index: index, cardWidth: cardWidth, gap: Theme.Spacing.rowGap, sample: sample)
+            : StripRowRestore.offset(index: index, cardWidth: cardWidth, gap: Theme.Spacing.rowGap, sample: sample)
+        guard let x = offset else { return }
         withTransaction(tx) { rowPosition.scrollTo(x: x) }
+    }
+
+    /// Steven's fork (`FocusLeadsRow`): glides the row so the newly focused card (or the See All
+    /// tile) sits on the leading edge. Runs in the same update as the focus change, so this
+    /// animated `scrollTo(x:)` replaces the engine's own minimal scroll (the strip pager overrides
+    /// the engine's vertical scroll the same way). Uses resting widths: the card that was wide
+    /// before the move collapses as focus leaves it, and the newly focused card only widens later
+    /// (trailer dwell), growing to the right from the leading edge, so the morph scroll finds it
+    /// already fits.
+    private func alignFocusedCardToLeading(_ id: String?) {
+        guard focusLeads, let id, let sample = hScroll.sample else { return }
+        let index: Int
+        if id == Self.seeAllFocusKey {
+            index = section.items.count
+        } else if let found = section.items.firstIndex(where: { $0.id == id }) {
+            index = found
+        } else {
+            return
+        }
+        guard let x = FocusLeadsRow.offset(index: index, cardWidth: posterStyle.cardWidth,
+                                           gap: Theme.Spacing.rowGap, sample: sample) else { return }
+        if reduceMotion {
+            var tx = Transaction()
+            tx.disablesAnimations = true
+            withTransaction(tx) { rowPosition.scrollTo(x: x) }
+        } else {
+            withAnimation(FocusLeadsRow.animation) { rowPosition.scrollTo(x: x) }
+        }
     }
 
     /// Play/pause handler for `item`'s focusable button, or `nil` when this card isn't the focused,
