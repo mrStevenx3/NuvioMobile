@@ -89,6 +89,10 @@ struct DetailCinematicHero<Actions: View>: View {
     var heroFocus: FocusState<DetailHeroFocus?>.Binding
     /// Runs before the sheet opens (counts as interacting; withdraws a leaving trailer bridge).
     let onOpenSynopsis: () -> Void
+    /// Steven's fork (Apple TV style, `DetailAppleStyle`): the synopsis moves out of the text column
+    /// to the right of the action row, two lines, with a chevron button that opens the full text.
+    /// The credits block is not drawn in that mode (the synopsis takes its place).
+    var synopsisBeside: Bool = false
     @ViewBuilder let actions: () -> Actions
 
     @State private var measuredSynopsisHeight: CGFloat = 0
@@ -174,13 +178,19 @@ struct DetailCinematicHero<Actions: View>: View {
                     logoSlot
                     metaLine
                     if ratingsGateOn { ratingsSlot }
-                    if synopsisSlotVisible { synopsisSlot }
+                    if synopsisSlotVisible && !synopsisBeside { synopsisSlot }
                 }
                 actions()
             }
-            .frame(maxWidth: DetailCinematicLayout.textColumnMaxWidth, alignment: .leading)
+            .frame(maxWidth: synopsisBeside ? DetailAppleStyle.textColumnMaxWidth : DetailCinematicLayout.textColumnMaxWidth,
+                   alignment: .leading)
             .layoutPriority(1)
-            if !credits.isEmpty {
+            if synopsisBeside {
+                if synopsisSlotVisible, let overview, !overview.isEmpty {
+                    synopsisBesideBlock(overview)
+                        .frame(maxWidth: .infinity, alignment: .bottomLeading)
+                }
+            } else if !credits.isEmpty {
                 creditsBlock
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -378,6 +388,32 @@ struct DetailCinematicHero<Actions: View>: View {
             // above is the measured four-line height, so this never overflows it.
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: DetailCinematicLayout.textColumnMaxWidth, alignment: .topLeading)
+    }
+
+    /// Steven's fork (`synopsisBeside`): two lines of synopsis beside the action row and a chevron
+    /// button at their end that opens the full text (the same sheet as the teaser). The chevron
+    /// takes the teaser's focus identity, so a move onto it reads as user input in the hero.
+    private func synopsisBesideBlock(_ overview: String) -> some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.lg) {
+            Text(overview)
+                .font(Theme.Font.detail)
+                .foregroundStyle(Theme.Palette.textPrimary)
+                .lineLimit(DetailAppleStyle.synopsisLines)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("detail_synopsis_beside")
+            Button {
+                onOpenSynopsis()
+                showSynopsisSheet = true
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(Theme.Font.metaStrong)
+                    .frame(width: 44, height: 28)
+            }
+            .focused(heroFocus, equals: .teaser)
+            .accessibilityLabel(String(localized: "Shows the full synopsis"))
+            .accessibilityIdentifier("detail_synopsis_more")
+        }
     }
 
     /// "With …" / "Directed by …" ("Created by …" for series), names in the primary colour.

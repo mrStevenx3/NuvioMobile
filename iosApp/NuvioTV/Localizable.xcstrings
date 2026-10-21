@@ -6230,6 +6230,16 @@
         }
       }
     },
+    "Apple TV Style": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Style Apple TV"
+          }
+        }
+      }
+    },
     "Applies to every add-on's sources on this Apple TV.": {
       "localizations": {
         "de": {
@@ -43218,6 +43228,16 @@
         }
       }
     },
+    "Synopsis beside the buttons, frosted backdrop, title logo above the rows": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synopsis à côté des boutons, fond flouté, logo du titre au-dessus des rangées"
+          }
+        }
+      }
+    },
     "Synopsis hidden until watched": {
       "localizations": {
         "de": {
@@ -44779,6 +44799,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nguồn của tập tiếp theo bị lỗi. Hãy chọn một nguồn bên dưới."
+          }
+        }
+      }
+    },
+    "The original Cinematic page": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La page Cinématographique d’origine"
           }
         }
       }

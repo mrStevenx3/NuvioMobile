@@ -33,3 +33,26 @@ nonisolated enum DetailLayout: String, CaseIterable {
         DetailLayout(rawValue: raw) ?? .cinematic
     }
 }
+
+/// Steven's fork: the "Apple TV style" variant of the Cinematic Detail page (Settings → Detail
+/// Page, on by default). Four changes, all Cinematic-only:
+///  - the synopsis sits beside the action row, two lines, with a chevron that opens the full text;
+///  - the bottom of the backdrop is frosted (a material faded in from the hero's lower half);
+///  - leaving the hero frosts the whole backdrop (lighter dim, so it reads as glass, not black)
+///    and fades the hero text out;
+///  - the compact title logo shows on the first Down, above the first row, and rides up with that
+///    row once the page scrolls further, instead of staying pinned for the whole page.
+nonisolated enum DetailAppleStyle {
+    static let defaultsKey = "detail_apple_style"
+    static let synopsisLines = 2
+    /// The left column (logo, meta, buttons) is narrower so the synopsis has room beside it.
+    static let textColumnMaxWidth: CGFloat = 640
+    /// The visible dim is scaled by this while frosted (the dim MODEL is unchanged, so the
+    /// trailer's tear-down latch still fires at the same scroll depth).
+    static let dimScale: Double = 0.55
+    /// Where the bottom frost starts, as a fraction of the screen height from the top.
+    static let bottomFrostStart: CGFloat = 0.55
+    /// The frost reaches full strength once the dim reaches this.
+    static let fullFrostDim: Double = 0.35
+    static let heroFade = 0.25
+}

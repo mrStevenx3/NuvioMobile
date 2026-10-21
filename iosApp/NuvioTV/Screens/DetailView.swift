@@ -208,8 +208,12 @@ private struct DetailCompactLogo: View {
     @ObservedObject var model: ScrollDimModel
     let inRows: Bool
     let reduceMotion: Bool
+    /// Steven's fork (Apple TV style): show on the first Down (the hero text fades out, so nothing
+    /// sits beside it) and ride up with the first row (`lift`) instead of staying pinned.
+    var followsFirstRow: Bool = false
+    @ObservedObject var lift: DetailLogoLiftModel
 
-    private var visible: Bool { inRows && model.heroGone }
+    private var visible: Bool { followsFirstRow ? inRows : inRows && model.heroGone }
 
     var body: some View {
         TitleLogoHeader(title: title, logoUrl: logoUrl, alignment: .center,
@@ -224,7 +228,55 @@ private struct DetailCompactLogo: View {
             .accessibilityHidden(!visible)
             .accessibilityIdentifier("detail_compact_logo")
             .padding(.top, 36)
+            // Steven's fork: no animation on the lift, it tracks the scroll frame by frame.
+            .offset(y: followsFirstRow ? lift.value : 0)
             .ignoresSafeArea(edges: .top)
+    }
+}
+
+/// Steven's fork (Apple TV style): drives `DetailCompactLogo`'s vertical offset. Its own tiny
+/// observable so a scroll frame re-renders the logo only, never `DetailView.body` (BUG-41).
+final class DetailLogoLiftModel: ObservableObject {
+    @Published var value: CGFloat = 0
+
+    /// The logo's offset for a first row whose top sits `firstRowScreenTop` points from the top of
+    /// the screen: 0 at or below the hero-exit rest (`DetailRowAnchor.screenRest`), negative as the
+    /// row climbs past it, clamped at -240 (the logo is long gone by then) and rounded to 1 pt.
+    static func lift(firstRowScreenTop: CGFloat) -> CGFloat {
+        let raw = min(0, firstRowScreenTop - DetailRowAnchor.screenRest)
+        return max(-240, raw).rounded()
+    }
+}
+
+/// Steven's fork (Apple TV style): the frosted backdrop. The lower part of the screen is always
+/// frosted (a material faded in from `DetailAppleStyle.bottomFrostStart`), and the whole screen
+/// frosts as the page scrolls (following the dim, full at `DetailAppleStyle.fullFrostDim`).
+/// Observes the dim model itself, like `DetailTopScrim`, so `DetailView.body` never re-renders
+/// per dim step.
+private struct DetailFrostLayer: View {
+    @ObservedObject var model: ScrollDimModel
+
+    private var fullFrost: Double { min(1, max(0, model.value / DetailAppleStyle.fullFrostDim)) }
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.regularMaterial)
+                .mask {
+                    LinearGradient(stops: [
+                        .init(color: .clear, location: DetailAppleStyle.bottomFrostStart),
+                        .init(color: .black, location: min(1, DetailAppleStyle.bottomFrostStart + 0.3)),
+                        .init(color: .black, location: 1)
+                    ], startPoint: .top, endPoint: .bottom)
+                }
+            Rectangle()
+                .fill(.regularMaterial)
+                .opacity(fullFrost)
+                .animation(.linear(duration: 0.12), value: fullFrost)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -246,6 +298,9 @@ private struct ScrollDimOverlay: View {
     /// the `debug_ux6` probe, or the page has two matching elements while the cover is up
     /// (test17 "Multiple matching elements found").
     var showsProbe: Bool = true
+    /// Steven's fork (Apple TV style): scales the DRAWN dim only (`DetailAppleStyle.dimScale`), so
+    /// the frosted backdrop stays light; `model.value` and everything that reads it are unchanged.
+    var visibleScale: Double = 1
 
     var body: some View {
         ZStack {
@@ -256,7 +311,7 @@ private struct ScrollDimOverlay: View {
             // directly — see the quantization comment on `DetailView`'s `.onScrollGeometryChange`
             // for the full 0.01→0.05 reasoning this pairs with. BUG-41: that smoothing is skipped
             // (nil animation = a flat step) while a trailer is actively mounted — see `trailerActive`.
-            Color.black.opacity(model.value).ignoresSafeArea().allowsHitTesting(false)
+            Color.black.opacity(model.value * visibleScale).ignoresSafeArea().allowsHitTesting(false)
                 .animation(trailerActive ? nil : .linear(duration: 0.12), value: model.value)
             #if DEBUG
             // UX-6/BUG-41 diagnostic (invisible, harness-readable): the live darkening value plus
@@ -460,6 +515,12 @@ struct DetailView: View {
     /// FEAT-35 (D2): Cinematic (default) or Classic. Classic renders today's `topBlock`, unchanged.
     @AppStorage(DetailSettingsKeys.layout) private var detailLayoutRaw = DetailLayout.cinematic.rawValue
     private var detailLayout: DetailLayout { DetailLayout.resolve(detailLayoutRaw) }
+    /// Steven's fork: see `DetailAppleStyle`. Cinematic only.
+    @AppStorage(DetailAppleStyle.defaultsKey) private var appleStyleOn = true
+    private var appleStyle: Bool { detailLayout == .cinematic && appleStyleOn }
+    /// Steven's fork: how far the compact logo has ridden up with the first row (see
+    /// `DetailLogoLiftModel`). Observed only by `DetailCompactLogo`.
+    @StateObject private var logoLift = DetailLogoLiftModel()
     /// FEAT-35 section toggle "Ratings" (closes FEAT-28): the Cinematic ratings strip and the meta
     /// line's IMDb ★ (D10). Classic's chips are untouched.
     @AppStorage(DetailSettingsKeys.sectionRatings) private var sectionRatings = true
@@ -713,7 +774,12 @@ struct DetailView: View {
             }
             // UX-6/BUG-41: the dim overlay + its debug Text live in `ScrollDimOverlay`, the sole
             // observer of `dimModel` — see that type's doc comment for why.
-            ScrollDimOverlay(model: dimModel, trailerActive: trailerLayerVisible, glassFlat: chipGlassFlat)
+            // Steven's fork (Apple TV style): frosted bottom, then the whole backdrop once scrolled.
+            if appleStyle {
+                DetailFrostLayer(model: dimModel)
+            }
+            ScrollDimOverlay(model: dimModel, trailerActive: trailerLayerVisible, glassFlat: chipGlassFlat,
+                             visibleScale: appleStyle ? DetailAppleStyle.dimScale : 1)
             // FEAT-32: the hero dims to black under the fading chrome before the cover presents, so
             // the trailer cuts in from black. Cleared with no animation on return (hard cut to the
             // still, as in Nuvio), the settle above does the rest.
@@ -811,7 +877,9 @@ struct DetailView: View {
                 if detailLayout == .cinematic, !DetailBug153Knobs.noCompactLogo {
                     DetailCompactLogo(title: title, logoUrl: logoUrl, model: dimModel,
                                       inRows: focusedRow != nil && bridgePhase == .idle,
-                                      reduceMotion: reduceMotion)
+                                      reduceMotion: reduceMotion,
+                                      followsFirstRow: appleStyle,
+                                      lift: logoLift)
                 }
             }
             // BUG-96/BUG-99: a focus change is decided by DIRECTION first — see
@@ -917,6 +985,18 @@ struct DetailView: View {
                     >= heroHeight + geo.contentInsets.top + DetailCompactLogo.heroClearance
             }, action: { _, gone in
                 dimModel.heroGone = gone
+            })
+            // Steven's fork (Apple TV style): the compact logo rests above the first row (whose top
+            // rests at `DetailRowAnchor.screenRest` after the hero exit) and rides up with it once
+            // the page scrolls past that rest. 0 while the row is at or below its rest; clamped once
+            // the logo is off screen, and rounded, so the action stops firing (the BUG-41 rule).
+            .onScrollGeometryChange(for: CGFloat.self, of: { [followsRow = appleStyle,
+                                                               firstRowTop = detailRowOffsets.values.min()] geo in
+                guard followsRow, let firstRowTop else { return 0 }
+                let screenTop = firstRowTop - geo.contentOffset.y
+                return DetailLogoLiftModel.lift(firstRowScreenTop: screenTop)
+            }, action: { _, lift in
+                if logoLift.value != lift { logoLift.value = lift }
             })
             // UX-6: final darkening value computed here (not in `action:`) so saturated scrolling
             // stops firing state updates once fully dark.
@@ -1774,10 +1854,16 @@ struct DetailView: View {
             onOpenSynopsis: {
                 userInteracted = true
                 withdrawTrailerBridgeIfLeaving()
-            }
+            },
+            synopsisBeside: appleStyle
         ) {
             actionRow
         }
+        // Steven's fork (Apple TV style): the hero text fades out while focus is in the rows and
+        // back in on the way up. Opacity only, so focus and layout are untouched.
+        .opacity(appleStyle && focusedRow != nil ? 0 : 1)
+        .animation(reduceMotion ? nil : .easeInOut(duration: DetailAppleStyle.heroFade),
+                   value: appleStyle && focusedRow != nil)
         .focused($heroHasFocus)
         // BUG-187: the Cinematic teaser is in the hero but not in `heroFocus`; forget the card too.
         .onChange(of: heroHasFocus) { _, inHero in if inHero { focusMemory.clear() } }

@@ -13,6 +13,8 @@ struct DetailPageSettingsPane: View {
 
     @AppStorage(DetailSettingsKeys.layout) private var layoutRaw = DetailLayout.cinematic.rawValue
     @AppStorage("detail_action_icons_only") private var iconOnlyButtons = false
+    /// Steven's fork: see `DetailAppleStyle`. Default ON, Cinematic only.
+    @AppStorage(DetailAppleStyle.defaultsKey) private var appleStyle = true
     @AppStorage("detail_poster_backdrop") private var posterBackdrop = true
     @AppStorage("detail_trailer_autoplay") private var trailerAutoplay = true
     @AppStorage("detail_trailer_background") private var trailerBackground = true
@@ -72,6 +74,15 @@ struct DetailPageSettingsPane: View {
                     descriptionID: .detailLayout,
                     label: Self.layoutLabel
                 )
+                if DetailLayout.resolve(layoutRaw) == .cinematic {
+                    SettingsToggleRow(
+                        title: String(localized: "Apple TV Style"),
+                        subtitle: appleStyle
+                            ? String(localized: "Synopsis beside the buttons, frosted backdrop, title logo above the rows")
+                            : String(localized: "The original Cinematic page"),
+                        isOn: $appleStyle
+                    )
+                }
                 SettingsToggleRow(
                     title: String(localized: "Icon-Only Detail Buttons"),
                     subtitle: String(localized: "Buttons show icons only"),
