@@ -61,6 +61,9 @@ struct HomeScreenSettingsPane: View {
     /// Steven's fork: mirrors the Home rows' `FocusLeadsRow.defaultsKey`. Default ON. Local-only.
     @AppStorage(FocusLeadsRow.defaultsKey) private var focusLeadsRow = true
 
+    /// Steven's fork: mirrors `StageStripHome`'s `StageInfoBelow.defaultsKey`. Default OFF.
+    @AppStorage(StageInfoBelow.defaultsKey) private var stageInfoBelow = false
+
     /// FEAT-25: mirrors HomeView's `hero_trailer_autoplay` key — the hero plays its own trailer
     /// with no focus required. Default OFF. Local-only, not synced.
     @AppStorage("hero_trailer_autoplay") private var heroTrailerAutoplay = false
@@ -118,6 +121,15 @@ struct HomeScreenSettingsPane: View {
                     ? String(localized: "The row slides so the selected title is always first, like wako or Netflix")
                     : String(localized: "Rows scroll only as far as needed to show the selected title"),
                 isOn: $focusLeadsRow
+            )
+
+            // Steven's fork: see `StageInfoBelow` (Stage layout only).
+            SettingsToggleRow(
+                title: String(localized: "Info Below the Poster"),
+                subtitle: stageInfoBelow
+                    ? String(localized: "Year, genres and synopsis under the selected title, like wako (Stage layout)")
+                    : String(localized: "Year, genres and synopsis at the top of the screen"),
+                isOn: $stageInfoBelow
             )
 
             if model.catalogs.isEmpty {

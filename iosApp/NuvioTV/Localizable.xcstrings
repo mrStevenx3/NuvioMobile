@@ -21067,6 +21067,16 @@
         }
       }
     },
+    "Info Below the Poster": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infos sous l’affiche"
+          }
+        }
+      }
+    },
     "Install": {
       "localizations": {
         "de": {
@@ -50125,6 +50135,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Năm"
+          }
+        }
+      }
+    },
+    "Year, genres and synopsis at the top of the screen": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Année, genres et synopsis en haut de l’écran"
+          }
+        }
+      }
+    },
+    "Year, genres and synopsis under the selected title, like wako (Stage layout)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Année, genres et synopsis sous le titre sélectionné, comme sur wako (disposition Stage)"
           }
         }
       }

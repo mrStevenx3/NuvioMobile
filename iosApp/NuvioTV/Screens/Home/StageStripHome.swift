@@ -73,6 +73,8 @@ struct StageStripHome: View {
     /// off) gates the headings' add-on name and the folder previews' "name · N sources" line.
     @AppStorage(HeadingDetailsSetting.defaultsKey) private var catalogDetailsInHeadings = HeadingDetailsSetting.defaultValue
     @AppStorage("home_upcoming_row_enabled") private var upcomingRowEnabled = true
+    /// Steven's fork: see `StageInfoBelow`.
+    @AppStorage(StageInfoBelow.defaultsKey) private var infoBelow = false
     @AppStorage("inline_trailers_enabled") private var inlineTrailersEnabled = false
     @AppStorage("trailer_playback_location") private var trailerPlaybackLocation = "poster"
 
@@ -190,7 +192,8 @@ struct StageStripHome: View {
     // MARK: Geometry
 
     private var geometry: StripGeometry {
-        StripGeometry.make(.live(style: posterStyle, noZoom: noZoomOnFocus, leadingInset: railLeadingInset))
+        StripGeometry.make(.live(style: posterStyle, noZoom: noZoomOnFocus, leadingInset: railLeadingInset,
+                                 infoBelow: infoBelow))
     }
 
     // MARK: Rows

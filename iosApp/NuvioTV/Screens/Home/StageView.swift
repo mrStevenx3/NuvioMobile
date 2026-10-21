@@ -251,6 +251,7 @@ struct StageTextBlock: View {
                 // rows only), so a folder's collection title is not printed twice.
                 let copy = StageCopy.make(item: shown.item, progress: progressLookup?(shown.item),
                                           rowHeading: copySource.rowHeading(for: shown.item))
+                ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: StripGeometry.slotGap) {
                     HeroLogo(item: shown.item, image: shown.logo, maxHeight: geometry.logoSlot, ink: shown.logoInk)
                         .frame(height: geometry.logoSlot, alignment: logoAlignment)
@@ -264,6 +265,7 @@ struct StageTextBlock: View {
                         .animation(reduceMotion ? nil : .easeOut(duration: StageStripTuning.pageSeconds),
                                    value: hidesLogo)
 
+                    if !geometry.infoBelow {
                     Text(copy.meta)
                         .font(Theme.Font.metaStrong)
                         .foregroundStyle(Theme.Palette.textPrimary.opacity(0.9))
@@ -280,8 +282,33 @@ struct StageTextBlock: View {
                         // A late synopsis (the one gap-fill allowed after a commit) lands with no
                         // motion: the slot is fixed, so there is nothing to animate but the text.
                         .animation(nil, value: copy.synopsis)
+                    }
                 }
                 .frame(width: Theme.Size.heroInfoPanelWidth, alignment: .leading)
+
+                // Steven's fork (`StageInfoBelow`): the meta line and synopsis in the band under
+                // the focused row (`StripGeometry.infoBandTop`), like wako. Same swap fade as the
+                // logo, since both live under the same `.id`.
+                if geometry.infoBelow {
+                    VStack(alignment: .leading, spacing: StripGeometry.slotGap) {
+                        Text(copy.meta)
+                            .font(Theme.Font.metaStrong)
+                            .foregroundStyle(Theme.Palette.textSecondary)
+                            .lineLimit(1)
+                            .frame(height: StripGeometry.metaSlot, alignment: .leading)
+                        Text(copy.synopsis)
+                            .font(Theme.Font.synopsis)
+                            .foregroundStyle(Theme.Palette.textPrimary.opacity(0.9))
+                            .lineLimit(StageInfoBelow.synopsisLines)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .animation(nil, value: copy.synopsis)
+                    }
+                    .frame(width: Theme.Size.heroInfoPanelWidth, alignment: .leading)
+                    .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
+                    .offset(y: geometry.infoBandTop - geometry.stageBlockTop)
+                }
+                }
                 #if DEBUG
                 // The "never two titles at once" oracle (`debug_stage … maxLive=`), counted from
                 // INSIDE the `.id` like Classic's `hero_info`.

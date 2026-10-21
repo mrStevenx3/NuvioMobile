@@ -34,6 +34,9 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         var screenHeight: CGFloat
         /// `\.railLeadingInset` (R1): 36 with the rail Always Visible, else 0.
         var leadingInset: CGFloat
+        /// Steven's fork (`StageInfoBelow`): the focused title's meta line and synopsis draw under
+        /// its row instead of on the stage, so every row reserves `infoBand` below its shelf.
+        var infoBelow: Bool
 
         /// The caption and synopsis defaults are the SYSTEM font's numbers, not the live metrics:
         /// those are main-actor state, and a nonisolated initializer's default arguments may not
@@ -47,7 +50,8 @@ nonisolated struct StripGeometry: Equatable, Sendable {
              folderCaptionHeight: CGFloat = StripGeometry.systemCaptionLineHeight,
              synopsisLineHeight: CGFloat = StripGeometry.systemSynopsisLineHeight,
              screenHeight: CGFloat = StripGeometry.defaultScreenHeight,
-             leadingInset: CGFloat = 0) {
+             leadingInset: CGFloat = 0,
+             infoBelow: Bool = false) {
             self.posterHeight = posterHeight
             self.posterWidth = posterWidth
             self.titlesShown = titlesShown
@@ -58,6 +62,7 @@ nonisolated struct StripGeometry: Equatable, Sendable {
             self.synopsisLineHeight = synopsisLineHeight
             self.screenHeight = screenHeight
             self.leadingInset = leadingInset
+            self.infoBelow = infoBelow
         }
     }
 
@@ -92,6 +97,12 @@ nonisolated struct StripGeometry: Equatable, Sendable {
     let requestedPosterHeight: CGFloat
     /// The screen height the geometry was computed against (the art mask's denominator).
     let screenHeight: CGFloat
+    /// Steven's fork (`StageInfoBelow`): the band under each row that holds the focused title's
+    /// meta line and synopsis, included in `rowHeight`. 0 when the info stays on the stage.
+    var infoBand: CGFloat = 0
+    var infoBelow: Bool { infoBand > 0 }
+    /// Where the info band starts, measured from the top of the screen.
+    var infoBandTop: CGFloat { stageHeight + focusLift + rowHeight - infoBand }
 
     /// S1: the stage block's leading edge (the same inset the rows use).
     var stageBlockLeading: CGFloat { contentLeading }
@@ -140,7 +151,8 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let peek = pixelCeil(i.titleHeight + peekGap)
         let requestedRow = rowHeight(i, posterHeight: i.posterHeight)
         let requestedStage = i.screenHeight - (requestedRow + 2 * lift + peek)
-        let fits = requestedStage >= stageFloor
+        let floor = i.infoBelow ? StageInfoBelow.stageFloor : stageFloor
+        let fits = requestedStage >= floor
 
         var layoutPoster = i.posterHeight
         var row = requestedRow
@@ -148,14 +160,14 @@ nonisolated struct StripGeometry: Equatable, Sendable {
             // #23: every poster-dependent row is the poster height plus a constant, so the largest
             // poster that leaves the stage at the floor is one subtraction. `min` absorbs float
             // noise in the re-derived row so the stage can never land a half point under the floor.
-            let budget = i.screenHeight - stageFloor - 2 * lift - peek
+            let budget = i.screenHeight - floor - 2 * lift - peek
             layoutPoster = max(1, budget - dominantConstant(i))
             row = min(rowHeight(i, posterHeight: layoutPoster), budget)
         }
 
         let page = row + 2 * lift
         let strip = page + peek
-        let stage = max(stageFloor, i.screenHeight - strip)
+        let stage = max(floor, i.screenHeight - strip)
         let logo = stage < compactLogoBelowStage ? logoSlotCompact : logoSlotFull
         let synopsis = stage - stageBlockTopInset - logo - slotGap - metaSlot - slotGap - stageBottomGap
 
@@ -173,7 +185,8 @@ nonisolated struct StripGeometry: Equatable, Sendable {
                              fits: fits,
                              layoutPosterHeight: layoutPoster,
                              requestedPosterHeight: i.posterHeight,
-                             screenHeight: i.screenHeight)
+                             screenHeight: i.screenHeight,
+                             infoBand: i.infoBelow ? infoBand(i) : 0)
     }
 
     /// `CatalogRowView` without pinned reaches: heading, the strip's heading gap (`headingGap`,
@@ -265,7 +278,14 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let collection = collectionRowHeightMax(posterHeight: posterHeight,
                                                 titleHeight: i.titleHeight,
                                                 captionLine: i.folderCaptionHeight)
-        return pixelCeil(max(catalog, collection))
+        return pixelCeil(max(catalog, collection) + (i.infoBelow ? infoBand(i) : 0))
+    }
+
+    /// Steven's fork (`StageInfoBelow`): one meta line, a gap and `StageInfoBelow.synopsisLines`
+    /// synopsis lines, plus a bottom gap before the next row's heading.
+    private static func infoBand(_ i: Inputs) -> CGFloat {
+        pixelCeil(metaSlot + slotGap + CGFloat(StageInfoBelow.synopsisLines) * i.synopsisLineHeight
+                  + StageInfoBelow.bottomGap)
     }
 
     /// The constant part of the tallest POSTER-DEPENDENT row type. Landscape catalog rows do not
@@ -274,8 +294,9 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let collection = collectionRowHeightMax(posterHeight: 0,
                                                 titleHeight: i.titleHeight,
                                                 captionLine: i.folderCaptionHeight)
-        guard !i.landscapeCatalogRows else { return collection }
-        return max(collection, catalogRowHeight(art: 0, titles: i.titlesShown, titleHeight: i.titleHeight))
+        let band = i.infoBelow ? infoBand(i) : 0
+        guard !i.landscapeCatalogRows else { return collection + band }
+        return max(collection, catalogRowHeight(art: 0, titles: i.titlesShown, titleHeight: i.titleHeight)) + band
     }
 }
 
@@ -284,7 +305,8 @@ extension StripGeometry.Inputs {
     /// follow the Open Sans choice and Larger Text). The folder Rows page (W2-B) builds its geometry
     /// the same way, passing its own `\.railLeadingInset`.
     @MainActor
-    static func live(style: PosterStyle, noZoom: Bool, leadingInset: CGFloat) -> StripGeometry.Inputs {
+    static func live(style: PosterStyle, noZoom: Bool, leadingInset: CGFloat,
+                     infoBelow: Bool = false) -> StripGeometry.Inputs {
         StripGeometry.Inputs(posterHeight: style.height,
                              posterWidth: style.width,
                              titlesShown: style.showTitle,
@@ -295,7 +317,8 @@ extension StripGeometry.Inputs {
                              titleHeight: Theme.Font.sectionTitleLineHeight,
                              folderCaptionHeight: Theme.Font.uiFont(for: .caption2).lineHeight.rounded(.up),
                              synopsisLineHeight: Theme.Font.synopsisLineHeight,
-                             leadingInset: leadingInset)
+                             leadingInset: leadingInset,
+                             infoBelow: infoBelow)
     }
 }
 
@@ -441,4 +464,15 @@ nonisolated enum StageStripTuning {
         guard value > 0 else { return nil }
         return min(max(value, range.lowerBound), range.upperBound)
     }
+}
+
+/// Steven's fork: Stage Home's "Info Below the Poster" option (Settings → Home Screen, off by
+/// default), like wako: the focused title's meta line and synopsis draw in a band under its row
+/// rather than on the stage, which then shows only the artwork (and the logo).
+nonisolated enum StageInfoBelow {
+    static let defaultsKey = "home_stage_info_below"
+    static let synopsisLines = 3
+    static let bottomGap: CGFloat = 16
+    /// The stage can be shorter in this mode: it holds no text block any more.
+    static let stageFloor: CGFloat = 300
 }
