@@ -151,8 +151,8 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let peek = pixelCeil(i.titleHeight + peekGap)
         let requestedRow = rowHeight(i, posterHeight: i.posterHeight)
         let requestedStage = i.screenHeight - (requestedRow + 2 * lift + peek)
-        let floor = i.infoBelow ? StageInfoBelow.stageFloor : stageFloor
-        let fits = requestedStage >= floor
+        let minStage = i.infoBelow ? StageInfoBelow.stageFloor : stageFloor
+        let fits = requestedStage >= minStage
 
         var layoutPoster = i.posterHeight
         var row = requestedRow
@@ -160,14 +160,14 @@ nonisolated struct StripGeometry: Equatable, Sendable {
             // #23: every poster-dependent row is the poster height plus a constant, so the largest
             // poster that leaves the stage at the floor is one subtraction. `min` absorbs float
             // noise in the re-derived row so the stage can never land a half point under the floor.
-            let budget = i.screenHeight - floor - 2 * lift - peek
+            let budget = i.screenHeight - minStage - 2 * lift - peek
             layoutPoster = max(1, budget - dominantConstant(i))
             row = min(rowHeight(i, posterHeight: layoutPoster), budget)
         }
 
         let page = row + 2 * lift
         let strip = page + peek
-        let stage = max(floor, i.screenHeight - strip)
+        let stage = max(minStage, i.screenHeight - strip)
         let logo = stage < compactLogoBelowStage ? logoSlotCompact : logoSlotFull
         let synopsis = stage - stageBlockTopInset - logo - slotGap - metaSlot - slotGap - stageBottomGap
 
@@ -186,7 +186,7 @@ nonisolated struct StripGeometry: Equatable, Sendable {
                              layoutPosterHeight: layoutPoster,
                              requestedPosterHeight: i.posterHeight,
                              screenHeight: i.screenHeight,
-                             infoBand: i.infoBelow ? infoBand(i) : 0)
+                             infoBand: i.infoBelow ? infoBandHeight(i) : 0)
     }
 
     /// `CatalogRowView` without pinned reaches: heading, the strip's heading gap (`headingGap`,
@@ -278,12 +278,12 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let collection = collectionRowHeightMax(posterHeight: posterHeight,
                                                 titleHeight: i.titleHeight,
                                                 captionLine: i.folderCaptionHeight)
-        return pixelCeil(max(catalog, collection) + (i.infoBelow ? infoBand(i) : 0))
+        return pixelCeil(max(catalog, collection) + (i.infoBelow ? infoBandHeight(i) : 0))
     }
 
     /// Steven's fork (`StageInfoBelow`): one meta line, a gap and `StageInfoBelow.synopsisLines`
     /// synopsis lines, plus a bottom gap before the next row's heading.
-    private static func infoBand(_ i: Inputs) -> CGFloat {
+    private static func infoBandHeight(_ i: Inputs) -> CGFloat {
         pixelCeil(metaSlot + slotGap + CGFloat(StageInfoBelow.synopsisLines) * i.synopsisLineHeight
                   + StageInfoBelow.bottomGap)
     }
@@ -294,7 +294,7 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let collection = collectionRowHeightMax(posterHeight: 0,
                                                 titleHeight: i.titleHeight,
                                                 captionLine: i.folderCaptionHeight)
-        let band = i.infoBelow ? infoBand(i) : 0
+        let band = i.infoBelow ? infoBandHeight(i) : 0
         guard !i.landscapeCatalogRows else { return collection + band }
         return max(collection, catalogRowHeight(art: 0, titles: i.titlesShown, titleHeight: i.titleHeight)) + band
     }

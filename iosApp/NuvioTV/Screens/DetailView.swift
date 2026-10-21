@@ -242,8 +242,8 @@ final class DetailLogoLiftModel: ObservableObject {
     /// The logo's offset for a first row whose top sits `firstRowScreenTop` points from the top of
     /// the screen: 0 at or below the hero-exit rest (`DetailRowAnchor.screenRest`), negative as the
     /// row climbs past it, clamped at -240 (the logo is long gone by then) and rounded to 1 pt.
-    static func lift(firstRowScreenTop: CGFloat) -> CGFloat {
-        let raw = min(0, firstRowScreenTop - DetailRowAnchor.screenRest)
+    nonisolated static func lift(firstRowScreenTop: CGFloat, rest: CGFloat) -> CGFloat {
+        let raw = min(0, firstRowScreenTop - rest)
         return max(-240, raw).rounded()
     }
 }
@@ -991,10 +991,11 @@ struct DetailView: View {
             // the page scrolls past that rest. 0 while the row is at or below its rest; clamped once
             // the logo is off screen, and rounded, so the action stops firing (the BUG-41 rule).
             .onScrollGeometryChange(for: CGFloat.self, of: { [followsRow = appleStyle,
-                                                               firstRowTop = detailRowOffsets.values.min()] geo in
+                                                               firstRowTop = detailRowOffsets.values.min(),
+                                                               rest = DetailRowAnchor.screenRest] geo in
                 guard followsRow, let firstRowTop else { return 0 }
                 let screenTop = firstRowTop - geo.contentOffset.y
-                return DetailLogoLiftModel.lift(firstRowScreenTop: screenTop)
+                return DetailLogoLiftModel.lift(firstRowScreenTop: screenTop, rest: rest)
             }, action: { _, lift in
                 if logoLift.value != lift { logoLift.value = lift }
             })
