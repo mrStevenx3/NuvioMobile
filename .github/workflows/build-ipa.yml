@@ -62,6 +62,35 @@ jobs:
           xcrun --sdk appletvos --show-sdk-version
           java -version
 
+      # Steven's fork: the service keys live in this repo's Actions secrets (Settings > Secrets
+      # and variables > Actions), never in the code. They go into local.properties, which the
+      # shared module's generateSharedRuntimeConfigs task reads. Missing secrets stay blank (the
+      # app then runs those features off / local-only).
+      - name: Write local.properties from secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NUVIO_SUPABASE_FALLBACK_URL: ${{ secrets.NUVIO_SUPABASE_FALLBACK_URL }}
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          MDBLIST_CLIENT_ID: ${{ secrets.MDBLIST_CLIENT_ID }}
+          PREMIUMIZE_CLIENT_ID: ${{ secrets.PREMIUMIZE_CLIENT_ID }}
+          INTRODB_API_URL: ${{ secrets.INTRODB_API_URL }}
+          IMDB_RATINGS_API_BASE_URL: ${{ secrets.IMDB_RATINGS_API_BASE_URL }}
+          IMDB_TAPFRAME_API_BASE_URL: ${{ secrets.IMDB_TAPFRAME_API_BASE_URL }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          : > local.properties
+          set_count=0
+          for k in SUPABASE_URL SUPABASE_ANON_KEY NUVIO_SUPABASE_FALLBACK_URL TRAKT_CLIENT_ID \
+                   TRAKT_CLIENT_SECRET SIMKL_CLIENT_ID MDBLIST_CLIENT_ID PREMIUMIZE_CLIENT_ID \
+                   INTRODB_API_URL IMDB_RATINGS_API_BASE_URL IMDB_TAPFRAME_API_BASE_URL TMDB_API_KEY; do
+            v="${!k}"
+            if [ -n "$v" ]; then printf '%s=%s\n' "$k" "$v" >> local.properties; set_count=$((set_count+1)); fi
+          done
+          echo "::notice::local.properties: $set_count of 12 keys set (names only, values are masked)"
+
       # Same pinned scaffolding checkout as tvos-sim-build.yml: :shared's tvOS
       # cinterop needs the patched quickjs-kt 1.0.5-tvos in mavenLocal.
       - uses: actions/checkout@v4
@@ -163,5 +192,5 @@ jobs:
         with:
           name: NuvioTV-ipa
           path: out/NuvioTV.ipa
-          retention-days: 14
+          retention-days: 1
           compression-level: 0
