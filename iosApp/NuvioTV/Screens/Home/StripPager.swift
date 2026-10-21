@@ -582,7 +582,10 @@ struct StripPager<Row: View>: View {
     /// and below it (BUG-191: the feather's 24 with No Zoom), never taller than the fixed page
     /// (`StripGeometry.fitPageHeight`). An unmeasured row keeps the fixed page.
     private func fitPageHeight(_ key: String, page: CGFloat) -> CGFloat {
-        guard StageStripTuning.fitRows, let measured = fitHeights[key], measured > 0 else { return page }
+        // Steven's fork (`StageInfoBelow`): the info band is drawn at a fixed y under the row
+        // (`StripGeometry.infoBandTop`), so every page keeps the fixed height that reserves it.
+        guard StageStripTuning.fitRows, !geometry.infoBelow,
+              let measured = fitHeights[key], measured > 0 else { return page }
         return StripGeometry.fitPageHeight(measured: measured, page: page, focusLift: geometry.focusLift)
     }
 

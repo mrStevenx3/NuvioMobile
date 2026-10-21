@@ -180,10 +180,17 @@ struct DetailCinematicHero<Actions: View>: View {
                     if ratingsGateOn { ratingsSlot }
                     if synopsisSlotVisible && !synopsisBeside { synopsisSlot }
                 }
-                actions()
+                // Steven's fork (device pass 1): beside the synopsis the row was squeezed and
+                // Play wrapped onto four lines; it now always keeps its natural width.
+                if synopsisBeside {
+                    actions().fixedSize(horizontal: true, vertical: false)
+                } else {
+                    actions()
+                }
             }
-            .frame(maxWidth: synopsisBeside ? DetailAppleStyle.textColumnMaxWidth : DetailCinematicLayout.textColumnMaxWidth,
+            .frame(maxWidth: synopsisBeside ? nil : DetailCinematicLayout.textColumnMaxWidth,
                    alignment: .leading)
+            .fixedSize(horizontal: synopsisBeside, vertical: false)
             .layoutPriority(1)
             if synopsisBeside {
                 if synopsisSlotVisible, let overview, !overview.isEmpty {

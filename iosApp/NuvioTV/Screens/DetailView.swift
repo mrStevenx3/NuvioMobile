@@ -521,6 +521,10 @@ struct DetailView: View {
     /// Steven's fork: how far the compact logo has ridden up with the first row (see
     /// `DetailLogoLiftModel`). Observed only by `DetailCompactLogo`.
     @StateObject private var logoLift = DetailLogoLiftModel()
+    /// Steven's fork (device pass 1): the row the hero exit anchored (the first FOCUSABLE row, which
+    /// can sit below non-focusable ones such as Parental Guide). The logo rides with this row; with
+    /// the topmost row it was already scrolled away on the first Down.
+    @State private var logoAnchorRow: DetailRowID?
     /// FEAT-35 section toggle "Ratings" (closes FEAT-28): the Cinematic ratings strip and the meta
     /// line's IMDb ★ (D10). Classic's chips are untouched.
     @AppStorage(DetailSettingsKeys.sectionRatings) private var sectionRatings = true
@@ -991,7 +995,7 @@ struct DetailView: View {
             // the page scrolls past that rest. 0 while the row is at or below its rest; clamped once
             // the logo is off screen, and rounded, so the action stops firing (the BUG-41 rule).
             .onScrollGeometryChange(for: CGFloat.self, of: { [followsRow = appleStyle,
-                                                               firstRowTop = detailRowOffsets.values.min(),
+                                                               firstRowTop = logoAnchorRow.flatMap { detailRowOffsets[$0] } ?? detailRowOffsets.values.min(),
                                                                rest = DetailRowAnchor.screenRest] geo in
                 guard followsRow, let firstRowTop else { return 0 }
                 let screenTop = firstRowTop - geo.contentOffset.y
@@ -2449,6 +2453,7 @@ struct DetailView: View {
            DetailRowAnchor.heroExit(old: old, new: row,
                                     pageAtTop: DetailRowAnchor.isAtTop(contentOffset: dimModel.lastContentOffset,
                                                                        contentInsetTop: dimModel.contentInsetTop)) {
+            if logoAnchorRow != row { logoAnchorRow = row }
             startBlendAnchor(row, fallbackNote: "blend-fallback+hero-exit", revealNote: "hero-exit")
             return
         }

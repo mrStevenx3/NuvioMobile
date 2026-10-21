@@ -45,11 +45,9 @@ nonisolated enum DetailLayout: String, CaseIterable {
 nonisolated enum DetailAppleStyle {
     static let defaultsKey = "detail_apple_style"
     static let synopsisLines = 2
-    /// The left column (logo, meta, buttons) is narrower so the synopsis has room beside it.
-    static let textColumnMaxWidth: CGFloat = 640
     /// The visible dim is scaled by this while frosted (the dim MODEL is unchanged, so the
     /// trailer's tear-down latch still fires at the same scroll depth).
-    static let dimScale: Double = 0.55
+    static let dimScale: Double = 0.75
     /// Where the bottom frost starts, as a fraction of the screen height from the top.
     static let bottomFrostStart: CGFloat = 0.55
     /// The frost reaches full strength once the dim reaches this.
