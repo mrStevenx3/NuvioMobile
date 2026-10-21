@@ -34,7 +34,14 @@ nonisolated enum NativeSubtitleStyle {
 
     /// `[a, r, g, b]`, each 0…1 (CMTextMarkup's ARGB array order).
     static func argbComponents(_ argb: Int64) -> [Double] {
-        [(argb >> 24) & 0xFF, (argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF].map { Double($0) / 255.0 }
+        // Steven's fork: split into typed steps; the one-line form timed out the type checker on
+        // the CI runner's Xcode ("unable to type-check this expression in reasonable time").
+        let a: Int64 = (argb >> 24) & 0xFF
+        let r: Int64 = (argb >> 16) & 0xFF
+        let g: Int64 = (argb >> 8) & 0xFF
+        let b: Int64 = argb & 0xFF
+        let channels: [Int64] = [a, r, g, b]
+        return channels.map { (c: Int64) -> Double in Double(c) / 255.0 }
     }
 
     /// Relative font size in percent, rounded, clamped to 65…222.

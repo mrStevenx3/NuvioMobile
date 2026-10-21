@@ -33,7 +33,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: actions/cache@v4
+      # restore + an always() save at the end, so a failed app build still keeps the
+      # Gradle/Konan and quickjs caches (the plain cache action only saves on success).
+      - uses: actions/cache/restore@v4
+        id: gradle-cache
         with:
           path: |
             ~/.gradle/caches
@@ -43,6 +46,15 @@ jobs:
           restore-keys: |
             gradle-konan-device-${{ runner.os }}-
             gradle-konan-${{ runner.os }}-
+
+      # Use the newest Xcode on the image (the upstream builds use Xcode 27.x), and say which
+      # one as a run annotation (the raw log is not reachable from the agent's sandbox).
+      - name: Select newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          NEWEST="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$NEWEST" ]; then sudo xcode-select -s "$NEWEST/Contents/Developer"; fi
+          echo "::notice::Xcode in use: $(xcodebuild -version | tr '\n' ' ') | available: $(ls -d /Applications/Xcode*.app | xargs -n1 basename | tr '\n' ' ')"
 
       - name: Toolchain versions
         run: |
@@ -59,7 +71,8 @@ jobs:
           path: outer-scaffolding
           sparse-checkout: scaffolding
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: quickjs-cache
         with:
           path: ~/.m2/repository/io/github/dokar3
           key: quickjs-tvos-${{ hashFiles('outer-scaffolding/scaffolding/quickjs-kt-tvos.patch', 'outer-scaffolding/scaffolding/build-quickjs-tvos.sh') }}
@@ -76,6 +89,23 @@ jobs:
       # error shows up in its own step instead of mid-xcodebuild.
       - name: Link shared Kotlin framework (tvOS device, Release)
         run: ./gradlew :shared:linkReleaseFrameworkTvosArm64 --no-daemon --stacktrace
+
+      - name: Save quickjs cache
+        if: always() && steps.quickjs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository/io/github/dokar3
+          key: ${{ steps.quickjs-cache.outputs.cache-primary-key }}
+
+      - name: Save Gradle/Konan cache
+        if: always() && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.konan
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
 
       - name: Build NuvioTV (tvOS device, Release, unsigned)
         run: |
