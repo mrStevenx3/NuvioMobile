@@ -102,7 +102,9 @@ nonisolated struct StripGeometry: Equatable, Sendable {
     var infoBand: CGFloat = 0
     var infoBelow: Bool { infoBand > 0 }
     /// Where the info band starts, measured from the top of the screen.
-    var infoBandTop: CGFloat { stageHeight + focusLift + rowHeight - infoBand }
+    /// Device pass 1: pulled up over the shelf's bottom padding (`lg` 24, leaving 8 pt), so the
+    /// text sits just under the posters like wako.
+    var infoBandTop: CGFloat { stageHeight + focusLift + rowHeight - infoBand - StageInfoBelow.pullUp }
 
     /// S1: the stage block's leading edge (the same inset the rows use).
     var stageBlockLeading: CGFloat { contentLeading }
@@ -473,6 +475,7 @@ nonisolated enum StageInfoBelow {
     static let defaultsKey = "home_stage_info_below"
     static let synopsisLines = 3
     static let bottomGap: CGFloat = 16
+    static let pullUp: CGFloat = 16
     /// The stage can be shorter in this mode: it holds no text block any more.
     static let stageFloor: CGFloat = 300
 }

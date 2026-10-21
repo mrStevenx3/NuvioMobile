@@ -1867,6 +1867,8 @@ struct DetailView: View {
         // Steven's fork (Apple TV style): the hero text fades out while focus is in the rows and
         // back in on the way up. Opacity only, so focus and layout are untouched.
         .opacity(appleStyle && focusedRow != nil ? 0 : 1)
+        // Steven's fork: the unfolded synopsis overlay draws over the rows that follow the hero.
+        .zIndex(appleStyle ? 1 : 0)
         .animation(reduceMotion ? nil : .easeInOut(duration: DetailAppleStyle.heroFade),
                    value: appleStyle && focusedRow != nil)
         .focused($heroHasFocus)
