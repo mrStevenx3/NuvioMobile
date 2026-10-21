@@ -105,6 +105,8 @@ extension EnvironmentValues {
 
 nonisolated enum FocusLeadsRow {
     static let defaultsKey = "home_focus_leads_row"
+    /// The gap between Home's catalog cards while this mode is on (Classic rows use 28).
+    static let cardGap: CGFloat = 14
     /// The glide that brings the focused card to the leading edge. Short enough to keep up with a
     /// held Right, long enough to read as the row sliding under a fixed selection.
     static let animation = Animation.easeOut(duration: 0.32)
@@ -5055,6 +5057,9 @@ struct CatalogRowView: View {
     private var focusLeads: Bool {
         homeRowFocusLeads && focusLeadsEnabled && !RowMorphScroll.useProxyFallback
     }
+    /// Steven's fork (device pass 1): Home's catalog rows sit closer together, like wako. Every
+    /// card-position computation in this row (scroll, morph, restore) reads the same value.
+    private var rowGap: CGFloat { focusLeads ? FocusLeadsRow.cardGap : Theme.Spacing.rowGap }
 
     /// BUG-29: an inline-trailer expansion widens its card in place without moving focus, so tvOS's
     /// automatic focus-driven scroll never fires — the row has to scroll itself, and Reduce Motion
@@ -5293,7 +5298,7 @@ struct CatalogRowView: View {
                     // card with Hide Titles ON is 16 pt taller; the See All tile on a shape-landscape
                     // row is shorter than the slot its neighbours reserve). Rows whose cards are all
                     // one height (Home's) lay out exactly as before.
-                    LazyHStack(alignment: .top, spacing: Theme.Spacing.rowGap) {
+                    LazyHStack(alignment: .top, spacing: rowGap) {
                         ForEach(section.items, id: \.id) { item in
                             Group {
                                 if let onSelect {
@@ -5401,7 +5406,7 @@ struct CatalogRowView: View {
                         if focusLeads {
                             Color.clear
                                 .frame(width: FocusLeadsRow.trailingRoom(expandedCardWidth: posterStyle.trailerCardWidth,
-                                                                         gap: Theme.Spacing.rowGap),
+                                                                         gap: rowGap),
                                        height: 1)
                                 .allowsHitTesting(false)
                                 .accessibilityHidden(true)
@@ -5693,7 +5698,7 @@ struct CatalogRowView: View {
                                        restingWidth: posterStyle.cardWidth,
                                        // Steven rc6 19:47Z: a shape-landscape card no longer grows.
                                        expandedWidth: posterStyle.trailerCardWidth,
-                                       gap: Theme.Spacing.rowGap,
+                                       gap: rowGap,
                                        visibleMinX: sample.paddedVisibleMinX,
                                        viewportWidth: sample.viewportWidth,
                                        contentWidth: sample.paddedContentWidth,
@@ -5781,8 +5786,8 @@ struct CatalogRowView: View {
         let cardWidth = posterStyle.cardWidth  // BUG-162: the row's real card width
         // Steven's fork: a remounted row puts its remembered card back on the leading edge.
         let offset = focusLeads
-            ? FocusLeadsRow.offset(index: index, cardWidth: cardWidth, gap: Theme.Spacing.rowGap, sample: sample)
-            : StripRowRestore.offset(index: index, cardWidth: cardWidth, gap: Theme.Spacing.rowGap, sample: sample)
+            ? FocusLeadsRow.offset(index: index, cardWidth: cardWidth, gap: rowGap, sample: sample)
+            : StripRowRestore.offset(index: index, cardWidth: cardWidth, gap: rowGap, sample: sample)
         guard let x = offset else { return }
         withTransaction(tx) { rowPosition.scrollTo(x: x) }
     }
@@ -5805,7 +5810,7 @@ struct CatalogRowView: View {
             return
         }
         guard let x = FocusLeadsRow.offset(index: index, cardWidth: posterStyle.cardWidth,
-                                           gap: Theme.Spacing.rowGap, sample: sample) else { return }
+                                           gap: rowGap, sample: sample) else { return }
         if reduceMotion {
             var tx = Transaction()
             tx.disablesAnimations = true
