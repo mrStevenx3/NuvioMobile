@@ -100,7 +100,9 @@ struct StageStripHome: View {
             // page background shows through.
             AmbientWashLayer(feed: stage.swap.washFeed)
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
-            StageView(controller: stage, geometry: geo, hidesLogo: singleStudiosCollection != nil,
+            // Steven: no title logo in the top-right corner on Orbit Home (the title sits under the row).
+            StageView(controller: stage, geometry: geo,
+                      hidesLogo: singleStudiosCollection != nil || (NavigationChrome.isOrbitBar() && infoBelow),
                       logoTopTrailing: true, plainArt: singleStudiosCollection != nil,
                       blurredArt: NavigationChrome.isOrbitBar() && infoBelow && singleStudiosCollection == nil
                           && !showsCollectionGrid)

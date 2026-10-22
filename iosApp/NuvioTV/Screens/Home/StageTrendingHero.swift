@@ -204,7 +204,9 @@ struct StageTrendingHeroRow: View {
         .focusSection()
         // Device pass (Steven: the hero's bottom showed above the rows after a Down): gone once
         // the strip pages past it.
-        .opacity(place.heroOnTop ? 1 : 0)
+        // 0.011, not 0: a fully transparent view is not focusable, and Up from the first row
+        // skipped the hero straight to the bar (Steven).
+        .opacity(place.heroOnTop ? 1 : 0.011)
         .animation(.easeOut(duration: 0.25), value: place.heroOnTop)
         // The page fits the hero (no info band under it).
         .preference(key: StripRowSkipsInfoBandKey.self, value: true)
