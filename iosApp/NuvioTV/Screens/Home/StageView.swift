@@ -40,6 +40,9 @@ struct StageView: View {
     /// Steven's fork (Studios page): the backdrop shown whole, without the wash fade, the scrim's
     /// mist or the right-hand shade — only a dark band at the bottom for the row and its logo.
     let plainArt: Bool
+    /// Steven's fork (Orbit Home): the sharp backdrop is gone; the whole screen is the shown title's
+    /// backdrop blurred and darkened (its colours, like wako), the title logo top-right on it.
+    let blurredArt: Bool
 
     init(controller: StageController,
          geometry: StripGeometry,
@@ -48,8 +51,10 @@ struct StageView: View {
          probeID: String = "debug_stage",
          logoAlignment: Alignment = .bottomLeading,
          logoTopTrailing: Bool = false,
-         plainArt: Bool = false) {
+         plainArt: Bool = false,
+         blurredArt: Bool = false) {
         self.plainArt = plainArt
+        self.blurredArt = blurredArt
         self.controller = controller
         self.geometry = geometry
         self.hidesLogoWhenDisplaying = hidesLogoWhenDisplaying
@@ -63,10 +68,14 @@ struct StageView: View {
         ZStack(alignment: .topLeading) {
             // The background trailer model is handed down on every host; only Home ever arms it
             // (`StageStripHome`), so on the folder page it stays idle and draws nothing.
-            StageArtLayer(swap: controller.swap, geometry: geometry, trailer: controller.bgTrailer, plain: plainArt)
+            if blurredArt {
+                StageBlurredArt(swap: controller.swap)
+            } else {
+                StageArtLayer(swap: controller.swap, geometry: geometry, trailer: controller.bgTrailer, plain: plainArt)
+            }
             // Steven's fork (wako pass 9): with the title logo top-right, the stage art's upper right
             // is shaded so the logo reads on any backdrop. Fixed, never animated.
-            if logoTopTrailing && geometry.infoBelow && !plainArt {
+            if logoTopTrailing && geometry.infoBelow && !plainArt && !blurredArt {
                 LinearGradient(stops: [
                     .init(color: .clear, location: StageInfoBelow.rightShadeStart),
                     .init(color: .black.opacity(StageInfoBelow.rightShadeOpacity), location: 1)
@@ -159,6 +168,57 @@ struct StageArtLayer: View {
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
+    }
+}
+
+/// Steven's fork (Orbit Home): the shown title's backdrop, downscaled, blurred once off the main
+/// thread (`DetailBackdropBlurRenderer`, the Detail page's frost) and darkened, full screen, cross-fading
+/// on a title change. Nothing is blurred per frame.
+struct StageBlurredArt: View {
+    @ObservedObject var swap: StageSwapDriver
+    @State private var blurred: UIImage?
+    @State private var shownIdentity = "-"
+
+    var body: some View {
+        let art = swap.output.art
+        ZStack {
+            Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255)
+            if let blurred {
+                Image(uiImage: blurred)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .id(shownIdentity)
+                    .transition(.opacity)
+            }
+            Color.black.opacity(0.35)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .ignoresSafeArea()
+        .animation(.easeInOut(duration: 0.45), value: shownIdentity)
+        .task(id: art?.identity ?? "-") {
+            guard let image = art?.backdrop, let cg = image.cgImage else { return }
+            let identity = art?.identity ?? "-"
+            let result = await Task.detached(priority: .utility) { () -> UIImage? in
+                guard let small = StageBlurredArt.downscale(cg, width: 640) else { return nil }
+                return DetailBackdropBlurRenderer.render(small)
+            }.value
+            guard !Task.isCancelled, let result else { return }
+            blurred = result
+            shownIdentity = identity
+        }
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+
+    nonisolated static func downscale(_ image: CGImage, width: Int) -> CGImage? {
+        let height = max(1, Int(Double(image.height) * Double(width) / Double(max(image.width, 1))))
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
+        context.interpolationQuality = .medium
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()
     }
 }
 

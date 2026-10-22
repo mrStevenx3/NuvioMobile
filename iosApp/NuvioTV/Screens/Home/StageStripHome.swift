@@ -97,7 +97,9 @@ struct StageStripHome: View {
             AmbientWashLayer(feed: stage.swap.washFeed)
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
             StageView(controller: stage, geometry: geo, hidesLogo: singleStudiosCollection != nil,
-                      logoTopTrailing: true, plainArt: singleStudiosCollection != nil)
+                      logoTopTrailing: true, plainArt: singleStudiosCollection != nil,
+                      blurredArt: NavigationChrome.isOrbitBar() && infoBelow && singleStudiosCollection == nil
+                          && !showsCollectionGrid)
             if showsCollectionGrid {
                 // Pass 8/9 (Steven): Plateformes sits on the Orbit icon's slate, whatever backdrop
                 // Nuvio has.

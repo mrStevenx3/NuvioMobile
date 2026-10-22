@@ -172,8 +172,12 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         }
 
         let page = row + 2 * lift
-        let strip = page + peek
-        let stage = max(minStage, i.screenHeight - strip)
+        // Steven's fork (Orbit Home, wako layout): the stage keeps only the bar and the title logo
+        // (top-right), so the rows start right under the bar and the strip takes the rest of the
+        // screen (the next rows show further down, as in wako).
+        let orbitCompact = i.infoBelow && NavigationChrome.isOrbitBar()
+        let strip = orbitCompact ? max(page + peek, i.screenHeight - StageInfoBelow.orbitStageHeight) : page + peek
+        let stage = orbitCompact ? i.screenHeight - strip : max(minStage, i.screenHeight - strip)
         let logo = stage < compactLogoBelowStage ? logoSlotCompact : logoSlotFull
         let synopsis = stage - stageBlockTopInset - logo - slotGap - metaSlot - slotGap - stageBottomGap
 
@@ -482,6 +486,8 @@ nonisolated enum StageInfoBelow {
     static let pullUp: CGFloat = 44
     /// The stage can be shorter in this mode: it holds no text block any more.
     static let stageFloor: CGFloat = 300
+    /// Steven's fork (Orbit Home): the stage's height above the first row's heading.
+    static let orbitStageHeight: CGFloat = 150
     /// Wako pass 6: the top-right stage logo's gap to the screen's right edge.
     static let logoTrailingMargin: CGFloat = 60
     /// Wako pass 10: the corner logo's top, level with the Orbit bar (38).

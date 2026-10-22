@@ -327,7 +327,8 @@ private struct WakoLeadFrameArt: View {
 nonisolated enum FocusLeadsRow {
     static let defaultsKey = "home_focus_leads_row"
     /// The gap between Home's catalog cards while this mode is on (Classic rows use 28).
-    static let cardGap: CGFloat = 14
+    /// Steven's fork (device pass, wako): tighter, 10 (was 14).
+    static let cardGap: CGFloat = 10
     /// Escape hatch, read once: `defaults write … debug.focusLeadsEngineScroll -bool YES` gives the
     /// focus engine its own row scroll back (the pre-device-pass-2 behaviour).
     static let engineScrolls = UserDefaults.standard.bool(forKey: "debug.focusLeadsEngineScroll")
