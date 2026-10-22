@@ -77,6 +77,14 @@ struct FolderRowsPage: View {
     /// logo's drawn width sets the bar's gap to the edge.
     @State private var folderLogoWidth: CGFloat = 0
 
+    /// Orbit bar: the first loaded row's first title of the current Films / Séries page.
+    private var orbitFirstItem: (row: String, item: MetaPreview)? {
+        for row in filteredRows {
+            if case .loaded = row.status, let item = row.section?.items.first { return (row.id, item) }
+        }
+        return nil
+    }
+
     /// The rows the filter keeps (all of them with no filter).
     private var filteredRows: [FolderStripRow] {
         CollectionTypeFilter.rows(model.stripRows, filter: typeFilter)
@@ -203,6 +211,13 @@ struct FolderRowsPage: View {
                !CollectionTypeFilter.rows(rows, filter: "series").isEmpty {
                 typeFilter = "series"
             }
+        }
+        .onChange(of: orbitFirstItem.map { "\($0.row):\($0.item.id)" } ?? "-", initial: true) { _, _ in
+            guard NavigationChrome.isOrbitBar(), let first = orbitFirstItem else { return }
+            if box.initialCard == nil {
+                stage.seed(first.item)
+            }
+            stage.report(first.item, source: first.row, prefetch: { [] })
         }
         .onChange(of: allRows) { _, rows in
             stage.memory.prune(keeping: Set(rows.map(\.id)))
@@ -367,6 +382,10 @@ struct FolderRowsPage: View {
     /// only (Wave H: the cover is not a stage fallback); the wash gets the cover as its fallback, so
     /// a backdrop-less folder still washes in its own colours.
     private func seedStage() {
+        // Steven (Orbit bar): the cursor starts on the bar, so no card lands on the stage; the
+        // folder's own Nuvio art and name ("Services de Streaming") showed instead. The stage
+        // takes the page's first title (`orbitFirstItem`), never the folder.
+        if NavigationChrome.isOrbitBar() { return }
         guard let preview = folderPreview else { return }
         stage.seed(preview, washFallback: FolderRowsPlan.nonBlank(model.folder?.coverImageUrl))
     }

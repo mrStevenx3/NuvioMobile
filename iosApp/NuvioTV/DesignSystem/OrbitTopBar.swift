@@ -464,9 +464,12 @@ struct CollectionFilterBar: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
         // Once: a pop back from Detail keeps its own restore.
+        // Steven: the engine's first pick (Search, top-left) flashed before Films.
+        .defaultFocus($focused, isSelected(.series) && !isSelected(.films) ? .series : .films, priority: .userInitiated)
         .onAppear {
             guard !placedEntryFocus else { return }
             placedEntryFocus = true
+            focused = isSelected(.series) && !isSelected(.films) ? .series : .films
             OrbitBarLaunchFocus.place {
                 let target: OrbitBarItem = isSelected(.series) && !isSelected(.films) ? .series : .films
                 if focused != target { focused = target }
