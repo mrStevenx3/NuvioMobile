@@ -27,7 +27,3 @@ local.properties (mêmes clés que les secrets), puis `./gradlew :shared:linkDeb
 et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADLE_OPTS=-Xmx4g.
 - Collections (accueil Stage, `FolderRowsPage`) : à l'ouverture, logo en grand sur fond noir puis glisse
   en haut à droite (`FolderStageLogoLayer`, réglages `FolderStageIntro`) ; plus de logo « docké » dans le stage.
-- Accueil (rangées « focus leads ») : carte sélectionnée en paysage d'office façon wako
-  (`InlineTrailerCardModel.leadsWithTile`) : tuile immédiate, reste paysage sans bande-annonce, logo dans la tuile,
-  l'ancienne carte se rétracte en douceur ; la bande-annonce démarre ensuite dans la tuile. Infos sous la carte :
-  réglage existant « Infos sous l'affiche » (`StageInfoBelow`).
