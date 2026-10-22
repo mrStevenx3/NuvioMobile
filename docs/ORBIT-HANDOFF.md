@@ -10,7 +10,7 @@ Build CI réussi avec Xcode 26.6 (macos-26). App : nom « Orbit », bundle com.m
   gap 14 pt, view-aligned + scrollTo(id:anchor:.leading) au runloop suivant.
 - Accueil Stage : « Infos sous l'affiche » (`StageInfoBelow`, StripGeometry/StageView/StripPager/StageSwapModel).
 - Détail Cinematic « Style Apple TV » (`DetailAppleStyle`, DetailCinematicHero/DetailView) : synopsis à droite
-  + chevron (déroulé en place), crédits en bas à droite, flou bas + frost, logo compact animé, pas de Guide parental.
+  + chevron (déroulé en place), crédits en bas à droite, flou bas + frost, logo compact animé. Guide parental : suit seulement son réglage (Réglages > Détail).
 - Fix CI : NativeSubtitleStyle (type-check), import SwiftUI.
 
 ## À faire (retours device de Steven)

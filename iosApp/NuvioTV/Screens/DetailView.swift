@@ -829,8 +829,9 @@ struct DetailView: View {
                             companyLogosRow
                                 .detailRowAnchored(.logos, focusedRow: $focusedRow, offsets: $detailRowOffsets)
                         }
-                        // Steven's fork (device pass 3): no Parental Guide in Apple TV style.
-                        if sectionParentalGuide && !appleStyle {
+                        // Parental Guide follows only its own Settings toggle (Détail > Parental
+                        // Guide), in every layout — Apple TV style no longer forces it off.
+                        if sectionParentalGuide {
                             parentalGuideSection
                                 // Steven's fork (device pass 2): in Apple TV style the guide belongs
                                 // to the hero view; it sat under the compact logo once in the rows.
