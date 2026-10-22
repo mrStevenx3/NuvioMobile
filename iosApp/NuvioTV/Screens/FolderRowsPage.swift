@@ -196,6 +196,14 @@ struct FolderRowsPage: View {
                   initial: true) { _, key in
             requestInitialFocus(key)
         }
+        // Pass 4: a series-only collection does not open on an empty Films page.
+        .onChange(of: model.stripRows.map(\.id), initial: true) { _, _ in
+            let rows = model.stripRows
+            if typeFilter == "movie", !rows.isEmpty, CollectionTypeFilter.rows(rows, filter: "movie").isEmpty,
+               !CollectionTypeFilter.rows(rows, filter: "series").isEmpty {
+                typeFilter = "series"
+            }
+        }
         .onChange(of: allRows) { _, rows in
             stage.memory.prune(keeping: Set(rows.map(\.id)))
             refreshFocusDerived(rows: rows)
