@@ -317,9 +317,6 @@ struct StageTrendingHeroRow: View {
     @ViewBuilder
     private func info(_ item: MetaPreview) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Les incontournables")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.85))
             if let logo = item.logo, !logo.isEmpty {
                 CachedAsyncImage(string: logo, contentMode: .fit, decodeSize: .points(width: 560, height: 170))
                     .frame(maxWidth: 560, maxHeight: 170, alignment: .bottomLeading)

@@ -161,6 +161,13 @@ struct WakoLeadFrame: View {
                     .id("see-all")
                     .transition(.opacity)
             }
+            if item != nil {
+                // Pass 17: a permanent opaque pane under the cross-fade, so the row never shows
+                // through the frame mid-fade (both titles half transparent) or while art loads.
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255))
+                    .frame(width: size.width, height: size.height)
+            }
             if let item {
                 WakoLeadFrameArt(item: item, size: size, cornerRadius: cornerRadius,
                                  playingURL: trailersEnabled && focused ? trailer.playingURL : nil,
@@ -168,7 +175,11 @@ struct WakoLeadFrame: View {
                                  onEnded: { trailer.playbackFinished() },
                                  focused: focused)
                     .id(item.id)
-                    .transition(.opacity)
+                    // Pass 17: the new title fades in OVER the old one, which leaves only once
+                    // covered (no dip through the pane between the two).
+                    .transition(.asymmetric(insertion: .opacity,
+                                            removal: .opacity.animation(.linear(duration: 0.05).delay(Self.fadeSeconds))))
+                    .zIndex(1)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
@@ -226,14 +237,16 @@ struct WakoCardPlacement: ViewModifier {
     /// The drawn offset (0, or `shift` for the cards after the frame), always animated with the row's
     /// glide, so Left and Right mirror each other (wako pass 13).
     @State private var offsetX: CGFloat = 0
-    /// Pass 16 (Steven: Left still not natural): on a Left the card leaving the frame waits in its
-    /// slot, hidden, while the card that held that slot slides away, then fades in on the cleared
-    /// slot (it faded in on top of the sliding card).
-    @State private var waitsForSlot = false
-    @State private var waitGeneration = 0
+    /// Pass 17 (Steven's video 01:18: a hole after the frame on every press). The frame is opaque
+    /// and drawn over the row, so a card simply slides UNDER it, fully drawn, like a card dealt
+    /// into a sleeve: on a Right the next card stays visible while it glides under the frame and
+    /// only hides once covered; on a Left the card leaving the frame comes out from under it,
+    /// visible at once. No fades and no held slots (each left a hole beside the frame).
+    @State private var coveringGlide = false
+    @State private var glideGeneration = 0
 
     private var opacity: Double {
-        if waitsForSlot { return WakoLeadFrame.hiddenOpacity }
+        if coveringGlide { return 1 }
         switch place {
         case .none, .after: return 1
         case .lead, .before: return WakoLeadFrame.hiddenOpacity
@@ -244,39 +257,37 @@ struct WakoCardPlacement: ViewModifier {
         content
             .offset(x: offsetX)
             .opacity(opacity)
-            // Pass 16 (Steven: a see-through poster while moving Right): a card going under the
-            // frame hides at once; it used to fade out over 0.4 s while sliding into the frame,
-            // half visible beside it. Only a card coming back fades (in).
-            .animation(reduceMotion || opacity < 1 ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds), value: opacity)
             .onChange(of: lead, initial: true) { oldLead, newLead in
                 let newPlace = WakoLeadFrame.place(index: index, lead: newLead)
+                let oldPlace = WakoLeadFrame.place(index: index, lead: oldLead)
                 let target: CGFloat = newPlace == .after ? shift : 0
                 var still = Transaction()
                 still.disablesAnimations = true
-                if waitsForSlot, newPlace != .after || oldLead != newLead { waitsForSlot = false }
                 if oldLead == newLead || reduceMotion {
+                    coveringGlide = false
                     if target != offsetX { withTransaction(still) { offsetX = target } }
-                } else if newPlace == .after, WakoLeadFrame.place(index: index, lead: oldLead) != .after,
-                          let oldLead, let newLead, newLead < oldLead {
-                    // Wako pass 15 (Steven, device video): on a Left the card leaving the frame no
-                    // longer slides out from under it; it appears in place, in its slot, fading in
-                    // (the row's glide is cancelled for it). Pass 11's hold-still, restored.
-                    withTransaction(still) {
-                        offsetX = target + CGFloat(oldLead - newLead) * step
-                        waitsForSlot = true
+                    return
+                }
+                // Right: a card that was showing (after the frame) glides under it before hiding.
+                if newPlace == .lead || newPlace == .before, oldPlace == .after || oldPlace == .none {
+                    withTransaction(still) { coveringGlide = true }
+                    glideGeneration &+= 1
+                    let generation = glideGeneration
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.glideSeconds) {
+                        guard generation == glideGeneration else { return }
+                        withTransaction(still) { coveringGlide = false }
                     }
-                    withAnimation(FocusLeadsRow.animation) { offsetX = target }
-                    waitGeneration &+= 1
-                    let generation = waitGeneration
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                        guard generation == waitGeneration else { return }
-                        waitsForSlot = false
-                    }
-                } else if target != offsetX {
+                } else if coveringGlide {
+                    withTransaction(still) { coveringGlide = false }
+                }
+                if target != offsetX {
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 }
             }
     }
+
+    /// `FocusLeadsRow.animation`'s duration, plus a frame.
+    static let glideSeconds: TimeInterval = 0.34
 }
 
 /// Wako pass 10: the See All tile drawn in the frame, in landscape.
@@ -5878,6 +5889,20 @@ struct CatalogRowView: View {
                         }
                     }
                     if let id { wakoRestId = id }
+                    // Pass 17: the frame's next titles warmed ahead, so a press lands on art already
+                    // decoded at the frame's size (the frame showed its empty pane while loading).
+                    if wakoFrame, let id {
+                        let items = Self.uniqueItems(section.items)
+                        if let n = items.firstIndex(where: { $0.id == id }) {
+                            let request = ArtworkDecodeRequest(size: .points(width: wakoFrameSize.width, height: wakoFrameSize.height),
+                                                               fill: true, scale: UIScreen.main.scale)
+                            let around = [n - 1, n + 1, n + 2, n + 3].filter { $0 >= 0 && $0 < items.count }
+                            ArtworkStore.prefetch(around.compactMap { i in
+                                InlineTrailerCard.landscapeArtworkURL(items[i]).flatMap(URL.init(string:))
+                                    .map { ArtworkPrefetchItem(url: $0, decode: request) }
+                            })
+                        }
+                    }
                     // Steven's fork: the stage hides its meta line and synopsis while See All holds
                     // focus (they still showed the last title's).
                     if id == Self.seeAllFocusKey {
