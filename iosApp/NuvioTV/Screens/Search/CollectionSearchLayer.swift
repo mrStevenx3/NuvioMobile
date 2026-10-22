@@ -17,10 +17,12 @@ struct CollectionSearchLayer: View {
 
     var body: some View {
         let query = queryBox.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let local = Self.matches(query: query, tabs: tabs, typeFilter: typeFilter)
-        // The add-on search knows the whole platform; the loaded titles fill in for catalogs
-        // without one (and while it answers).
-        let items = Self.merged(remote ?? [], local)
+        // Pass 3 (Steven): films AND series whatever the Films / Séries tab, only from the
+        // « Tous les films / Toutes les séries » catalogs (never Top 10 or Nouveautés), and the
+        // add-on's platform-wide search when it has one; the loaded titles only for a folder
+        // whose add-on cannot search.
+        let canSearch = CollectionRemoteSearch.hasSearchableCatalogs(tabs)
+        let items = canSearch ? (remote ?? []) : Self.matches(query: query, tabs: tabs, typeFilter: nil)
         ZStack(alignment: .topLeading) {
             Color.black.opacity(0.94).ignoresSafeArea()
             ScrollView(.vertical) {
@@ -28,7 +30,7 @@ struct CollectionSearchLayer: View {
                     OrbitSearchKeyboard(queryBox: queryBox)
                     if query.isEmpty {
                         EmptyView()
-                    } else if items.isEmpty, searchingRemote {
+                    } else if items.isEmpty, searchingRemote || (canSearch && remote == nil) {
                         ProgressView()
                     } else if items.isEmpty {
                         Text("Aucun titre de cette collection ne correspond.")
@@ -56,7 +58,7 @@ struct CollectionSearchLayer: View {
             searchingRemote = true
             try? await Task.sleep(for: .milliseconds(350))
             if Task.isCancelled { return }
-            let found = await CollectionRemoteSearch.search(query: query, tabs: tabs, typeFilter: typeFilter)
+            let found = await CollectionRemoteSearch.search(query: query, tabs: tabs)
             if Task.isCancelled { return }
             remote = found
             searchingRemote = false
@@ -76,8 +78,10 @@ struct CollectionSearchLayer: View {
         guard !words.isEmpty else { return [] }
         var out: [MetaPreview] = []
         var seen = Set<String>()
-        for tab in tabs where !tab.isAllTab && CollectionTypeFilter.keeps(CollectionTypeFilter.effectiveType(declared: tab.type, name: tab.label),
-                                                                        filter: typeFilter) {
+        let everything = tabs.filter { CollectionRemoteSearch.isEverythingCatalog($0.catalogId) }
+        for tab in (everything.isEmpty ? tabs : everything) where !tab.isAllTab
+            && CollectionTypeFilter.keeps(CollectionTypeFilter.effectiveType(declared: tab.type, name: tab.label),
+                                          filter: typeFilter) {
             for item in tab.items {
                 let name = item.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
                 guard words.allSatisfy({ name.contains($0) }), seen.insert(item.id).inserted else { continue }
@@ -93,16 +97,6 @@ struct CollectionSearchLayer: View {
 /// `search` extra in their manifest (Steven's platform add-ons, v1.1: « Tous les films / Toutes les
 /// séries », which keep only titles on the platform) — `…/catalog/<type>/<id>/search=<q>.json`.
 enum CollectionRemoteSearch {
-    private struct Manifest: Decodable {
-        struct Catalog: Decodable {
-            struct Extra: Decodable { let name: String }
-            let type: String
-            let id: String
-            let extra: [Extra]?
-        }
-        let catalogs: [Catalog]?
-    }
-
     private struct Response: Decodable {
         struct Meta: Decodable {
             let id: String
@@ -117,20 +111,23 @@ enum CollectionRemoteSearch {
         let metas: [Meta]?
     }
 
-    @MainActor private static var manifests: [String: Manifest] = [:]
+    /// Steven's platform add-ons' « Tous les films / Toutes les séries » (`<prefix>-all-movies` /
+    /// `<prefix>-all-series`), the catalogs that carry the platform-wide search (add-on v1.1).
+    static func isEverythingCatalog(_ id: String) -> Bool {
+        id.hasSuffix("-all-movies") || id.hasSuffix("-all-series")
+    }
+
+    static func hasSearchableCatalogs(_ tabs: [FolderTab]) -> Bool {
+        tabs.contains { !$0.isAllTab && isEverythingCatalog($0.catalogId) && !($0.manifestUrl ?? "").isEmpty }
+    }
 
     @MainActor
-    static func search(query: String, tabs: [FolderTab], typeFilter: String?) async -> [MetaPreview] {
+    static func search(query: String, tabs: [FolderTab]) async -> [MetaPreview] {
         var targets: [(base: String, type: String, catalogId: String)] = []
         var seen = Set<String>()
-        for tab in tabs where !tab.isAllTab {
-            guard let manifestUrl = tab.manifestUrl, !manifestUrl.isEmpty,
-                  CollectionTypeFilter.keeps(CollectionTypeFilter.effectiveType(declared: tab.type, name: tab.label),
-                                             filter: typeFilter) else { continue }
-            guard let manifest = await manifest(manifestUrl),
-                  manifest.catalogs?.contains(where: { $0.id == tab.catalogId && $0.type == tab.type
-                      && ($0.extra ?? []).contains { $0.name == "search" } }) == true else { continue }
-            let base = manifestUrl.replacingOccurrences(of: "/manifest.json", with: "")
+        for tab in tabs where !tab.isAllTab && isEverythingCatalog(tab.catalogId) {
+            guard let manifestUrl = tab.manifestUrl, !manifestUrl.isEmpty else { continue }
+            let base = manifestUrl.components(separatedBy: "/manifest.json").first ?? manifestUrl
             if seen.insert("\(base)|\(tab.type)|\(tab.catalogId)").inserted {
                 targets.append((base, tab.type, tab.catalogId))
             }
@@ -142,7 +139,10 @@ enum CollectionRemoteSearch {
                 group.addTask {
                     guard let url = URL(string: "\(target.base)/catalog/\(target.type)/\(target.catalogId)/search=\(encoded).json"),
                           let response = try? await URLSession.shared.data(from: url),
-                          let decoded = try? JSONDecoder().decode(Response.self, from: response.0) else { return [] }
+                          let decoded = try? JSONDecoder().decode(Response.self, from: response.0) else {
+                        NSLog("[CollectionSearch] failed %@/%@", target.type, target.catalogId)
+                        return []
+                    }
                     return (decoded.metas ?? []).map { meta in
                         MetaPreview(id: meta.id, type: meta.type ?? target.type, name: meta.name ?? "",
                                     poster: meta.poster, banner: meta.background, logo: nil,
@@ -161,16 +161,18 @@ enum CollectionRemoteSearch {
             for await list in group { all.append(list) }
             return all
         }
-        return CollectionSearchLayer.merged(lists.flatMap { $0 }, [])
+        // An add-on that predates v1.1 ignores `search=` and answers its plain list: keep only titles
+        // whose name holds a word of the query, so such a catalog adds nothing instead of noise.
+        let words = fold(query).split(separator: " ").map(String.init).filter { $0.count >= 2 }
+        let found = CollectionSearchLayer.merged(lists.flatMap { $0 }, []).filter { item in
+            words.isEmpty || words.contains { fold(item.name).contains($0) }
+        }
+        NSLog("[CollectionSearch] q=%@ catalogs=%d results=%d", query, targets.count, found.count)
+        return found
     }
 
-    @MainActor
-    private static func manifest(_ urlString: String) async -> Manifest? {
-        if let cached = manifests[urlString] { return cached }
-        guard let url = URL(string: urlString),
-              let response = try? await URLSession.shared.data(from: url),
-              let manifest = try? JSONDecoder().decode(Manifest.self, from: response.0) else { return nil }
-        manifests[urlString] = manifest
-        return manifest
+    private static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
+
 }
