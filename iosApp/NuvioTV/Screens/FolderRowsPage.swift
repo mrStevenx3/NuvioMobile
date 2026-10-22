@@ -89,7 +89,7 @@ struct FolderRowsPage: View {
                       geometry: geo,
                       hidesLogoWhenDisplaying: folderIdentity,
                       // Steven's fork: the folder logo never docks in the stage's slot any more (it
-                      // goes straight to the top-left corner after its intro), so the slot is the
+                      // goes straight to the top-right corner after its intro), so the slot is the
                       // stage title's own from the start, top-aligned as after the old rise.
                       hidesLogo: false,
                       probeID: "debug_stage_folder",
@@ -509,7 +509,7 @@ final class FolderRowsPageBox {
 /// visible"): the folder's title logo, or its name in `Theme.Font.hero` when it has none.
 ///
 /// Steven's fork (collections pass 1): opening a folder plays an intro like an app launch on Apple
-/// TV — the logo shows large in the middle of a black screen, then glides to the top-left corner
+/// TV — the logo shows large in the middle of a black screen, then glides to the top-right corner
 /// (its compact place, `FolderStageLogo.compactTop`) while the black fades away, and stays there.
 /// It no longer docks in the stage's logo slot or waits for the first move. Reduce Motion skips
 /// the intro. The intro plays once per page; a pop back from Detail finds the logo in its corner.
@@ -527,11 +527,10 @@ private struct FolderStageLogoLayer: View {
             let slot = geometry.logoSlot
             let width = Theme.Size.heroInfoPanelWidth
             let compactScale = FolderStageLogo.compactScale
-            let leading = geometry.stageBlockLeading
             let compactTop = FolderStageLogo.compactTop(blockTop: geometry.stageBlockTop, slot: slot)
             // The frame sits at (0, 0); everything below is the offset of its CENTRE (scale anchor).
             let splashCenter = CGPoint(x: screen.size.width / 2, y: screen.size.height / 2)
-            let settledCenter = CGPoint(x: leading + width * compactScale / 2,
+            let settledCenter = CGPoint(x: screen.size.width - FolderStageIntro.trailingMargin - width * compactScale / 2,
                                         y: compactTop + slot * compactScale / 2)
             let center = phase == .settled ? settledCenter : splashCenter
             let scale: CGFloat = switch phase {
@@ -545,7 +544,7 @@ private struct FolderStageLogoLayer: View {
                     .ignoresSafeArea()
                 TitleLogoHeader(title: title,
                                 logoUrl: logoUrl,
-                                alignment: phase == .settled ? .topLeading : .center,
+                                alignment: phase == .settled ? .topTrailing : .center,
                                 textFont: Theme.Font.hero,
                                 slotHeight: slot,
                                 decodeSize: .points(width: width * FolderStageIntro.splashScale,
@@ -553,8 +552,8 @@ private struct FolderStageLogoLayer: View {
                     // A long folder name wraps inside the slot instead of running into the meta line.
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
-                    .multilineTextAlignment(phase == .settled ? .leading : .center)
-                    .frame(width: width, height: slot, alignment: phase == .settled ? .topLeading : .center)
+                    .multilineTextAlignment(phase == .settled ? .trailing : .center)
+                    .frame(width: width, height: slot, alignment: phase == .settled ? .topTrailing : .center)
                     .scaleEffect(scale, anchor: .center)
                     .opacity(phase == .hidden ? 0 : 1)
                     .offset(x: center.x - width / 2, y: center.y - slot / 2)
@@ -589,8 +588,10 @@ nonisolated enum FolderStageIntro {
     static let appearSeconds = 0.35
     /// How long the big logo stays before it glides away.
     static let holdSeconds = 0.6
-    /// The glide to the top-left corner (spring response).
+    /// The glide to the top-right corner (spring response).
     static let glideSeconds = 0.75
+    /// The settled logo's gap to the right edge of the screen (the tvOS horizontal safe margin).
+    static let trailingMargin: CGFloat = 80
 }
 
 // MARK: - Non-focusable rows (§2.3)
