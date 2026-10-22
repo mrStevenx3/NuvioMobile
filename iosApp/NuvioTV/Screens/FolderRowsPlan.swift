@@ -161,6 +161,12 @@ extension FolderTabSnapshot {
     /// ("Action", not "Tous les films · Action").
     var displayLabel: String {
         if case .addon(_, _, _, let genre?, _)? = target, !genre.isEmpty { return genre }
+        // Pass 2 (Steven): no "(Movies)" / "(Series)" suffix — the collection bar already says
+        // which kind is shown. The shared label is "<name> (<typeLabel>)<genre suffix>".
+        let suffix = " (\(typeLabel))"
+        if !typeLabel.isEmpty, let range = label.range(of: suffix) {
+            return label.replacingCharacters(in: range, with: "")
+        }
         return label
     }
 
