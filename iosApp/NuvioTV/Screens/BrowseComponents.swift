@@ -128,6 +128,9 @@ struct WakoLeadFrame: View {
     let reduceMotion: Bool
 
     static let fadeSeconds = 0.25
+    /// "Hidden" posters (the focused one and those before it) stay at this invisible opacity so the
+    /// focus engine still reaches them (it skips views at 0).
+    static let hiddenOpacity = 0.011
     static let borderWidth: CGFloat = 4
 
     var body: some View {
@@ -5138,9 +5141,6 @@ struct CatalogRowView: View {
     }
     /// The frame's size: the 16:9 tile at the poster's height.
     private var wakoFrameSize: CGSize { posterStyle.artworkSize(expanded: true) }
-    /// The empty lead-in before the first card, so the FOCUSED poster rests under the frame's right
-    /// edge (hidden) and the next one starts one gap past the frame (see `alignFocusedCardToLeading`).
-    private var wakoLeadIn: CGFloat { max(0, wakoFrameSize.width - posterStyle.cardWidth - rowGap) }
 
     /// BUG-29: an inline-trailer expansion widens its card in place without moving focus, so tvOS's
     /// automatic focus-driven scroll never fires — the row has to scroll itself, and Reduce Motion
@@ -5387,13 +5387,6 @@ struct CatalogRowView: View {
                     // row is shorter than the slot its neighbours reserve). Rows whose cards are all
                     // one height (Home's) lay out exactly as before.
                     LazyHStack(alignment: .top, spacing: rowGap) {
-                        // Steven's fork (wako frame): see `wakoLeadIn`. Not focusable.
-                        if wakoFrame {
-                            Color.clear
-                                .frame(width: wakoLeadIn, height: 1)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
                         ForEach(section.items, id: \.id) { item in
                             Group {
                                 if let onSelect {
@@ -5427,6 +5420,13 @@ struct CatalogRowView: View {
                                     .titleHoldMenu(preview: item)
                                 }
                             }
+                            // Steven's fork (wako frame, device pass 2): the FOCUSED card's slot is
+                            // the frame's width (its poster hidden under the frame), so the row's
+                            // own leading glide rests it under the frame and the next poster sits one
+                            // gap past it; the width change and the glide share one curve, so the
+                            // posters slide one card per press, like wako.
+                            .frame(width: wakoLead?.id == item.id ? wakoFrameSize.width : nil, alignment: .leading)
+                            .animation(reduceMotion ? nil : FocusLeadsRow.animation, value: wakoLead?.id == item.id)
                             .focused($focusedItemId, equals: item.id)
                             // BUG-158: see `tileShowingItemId`. Set on the whole link so the button
                             // style, the artwork and the tile read it. Portrait rows only: in a
@@ -5463,7 +5463,9 @@ struct CatalogRowView: View {
                             .onPlayPauseCommand(perform: muteToggle(for: item))
                             // Steven's fork (wako frame): a poster fades out as it moves into
                             // the frame, and the ones before it stay out.
-                            .opacity(wakoHidden.contains(item.id) ? 0 : 1)
+                            // Device pass 2: not 0 — the focus engine skips fully transparent views,
+                            // which stopped Left from coming back.
+                            .opacity(wakoHidden.contains(item.id) ? WakoLeadFrame.hiddenOpacity : 1)
                             .animation(reduceMotion ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds),
                                        value: wakoHidden.contains(item.id))
                             .id(item.id)
@@ -5931,20 +5933,9 @@ struct CatalogRowView: View {
         let animate = !reduceMotion
         DispatchQueue.main.async {
             guard focusedItemId == id else { return }
-            // Steven's fork (wako frame): the focused poster rests under the frame's right edge, which
-            // with the `wakoLeadIn` spacer is the same `index × (card + gap)` offset as See All.
-            let wakoX: CGFloat? = (wakoFrame && !isSeeAll)
-                ? section.items.firstIndex(where: { $0.id == id }).flatMap { index in
-                    hScroll.sample.flatMap {
-                        FocusLeadsRow.offset(index: index, cardWidth: posterStyle.cardWidth, gap: rowGap, sample: $0)
-                    }
-                }
-                : nil
             let move = {
                 if isSeeAll {
                     if let seeAllX { rowPosition.scrollTo(x: seeAllX) }
-                } else if wakoFrame {
-                    if let wakoX { rowPosition.scrollTo(x: wakoX) }
                 } else {
                     rowPosition.scrollTo(id: id, anchor: .leading)
                 }

@@ -109,7 +109,9 @@ nonisolated struct StripGeometry: Equatable, Sendable {
     /// S1: the stage block's leading edge (the same inset the rows use).
     var stageBlockLeading: CGFloat { contentLeading }
     /// The rows' trailing inset inside the strip.
-    var trailingMargin: CGFloat { Self.edgeMargin }
+    /// Steven's fork (wako layout): 0, so the posters run to the screen edge and the last visible
+    /// one is cut by it, as in wako.
+    var trailingMargin: CGFloat { 0 }
 
     // MARK: Constants
 
@@ -121,7 +123,9 @@ nonisolated struct StripGeometry: Equatable, Sendable {
     /// `Theme.Spacing.screen` (60) + the tvOS side safe area (80): the Stage root ignores the safe
     /// area, so its rows carry both, which is exactly where Classic's rows sit and what
     /// `RowEdgeMargins.standard` assumes.
-    nonisolated static let edgeMargin: CGFloat = 140
+    /// Steven's fork (wako layout): 60 (was 140), the rows' titles and the lead frame closer to
+    /// the screen's left edge.
+    nonisolated static let edgeMargin: CGFloat = 60
     /// `Theme.Size.heroLogoSlotHeight`.
     nonisolated static let logoSlotFull: CGFloat = Theme.Size.heroLogoSlotHeight
     /// `Theme.Size.heroLogoSlotHeightPinned`.

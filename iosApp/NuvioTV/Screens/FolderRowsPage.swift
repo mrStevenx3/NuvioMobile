@@ -252,6 +252,8 @@ struct FolderRowsPage: View {
                             cardReported(item, row: row, section: section)
                         }
                     )
+                    // Steven's fork: the same wako lead frame as Home's rows (`WakoLeadFrame`).
+                    .environment(\.homeRowFocusLeads, true)
                 }
             case .loading:
                 StripLoadingRow(heading: row.heading)

@@ -29,5 +29,5 @@ et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADL
   en haut à droite (`FolderStageLogoLayer`, réglages `FolderStageIntro`) ; plus de logo « docké » dans le stage.
 - Accueil (rangées « focus leads », affiches portrait) : cadre paysage FIXE à gauche façon wako (`WakoLeadFrame`,
   BrowseComponents.swift) : il montre le titre sélectionné (image + logo, bord blanc) et passe au suivant en fondu ;
-  les affiches glissent sous son bord droit, l'affiche sélectionnée et les précédentes sont masquées.
+  la carte sélectionnée prend la largeur du cadre (affiche masquée dessous), les affiches glissent d'un cran ; marges du strip 60 à gauche, 0 à droite (affiches coupées par le bord) ; aussi dans les collections.
   Bandes-annonces dans les cartes coupées sur ces rangées pour l'instant (à remettre dans le cadre).
