@@ -565,6 +565,12 @@ private struct FolderStageLogoLayer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Phase { case hidden, splash, settled }
+
+    /// Pass 4 (Steven): with the collection bar, the settled logo is centred on the bar's own
+    /// centre line (bar top 38 + pill padding 6 + item 62 / 2), not hung from the stage's slot top.
+    private let orbitBar = NavigationChrome.isOrbitBar()
+    static let barCentreY: CGFloat = 38 + 6 + 31
+    private var settledAlignment: Alignment { orbitBar ? .trailing : .topTrailing }
     @State private var phase: Phase = .hidden
 
     var body: some View {
@@ -576,7 +582,7 @@ private struct FolderStageLogoLayer: View {
             // The frame sits at (0, 0); everything below is the offset of its CENTRE (scale anchor).
             let splashCenter = CGPoint(x: screen.size.width / 2, y: screen.size.height / 2)
             let settledCenter = CGPoint(x: screen.size.width - FolderStageIntro.trailingMargin - width * compactScale / 2,
-                                        y: compactTop + slot * compactScale / 2)
+                                        y: orbitBar ? Self.barCentreY : compactTop + slot * compactScale / 2)
             let center = phase == .settled ? settledCenter : splashCenter
             let scale: CGFloat = switch phase {
             case .hidden: FolderStageIntro.splashScale * 0.85
@@ -589,7 +595,7 @@ private struct FolderStageLogoLayer: View {
                     .ignoresSafeArea()
                 TitleLogoHeader(title: title,
                                 logoUrl: logoUrl,
-                                alignment: phase == .settled ? .topTrailing : .center,
+                                alignment: phase == .settled ? settledAlignment : .center,
                                 textFont: Theme.Font.hero,
                                 slotHeight: slot,
                                 decodeSize: .points(width: width * FolderStageIntro.splashScale,
@@ -599,7 +605,7 @@ private struct FolderStageLogoLayer: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
                     .multilineTextAlignment(phase == .settled ? .trailing : .center)
-                    .frame(width: width, height: slot, alignment: phase == .settled ? .topTrailing : .center)
+                    .frame(width: width, height: slot, alignment: phase == .settled ? settledAlignment : .center)
                     .scaleEffect(scale, anchor: .center)
                     .opacity(phase == .hidden ? 0 : 1)
                     .offset(x: center.x - width / 2, y: center.y - slot / 2)
