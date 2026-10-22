@@ -205,7 +205,7 @@ private struct TabBarImmersiveHideModifier: ViewModifier {
     /// body evaluation is the cost, and this body is already narrow by construction: it
     /// re-evaluates on an `immersiveHidden` publish, i.e. a Detail push/pop, never on a tab switch
     /// or a scroll (see the T3 archaeology on this type and on `TabBarVisibility.immersiveHidden`).
-    private var railMode: Bool { NavigationChrome.isRail() }
+    private var railMode: Bool { NavigationChrome.isRail() || NavigationChrome.isOrbitBar() }
 
     func body(content: Content) -> some View {
         content

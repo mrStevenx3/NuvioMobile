@@ -552,6 +552,14 @@ struct MainTabView: View {
         //
         // The rail places itself (16 pt from the bezel, vertically centred, safe area ignored)
         // rather than being padded here: the numbers belong next to its own layout constants.
+        // Steven's fork: the Orbit top bar, mounted like the rail (outside every `Tab` closure).
+        .overlay(alignment: .topLeading) {
+            if NavigationChrome.isOrbitBar() {
+                OrbitTopBar(selectedTab: $selectedTab,
+                            tabBarVisibility: tabBarVisibility,
+                            showsDiscover: showsDiscoverTab)
+            }
+        }
         .overlay(alignment: .topLeading) {
             if NavigationChrome.isRail() {
                 NavigationRail(

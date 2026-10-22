@@ -53,6 +53,8 @@ struct StageStripHome: View {
 
     /// Held for its lifetime, never observed: it publishes nothing (#5).
     @StateObject private var stage = StageController()
+    /// Steven's fork (Orbit bar): which slice of Home the strip shows (`HomeContentFilter`).
+    @ObservedObject private var contentFilter = HomeContentFilterModel.shared
     /// H9 (P4 R2): the Stage rail route's own state (the captured row, Home's cover), in a reference
     /// box so neither write re-renders the strip.
     @State private var railRouteBox = StageRailRouteBox()
@@ -207,21 +209,58 @@ struct StageStripHome: View {
     private var rowKeys: [String] {
         var keys: [String] = []
         var seen = Set<String>()
-        if !model.continueWatching.isEmpty, seen.insert(Self.continueWatchingKey).inserted {
+        let filter = contentFilter.filter
+        let showsContinue = filter == .all || filter == .movies || filter == .series
+        if showsContinue, !model.continueWatching.isEmpty, seen.insert(Self.continueWatchingKey).inserted {
             keys.append(Self.continueWatchingKey)
         }
-        if upcomingRowEnabled, !model.upcoming.isEmpty, seen.insert(Self.upcomingKey).inserted {
+        if filter == .all || filter == .series,
+           upcomingRowEnabled, !model.upcoming.isEmpty, seen.insert(Self.upcomingKey).inserted {
             keys.append(Self.upcomingKey)
         }
         for row in model.rows {
             let key: String
             switch row {
-            case .catalog(let section): key = section.key
-            case .collection(let collection): key = collection.id
+            case .catalog(let section):
+                guard Self.shows(catalogType: section.target.contentType, filter: contentFilter.filter) else { continue }
+                key = section.key
+            case .collection(let collection):
+                guard Self.shows(collectionTitle: collection.title, filter: contentFilter.filter) else { continue }
+                key = collection.id
             }
             if seen.insert(key).inserted { keys.append(key) }
         }
+        // Steven's fork (Orbit bar): Services / Studios with no matching collection show them all.
+        if keys.isEmpty, contentFilter.filter == .services || contentFilter.filter == .studios {
+            for row in model.rows {
+                if case .collection(let collection) = row, seen.insert(collection.id).inserted {
+                    keys.append(collection.id)
+                }
+            }
+        }
         return keys
+    }
+
+    /// Steven's fork (Orbit bar, `HomeContentFilter`): Films keeps the movie catalogs, Séries the
+    /// others; both keep every collection that is not a Services or Studios one (Genres…).
+    static func shows(catalogType: String, filter: HomeContentFilter) -> Bool {
+        switch filter {
+        case .all: return true
+        case .movies: return catalogType == "movie"
+        case .series: return catalogType != "movie"
+        case .services, .studios: return false
+        }
+    }
+
+    static func shows(collectionTitle: String, filter: HomeContentFilter) -> Bool {
+        let services = HomeContentFilter.isServicesCollection(title: collectionTitle)
+        let studios = HomeContentFilter.isStudiosCollection(title: collectionTitle)
+        switch filter {
+        case .all: return true
+        case .movies, .series: return !services && !studios
+        case .services: return services
+        case .studios: return studios
+        }
     }
 
     /// Perf review 2026-10-17 (#10): a dictionary lookup (`HomeViewModel.rowsByKey`) instead of a

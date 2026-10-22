@@ -33,3 +33,7 @@ et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADL
   aperçu sombre dessiné par le cadre lui-même (`previous`), bande-annonce lue dans le cadre (modèle `InlineTrailerCardModel` du cadre) ; aussi dans
   les collections. Marges du strip : 60 à gauche, 0 à droite. Rangées de collections (Studios, Services…)
   sans bande d'infos : page ajustée (`StripRowSkipsInfoBandKey`).
+- Barre de navigation Orbit (`OrbitTopBar.swift`, style `orbit` par défaut, Réglages > Apparence > Navigation) :
+  en haut à gauche, [Recherche Films Séries Bibliothèque Découverte] | [Services Studios] | [Réglages] ;
+  barre tvOS masquée. Films/Séries/Services/Studios = filtres de l'accueil Stage (`HomeContentFilter`,
+  `StageStripHome.rowKeys`) ; Services/Studios repérés par le titre des collections. Pas d'Add-ons ni Profil dans la barre.

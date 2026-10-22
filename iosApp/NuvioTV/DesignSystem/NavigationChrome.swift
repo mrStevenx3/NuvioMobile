@@ -39,6 +39,8 @@ nonisolated enum NavigationChrome {
     enum Style: String, Equatable, Sendable {
         case tabs
         case rail
+        /// Steven's fork: the Orbit top bar (`OrbitTopBar`), the default when nothing is stored.
+        case orbit
     }
 
     enum RailVisibility: String, Equatable, Sendable {
@@ -141,9 +143,11 @@ nonisolated enum NavigationChrome {
     /// or future string) is Tabs, never an unknown third state. Trimmed and lower-cased so a
     /// hand-typed launch argument (`-sidebar_style Rail`) still resolves.
     static func style(raw: String?) -> Style {
-        guard let raw else { return .tabs }
+        // Steven's fork: an untouched install gets the Orbit bar.
+        guard let raw else { return .orbit }
         switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case Style.rail.rawValue, legacySidebarValue: return .rail
+        case Style.orbit.rawValue: return .orbit
         default: return .tabs
         }
     }
@@ -154,6 +158,11 @@ nonisolated enum NavigationChrome {
 
     static func isRail(_ defaults: UserDefaults = .standard) -> Bool {
         style(defaults) == .rail
+    }
+
+    /// Steven's fork: the Orbit top bar replaces the system tab bar (hidden) and the rail.
+    static func isOrbitBar(_ defaults: UserDefaults = .standard) -> Bool {
+        style(defaults) == .orbit
     }
 
     /// "browsing" reads as Hide While Browsing, "hidden" as Hidden (FEAT-62); anything else is

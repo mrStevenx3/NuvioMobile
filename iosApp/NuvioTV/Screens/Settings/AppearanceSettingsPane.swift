@@ -91,6 +91,7 @@ struct AppearanceSettingsPane: View {
     private static let navigationOptions: [(value: String, label: String)] = [
         (NavigationChrome.Style.tabs.rawValue, String(localized: "Top Tabs")),
         (NavigationChrome.Style.rail.rawValue, String(localized: "Rail")),
+        (NavigationChrome.Style.orbit.rawValue, String(localized: "Orbit Bar")),
     ]
     /// H9 Rail row options. Values are the raw `rail_visibility` strings. FEAT-62 (Steven,
     /// beta.19-rc3 follow-up 2026-10-08: "hide it on the first line, show it on Left/Back") adds
