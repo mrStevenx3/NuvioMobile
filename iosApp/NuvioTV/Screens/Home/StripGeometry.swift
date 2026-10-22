@@ -104,7 +104,9 @@ nonisolated struct StripGeometry: Equatable, Sendable {
     /// Where the info band starts, measured from the top of the screen.
     /// Device pass 2: pulled up over the shelf padding and the page lift, so the
     /// text sits just under the posters like wako.
-    var infoBandTop: CGFloat { stageHeight + focusLift + rowHeight - infoBand - StageInfoBelow.pullUp }
+    /// Wako pass 3: the row no longer reserves the `pullUp` part of the band (it overlaps the shelf's
+    /// bottom padding and the page lift), so the same spot is now `rowHeight − infoBand` down.
+    var infoBandTop: CGFloat { stageHeight + focusLift + rowHeight - infoBand }
 
     /// S1: the stage block's leading edge (the same inset the rows use).
     var stageBlockLeading: CGFloat { contentLeading }
@@ -284,7 +286,9 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let collection = collectionRowHeightMax(posterHeight: posterHeight,
                                                 titleHeight: i.titleHeight,
                                                 captionLine: i.folderCaptionHeight)
-        return pixelCeil(max(catalog, collection) + (i.infoBelow ? infoBandHeight(i) : 0))
+        // Wako pass 3: the band's `pullUp` part sits over the shelf padding, so it is not added again
+        // (Steven: the gap between one row's synopsis and the next heading was far too big).
+        return pixelCeil(max(catalog, collection) + (i.infoBelow ? max(0, infoBandHeight(i) - StageInfoBelow.pullUp) : 0))
     }
 
     /// Steven's fork (`StageInfoBelow`): one meta line, a gap and `StageInfoBelow.synopsisLines`
@@ -300,7 +304,7 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         let collection = collectionRowHeightMax(posterHeight: 0,
                                                 titleHeight: i.titleHeight,
                                                 captionLine: i.folderCaptionHeight)
-        let band = i.infoBelow ? infoBandHeight(i) : 0
+        let band = i.infoBelow ? max(0, infoBandHeight(i) - StageInfoBelow.pullUp) : 0
         guard !i.landscapeCatalogRows else { return collection + band }
         return max(collection, catalogRowHeight(art: 0, titles: i.titlesShown, titleHeight: i.titleHeight)) + band
     }
@@ -478,7 +482,7 @@ nonisolated enum StageStripTuning {
 nonisolated enum StageInfoBelow {
     static let defaultsKey = "home_stage_info_below"
     static let synopsisLines = 3
-    static let bottomGap: CGFloat = 16
+    static let bottomGap: CGFloat = 8
     static let pullUp: CGFloat = 44
     /// The stage can be shorter in this mode: it holds no text block any more.
     static let stageFloor: CGFloat = 300
