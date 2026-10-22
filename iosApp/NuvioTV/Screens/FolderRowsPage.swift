@@ -589,7 +589,8 @@ private struct FolderStageLogoLayer: View {
     /// Pass 4 (Steven): with the collection bar, the settled logo is centred on the bar's own
     /// centre line (bar top 38 + pill padding 6 + item 62 / 2), not hung from the stage's slot top.
     private let orbitBar = NavigationChrome.isOrbitBar()
-    static let barCentreY: CGFloat = 38 + 6 + 31 - 18
+    /// Steven: level with the bar (the -18 nudge put it above the bar line).
+    static let barCentreY: CGFloat = 38 + 6 + 31
     /// Pass 5 (Steven, device): the logo sits a little further up and right, in the corner.
     /// Steven: a little further right (was 58).
     static let orbitTrailingMargin: CGFloat = 30
