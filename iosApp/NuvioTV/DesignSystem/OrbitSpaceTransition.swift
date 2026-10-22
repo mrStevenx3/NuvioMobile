@@ -14,9 +14,17 @@ struct OrbitSpaceTransition: View {
     @State private var logoScale: CGFloat = 0.7
     @State private var hole: CGFloat = 0
     @State private var ringOpacity: Double = 0
-    private static let logoWidth: CGFloat = 760
-    private static let ringAspect: CGFloat = 0.42
+    /// The redrawn bunny-planet (`OrbitMark`, 722 × 631 px @2x). Its ring is the portal: same
+    /// tilt, same aspect, centred on the screen, so the portal opens straight out of it.
+    private static let logoWidth: CGFloat = 520
+    private static let logoAspect: CGFloat = 631.0 / 722.0
+    /// The ring's centre, as a fraction of the mark's height (it sits low, under the ears).
+    private static let ringCentreY: CGFloat = 448.0 / 631.0
+    private static let ringAspect: CGFloat = 192.0 / 715.0
     private static let ringTilt = Angle.degrees(-14)
+    /// The mark's ring: half its major axis and its stroke, in points.
+    private static let ringStart: CGFloat = logoWidth * 715.0 / 722.0 / 2
+    private static let ringStroke: CGFloat = logoWidth * 22.0 / 722.0
 
     var body: some View {
         GeometryReader { geo in
@@ -50,18 +58,20 @@ struct OrbitSpaceTransition: View {
                 .compositingGroup()
             }
         Ellipse()
-            .stroke(Color.white, lineWidth: 10)
+            .stroke(Color.white, lineWidth: Self.ringStroke)
             .frame(width: max(hole, 1) * 2, height: max(hole, 1) * 2 * Self.ringAspect)
             .rotationEffect(Self.ringTilt)
             .opacity(ringOpacity)
-        wordmark
-            .frame(width: Self.logoWidth)
+        mark
+            .frame(width: Self.logoWidth, height: Self.logoWidth * Self.logoAspect)
+            // Ring centre on the screen centre (the portal's centre).
+            .offset(y: -(Self.ringCentreY - 0.5) * Self.logoWidth * Self.logoAspect)
             .scaleEffect(logoScale)
             .opacity(logoOpacity)
     }
 
-    private var wordmark: some View {
-        Image("OrbitWordmark")
+    private var mark: some View {
+        Image("OrbitMark")
             .resizable()
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
@@ -75,8 +85,12 @@ struct OrbitSpaceTransition: View {
                 logoOpacity = 1
                 logoScale = 1
             }
-            after(0.42) {
+            after(0.4) {
+                // The portal starts as the mark's own ring and opens out of it.
+                hole = Self.ringStart
                 ringOpacity = 1
+            }
+            after(0.44) {
                 withAnimation(.easeIn(duration: 0.6)) {
                     hole = 2400
                     logoScale = 1.3
@@ -84,7 +98,7 @@ struct OrbitSpaceTransition: View {
                 }
                 withAnimation(.easeIn(duration: 0.6).delay(0.2)) { ringOpacity = 0 }
             }
-            after(1.1) { onDone() }
+            after(1.3) { onDone() }
     }
 
     private func after(_ seconds: Double, _ work: @escaping () -> Void) {
