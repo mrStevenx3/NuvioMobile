@@ -113,6 +113,8 @@ struct StageStripHome: View {
                     Spacer(minLength: 0)
                     collectionRow(studios)
                         .environment(\.collectionRowLargeHeading, true)
+                        // The row hugs its content (it filled the screen, title at the top).
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, StripGeometry.edgeMargin)
                         .padding(.bottom, 70)
                 }
@@ -449,6 +451,8 @@ struct StageStripHome: View {
         .onAppear { model.rowAppeared(sectionKey: section.key) }
         // Steven's fork: the focused card leads the row (`FocusLeadsRow`).
         .environment(\.homeRowFocusLeads, true)
+        // Wako pass 14b: Home's rows keep their landscape frame at rest.
+        .environment(\.wakoRestFrame, true)
     }
 
     private func collectionRow(_ collection: NuvioCollection) -> some View {

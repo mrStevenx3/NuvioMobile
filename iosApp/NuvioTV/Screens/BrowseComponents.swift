@@ -5333,6 +5333,9 @@ struct CatalogRowView: View {
     @Environment(\.stripFocusMemory) private var stripFocusMemory
     /// Pass 14: the wako frame's last lead, kept while focus is in another row.
     @State private var wakoRestId: String?
+    /// Pass 14b: only Home's strip keeps the frame at rest (the collection page's stacked rows
+    /// overlapped with it).
+    @Environment(\.wakoRestFrame) private var wakoRestFrame
     /// beta.19-rc1 verdict (review r1, B P2-2): the item whose wide inline tile the morph scroll
     /// could NOT bring clear of the Soft trailing ramp (clamped at the row's end, or a row too short
     /// to scroll), so the row holds its trailing fade off while that tile is wide. Written at most
@@ -5517,7 +5520,7 @@ struct CatalogRowView: View {
         // Pass 14: at rest (row not focused) the frame keeps the row's last lead (or its remembered /
         // first title), so the row never shows an empty slot before its first poster.
         let wakoRowFocused = focusedItemId != nil
-        let wakoLeadId: String? = focusedItemId ?? wakoRestId
+        let wakoLeadId: String? = !wakoRestFrame ? focusedItemId : focusedItemId ?? wakoRestId
             ?? (stripFocusMemory?.drivesDefaultFocus == true ? stripFocusMemory?.itemId(for: section.key) : nil)
             ?? section.items.first?.id
         let wakoLead: MetaPreview? = wakoFrame ? wakoLeadId.flatMap { id in section.items.first { $0.id == id } } : nil
@@ -6269,4 +6272,17 @@ final class CatalogRowResolvedStyleBox {
     var section: HomeCatalogSection?
     var inherited: PosterStyle?
     var value: PosterStyle?
+}
+
+
+/// Steven's fork (wako pass 14b): the row keeps its landscape frame while unfocused. Home only.
+private struct WakoRestFrameKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var wakoRestFrame: Bool {
+        get { self[WakoRestFrameKey.self] }
+        set { self[WakoRestFrameKey.self] = newValue }
+    }
 }
