@@ -48,10 +48,10 @@ nonisolated enum DetailAppleStyle {
     static let synopsisLines = 2
     /// The visible dim is scaled by this while frosted (the dim MODEL is unchanged, so the
     /// trailer's tear-down latch still fires at the same scroll depth).
-    /// Device pass 4 (Steven): scrolling down blurs the backdrop instead of darkening it, so
-    /// the drawn black dim is off in this style (0); the dim MODEL still runs (trailer tear-down,
-    /// blur strength).
-    static let dimScale: Double = 0
+    /// Device pass 4 (Steven): scrolling down blurs the backdrop instead of darkening it; pass 6
+    /// brings back a light dim over the blur (0.35 of the model, so at most ≈ 0.3 black). The dim
+    /// MODEL itself is unchanged (trailer tear-down, blur strength).
+    static let dimScale: Double = 0.35
     /// Where the bottom frost starts, as a fraction of the screen height from the top.
     static let bottomFrostStart: CGFloat = 0.55
     /// The frost reaches full strength once the dim reaches this.
