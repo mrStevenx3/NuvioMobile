@@ -147,6 +147,9 @@ struct StageStripHome: View {
                     .allowsHitTesting(false)
                 strip(keys: keys, geometry: geo)
                     .frame(height: geo.stripHeight)
+                    // Device pass (Steven): Films ↔ Séries cross-fade like a tab change.
+                    .id(contentFilter.filter)
+                    .transition(.opacity)
             }
             }
             #if DEBUG
@@ -221,6 +224,9 @@ struct StageStripHome: View {
         // title on the stage at once, while focus is still on the bar.
         .onChange(of: contentFilter.filter) { _, _ in
             DispatchQueue.main.async { showFirstItemOnStage() }
+            // Device pass (Steven: back from Plateformes / Studios, Films kept the folder's art until
+            // the first Down): once more after the page has settled (and the portal has opened).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { showFirstItemOnStage() }
         }
         .onChange(of: keys) { _, newKeys in
             stage.memory.prune(keeping: Set(newKeys))

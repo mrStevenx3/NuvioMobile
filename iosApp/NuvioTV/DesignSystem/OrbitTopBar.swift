@@ -228,7 +228,7 @@ struct OrbitTopBar: View {
             transitionId = (transitionId ?? 0) + 1
         }
         if let filter = item.homeFilter {
-            homeFilter.set(filter)
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { homeFilter.set(filter) }
             selectedTab = 0
             return
         }
