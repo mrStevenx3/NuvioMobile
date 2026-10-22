@@ -267,7 +267,9 @@ private struct OrbitBarItemLabel: View {
     private var content: some View {
         if let title = item.title {
             Text(title)
-                .font(.system(size: OrbitBarMetrics.fontSize, weight: selected || focused ? .semibold : .medium))
+                // One weight in every state (pass 9, Steven: the bar shifted while moving in it —
+                // a bolder focused or selected label is wider and pushed its neighbours).
+                .font(.system(size: OrbitBarMetrics.fontSize, weight: .semibold))
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, OrbitBarMetrics.textPadding)
@@ -383,6 +385,10 @@ struct CollectionFilterBar: View {
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
         .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
+        // Pass 3 (Steven: Up never reached it): the focus section spans the screen's width in the
+        // bar's band, so Up from any card of the top row finds the bar (the engine only searches
+        // straight up, and the pill sits at the far right).
+        .frame(maxWidth: .infinity, alignment: .trailing)
         .focusSection()
         .padding(.top, OrbitBarMetrics.top)
         .padding(.trailing, trailing)
