@@ -58,6 +58,8 @@ nonisolated enum DetailAppleStyle {
     static let fullFrostDim: Double = 0.35
     /// The backdrop's blur radius once fully frosted (reached at `fullFrostDim`).
     static let backdropBlurMax: CGFloat = 40
+    /// How much the blurred layer is scaled up at full blur, to hide its soft edges.
+    static let backdropBlurOverscale: CGFloat = 0.15
     static let heroFade = 0.4
     /// The hero fills the screen in this style (no peek of the first row). The buttons keep this
     /// gap to the bottom edge: closer, the focus engine scrolls the page to give the focused

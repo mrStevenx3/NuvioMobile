@@ -319,10 +319,37 @@ private struct DetailBackdropBlur: ViewModifier {
         return (CGFloat(t) * DetailAppleStyle.backdropBlurMax).rounded()
     }
 
+    /// Device pass 5: `opaque: true` clipped the blur to the safe-area frame (black bands at the
+    /// top and sides). A plain blur fades the picture's own edges instead, so the layer is scaled
+    /// up a little as it blurs to push that soft rim off screen.
+    private var overscale: CGFloat {
+        1 + radius / DetailAppleStyle.backdropBlurMax * DetailAppleStyle.backdropBlurOverscale
+    }
+
     func body(content: Content) -> some View {
         content
-            .blur(radius: radius, opaque: true)
+            .blur(radius: radius)
+            .scaleEffect(overscale)
             .animation(.linear(duration: 0.12), value: radius)
+    }
+}
+
+/// Steven's fork (device pass 5, Apple TV style): fades a dark layer (the Cinematic scrim) out as
+/// the backdrop blurs, so the scrolled page is an even frost with no shadow. Observes the dim model
+/// itself (BUG-41: no `DetailView.body` re-render per step).
+private struct DetailFadeWhenFrosted: ViewModifier {
+    @ObservedObject var model: ScrollDimModel
+    let enabled: Bool
+
+    private var opacity: Double {
+        guard enabled else { return 1 }
+        return 1 - min(1, max(0, model.value / DetailAppleStyle.fullFrostDim))
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .animation(.linear(duration: 0.12), value: opacity)
     }
 }
 
@@ -825,6 +852,8 @@ struct DetailView: View {
             // trailer cover's copy) so the two always compose the same way (Codex r3 rule).
             if detailLayout == .cinematic {
                 cinematicScrimOverlay(posterBackdropVisible: showPosterBackdrop)
+                    // Device pass 5: no dark shading over the blurred page (Apple TV style).
+                    .modifier(DetailFadeWhenFrosted(model: dimModel, enabled: appleStyle))
             } else {
                 scrimOverlay(posterBackdropVisible: showPosterBackdrop)
             }
@@ -939,7 +968,7 @@ struct DetailView: View {
             // hero, a small title logo fades in at the top so the page still names what it is.
             .overlay(alignment: .top) {
                 if detailLayout == .cinematic, !DetailBug153Knobs.noCompactLogo {
-                    DetailCompactLogo(title: title, logoUrl: logoUrl, model: dimModel,
+                    DetailCompactLogo(title: title, logoUrl: heroLogoUrl, model: dimModel,
                                       inRows: focusedRow != nil && bridgePhase == .idle,
                                       reduceMotion: reduceMotion,
                                       followsFirstRow: appleStyle,
@@ -1303,6 +1332,10 @@ struct DetailView: View {
             }
             if new != nil { pinAppleHeroTop("hero-pin-focus") }
         }
+        // Steven's fork (device pass 5): latch the first non-empty logo for the hero.
+        .onChange(of: logoUrl, initial: true) { _, url in
+            if stickyLogoUrl == nil, let url, !url.isEmpty { stickyLogoUrl = url }
+        }
         // Steven's fork (Apple TV style): the Trailer button mounting late re-lays the action row,
         // and the focus engine may nudge the page down; put the full-screen hero back.
         .onChange(of: model.trailerVideoURL != nil) { _, _ in pinAppleHeroTop("hero-pin-trailer") }
@@ -1557,6 +1590,11 @@ struct DetailView: View {
     private var genres: [String] { model.meta?.genres ?? preview.genres }
     private var backgroundUrl: String? { model.meta?.background ?? preview.banner ?? preview.poster }
     private var logoUrl: String? { model.meta?.logo ?? preview.logo }
+    /// Steven's fork (device pass 5, Apple TV style): the first logo the hero showed stays put.
+    /// The full meta lands a few seconds in with its own logo URL (often another rendition of the
+    /// same art), and swapping it made the big logo blink just as the credits appeared.
+    @State private var stickyLogoUrl: String?
+    private var heroLogoUrl: String? { appleStyle ? (stickyLogoUrl ?? logoUrl) : logoUrl }
     /// Poster art for the right-hand backdrop layer — independent of `backgroundUrl`'s
     /// banner/backdrop preference (tester ask: mirror mobile's "poster stays on the right" layout).
     private var posterUrl: String? { model.meta?.poster ?? preview.poster }
@@ -1913,7 +1951,7 @@ struct DetailView: View {
         let imdbRating: String? = model.meta?.imdbRating ?? preview.imdbRating
         return DetailCinematicHero(
             title: title,
-            logoURL: logoUrl,
+            logoURL: heroLogoUrl,
             backdropURL: backgroundUrl.map(DetailBackdropURL.upgraded),
             backdropFallbackURL: backgroundUrl.flatMap { DetailBackdropURL.upgraded($0) == $0 ? nil : $0 },
             meta: DetailMetaLineModel(year: year, runtime: runtime, genres: genres,

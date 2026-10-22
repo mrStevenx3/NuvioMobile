@@ -157,8 +157,12 @@ struct DetailCinematicHero<Actions: View>: View {
                     .opacity(synopsisUnfolded ? 0 : 1)
                     .padding(.bottom, DetailAppleStyle.creditsBottomInset)
                     .frame(maxWidth: .infinity, alignment: .bottomTrailing)
+                    // Device pass 5: the cast only comes with the full meta, seconds in; fade it
+                    // in instead of popping.
+                    .transition(.opacity)
             }
         }
+        .animation(reduceMotion || !synopsisBeside ? nil : .easeOut(duration: 0.5), value: credits.isEmpty)
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .onChange(of: measuredTruncated, initial: true) { _, _ in syncSynopsisTruncated() }
         .onChange(of: heroFocus.wrappedValue) { _, _ in syncSynopsisTruncated() }
