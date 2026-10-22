@@ -445,7 +445,8 @@ struct FolderRowsPage: View {
     /// on its first card (S4; `itemId: nil` = the remembered card, else the first). The Edit band
     /// holds focus until then (BUG-47).
     private func requestInitialFocus(_ key: String?) {
-        guard requestsInitialFocus, let key, box.pendingInitialFocus else { return }
+        // Steven: with the Orbit bar the cursor starts on the collection bar's Films instead.
+        guard requestsInitialFocus, !NavigationChrome.isOrbitBar(), let key, box.pendingInitialFocus else { return }
         box.pendingInitialFocus = false
         let controller = stage
         // Next runloop turn: the pager installs its handle in its own `.onAppear`, which may run

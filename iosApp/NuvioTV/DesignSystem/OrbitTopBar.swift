@@ -173,6 +173,13 @@ struct OrbitTopBar: View {
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
         }
+        // Steven: at launch the cursor sits on Films (the hero / first row took it late).
+        .onAppear {
+            OrbitBarLaunchFocus.place {
+                guard selectedTab == 0 else { return }
+                if focused != currentItem { focused = currentItem }
+            }
+        }
         .onChange(of: focused) { _, item in
             guard !placedLaunchFocus, let item else { return }
             placedLaunchFocus = true
@@ -438,6 +445,7 @@ struct CollectionFilterBar: View {
     let onSearch: () -> Void
 
     @FocusState private var focused: OrbitBarItem?
+    @State private var placedEntryFocus = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -454,6 +462,16 @@ struct CollectionFilterBar: View {
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
         .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
+        // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
+        // Once: a pop back from Detail keeps its own restore.
+        .onAppear {
+            guard !placedEntryFocus else { return }
+            placedEntryFocus = true
+            OrbitBarLaunchFocus.place {
+                let target: OrbitBarItem = isSelected(.series) && !isSelected(.films) ? .series : .films
+                if focused != target { focused = target }
+            }
+        }
         // Pass 3 (Steven: Up never reached it): the focus section spans the screen's width in the
         // bar's band, so Up from any card of the top row finds the bar (the engine only searches
         // straight up, and the pill sits at the far right).
@@ -506,5 +524,21 @@ enum CollectionTypeFilter {
     static func rows(_ rows: [FolderStripRow], filter: String?) -> [FolderStripRow] {
         guard filter != nil else { return rows }
         return rows.filter { keeps(effectiveType(declared: $0.contentType, name: $0.heading), filter: filter) }
+    }
+}
+
+/// Steven: the cursor starts on the page's Films (or Séries) item of a bar, not on the first card.
+/// Asked several times over the first seconds (the strip's own first focus lands late), until the
+/// viewer presses anything.
+@MainActor
+enum OrbitBarLaunchFocus {
+    static func place(_ apply: @escaping () -> Void) {
+        let start = ProcessInfo.processInfo.systemUptime
+        for delay in [0.05, 0.3, 0.7, 1.2, 2.0, 3.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard !ViewerInputClock.shared.hasInput(since: start) else { return }
+                apply()
+            }
+        }
     }
 }
