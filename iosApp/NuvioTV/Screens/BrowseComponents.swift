@@ -217,9 +217,8 @@ struct WakoCardPlacement: ViewModifier {
 
     private var place: WakoLeadFrame.Place { WakoLeadFrame.place(index: index, lead: lead) }
 
-    /// The drawn offset. Wako pass 11: on a Left (one press or several), a card that turns into an
-    /// "after" card is put straight at its final spot on screen (cancelling the row's glide to the
-    /// right) and holds still while it fades in, instead of sliding in from the left under the frame.
+    /// The drawn offset (0, or `shift` for the cards after the frame), always animated with the row's
+    /// glide, so Left and Right mirror each other (wako pass 13).
     @State private var offsetX: CGFloat = 0
 
     private var opacity: Double {
@@ -235,19 +234,16 @@ struct WakoCardPlacement: ViewModifier {
             .opacity(opacity)
             .animation(reduceMotion ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds), value: opacity)
             .onChange(of: lead, initial: true) { oldLead, newLead in
-                let oldPlace = WakoLeadFrame.place(index: index, lead: oldLead)
                 let newPlace = WakoLeadFrame.place(index: index, lead: newLead)
                 let target: CGFloat = newPlace == .after ? shift : 0
                 var still = Transaction()
                 still.disablesAnimations = true
                 if oldLead == newLead || reduceMotion {
                     if target != offsetX { withTransaction(still) { offsetX = target } }
-                } else if newPlace == .after, oldPlace != .after,
-                          let oldLead, let newLead, newLead < oldLead {
-                    // The row glides right by (oldLead − newLead) steps: start that far right.
-                    withTransaction(still) { offsetX = target + CGFloat(oldLead - newLead) * step }
-                    withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 } else if target != offsetX {
+                    // Wako pass 13: on a Left the card leaving the frame animates 0 → shift while
+                    // the row glides right, so it slides out from under the frame to its slot while
+                    // fading in — the exact mirror of a Right (pass 11 held it still in its slot).
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 }
             }
