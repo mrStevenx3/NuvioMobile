@@ -115,6 +115,43 @@ struct SettingsRowButtonStyle: ButtonStyle {
     }
 }
 
+/// Steven's fork (device pass): the stream list's row in Liquid Glass — a clear glass pane with a
+/// thin light edge under the focused row instead of the flat near-white platter; the text stays
+/// light (the dark scheme), so it reads on the glass.
+struct GlassRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        RowBody(configuration: configuration)
+    }
+
+    private struct RowBody: View {
+        let configuration: Configuration
+        @Environment(\.isFocused) private var isFocused
+
+        var body: some View {
+            let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+            configuration.label
+                .foregroundStyle(Theme.Palette.textPrimary)
+                .environment(\.colorScheme, .dark)
+                .background {
+                    if isFocused {
+                        shape.fill(Color.white.opacity(0.06))
+                            .glassEffect(.regular, in: shape)
+                            .overlay(shape.strokeBorder(Color.white.opacity(0.55), lineWidth: 1.5))
+                    }
+                }
+                .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 18, y: 8)
+                .scaleEffect(isFocused ? 1.02 : 1)
+                .scaleEffect(configuration.isPressed ? FocusLook.pressScale : 1)
+                .animation(FocusLook.anim, value: isFocused)
+                .animation(FocusLook.pressAnim, value: configuration.isPressed)
+        }
+    }
+}
+
+extension ButtonStyle where Self == GlassRowButtonStyle {
+    static var glassRow: GlassRowButtonStyle { .init() }
+}
+
 extension ButtonStyle where Self == SettingsRowButtonStyle {
     /// Platter-free-at-rest style for full-width text rows (system-look focus).
     static var settingsRow: SettingsRowButtonStyle { .init() }

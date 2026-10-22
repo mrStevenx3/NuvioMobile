@@ -8,6 +8,9 @@ import SharedCore
 nonisolated struct StageCopy: Equatable {
     let meta: String
     let synopsis: String
+    /// Steven's fork (device pass): a Continue Watching title shows its name above the time left,
+    /// and no synopsis. nil everywhere else.
+    var title: String? = nil
 }
 
 extension StageCopy {
@@ -45,7 +48,10 @@ extension StageCopy {
         let meta = continueWatchingMeta(progress, item: item)
         let pause: String? = progress.pauseDescription
         let synopsis = nonBlank(pause) ?? plain.synopsis
-        return StageCopy(meta: meta.isEmpty ? plain.meta : meta, synopsis: synopsis)
+        let progressTitle: String? = progress.title
+        _ = synopsis
+        return StageCopy(meta: meta.isEmpty ? plain.meta : meta, synopsis: "",
+                         title: nonBlank(progressTitle) ?? item.name)
     }
 
     /// `HomeHeroForeground.metaLine`, duplicated (that one is private to the hero foreground):

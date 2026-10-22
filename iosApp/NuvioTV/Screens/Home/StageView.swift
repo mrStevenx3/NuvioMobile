@@ -359,6 +359,12 @@ struct StageTextBlock: View {
                 // Wako pass 3: never for a collection folder (its row's page is fitted, no band).
                 if geometry.infoBelow, !shown.identity.hasPrefix(collectionHeroType + ":") {
                     VStack(alignment: .leading, spacing: StripGeometry.slotGap) {
+                        if let title = copy.title {
+                            Text(title)
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundStyle(Theme.Palette.textPrimary)
+                                .lineLimit(1)
+                        }
                         Text(copy.meta)
                             .font(Theme.Font.metaStrong)
                             .foregroundStyle(Theme.Palette.textPrimary)

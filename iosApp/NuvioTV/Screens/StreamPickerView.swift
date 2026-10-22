@@ -729,7 +729,8 @@ struct StreamPickerView: View {
         // `.settingsRow` (platter-free, soft white highlight + accent ring) replaces the system
         // `.glass` style: Liquid Glass's focus platter goes near-white, which made this row's
         // title text (statically `textPrimary`, near-white) unreadable on focus.
-        .buttonStyle(.settingsRow)
+        // Steven's fork: Liquid Glass row (light text on clear glass), see `GlassRowButtonStyle`.
+        .buttonStyle(.glassRow)
         .focused($focusedRow, equals: key)
         // FEAT-5: long-press → the OTHER player(s). With the built-in default, the menu offers
         // the installed external players; with an external default (plain Select already hands

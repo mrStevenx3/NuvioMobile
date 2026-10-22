@@ -481,7 +481,8 @@ enum DetailScrollProbe {
 /// keep capsules. Chips stay as they are.
 enum DetailActionShape {
     nonisolated static func isSquare(cornerRadius: CGFloat) -> Bool {
-        cornerRadius == 0
+        // Steven's fork (device pass): the buttons keep their capsules with Square posters too.
+        false
     }
 }
 
