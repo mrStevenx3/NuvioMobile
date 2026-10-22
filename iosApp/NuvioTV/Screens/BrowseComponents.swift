@@ -202,6 +202,12 @@ struct WakoCardPlacement: ViewModifier {
     let shift: CGFloat
     let reduceMotion: Bool
 
+    /// Whether the card is drawn shifted past the frame. Driven from `place` in `onChange` so the
+    /// one transition that must NOT glide can skip the animation (wako pass 8): on Left the card that
+    /// held the frame becomes the first card after it, and gliding it from under the frame left a
+    /// hole on the right while it travelled; it now appears in its slot and rides the row's glide.
+    @State private var shownAfter = false
+
     private var opacity: Double {
         switch place {
         case .none, .after: return 1
@@ -211,10 +217,20 @@ struct WakoCardPlacement: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .offset(x: place == .after ? shift : 0)
-            .animation(reduceMotion ? nil : FocusLeadsRow.animation, value: place == .after)
+            .offset(x: shownAfter ? shift : 0)
             .opacity(opacity)
             .animation(reduceMotion ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds), value: opacity)
+            .onChange(of: place, initial: true) { old, new in
+                let after = new == .after
+                guard after != shownAfter else { return }
+                if old == new || reduceMotion || (old == .lead && new == .after) {
+                    var tx = Transaction()
+                    tx.disablesAnimations = true
+                    withTransaction(tx) { shownAfter = after }
+                } else {
+                    withAnimation(FocusLeadsRow.animation) { shownAfter = after }
+                }
+            }
     }
 }
 
