@@ -159,13 +159,7 @@ struct DiscoverGridPage: View {
                                  })
                     }
                 }
-                if let key = model.selectedCatalogKey {
-                    PillButton(title: String(localized: "Browse"),
-                               systemImage: "rectangle.grid.1x2",
-                               id: "discover.browseButton") {
-                        onBrowse(key)
-                    }
-                }
+                // Steven's fork: no Browse pill (the per-genre rows page it opened is not wanted).
             }
             .padding(.vertical, Theme.Spacing.xs)
         }
