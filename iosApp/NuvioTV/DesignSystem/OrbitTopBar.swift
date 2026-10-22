@@ -58,7 +58,7 @@ private enum OrbitBarItem: Hashable, CaseIterable {
         switch self {
         case .films: return String(localized: "Films")
         case .series: return String(localized: "Séries")
-        case .services: return String(localized: "Services")
+        case .services: return String(localized: "Plateformes")
         case .studios: return String(localized: "Studios")
         default: return nil
         }
@@ -126,6 +126,9 @@ struct OrbitTopBar: View {
     /// Pass 4: the launch focus (the engine's pick, the top-left Search glyph) is moved once onto
     /// the current page's item (Films at launch).
     @State private var placedLaunchFocus = false
+    /// Pass 7: the Plateformes / Studios entry transition (`OrbitSpaceTransition`), one per entry.
+    @State private var transition: (id: Int, style: OrbitSpaceTransition.Style, origin: CGPoint)?
+    @State private var itemCentres: [OrbitBarItem: CGPoint] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -145,6 +148,14 @@ struct OrbitTopBar: View {
         .padding(.leading, OrbitBarMetrics.leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea()
+        .overlay {
+            if let transition {
+                OrbitSpaceTransition(style: transition.style, origin: transition.origin) {
+                    if self.transition?.id == transition.id { self.transition = nil }
+                }
+                .id(transition.id)
+            }
+        }
         .opacity(immersive ? 0 : 1)
         .allowsHitTesting(!immersive)
         .disabled(immersive)
@@ -177,6 +188,12 @@ struct OrbitTopBar: View {
                 }
                 .buttonStyle(OrbitBarButtonStyle())
                 .focused($focused, equals: item)
+                .onGeometryChange(for: CGPoint.self) { proxy in
+                    let frame = proxy.frame(in: .global)
+                    return CGPoint(x: frame.midX, y: frame.midY)
+                } action: { centre in
+                    itemCentres[item] = centre
+                }
                 .accessibilityLabel(item.accessibilityName)
                 .accessibilityIdentifier("orbit_bar_\(item)")
             }
@@ -209,6 +226,14 @@ struct OrbitTopBar: View {
     }
 
     private func select(_ item: OrbitBarItem) {
+        let spaces: Set<HomeContentFilter> = [.services, .studios]
+        if let filter = item.homeFilter, spaces.contains(filter),
+           !(selectedTab == 0 && spaces.contains(homeFilter.filter)) {
+            let style = OrbitSpaceTransition.currentStyle
+            if style != .off, !reduceMotion {
+                transition = ((transition?.id ?? 0) + 1, style, itemCentres[item] ?? CGPoint(x: 400, y: 80))
+            }
+        }
         if let filter = item.homeFilter {
             homeFilter.set(filter)
             selectedTab = 0
