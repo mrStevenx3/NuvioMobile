@@ -46,6 +46,8 @@ struct StageView: View {
     /// Steven's fork (collections: the title sat right under the collection bar): moves the text
     /// block down, the art stays where it is.
     let textTopOffset: CGFloat
+    /// Steven's fork (collections: the title logo a little further right).
+    let textLeadingOffset: CGFloat
 
     init(controller: StageController,
          geometry: StripGeometry,
@@ -56,8 +58,10 @@ struct StageView: View {
          logoTopTrailing: Bool = false,
          plainArt: Bool = false,
          blurredArt: Bool = false,
-         textTopOffset: CGFloat = 0) {
+         textTopOffset: CGFloat = 0,
+         textLeadingOffset: CGFloat = 0) {
         self.textTopOffset = textTopOffset
+        self.textLeadingOffset = textLeadingOffset
         self.plainArt = plainArt
         self.blurredArt = blurredArt
         self.controller = controller
@@ -103,7 +107,7 @@ struct StageView: View {
                            logoAlignment: logoAlignment,
                            logoTopTrailing: logoTopTrailing && geometry.infoBelow,
                            copySource: controller.copySource)
-                .offset(y: textTopOffset)
+                .offset(x: textLeadingOffset, y: textTopOffset)
             #if DEBUG
             StageDebugLabel(debug: controller.swap.debug, geometry: geometry, probeID: probeID)
             #endif
