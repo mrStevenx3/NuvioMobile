@@ -257,9 +257,10 @@ struct StageStripHome: View {
         return keys
     }
 
-    /// Steven's fork (Orbit bar): Services / Studios draw a folder grid instead of the strip.
+    /// Steven's fork (Orbit bar): Services draws a folder grid instead of the strip. Studios uses the
+    /// strip like Films / Séries (Steven, pass 5), its folder tiles kept in their own portrait shape.
     private var showsCollectionGrid: Bool {
-        contentFilter.filter == .services || contentFilter.filter == .studios
+        contentFilter.filter == .services
     }
 
     /// The collections the grid lays out: the page's rows, in Home's order.
