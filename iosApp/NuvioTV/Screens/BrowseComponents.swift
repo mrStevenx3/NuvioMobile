@@ -5840,8 +5840,12 @@ struct CatalogRowView: View {
                     // own input instead: only a recent Left or swipe may move onto that card.
                     let viewerLeft: Bool = {
                         let clock = ViewerInputClock.shared
-                        guard clock.isLive, let at = clock.lastAt,
-                              ProcessInfo.processInfo.systemUptime - at < 0.6 else { return oldId != nil }
+                        // Pass 3 (Steven's video: still left after Back): the engine's late move
+                        // comes more than 0.6 s after the Back press, and a stale input then fell
+                        // back to "old id set = the viewer's Left". With the clock, only a recent
+                        // Left or swipe counts.
+                        guard clock.isLive else { return oldId != nil }
+                        guard let at = clock.lastAt, ProcessInfo.processInfo.systemUptime - at < 0.6 else { return false }
                         return clock.lastKindLabel == ViewerInputKind.left.rawValue
                             || clock.lastKindLabel == ViewerInputKind.swipe.rawValue
                     }()

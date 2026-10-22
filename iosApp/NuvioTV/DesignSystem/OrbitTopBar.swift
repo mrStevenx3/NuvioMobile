@@ -306,6 +306,7 @@ struct OrbitCollectionGrid: View {
     }
 
     @FocusState private var focused: String?
+    @State private var restoreTarget: String?
     /// Device pass (Steven): back from a folder, focus returns to the tile it was opened from
     /// (it reset to the first one). Static, so it survives the grid being rebuilt on the pop.
     @MainActor private static var lastFocused: String?
@@ -356,6 +357,8 @@ struct OrbitCollectionGrid: View {
         // Steven: the Poster Size setting does not apply here — the platform tiles keep the size
         // they were laid out for (the default style), whatever Small / Large says.
         .environment(\.posterStyle, .default)
+        // The engine's own entry into the grid after the pop picks the tile too.
+        .defaultFocus($focused, restoreTarget, priority: .userInitiated)
         .onChange(of: focused) { _, id in
             guard let id, let entry = entries.first(where: { $0.id == id }) else {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
@@ -370,12 +373,19 @@ struct OrbitCollectionGrid: View {
             guard Self.leftWithFocus, let last = Self.lastFocused,
                   entries.contains(where: { $0.id == last }) else { return }
             Self.leftWithFocus = false
-            // Twice: the engine's own default (the first tile) can land after the first ask.
-            DispatchQueue.main.async { focused = last }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                if focused != last, ProcessInfo.processInfo.systemUptime - Self.appearedAt < 0.6 { focused = last }
+            let appeared = ProcessInfo.processInfo.systemUptime
+            Self.appearedAt = appeared
+            restoreTarget = last
+            // Pass 3 (Steven's video: still the first tile): the engine's own restoration lands
+            // late, after the first asks. Ask again over the first second and a half, until the
+            // viewer presses anything.
+            for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    guard !ViewerInputClock.shared.hasInput(since: appeared), focused != last else { return }
+                    focused = last
+                }
             }
-            Self.appearedAt = ProcessInfo.processInfo.systemUptime
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { restoreTarget = nil }
         }
         // Device pass (still back on the first tile): the push takes focus off the tile before the
         // grid disappears, so `focused` was already nil here. A loss just before counts.

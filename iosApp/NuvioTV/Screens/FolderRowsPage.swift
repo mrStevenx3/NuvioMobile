@@ -107,7 +107,8 @@ struct FolderRowsPage: View {
                       // stage title's own from the start, top-aligned as after the old rise.
                       hidesLogo: false,
                       probeID: "debug_stage_folder",
-                      logoAlignment: .topLeading)
+                      logoAlignment: .topLeading,
+                      textTopOffset: NavigationChrome.isOrbitBar() ? 34 : 0)
             VStack(spacing: 0) {
                 // The stage block's place: nothing focusable lives here, so Up from the top row
                 // goes straight to the Edit band.

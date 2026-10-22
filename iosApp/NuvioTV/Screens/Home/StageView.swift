@@ -43,6 +43,9 @@ struct StageView: View {
     /// Steven's fork (Orbit Home): the sharp backdrop is gone; the whole screen is the shown title's
     /// backdrop blurred and darkened (its colours, like wako), the title logo top-right on it.
     let blurredArt: Bool
+    /// Steven's fork (collections: the title sat right under the collection bar): moves the text
+    /// block down, the art stays where it is.
+    let textTopOffset: CGFloat
 
     init(controller: StageController,
          geometry: StripGeometry,
@@ -52,7 +55,9 @@ struct StageView: View {
          logoAlignment: Alignment = .bottomLeading,
          logoTopTrailing: Bool = false,
          plainArt: Bool = false,
-         blurredArt: Bool = false) {
+         blurredArt: Bool = false,
+         textTopOffset: CGFloat = 0) {
+        self.textTopOffset = textTopOffset
         self.plainArt = plainArt
         self.blurredArt = blurredArt
         self.controller = controller
@@ -98,6 +103,7 @@ struct StageView: View {
                            logoAlignment: logoAlignment,
                            logoTopTrailing: logoTopTrailing && geometry.infoBelow,
                            copySource: controller.copySource)
+                .offset(y: textTopOffset)
             #if DEBUG
             StageDebugLabel(debug: controller.swap.debug, geometry: geometry, probeID: probeID)
             #endif
