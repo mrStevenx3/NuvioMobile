@@ -71,25 +71,29 @@ struct OrbitSearchKeyboard: View {
     /// the iPhone keyboard types; the results update behind it as the text changes.
     private var dictateKey: some View {
         let focused = focusedKey == Self.dictateKey
-        return TextField("", text: $queryBox.text)
-            .textFieldStyle(.plain)
-            .foregroundStyle(Color.clear)
-            .tint(Color.clear)
-            .frame(width: 96, height: 58)
-            .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(focused ? Color.white : Color.white.opacity(0.14))
-            }
-            .overlay {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(focused ? Color.black : Color.white)
-                    .allowsHitTesting(false)
-            }
-            .scaleEffect(focused ? 1.12 : 1)
-            .animation(.easeOut(duration: 0.12), value: focused)
-            .focused($focusedKey, equals: Self.dictateKey)
-            .accessibilityLabel(Text("Dicter"))
+        // Pass 3: the visible key is drawn like the letters, beside (not inside) the system field,
+        // so it has no grey field box and the glyph is never scaled as a bitmap by the field's lift.
+        // The field itself sits on top, nearly transparent: it takes the focus and the Select.
+        return ZStack {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(focused ? Color.black : Color.white)
+                .frame(minWidth: 46, minHeight: 58)
+                .padding(.horizontal, 6)
+                .background {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(focused ? Color.white : Color.clear)
+                }
+                .scaleEffect(focused ? 1.12 : 1)
+                .animation(.easeOut(duration: 0.12), value: focused)
+                .allowsHitTesting(false)
+            TextField("", text: $queryBox.text)
+                .textFieldStyle(.plain)
+                .frame(width: 58, height: 58)
+                .opacity(0.011)
+                .focused($focusedKey, equals: Self.dictateKey)
+                .accessibilityLabel(Text("Dicter"))
+        }
     }
 
     private func press(_ id: String) {
