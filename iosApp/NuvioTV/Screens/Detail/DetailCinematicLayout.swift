@@ -39,6 +39,12 @@ nonisolated enum DetailCinematicLayout {
     static func heroHeight(containerHeight: CGFloat) -> CGFloat {
         max(heroMinimumHeight, containerHeight - screenPadding - pageRowSpacing - peekBand)
     }
+
+    /// Steven's fork (Apple TV style): no peek band — the hero fills the screen below the page's
+    /// top padding, so nothing of the first row shows until the first Down.
+    static func fullScreenHeroHeight(containerHeight: CGFloat) -> CGFloat {
+        max(heroMinimumHeight, containerHeight - screenPadding)
+    }
 }
 
 // MARK: - Ratings strip

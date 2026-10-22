@@ -141,11 +141,15 @@ struct DetailCinematicHero<Actions: View>: View {
             // the hero (and shrinks the peek) instead of clipping the text column.
             Color.clear
                 .frame(maxWidth: .infinity)
-                .containerRelativeFrame(.vertical) { height, _ in
-                    DetailCinematicLayout.heroHeight(containerHeight: height)
+                .containerRelativeFrame(.vertical) { [synopsisBeside] height, _ in
+                    // Steven's fork: in Apple TV style the hero takes the whole first screen.
+                    synopsisBeside
+                        ? DetailCinematicLayout.fullScreenHeroHeight(containerHeight: height)
+                        : DetailCinematicLayout.heroHeight(containerHeight: height)
                 }
                 .accessibilityHidden(true)
             content
+                .padding(.bottom, synopsisBeside ? DetailAppleStyle.heroBottomInset : 0)
         }
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .onChange(of: measuredTruncated, initial: true) { _, _ in syncSynopsisTruncated() }
