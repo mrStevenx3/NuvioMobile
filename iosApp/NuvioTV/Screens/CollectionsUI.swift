@@ -818,7 +818,10 @@ struct FolderTile: View {
                     AnimatedGifImage(
                         string: gifUrl,
                         fallback: nil,
-                        isAnimating: isFocused,
+                        // Steven's fork: the row's own FocusState (`stillFocused`), not
+                        // `@Environment(\.isFocused)` (device-unreliable, BUG-65): with it a tile
+                        // could keep playing (and hide its cover) after focus had left it.
+                        isAnimating: stillFocused,
                         targetSize: CGSize(width: tileWidth, height: tileHeight)
                     )
                 }
