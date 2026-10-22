@@ -5820,6 +5820,20 @@ struct CatalogRowView: View {
                 // Home Stage & Strip (P1 §3.3): see `restoreStripMemory`. Inert outside the strip.
                 .onAppear { restoreStripMemory(proxy: proxy) }
                 .onChange(of: focusedItemId) { oldId, id in
+                    // Device pass (Steven: back from Detail, or into a row from above/below, landed
+                    // on the film LEFT of the one in the frame). The lead rests a step in, so the
+                    // card before it sits hidden at the viewport's left edge and the engine's own
+                    // restore picks it. Focus arriving from outside the row on that card goes back
+                    // to the frame's title; a Left inside the row (old id set) is left alone.
+                    if wakoFrame, oldId == nil, let id,
+                       let rest = wakoRestId ?? stripFocusMemory?.itemId(for: section.key), rest != id {
+                        let items = Self.uniqueItems(section.items)
+                        if let r = items.firstIndex(where: { $0.id == rest }),
+                           let n = items.firstIndex(where: { $0.id == id }), n == r - 1 {
+                            DispatchQueue.main.async { focusedItemId = rest }
+                            return
+                        }
+                    }
                     if let id { wakoRestId = id }
                     // Steven's fork: the stage hides its meta line and synopsis while See All holds
                     // focus (they still showed the last title's).

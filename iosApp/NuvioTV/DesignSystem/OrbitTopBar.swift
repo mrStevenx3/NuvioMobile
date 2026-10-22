@@ -306,6 +306,9 @@ struct OrbitCollectionGrid: View {
     }
 
     @FocusState private var focused: String?
+    /// Device pass (Steven): back from a folder, focus returns to the tile it was opened from
+    /// (it reset to the first one). Static, so it survives the grid being rebuilt on the pop.
+    @MainActor private static var lastFocused: String?
 
     private var entries: [Entry] {
         var seen = Set<String>()
@@ -352,7 +355,12 @@ struct OrbitCollectionGrid: View {
         .environment(\.posterStyle, .default)
         .onChange(of: focused) { _, id in
             guard let id, let entry = entries.first(where: { $0.id == id }) else { return }
+            Self.lastFocused = id
             onFolderFocus(entry.collection, entry.folder)
+        }
+        .onAppear {
+            guard let last = Self.lastFocused, entries.contains(where: { $0.id == last }) else { return }
+            DispatchQueue.main.async { focused = last }
         }
     }
 }
