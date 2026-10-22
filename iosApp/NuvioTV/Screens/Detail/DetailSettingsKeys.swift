@@ -48,11 +48,16 @@ nonisolated enum DetailAppleStyle {
     static let synopsisLines = 2
     /// The visible dim is scaled by this while frosted (the dim MODEL is unchanged, so the
     /// trailer's tear-down latch still fires at the same scroll depth).
-    static let dimScale: Double = 0.75
+    /// Device pass 4 (Steven): scrolling down blurs the backdrop instead of darkening it, so
+    /// the drawn black dim is off in this style (0); the dim MODEL still runs (trailer tear-down,
+    /// blur strength).
+    static let dimScale: Double = 0
     /// Where the bottom frost starts, as a fraction of the screen height from the top.
     static let bottomFrostStart: CGFloat = 0.55
     /// The frost reaches full strength once the dim reaches this.
     static let fullFrostDim: Double = 0.35
+    /// The backdrop's blur radius once fully frosted (reached at `fullFrostDim`).
+    static let backdropBlurMax: CGFloat = 40
     static let heroFade = 0.4
     /// The hero fills the screen in this style (no peek of the first row). The buttons keep this
     /// gap to the bottom edge: closer, the focus engine scrolls the page to give the focused
@@ -71,8 +76,11 @@ nonisolated enum DetailAppleStyle {
     static let rowRest: CGFloat = 196
     /// The compact logo fades in once the hero text has mostly faded (device pass 2: the two
     /// overlapped on the first Down).
-    static let logoFadeDelay = 0.25
-    static let logoFade = 0.35
+    /// Device pass 4 (Steven, the Apple TV app's video): the compact logo SLIDES up into place
+    /// with the rows (no zoom), from `logoSlideDistance` below its rest.
+    static let logoFadeDelay = 0.05
+    static let logoFade = 0.45
+    static let logoSlideDistance: CGFloat = 160
     static let unfoldAnimation = Animation.easeInOut(duration: 0.35)
     /// UIKit's focus engine skips views at opacity 0, so the faded hero stays at this (invisible)
     /// opacity and Up can still reach it (device pass 2: Up never came back to the hero).

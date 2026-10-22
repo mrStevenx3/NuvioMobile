@@ -228,7 +228,7 @@ private struct DetailCompactLogo: View {
         if visible {
             return Animation.easeOut(duration: DetailAppleStyle.logoFade).delay(DetailAppleStyle.logoFadeDelay)
         }
-        return Animation.easeIn(duration: 0.2)
+        return Animation.easeIn(duration: 0.25)
     }
 
     var body: some View {
@@ -239,10 +239,11 @@ private struct DetailCompactLogo: View {
             .frame(maxWidth: maxWidth, maxHeight: slotHeight)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .shadow(color: .black.opacity(0.5), radius: 8)
+            // Device pass 4: no shadow in Apple TV style (it sits on the blurred backdrop).
+            .shadow(color: .black.opacity(followsFirstRow ? 0 : 0.5), radius: 8)
             .opacity(shown ? 1 : 0)
-            .scaleEffect(followsFirstRow && !shown ? 0.92 : 1)
-            .offset(y: followsFirstRow && !shown ? 14 : 0)
+            // Device pass 4: a slide up from below, no zoom (the Apple TV app).
+            .offset(y: followsFirstRow && !shown ? DetailAppleStyle.logoSlideDistance : 0)
             .onAppear { shown = visible }
             .onChange(of: visible) { _, now in
                 withAnimation(fadeAnimation) { shown = now }
@@ -272,14 +273,15 @@ final class DetailLogoLiftModel: ObservableObject {
 }
 
 /// Steven's fork (Apple TV style): the frosted backdrop. The lower part of the screen is always
-/// frosted (a material faded in from `DetailAppleStyle.bottomFrostStart`), and the whole screen
-/// frosts as the page scrolls (following the dim, full at `DetailAppleStyle.fullFrostDim`).
+/// frosted (a material faded in from `DetailAppleStyle.bottomFrostStart`); as the page scrolls
+/// that band hands over to the blurred backdrop (`DetailBackdropBlur`).
 /// Observes the dim model itself, like `DetailTopScrim`, so `DetailView.body` never re-renders
 /// per dim step.
 private struct DetailFrostLayer: View {
     @ObservedObject var model: ScrollDimModel
 
-    private var fullFrost: Double { min(1, max(0, model.value / DetailAppleStyle.fullFrostDim)) }
+    /// Device pass 4: how far the backdrop blur has taken over (0 on the hero, 1 scrolled).
+    private var blurProgress: Double { min(1, max(0, model.value / DetailAppleStyle.fullFrostDim)) }
 
     var body: some View {
         ZStack {
@@ -292,14 +294,35 @@ private struct DetailFrostLayer: View {
                         .init(color: .black, location: 1)
                     ], startPoint: .top, endPoint: .bottom)
                 }
-            Rectangle()
-                .fill(.regularMaterial)
-                .opacity(fullFrost)
-                .animation(.linear(duration: 0.12), value: fullFrost)
+                // Device pass 4: the scrolled page no longer lays a grey material over everything;
+                // the backdrop itself blurs (`DetailBackdropBlur`), and this band fades out as it
+                // does, so the scrolled page reads as one even blur, not a darker bottom.
+                .opacity(1 - blurProgress)
+                .animation(.linear(duration: 0.12), value: blurProgress)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// Steven's fork (device pass 4, Apple TV style): blurs the backdrop as the page scrolls down,
+/// following the dim model (full at `DetailAppleStyle.fullFrostDim`). A modifier that observes the
+/// model itself, so a dim step re-renders the blur only, never `DetailView.body` (BUG-41).
+private struct DetailBackdropBlur: ViewModifier {
+    @ObservedObject var model: ScrollDimModel
+    let enabled: Bool
+
+    private var radius: CGFloat {
+        guard enabled else { return 0 }
+        let t = min(1, max(0, model.value / DetailAppleStyle.fullFrostDim))
+        return (CGFloat(t) * DetailAppleStyle.backdropBlurMax).rounded()
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .blur(radius: radius, opaque: true)
+            .animation(.linear(duration: 0.12), value: radius)
     }
 }
 
@@ -771,8 +794,10 @@ struct DetailView: View {
                 // FEAT-32: the still lands enlarged when the trailer cover goes and settles to 1.
                 .scaleEffect(TrailerBridgeChoreography.backdropScale(bridgePhase))
                 .animation(TrailerBridgeChoreography.backdropAnimation(to: bridgePhase), value: bridgePhase)
+                .modifier(DetailBackdropBlur(model: dimModel, enabled: appleStyle))
             if showPosterBackdrop {
                 posterBackdropLayer
+                    .modifier(DetailBackdropBlur(model: dimModel, enabled: appleStyle))
                     .transition(.opacity)
             }
             // Tear the trailer's libmpv instance down while the stream player (also libmpv) is open,
@@ -793,6 +818,7 @@ struct DetailView: View {
                                   zoomKey: model.trailerZoomKey, videoId: model.trailerVideoId,
                                   surfaceTag: "detail-bg")
                     .ignoresSafeArea()
+                    .modifier(DetailBackdropBlur(model: dimModel, enabled: appleStyle))
                     .transition(.opacity)
             }
             // FEAT-35: each layout has its own scrim. Written out at both call sites (here and the
