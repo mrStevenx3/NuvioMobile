@@ -2058,7 +2058,7 @@ struct DetailView: View {
         .opacity(appleStyle && focusedRow != nil ? DetailAppleStyle.hiddenButFocusable : 1)
         // Steven's fork: the unfolded synopsis overlay draws over the rows that follow the hero.
         .zIndex(appleStyle ? 1 : 0)
-        .animation(reduceMotion ? nil : .easeInOut(duration: DetailAppleStyle.heroFade),
+        .animation(reduceMotion ? nil : .easeOut(duration: DetailAppleStyle.heroFade),
                    value: appleStyle && focusedRow != nil)
         .focused($heroHasFocus)
         // BUG-187: the Cinematic teaser is in the hero but not in `heroFocus`; forget the card too.

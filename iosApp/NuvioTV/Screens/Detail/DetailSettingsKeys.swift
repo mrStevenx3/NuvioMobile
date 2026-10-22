@@ -62,7 +62,9 @@ nonisolated enum DetailAppleStyle {
     static let blurRadiusPixels: Double = 14
     /// The top fade over the scrolled rows (content above it fades out under the compact logo).
     static let topFadeHeight: CGFloat = 190
-    static let heroFade = 0.4
+    /// Device pass (Steven: the first Down was not as smooth as the moves further down): the hero
+    /// fade and the logo slide ride the rows' own scroll curve (ease-out 0.3 s, `anchorPass`).
+    static let heroFade = 0.3
     /// The hero fills the screen in this style (no peek of the first row). The buttons keep this
     /// gap to the bottom edge: closer, the focus engine scrolls the page to give the focused
     /// button room (device: it did as the Trailer button mounted, pulling the studio logos up).
@@ -82,8 +84,8 @@ nonisolated enum DetailAppleStyle {
     /// overlapped on the first Down).
     /// Device pass 4 (Steven, the Apple TV app's video): the compact logo SLIDES up into place
     /// with the rows (no zoom), from `logoSlideDistance` below its rest.
-    static let logoFadeDelay = 0.05
-    static let logoFade = 0.45
+    static let logoFadeDelay = 0.0
+    static let logoFade = 0.3
     static let logoSlideDistance: CGFloat = 160
     static let unfoldAnimation = Animation.easeInOut(duration: 0.35)
     /// UIKit's focus engine skips views at opacity 0, so the faded hero stays at this (invisible)
