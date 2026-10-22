@@ -37,6 +37,9 @@ struct StageView: View {
     /// Steven's fork (wako pass 6): the title logo at the stage's top-RIGHT. Home passes it with
     /// Info Below (the stage then holds only the logo; the meta line and synopsis are under the row).
     let logoTopTrailing: Bool
+    /// Steven's fork (Studios page): the backdrop shown whole, without the wash fade, the scrim's
+    /// mist or the right-hand shade — only a dark band at the bottom for the row and its logo.
+    let plainArt: Bool
 
     init(controller: StageController,
          geometry: StripGeometry,
@@ -44,7 +47,9 @@ struct StageView: View {
          hidesLogo: Bool = false,
          probeID: String = "debug_stage",
          logoAlignment: Alignment = .bottomLeading,
-         logoTopTrailing: Bool = false) {
+         logoTopTrailing: Bool = false,
+         plainArt: Bool = false) {
+        self.plainArt = plainArt
         self.controller = controller
         self.geometry = geometry
         self.hidesLogoWhenDisplaying = hidesLogoWhenDisplaying
@@ -58,10 +63,10 @@ struct StageView: View {
         ZStack(alignment: .topLeading) {
             // The background trailer model is handed down on every host; only Home ever arms it
             // (`StageStripHome`), so on the folder page it stays idle and draws nothing.
-            StageArtLayer(swap: controller.swap, geometry: geometry, trailer: controller.bgTrailer)
+            StageArtLayer(swap: controller.swap, geometry: geometry, trailer: controller.bgTrailer, plain: plainArt)
             // Steven's fork (wako pass 9): with the title logo top-right, the stage art's upper right
             // is shaded so the logo reads on any backdrop. Fixed, never animated.
-            if logoTopTrailing && geometry.infoBelow {
+            if logoTopTrailing && geometry.infoBelow && !plainArt {
                 LinearGradient(stops: [
                     .init(color: .clear, location: StageInfoBelow.rightShadeStart),
                     .init(color: .black.opacity(StageInfoBelow.rightShadeOpacity), location: 1)
@@ -107,10 +112,35 @@ struct StageArtLayer: View {
     /// leaf (`StageBackgroundTrailer`), never by this view, so a dwell or a play/stop re-renders
     /// that leaf only. nil draws no trailer surface at all.
     var trailer: InlineTrailerCardModel? = nil
+    var plain = false
 
     var body: some View {
+        if plain {
+            plainBody
+        } else {
+            maskedBody
+        }
+    }
+
+    /// The Studios page's art: whole, with a bottom shade only.
+    private var plainBody: some View {
         let art = swap.output.art
-        ZStack {
+        return ZStack {
+            HeroCrossfadeImage(image: art?.backdrop, identity: art?.identity ?? "-")
+            LinearGradient(stops: [
+                .init(color: .clear, location: 0.5),
+                .init(color: .black.opacity(0.7), location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+
+    private var maskedBody: some View {
+        let art = swap.output.art
+        return ZStack {
             HeroCrossfadeImage(image: art?.backdrop, identity: art?.identity ?? "-")
             // §7: over the art, under the scrim (the text stays legible over moving video) and
             // inside the mask (the video fades into the wash exactly as the art does). It can only

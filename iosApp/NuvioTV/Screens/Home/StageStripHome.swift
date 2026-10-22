@@ -97,10 +97,11 @@ struct StageStripHome: View {
             AmbientWashLayer(feed: stage.swap.washFeed)
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
             StageView(controller: stage, geometry: geo, hidesLogo: singleStudiosCollection != nil,
-                      logoTopTrailing: true)
+                      logoTopTrailing: true, plainArt: singleStudiosCollection != nil)
             if showsCollectionGrid {
-                // Pass 8 (Steven): Plateformes sits on plain black, whatever backdrop Nuvio has.
-                Color.black.ignoresSafeArea()
+                // Pass 8/9 (Steven): Plateformes sits on the Orbit icon's slate, whatever backdrop
+                // Nuvio has.
+                Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255).ignoresSafeArea()
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
                 OrbitCollectionGrid(collections: gridCollections) { collection, folder in
                     stage.report(folder.flatMap { HomeRowPreviews.folder(collection: collection, folder: $0,
