@@ -123,15 +123,65 @@ struct FocusLeadsTargetBehavior: ViewModifier {
 /// Nothing while the row does not hold focus. Not focusable, never hit-tested.
 struct WakoLeadFrame: View {
     let item: MetaPreview?
+    /// Wako pass 5: the title before `item`, drawn as a dim poster sliver left of the frame (the
+    /// row's own card for it sits outside the viewport, where the lazy stack does not draw it).
+    var previous: MetaPreview? = nil
     let size: CGSize
+    var posterWidth: CGFloat = 0
+    var gap: CGFloat = 0
     let cornerRadius: CGFloat
     let reduceMotion: Bool
+    /// Wako pass 5: the focused title's trailer plays inside the frame (the row's inline-trailer
+    /// gate: the setting, tvOS Auto-Play Previews, not Trailer Location: Hero).
+    var trailersEnabled = false
+
+    /// The frame's own trailer pipeline (dwell → resolve → play), the hero form of the model.
+    @StateObject private var trailer = InlineTrailerCardModel()
+    @Environment(\.rowRestSource) private var rowRestSource
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if let previous, posterWidth > 0 {
+                CachedAsyncImage(string: previous.poster, decodeSize: .points(width: posterWidth, height: size.height))
+                    .frame(width: posterWidth, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                    .opacity(Self.previousOpacity)
+                    .offset(x: -(posterWidth + gap))
+                    .id("prev-" + previous.id)
+                    .transition(.opacity)
+            }
+            if let item {
+                WakoLeadFrameArt(item: item, size: size, cornerRadius: cornerRadius,
+                                 playingURL: trailersEnabled ? trailer.playingURL : nil,
+                                 onFailure: { trailer.playbackFailed($0) },
+                                 onEnded: { trailer.playbackFinished() })
+                    .id(item.id)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .animation(reduceMotion ? nil : .easeInOut(duration: Self.fadeSeconds), value: item?.id)
+        .animation(reduceMotion ? nil : .easeInOut(duration: Self.fadeSeconds), value: previous?.id)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onChange(of: item?.id, initial: true) { _, _ in retarget() }
+        .onDisappear { trailer.reset(abortStages: true) }
+    }
+
+    /// A new focused title (or none): drop the old one's trailer, arm the new one's dwell.
+    private func retarget() {
+        trailer.reset()
+        guard trailersEnabled, let item else { return }
+        trailer.prefersReducedMotion = reduceMotion
+        trailer.restSource = rowRestSource
+        trailer.focusChanged(true, item: item)
+    }
 
     static let fadeSeconds = 0.25
     /// The focused poster (under the frame) stays at this invisible opacity so the focus engine
     /// still reaches it (it skips views at 0).
     static let hiddenOpacity = 0.011
-    /// Wako pass 3: the posters before the frame (the last one peeks at the screen's left edge).
+    /// Wako pass 3/5: the previous title's sliver at the left of the frame.
     static let previousOpacity = 0.35
 
     enum Place: Equatable { case none, before, lead, after }
@@ -168,8 +218,7 @@ struct WakoCardPlacement: ViewModifier {
     private var opacity: Double {
         switch place {
         case .none, .after: return 1
-        case .lead: return WakoLeadFrame.hiddenOpacity
-        case .before: return WakoLeadFrame.previousOpacity
+        case .lead, .before: return WakoLeadFrame.hiddenOpacity
         }
     }
 
@@ -189,21 +238,39 @@ private struct WakoLeadFrameArt: View {
     let item: MetaPreview
     let size: CGSize
     let cornerRadius: CGFloat
+    var playingURL: String? = nil
+    var onFailure: (TrailerFailureReport) -> Void = { _ in }
+    var onEnded: () -> Void = {}
 
     var body: some View {
-        CachedAsyncImage(string: InlineTrailerCard.landscapeArtworkURL(item),
-                         fallback: item.poster,
-                         decodeSize: .points(width: size.width, height: size.height))
-            .frame(width: size.width, height: size.height)
-            .clipped()
-            .overlay(alignment: .bottomLeading) {
-                InlineTrailerTitleOverlay(item: item, tileWidth: size.width, tileHeight: size.height)
+        ZStack {
+            CachedAsyncImage(string: InlineTrailerCard.landscapeArtworkURL(item),
+                             fallback: item.poster,
+                             decodeSize: .points(width: size.width, height: size.height))
+                .frame(width: size.width, height: size.height)
+                .clipped()
+            if let playingURL {
+                TrailerHeroPlayer(
+                    urlString: playingURL,
+                    onFailure: onFailure,
+                    zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                    loops: false,
+                    onPlaybackEnded: onEnded,
+                    cornerRadius: cornerRadius
+                )
+                .frame(width: size.width, height: size.height)
+                .transition(.asymmetric(insertion: .opacity, removal: .identity))
             }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(Color.white, lineWidth: WakoLeadFrame.borderWidth)
-            }
+        }
+        .animation(.easeOut(duration: 0.25), value: playingURL)
+        .overlay(alignment: .bottomLeading) {
+            InlineTrailerTitleOverlay(item: item, tileWidth: size.width, tileHeight: size.height)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .strokeBorder(Color.white, lineWidth: WakoLeadFrame.borderWidth)
+        }
     }
 }
 
@@ -5381,7 +5448,8 @@ struct CatalogRowView: View {
         #endif
         // Perf review 2026-10-17 (#4): the trailer gate (a UIAccessibility read plus the BUG-55
         // probe) once per body, not once per card.
-        let trailersActive = inlineTrailersActive && !wakoFrame
+        let rowTrailersActive = inlineTrailersActive
+        let trailersActive = rowTrailersActive && !wakoFrame
         // Steven's fork (wako frame, pass 3): every card keeps its poster width. The focused one is
         // hidden under the frame, the ones after it are DRAWN one frame-width further right (a
         // render offset, animated with the row's glide), the ones before it are dimmed (only the
@@ -5390,6 +5458,7 @@ struct CatalogRowView: View {
         let wakoIndex: [String: Int] = wakoLead == nil ? [:]
             : Dictionary(section.items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         let wakoLeadIndex: Int? = wakoLead.flatMap { wakoIndex[$0.id] }
+        let wakoPrevious: MetaPreview? = wakoLeadIndex.flatMap { $0 > 0 ? section.items[$0 - 1] : nil }
         let wakoShift = max(0, wakoFrameSize.width - posterStyle.cardWidth)
         // BUG-146 second trim (Steven, rc4: Stage headings "still slightly too high"): heading →
         // shelf spacing is `StripGeometry.headingGap` (12) inside the strip, `md` (16) elsewhere.
@@ -5639,8 +5708,10 @@ struct CatalogRowView: View {
                 // edge, at the cards' own top (shelf padding + reach band). Never focusable.
                 .overlay(alignment: .topLeading) {
                     if wakoFrame {
-                        WakoLeadFrame(item: wakoLead, size: wakoFrameSize,
-                                      cornerRadius: posterStyle.cornerRadius, reduceMotion: reduceMotion)
+                        WakoLeadFrame(item: wakoLead, previous: wakoPrevious, size: wakoFrameSize,
+                                      posterWidth: posterStyle.cardWidth, gap: rowGap,
+                                      cornerRadius: posterStyle.cornerRadius, reduceMotion: reduceMotion,
+                                      trailersEnabled: rowTrailersActive)
                             .padding(.top, (stripFocusMemory != nil ? StripGeometry.shelfTopPadding : Theme.Spacing.lg)
                                      + cardTopReach)
                     }

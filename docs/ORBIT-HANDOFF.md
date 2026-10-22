@@ -30,7 +30,6 @@ et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADL
 - Accueil (rangées « focus leads », affiches portrait) : cadre paysage FIXE à gauche façon wako (`WakoLeadFrame`,
   BrowseComponents.swift) : il montre le titre sélectionné (image + logo, bord blanc), fondu au suivant ;
   cartes à largeur fixe, celles après le cadre décalées au rendu (`WakoCardPlacement`), la précédente en
-  aperçu sombre au bord gauche (le scroll de la rangée déborde sur la marge, `wakoLeading`) ; aussi dans
+  aperçu sombre dessiné par le cadre lui-même (`previous`), bande-annonce lue dans le cadre (modèle `InlineTrailerCardModel` du cadre) ; aussi dans
   les collections. Marges du strip : 60 à gauche, 0 à droite. Rangées de collections (Studios, Services…)
   sans bande d'infos : page ajustée (`StripRowSkipsInfoBandKey`).
-  Bandes-annonces dans les cartes coupées sur ces rangées pour l'instant (à remettre dans le cadre).

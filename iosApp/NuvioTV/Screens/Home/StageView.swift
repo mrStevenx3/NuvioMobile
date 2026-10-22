@@ -254,17 +254,11 @@ struct StageTextBlock: View {
                 ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: StripGeometry.slotGap) {
                     HeroLogo(item: shown.item, image: shown.logo, maxHeight: geometry.logoSlot, ink: shown.logoInk)
-                        .frame(height: geometry.logoSlot, alignment: geometry.infoBelow ? .bottomLeading : logoAlignment)
+                        .frame(height: geometry.logoSlot, alignment: logoAlignment)
                         // The alignment flips while the logo is still hidden (the folder logo's
                         // rise); it must not glide.
                         .transaction(value: logoAlignment) { $0.animation = nil }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        // Steven's fork (wako pass 4): with Info Below the stage holds only the
-                        // logo, so it sits at the BOTTOM of the stage, just above the row and its
-                        // lead frame, instead of under the tab bar.
-                        .padding(.top, geometry.infoBelow
-                                 ? max(0, geometry.stageHeight - geometry.stageBlockTop - StripGeometry.stageBottomGap - geometry.logoSlot)
-                                 : 0)
                         // S3; FEAT-70: also hidden while the folder page's logo is docked here.
                         // Shown on the folder logo's rise with the strip's page curve.
                         .opacity(hidesLogo || shown.identity == hidesLogoWhenDisplaying ? 0 : 1)
