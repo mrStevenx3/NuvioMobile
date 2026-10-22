@@ -405,6 +405,16 @@ final class InlineTrailerCardModel: ObservableObject {
     /// catalog card in `.onAppear`. nil on the hero model.
     var tileArtSource: InlineTileArtSource?
 
+    /// Steven's fork (wako lead tile): on Home's focus-leads rows the FOCUSED card turns into its
+    /// landscape tile at once (no dwell) and stays landscape for as long as it holds focus, trailer
+    /// or not; the trailer still starts after the usual gate and plays inside the same tile. Set by
+    /// the catalog card in `configureModel`.
+    var leadsWithTile = false
+    /// Whether this card holds focus right now (lead-tile mode only reads it).
+    private var leadFocused = false
+    private var leadTask: Task<Void, Never>?
+    private var leadTileActive: Bool { leadsWithTile && hostsTile && leadFocused }
+
     nonisolated static let morphDuration: TimeInterval = 0.35
     /// The morph curve. Slow enough to read as one object changing shape, short enough that a fast
     /// D-pad hand never feels held up by it. R2: the WIDTH stage only (`.reveal ⇄ .wide`), and the
@@ -575,9 +585,28 @@ final class InlineTrailerCardModel: ObservableObject {
             if TrailerProbe.enabled {
                 NSLog("[TrailerPipeline] focus key=%@", TrailerResolutionCache.key(type: item.type, id: item.id))
             }
+            leadFocused = true
             startDwell(item)
+            if leadsWithTile && hostsTile { startLeadTile(item) }
         } else {
+            leadFocused = false
+            leadTask?.cancel()
+            leadTask = nil
             reset()
+        }
+    }
+
+    /// Steven's fork (wako lead tile): morph to the landscape tile right away, without waiting for
+    /// the dwell gate. The trailer pipeline runs on unchanged behind it; its collapses keep the tile
+    /// while focus stays (`leadTileActive`), so a title with no trailer stays landscape.
+    private func startLeadTile(_ item: MetaPreview) {
+        let key = TrailerResolutionCache.key(type: item.type, id: item.id)
+        let generationAtStart = generation
+        leadTask?.cancel()
+        leadTask = Task { [weak self] in
+            guard let self, !Task.isCancelled, self.generation == generationAtStart, self.leadFocused else { return }
+            if self.activeKey == nil { self.activeKey = key }
+            _ = await self.beginMorph(key: key)
         }
     }
 
@@ -925,6 +954,14 @@ final class InlineTrailerCardModel: ObservableObject {
     /// a second correcting motion (the critique #26 class).
     private func collapseStage(trigger: String) {
         guard hostsTile, !collapseInFlight else { return }
+        // Steven's fork (wako lead tile): the tile stays while focus does.
+        guard !leadTileActive else { return }
+        // Wako lead tile: the row glide is ours, so the old card always shrinks smoothly while
+        // the next one grows (no one-frame abort).
+        if leadsWithTile, morphStage != .none {
+            startAnimatedCollapse(trigger: trigger)
+            return
+        }
         switch InlineTrailerMorphPlan.collapseStyle(stage: morphStage, stageAge: stageAge,
                                                      abortWindow: Self.effectiveAbortWindow) {
         case .none:
@@ -939,6 +976,8 @@ final class InlineTrailerCardModel: ObservableObject {
     /// The pipeline collapse (`collapse()`): defer while an expansion is in flight, else animate.
     private func deferOrCollapseStage(trigger: String) {
         guard hostsTile, !collapseInFlight else { return }
+        // Steven's fork (wako lead tile): no trailer / trailer over — back to the still, not the poster.
+        guard !leadTileActive else { return }
         if let delay = InlineTrailerMorphPlan.deferredCollapseDelay(stage: morphStage, stageAge: stageAge) {
             let token = morphToken
             deferTask?.cancel()
@@ -1111,8 +1150,9 @@ final class InlineTrailerCardModel: ObservableObject {
                     self.stageWatchdogTask = nil
                     return
                 }
-                let owned = InlineTrailerMorphPlan.stageIsOwned(hasActiveKey: self.activeKey != nil,
-                                                                 phaseExpanded: self.isExpanded)
+                let owned = self.leadTileActive
+                    || InlineTrailerMorphPlan.stageIsOwned(hasActiveKey: self.activeKey != nil,
+                                                            phaseExpanded: self.isExpanded)
                 let now = InlineTrailerCardModel.now
                 orphanedSince = owned ? nil : (orphanedSince ?? now)
                 if InlineTrailerMorphPlan.watchdogShouldReset(stage: self.morphStage, owned: owned,
@@ -2227,6 +2267,9 @@ struct InlineTrailerCard: View {
     /// beta.19-rc1 verdict (M3): the host's rest signal, handed to the model before every dwell.
     @Environment(\.rowRestSource) private var rowRestSource
     @StateObject private var model = InlineTrailerCardModel()
+    /// Steven's fork (wako lead tile): see `InlineTrailerCardModel.leadsWithTile`.
+    @Environment(\.homeRowFocusLeads) private var homeRowFocusLeads
+    @AppStorage(FocusLeadsRow.defaultsKey) private var focusLeadsEnabled = true
     /// FEAT-14 (device finding, 2026-08-02): the accent focus ring lives on `PosterCard`, but the
     /// dwell-morph replaces that card's rendered surface with this landscape trailer tile — so
     /// with the ring on, it visibly disappeared the instant a trailer started playing. Read
@@ -2515,6 +2558,8 @@ struct InlineTrailerCard: View {
     private func configureModel() {
         model.prefersReducedMotion = reduceMotion
         model.hostsTile = true
+        // Steven's fork (wako lead tile): Home's focus-leads rows only (Settings → Home Screen).
+        model.leadsWithTile = homeRowFocusLeads && focusLeadsEnabled
         let poster: String? = item.poster
         // I1 (critique #3): the tile's resting size, so the loader decodes the banner at the size the
         // tile is drawn at. Same numbers as `artworkWidth` / `artworkHeight` at `.wide`: the 16:9
@@ -2828,7 +2873,10 @@ struct InlineTrailerCard: View {
     /// gating on playback would make the title blink in a beat after the morph.
     /// beta.19-rc1 verdict (R2): `model.tileVisible`, so the logo rides the stage — dissolving with
     /// the tile, and gone in the same frame on an abort (no ghost logo across the gap, 2:10.6).
-    private var showsInTileTitle: Bool { model.tileVisible && !posterStyle.showTitle }
+    /// Steven's fork (wako lead tile): the lead tile always wears the title logo, like wako's.
+    private var showsInTileTitle: Bool {
+        model.tileVisible && (!posterStyle.showTitle || (homeRowFocusLeads && focusLeadsEnabled))
+    }
 
     /// UX-4a (Christian's spec, 2026-07-30): the poster KEEPS ITS HEIGHT and only grows
     /// WIDER when the trailer starts — a 16:9 tile at the poster's full height. The old
