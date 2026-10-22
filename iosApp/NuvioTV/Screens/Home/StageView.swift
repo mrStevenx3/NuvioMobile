@@ -290,6 +290,8 @@ struct StageTextBlock: View {
                         // rise); it must not glide.
                         .transaction(value: logoAlignment) { $0.animation = nil }
                         .frame(maxWidth: .infinity, alignment: logoTopTrailing ? .trailing : .leading)
+                        // Wako pass 10: the very top-right corner, level with the navigation bar.
+                        .padding(.top, logoTopTrailing ? -(geometry.stageBlockTop - StageInfoBelow.logoTop) : 0)
                         // S3; FEAT-70: also hidden while the folder page's logo is docked here.
                         // Shown on the folder logo's rise with the strip's page curve.
                         .opacity(hidesLogo || shown.identity == hidesLogoWhenDisplaying ? 0 : 1)

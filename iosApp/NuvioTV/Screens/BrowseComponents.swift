@@ -177,7 +177,8 @@ struct WakoLeadFrame: View {
         trailer.focusChanged(true, item: item)
     }
 
-    static let fadeSeconds = 0.25
+    /// Wako pass 10: a softer cross-fade for the title arriving in the frame (was 0.25).
+    static let fadeSeconds = 0.4
     /// The focused poster (under the frame) stays at this invisible opacity so the focus engine
     /// still reaches it (it skips views at 0).
     static let hiddenOpacity = 0.011

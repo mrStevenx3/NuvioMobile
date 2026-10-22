@@ -483,7 +483,9 @@ nonisolated enum StageInfoBelow {
     /// The stage can be shorter in this mode: it holds no text block any more.
     static let stageFloor: CGFloat = 300
     /// Wako pass 6: the top-right stage logo's gap to the screen's right edge.
-    static let logoTrailingMargin: CGFloat = 80
+    static let logoTrailingMargin: CGFloat = 60
+    /// Wako pass 10: the corner logo's top, level with the Orbit bar (38).
+    static let logoTop: CGFloat = 38
     /// Wako pass 6: the shade behind the top-right logo, from this fraction of the width to the edge.
     static let rightShadeStart: CGFloat = 0.45
     static let rightShadeOpacity: Double = 0.55
