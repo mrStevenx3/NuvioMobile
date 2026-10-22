@@ -347,6 +347,9 @@ struct OrbitCollectionGrid: View {
         }
         .scrollClipDisabled()
         .focusSection()
+        // Steven: the Poster Size setting does not apply here — the platform tiles keep the size
+        // they were laid out for (the default style), whatever Small / Large says.
+        .environment(\.posterStyle, .default)
         .onChange(of: focused) { _, id in
             guard let id, let entry = entries.first(where: { $0.id == id }) else { return }
             onFolderFocus(entry.collection, entry.folder)
