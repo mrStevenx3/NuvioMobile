@@ -27,3 +27,7 @@ local.properties (mêmes clés que les secrets), puis `./gradlew :shared:linkDeb
 et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADLE_OPTS=-Xmx4g.
 - Collections (accueil Stage, `FolderRowsPage`) : à l'ouverture, logo en grand sur fond noir puis glisse
   en haut à droite (`FolderStageLogoLayer`, réglages `FolderStageIntro`) ; plus de logo « docké » dans le stage.
+- Accueil (rangées « focus leads », affiches portrait) : cadre paysage FIXE à gauche façon wako (`WakoLeadFrame`,
+  BrowseComponents.swift) : il montre le titre sélectionné (image + logo, bord blanc) et passe au suivant en fondu ;
+  les affiches glissent sous son bord droit, l'affiche sélectionnée et les précédentes sont masquées.
+  Bandes-annonces dans les cartes coupées sur ces rangées pour l'instant (à remettre dans le cadre).
