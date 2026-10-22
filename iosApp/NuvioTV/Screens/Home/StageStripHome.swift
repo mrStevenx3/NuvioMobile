@@ -96,7 +96,8 @@ struct StageStripHome: View {
             // page background shows through.
             AmbientWashLayer(feed: stage.swap.washFeed)
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
-            StageView(controller: stage, geometry: geo, logoTopTrailing: true)
+            StageView(controller: stage, geometry: geo, hidesLogo: singleStudiosCollection != nil,
+                      logoTopTrailing: true)
             if showsCollectionGrid {
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
                 OrbitCollectionGrid(collections: gridCollections) { collection, folder in
@@ -111,8 +112,20 @@ struct StageStripHome: View {
                 // a large title, so the stage art shows above it.
                 VStack(alignment: .leading, spacing: 0) {
                     Spacer(minLength: 0)
-                    collectionRow(studios)
-                        .environment(\.collectionRowLargeHeading, true)
+                    // Pass 7: the focused studio's title image, large, in place of the heading.
+                    studiosLogo(studios)
+                        .padding(.leading, StripGeometry.edgeMargin)
+                        .padding(.bottom, 10)
+                    CollectionRowView(collection: studios, onFolderFocusChange: { folder in
+                        if let folder { studiosFocusedFolderId = folder.id }
+                        stage.report(folder.flatMap { HomeRowPreviews.folder(collection: studios, folder: $0,
+                                                                             showsDetails: catalogDetailsInHeadings) },
+                                     source: studios.id,
+                                     rowHeading: studios.title,
+                                     prefetch: { HomeRowPreviews.collectionArtURLs(studios) })
+                    })
+                    .onAppear { stage.rowAppeared(collection: studios) }
+                        .environment(\.collectionRowHidesHeading, true)
                         // The row hugs its content (it filled the screen, title at the top).
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, StripGeometry.edgeMargin)
@@ -276,6 +289,34 @@ struct StageStripHome: View {
     private var showsCollectionGrid: Bool {
         contentFilter.filter == .services
     }
+
+    /// Pass 7: the Studios page's focused folder (its logo above the row).
+    @State private var studiosFocusedFolderId: String?
+
+    private func studiosLogo(_ collection: NuvioCollection) -> some View {
+        let folder = collection.folders.first { $0.id == studiosFocusedFolderId } ?? collection.folders.first
+        let url = folder?.titleLogoUrl
+        return ZStack(alignment: .bottomLeading) {
+            if let url, !url.isEmpty {
+                CachedAsyncImage(string: url, contentMode: .fit,
+                                 decodeSize: .points(width: Self.studiosLogoSize.width, height: Self.studiosLogoSize.height))
+                    .frame(maxWidth: Self.studiosLogoSize.width, maxHeight: Self.studiosLogoSize.height, alignment: .bottomLeading)
+                    .id(url)
+                    .transition(.opacity)
+            } else if let title = folder?.title {
+                Text(title)
+                    .font(.system(size: 64, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .id(title)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: Self.studiosLogoSize.width, height: Self.studiosLogoSize.height, alignment: .bottomLeading)
+        .animation(.easeInOut(duration: 0.3), value: folder?.id)
+        .allowsHitTesting(false)
+    }
+
+    static let studiosLogoSize = CGSize(width: 640, height: 170)
 
     /// Steven's fork (Orbit Studios): the page's only row, when it is a collection.
     private var singleStudiosCollection: NuvioCollection? {

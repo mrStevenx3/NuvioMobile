@@ -72,8 +72,8 @@ struct CollectionRowView: View {
     @Environment(\.posterStyle) private var style
     /// BUG-146 second trim: nil outside the Stage strip (Classic keeps `md` under the heading).
     @Environment(\.stripFocusMemory) private var stripFocusMemory
-    /// Steven's fork (Orbit Studios page): the collection's title drawn large over its tiles.
-    @Environment(\.collectionRowLargeHeading) private var largeHeading
+    /// Steven's fork (Orbit Studios page): no heading (the page draws the focused folder's logo).
+    @Environment(\.collectionRowHidesHeading) private var hidesHeading
 
     /// rc14 (BUG-122): see `PinnedRowGeometry.shortRowLayoutCompensation`. The natural shelf is
     /// `shelfMinHeight`'s pre-floor value — the tallest tile plus its caption chrome, inside the
@@ -292,9 +292,9 @@ struct CollectionRowView: View {
             // Pinned mode overlays the title inside the shelf's reach band instead (see
             // CatalogRowView's structural comment — out-of-bounds frames froze the focus
             // engine; all paddings must stay positive).
-            if cardTopReach == 0 {
+            if cardTopReach == 0, !hidesHeading {
                 Text(collection.title)
-                    .font(largeHeading ? .system(size: 56, weight: .bold) : Theme.Font.sectionTitle)
+                    .font(Theme.Font.sectionTitle)
                     .foregroundStyle(Theme.Palette.textPrimary)
                     .stripHeadingLineLimit()
             }
@@ -2294,14 +2294,14 @@ final class ClassicRowsFocusMemory {
 }
 
 
-/// Steven's fork (Orbit Studios page): `CollectionRowView` draws its heading large.
-private struct CollectionRowLargeHeadingKey: EnvironmentKey {
+/// Steven's fork (Orbit Studios page): `CollectionRowView` draws no heading.
+private struct CollectionRowHidesHeadingKey: EnvironmentKey {
     static let defaultValue = false
 }
 
 extension EnvironmentValues {
-    var collectionRowLargeHeading: Bool {
-        get { self[CollectionRowLargeHeadingKey.self] }
-        set { self[CollectionRowLargeHeadingKey.self] = newValue }
+    var collectionRowHidesHeading: Bool {
+        get { self[CollectionRowHidesHeadingKey.self] }
+        set { self[CollectionRowHidesHeadingKey.self] = newValue }
     }
 }
