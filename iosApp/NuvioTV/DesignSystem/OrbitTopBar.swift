@@ -123,6 +123,9 @@ struct OrbitTopBar: View {
     @ObservedObject private var homeFilter = HomeContentFilterModel.shared
     @FocusState private var focused: OrbitBarItem?
     @State private var immersive = false
+    /// Pass 4: the launch focus (the engine's pick, the top-left Search glyph) is moved once onto
+    /// the current page's item (Films at launch).
+    @State private var placedLaunchFocus = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -147,6 +150,13 @@ struct OrbitTopBar: View {
         .disabled(immersive)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: immersive)
         .onReceive(tabBarVisibility.$immersiveHidden) { immersive = $0 }
+        .onChange(of: focused) { _, item in
+            guard !placedLaunchFocus, let item else { return }
+            placedLaunchFocus = true
+            if item != currentItem {
+                DispatchQueue.main.async { focused = currentItem }
+            }
+        }
     }
 
     private func pill(_ items: [OrbitBarItem]) -> some View {

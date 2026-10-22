@@ -136,6 +136,9 @@ struct WakoLeadFrame: View {
     /// Wako pass 5: the focused title's trailer plays inside the frame (the row's inline-trailer
     /// gate: the setting, tvOS Auto-Play Previews, not Trailer Location: Hero).
     var trailersEnabled = false
+    /// Pass 14: the row holds focus. At rest the frame still shows the row's resting title (no
+    /// empty slot before the first poster), without border or trailer.
+    var focused = true
 
     /// The frame's own trailer pipeline (dwell → resolve → play), the hero form of the model.
     @StateObject private var trailer = InlineTrailerCardModel()
@@ -159,9 +162,10 @@ struct WakoLeadFrame: View {
             }
             if let item {
                 WakoLeadFrameArt(item: item, size: size, cornerRadius: cornerRadius,
-                                 playingURL: trailersEnabled ? trailer.playingURL : nil,
+                                 playingURL: trailersEnabled && focused ? trailer.playingURL : nil,
                                  onFailure: { trailer.playbackFailed($0) },
-                                 onEnded: { trailer.playbackFinished() })
+                                 onEnded: { trailer.playbackFinished() },
+                                 focused: focused)
                     .id(item.id)
                     .transition(.opacity)
             }
@@ -172,13 +176,14 @@ struct WakoLeadFrame: View {
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .onChange(of: item?.id, initial: true) { _, _ in retarget() }
+        .onChange(of: focused) { _, _ in retarget() }
         .onDisappear { trailer.reset(abortStages: true) }
     }
 
     /// A new focused title (or none): drop the old one's trailer, arm the new one's dwell.
     private func retarget() {
         trailer.reset()
-        guard trailersEnabled, let item else { return }
+        guard trailersEnabled, focused, let item else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = rowRestSource
         trailer.focusChanged(true, item: item)
@@ -282,6 +287,8 @@ private struct WakoLeadFrameArt: View {
     var playingURL: String? = nil
     var onFailure: (TrailerFailureReport) -> Void = { _ in }
     var onEnded: () -> Void = {}
+    /// Pass 14: the white border only while the row holds focus (the frame also shows at rest).
+    var focused = true
 
     var body: some View {
         ZStack {
@@ -310,7 +317,8 @@ private struct WakoLeadFrameArt: View {
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius)
-                .strokeBorder(Color.white, lineWidth: WakoLeadFrame.borderWidth)
+                .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: WakoLeadFrame.borderWidth)
+                .animation(.easeOut(duration: 0.2), value: focused)
         }
     }
 }
@@ -5323,6 +5331,8 @@ struct CatalogRowView: View {
     /// Home Stage & Strip (P1 §3.3): the strip's per-row focus memory. nil outside the strip, which
     /// leaves `restoreStripMemory` inert (Classic, Search, Library).
     @Environment(\.stripFocusMemory) private var stripFocusMemory
+    /// Pass 14: the wako frame's last lead, kept while focus is in another row.
+    @State private var wakoRestId: String?
     /// beta.19-rc1 verdict (review r1, B P2-2): the item whose wide inline tile the morph scroll
     /// could NOT bring clear of the Soft trailing ramp (clamped at the row's end, or a row too short
     /// to scroll), so the row holds its trailing fade off while that tile is wide. Written at most
@@ -5504,10 +5514,16 @@ struct CatalogRowView: View {
         // hidden under the frame, the ones after it are DRAWN one frame-width further right (a
         // render offset, animated with the row's glide), the ones before it are dimmed (only the
         // last one shows, as a sliver at the screen's left edge).
-        let wakoLead: MetaPreview? = wakoFrame ? focusedItemId.flatMap { id in section.items.first { $0.id == id } } : nil
+        // Pass 14: at rest (row not focused) the frame keeps the row's last lead (or its remembered /
+        // first title), so the row never shows an empty slot before its first poster.
+        let wakoRowFocused = focusedItemId != nil
+        let wakoLeadId: String? = focusedItemId ?? wakoRestId
+            ?? (stripFocusMemory?.drivesDefaultFocus == true ? stripFocusMemory?.itemId(for: section.key) : nil)
+            ?? section.items.first?.id
+        let wakoLead: MetaPreview? = wakoFrame ? wakoLeadId.flatMap { id in section.items.first { $0.id == id } } : nil
         // Wako pass 10: See All leads too (one step past the last card), so the frame never vanishes
         // and the row never snaps back when focus reaches it.
-        let wakoSeeAllLead = wakoFrame && focusedItemId == Self.seeAllFocusKey
+        let wakoSeeAllLead = wakoFrame && wakoLeadId == Self.seeAllFocusKey
         let wakoIndex: [String: Int] = (wakoLead == nil && !wakoSeeAllLead) ? [:]
             : Dictionary(section.items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         let wakoLeadIndex: Int? = wakoSeeAllLead ? section.items.count : wakoLead.flatMap { wakoIndex[$0.id] }
@@ -5780,13 +5796,14 @@ struct CatalogRowView: View {
                         WakoLeadFrame(item: wakoLead, previous: wakoPrevious, seeAll: wakoSeeAllLead, size: wakoFrameSize,
                                       posterWidth: posterStyle.cardWidth, gap: rowGap,
                                       cornerRadius: posterStyle.cornerRadius, reduceMotion: reduceMotion,
-                                      trailersEnabled: rowTrailersActive)
+                                      trailersEnabled: rowTrailersActive, focused: wakoRowFocused)
                             .padding(.top, (stripFocusMemory != nil ? StripGeometry.shelfTopPadding : Theme.Spacing.lg)
                                      + cardTopReach)
                     }
                 }
                 // Home Stage & Strip (P1 §3.3): see `restoreStripMemory`. Inert outside the strip.
                 .onAppear { restoreStripMemory(proxy: proxy) }
+                .onChange(of: focusedItemId) { _, id in if let id { wakoRestId = id } }
             }
         }
         .focusSection()
