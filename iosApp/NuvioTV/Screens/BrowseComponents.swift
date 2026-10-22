@@ -193,19 +193,6 @@ struct WakoLeadFrame: View {
     }
     static let borderWidth: CGFloat = 4
 
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            if let item {
-                WakoLeadFrameArt(item: item, size: size, cornerRadius: cornerRadius)
-                    .id(item.id)
-                    .transition(.opacity)
-            }
-        }
-        .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .animation(reduceMotion ? nil : .easeInOut(duration: Self.fadeSeconds), value: item?.id)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
 }
 
 /// Wako pass 3: a card's place around the frame — drawn shifted past the frame when after it, hidden
