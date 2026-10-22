@@ -5809,7 +5809,16 @@ struct CatalogRowView: View {
                 }
                 // Home Stage & Strip (P1 §3.3): see `restoreStripMemory`. Inert outside the strip.
                 .onAppear { restoreStripMemory(proxy: proxy) }
-                .onChange(of: focusedItemId) { _, id in if let id { wakoRestId = id } }
+                .onChange(of: focusedItemId) { oldId, id in
+                    if let id { wakoRestId = id }
+                    // Steven's fork: the stage hides its meta line and synopsis while See All holds
+                    // focus (they still showed the last title's).
+                    if id == Self.seeAllFocusKey {
+                        StageSeeAllFocus.shared.set(true)
+                    } else if oldId == Self.seeAllFocusKey {
+                        StageSeeAllFocus.shared.set(false)
+                    }
+                }
             }
         }
         .focusSection()
@@ -6287,5 +6296,17 @@ extension EnvironmentValues {
     var wakoRestFrame: Bool {
         get { self[WakoRestFrameKey.self] }
         set { self[WakoRestFrameKey.self] = newValue }
+    }
+}
+
+
+/// Steven's fork: a row's See All tile holds focus (`CatalogRowView` writes, `StageView` reads).
+@MainActor
+final class StageSeeAllFocus: ObservableObject {
+    static let shared = StageSeeAllFocus()
+    @Published private(set) var active = false
+
+    func set(_ value: Bool) {
+        if active != value { active = value }
     }
 }

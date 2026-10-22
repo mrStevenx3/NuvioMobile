@@ -261,6 +261,8 @@ struct StageTextBlock: View {
         _copySource = ObservedObject(wrappedValue: copySource)
     }
 
+    @ObservedObject private var seeAllFocus = StageSeeAllFocus.shared
+
     var body: some View {
         let output = swap.output
         let progressLookup = copySource.progressLookup
@@ -343,6 +345,9 @@ struct StageTextBlock: View {
                     .frame(width: Theme.Size.heroInfoPanelWidth, alignment: .leading)
                     .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
                     .offset(y: geometry.infoBandTop - geometry.stageBlockTop)
+                    // Steven's fork: no synopsis under the See All tile.
+                    .opacity(seeAllFocus.active ? 0 : 1)
+                    .animation(.easeOut(duration: 0.25), value: seeAllFocus.active)
                 }
                 }
                 #if DEBUG
