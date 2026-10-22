@@ -214,6 +214,11 @@ private struct DetailCompactLogo: View {
     @ObservedObject var lift: DetailLogoLiftModel
 
     private var visible: Bool { followsFirstRow ? inRows : inRows && model.heroGone }
+    /// Steven's fork (device pass 3): the drawn state, driven by `withAnimation` on a change of
+    /// `visible` (the implicit `.animation(value:)` did not play on the device).
+    @State private var shown = false
+    private var slotHeight: CGFloat { followsFirstRow ? DetailAppleStyle.logoSlotHeight : Self.slotHeight }
+    private var maxWidth: CGFloat { followsFirstRow ? DetailAppleStyle.logoMaxWidth : 420 }
 
     /// Steven's fork (device pass 2): in Apple TV style the logo fades in AFTER the hero text has
     /// mostly gone, and leaves quickly.
@@ -228,17 +233,24 @@ private struct DetailCompactLogo: View {
 
     var body: some View {
         TitleLogoHeader(title: title, logoUrl: logoUrl, alignment: .center,
-                        textFont: Theme.Font.screenTitle, slotHeight: Self.slotHeight,
+                        textFont: followsFirstRow ? Theme.Font.hero : Theme.Font.screenTitle,
+                        slotHeight: slotHeight,
                         decodeSize: .legacy)
-            .frame(maxWidth: 420, maxHeight: Self.slotHeight)
+            .frame(maxWidth: maxWidth, maxHeight: slotHeight)
             .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .shadow(color: .black.opacity(0.5), radius: 8)
-            .opacity(visible ? 1 : 0)
-            .animation(fadeAnimation, value: visible)
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(followsFirstRow && !shown ? 0.92 : 1)
+            .offset(y: followsFirstRow && !shown ? 14 : 0)
+            .onAppear { shown = visible }
+            .onChange(of: visible) { _, now in
+                withAnimation(fadeAnimation) { shown = now }
+            }
             .allowsHitTesting(false)
-            .accessibilityHidden(!visible)
+            .accessibilityHidden(!shown)
             .accessibilityIdentifier("detail_compact_logo")
-            .padding(.top, 36)
+            .padding(.top, followsFirstRow ? DetailAppleStyle.logoTop : 36)
             // Steven's fork: no animation on the lift, it tracks the scroll frame by frame.
             .offset(y: followsFirstRow ? lift.value : 0)
             .ignoresSafeArea(edges: .top)
@@ -529,6 +541,9 @@ struct DetailView: View {
     /// Steven's fork: see `DetailAppleStyle`. Cinematic only.
     @AppStorage(DetailAppleStyle.defaultsKey) private var appleStyleOn = true
     private var appleStyle: Bool { detailLayout == .cinematic && appleStyleOn }
+    /// Steven's fork (device pass 3): rows rest lower in Apple TV style, so the larger compact logo
+    /// fits above the row the first Down lands on.
+    private var anchorRest: CGFloat { appleStyle ? DetailAppleStyle.rowRest : DetailRowAnchor.screenRest }
     /// Steven's fork: how far the compact logo has ridden up with the first row (see
     /// `DetailLogoLiftModel`). Observed only by `DetailCompactLogo`.
     @StateObject private var logoLift = DetailLogoLiftModel()
@@ -536,7 +551,6 @@ struct DetailView: View {
     /// can sit below non-focusable ones such as Parental Guide). The logo rides with this row; with
     /// the topmost row it was already scrolled away on the first Down.
     @State private var logoAnchorRow: DetailRowID?
-    @State private var synopsisExtraHeight: CGFloat = 0
     /// FEAT-35 section toggle "Ratings" (closes FEAT-28): the Cinematic ratings strip and the meta
     /// line's IMDb ★ (D10). Classic's chips are untouched.
     @AppStorage(DetailSettingsKeys.sectionRatings) private var sectionRatings = true
@@ -815,7 +829,8 @@ struct DetailView: View {
                             companyLogosRow
                                 .detailRowAnchored(.logos, focusedRow: $focusedRow, offsets: $detailRowOffsets)
                         }
-                        if sectionParentalGuide {
+                        // Steven's fork (device pass 3): no Parental Guide in Apple TV style.
+                        if sectionParentalGuide && !appleStyle {
                             parentalGuideSection
                                 // Steven's fork (device pass 2): in Apple TV style the guide belongs
                                 // to the hero view; it sat under the compact logo once in the rows.
@@ -1014,7 +1029,7 @@ struct DetailView: View {
             // the logo is off screen, and rounded, so the action stops firing (the BUG-41 rule).
             .onScrollGeometryChange(for: CGFloat.self, of: { [followsRow = appleStyle,
                                                                firstRowTop = logoAnchorRow.flatMap { detailRowOffsets[$0] } ?? detailRowOffsets.values.min(),
-                                                               rest = DetailRowAnchor.screenRest] geo in
+                                                               rest = anchorRest] geo in
                 guard followsRow, let firstRowTop else { return 0 }
                 let screenTop = firstRowTop - geo.contentOffset.y
                 return DetailLogoLiftModel.lift(firstRowScreenTop: screenTop, rest: rest)
@@ -1665,7 +1680,7 @@ struct DetailView: View {
         // refuse to run once cancelled (disappear, bridge leaving idle, a newer focus change).
         guard !Task.isCancelled, focusedRow == row, bridgePhase == .idle, let rowTop = detailRowOffsets[row] else { return false }
         let inset = dimModel.contentInsetTop
-        let target = DetailRowAnchor.scrollTarget(rowTop: rowTop, contentInsetTop: inset)
+        let target = DetailRowAnchor.scrollTarget(rowTop: rowTop, contentInsetTop: inset, screenRest: anchorRest)
         let expected = DetailRowAnchor.expectedOffset(scrollTarget: target, contentInsetTop: inset)
         if onlyIfDrifted, abs(dimModel.lastContentOffset - expected) <= DetailRowAnchor.verifyTolerance { return true }
         if reduceMotion {
@@ -1878,8 +1893,7 @@ struct DetailView: View {
                 userInteracted = true
                 withdrawTrailerBridgeIfLeaving()
             },
-            synopsisBeside: appleStyle,
-            onSynopsisExtraHeight: { extra in synopsisExtraHeight = extra }
+            synopsisBeside: appleStyle
         ) {
             actionRow
         }
@@ -1891,9 +1905,6 @@ struct DetailView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: DetailAppleStyle.heroFade),
                    value: appleStyle && focusedRow != nil)
         .focused($heroHasFocus)
-        // Steven's fork (device pass 2): room under the hero for the unfolded synopsis, set inside
-        // the unfold animation, so the rows below move down with it.
-        .padding(.bottom, appleStyle ? synopsisExtraHeight : 0)
         // BUG-187: the Cinematic teaser is in the hero but not in `heroFocus`; forget the card too.
         .onChange(of: heroHasFocus) { _, inHero in if inHero { focusMemory.clear() } }
         // W2-A: the hero's real height for the dim ramp. Rounded, and written only on a change,
@@ -2510,7 +2521,7 @@ struct DetailView: View {
                 // it the check would overshoot by the inset (157 pt on the fixture) and a
                 // header sitting under the scrim would read as free.
                 let screenTop = rowTop - dimModel.lastContentOffset
-                switch DetailRowAnchor.decision(direction: .down, screenTop: screenTop) {
+                switch DetailRowAnchor.decision(direction: .down, screenTop: screenTop, screenRest: anchorRest) {
                 case .anchor:
                     _ = anchorPass(row, note: "down-straddle")
                 case .free:

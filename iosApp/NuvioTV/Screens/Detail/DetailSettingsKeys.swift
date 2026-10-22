@@ -54,6 +54,12 @@ nonisolated enum DetailAppleStyle {
     /// The frost reaches full strength once the dim reaches this.
     static let fullFrostDim: Double = 0.35
     static let heroFade = 0.4
+    /// Device pass 3: a larger compact logo, and the rows rest lower to leave it room.
+    static let logoSlotHeight: CGFloat = 130
+    static let logoMaxWidth: CGFloat = 640
+    static let logoTop: CGFloat = 40
+    /// Where a focused row's top rests in this style (Classic Cinematic: 108).
+    static let rowRest: CGFloat = 196
     /// The compact logo fades in once the hero text has mostly faded (device pass 2: the two
     /// overlapped on the first Down).
     static let logoFadeDelay = 0.25

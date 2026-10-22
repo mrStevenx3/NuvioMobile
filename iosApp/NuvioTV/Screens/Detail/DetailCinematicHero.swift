@@ -200,10 +200,19 @@ struct DetailCinematicHero<Actions: View>: View {
             .fixedSize(horizontal: synopsisBeside, vertical: false)
             .layoutPriority(1)
             if synopsisBeside {
-                if synopsisSlotVisible, let overview, !overview.isEmpty {
-                    synopsisBesideBlock(overview)
-                        .frame(maxWidth: .infinity, alignment: .bottomLeading)
+                // Device pass 3: the synopsis beside the buttons, the credits under it at the
+                // bottom right. Unfolding draws over the credits (they fade) and moves nothing.
+                VStack(alignment: .trailing, spacing: Theme.Spacing.md) {
+                    if synopsisSlotVisible, let overview, !overview.isEmpty {
+                        synopsisBesideBlock(overview)
+                            .zIndex(1)
+                    }
+                    if !credits.isEmpty {
+                        creditsBlock
+                            .opacity(synopsisUnfolded ? 0 : 1)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .bottomTrailing)
             } else if !credits.isEmpty {
                 creditsBlock
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -419,15 +428,14 @@ struct DetailCinematicHero<Actions: View>: View {
     private func setSynopsisUnfolded(_ unfolded: Bool) {
         withAnimation(reduceMotion ? nil : DetailAppleStyle.unfoldAnimation) {
             synopsisUnfolded = unfolded
-            onSynopsisExtraHeight(unfolded ? max(0, synopsisFullHeight - synopsisFoldedHeight) : 0)
         }
     }
 
     /// Steven's fork (`synopsisBeside`): two lines of synopsis beside the action row and a chevron
-    /// at their end. Device pass 2: the chevron unrolls the full text IN PLACE, downward (a clip
-    /// that grows from two lines to the full height, no platter, nothing darkened), and the page
-    /// below moves down by the same amount (`onSynopsisExtraHeight`, applied by `DetailView` under
-    /// the hero), so nothing is covered. Menu on the chevron, or leaving the hero, rolls it back.
+    /// at their end. The chevron unrolls the full text IN PLACE, downward (a clip that grows from
+    /// two lines to the full height, no platter, nothing darkened). Device pass 3: nothing else
+    /// moves; the text draws over the credits below it, which fade while it is open. Menu on the
+    /// chevron, or leaving the hero, rolls it back.
     private func synopsisBesideBlock(_ overview: String) -> some View {
         HStack(alignment: .top, spacing: Theme.Spacing.lg) {
             // Two-line sizer: the block's layout height in both states.

@@ -5206,16 +5206,18 @@ struct ContinueWatchingRow: View {
     /// Steven's fork (`FocusLeadsRow`): glides the shelf so the focused card sits on the leading
     /// edge, through the row's own horizontal `ScrollPosition` (attached whenever this is on).
     private func alignFocusedCardToLeading(_ id: String?) {
-        guard focusLeads, let id, let sample = hScroll.sample,
-              let index = entries.firstIndex(where: { $0.videoId == id }),
-              let x = FocusLeadsRow.offset(index: index, cardWidth: Theme.Size.landscapeWidth,
-                                           gap: Theme.Spacing.rowGap, sample: sample) else { return }
-        if reduceMotion {
-            var tx = Transaction()
-            tx.disablesAnimations = true
-            withTransaction(tx) { rowPosition.scrollTo(x: x) }
-        } else {
-            withAnimation(FocusLeadsRow.animation) { rowPosition.scrollTo(x: x) }
+        guard focusLeads, let id, entries.contains(where: { $0.videoId == id }) else { return }
+        // Device pass 3: see `CatalogRowView.alignFocusedCardToLeading`.
+        let animate = !reduceMotion
+        DispatchQueue.main.async {
+            guard focusedVideoId == id else { return }
+            if animate {
+                withAnimation(FocusLeadsRow.animation) { rowPosition.scrollTo(id: id, anchor: .leading) }
+            } else {
+                var tx = Transaction()
+                tx.disablesAnimations = true
+                withTransaction(tx) { rowPosition.scrollTo(id: id, anchor: .leading) }
+            }
         }
     }
 
@@ -5354,13 +5356,14 @@ struct ContinueWatchingRow: View {
                                 .accessibilityHidden(true)
                         }
                     }
+                    .scrollTargetLayout(isEnabled: focusLeads)
                     // Always positive — the reach lives inside the buttons (see CatalogRowView).
                     // BUG-146: 12 on top inside the Stage strip, `lg` on Classic (`StripShelfPadding`).
                     .stripShelfPadding()
                 }
                 .scrollClipDisabled()
                 // Steven's fork (device pass 2): see `CatalogRowView`'s `.scrollDisabled`.
-                .scrollDisabled(focusLeads && !FocusLeadsRow.engineScrolls)
+                .modifier(FocusLeadsTargetBehavior(enabled: focusLeads))
                 // Review r1 (A P2-3): the strip's restore path; absent outside the strip.
                 .modifier(StripRowScrollRestore(enabled: stripFocusMemory != nil || focusLeads,
                                                 box: hScroll,

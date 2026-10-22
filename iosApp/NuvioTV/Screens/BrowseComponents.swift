@@ -103,6 +103,20 @@ extension EnvironmentValues {
     }
 }
 
+/// Steven's fork (device pass 3): view-aligned scrolling for a focus-leads row, so the engine's
+/// focus scroll also rests on a card's edge. Absent otherwise (the row is structurally unchanged).
+struct FocusLeadsTargetBehavior: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.scrollTargetBehavior(.viewAligned)
+        } else {
+            content
+        }
+    }
+}
+
 nonisolated enum FocusLeadsRow {
     static let defaultsKey = "home_focus_leads_row"
     /// The gap between Home's catalog cards while this mode is on (Classic rows use 28).
@@ -5415,6 +5429,8 @@ struct CatalogRowView: View {
                                 .accessibilityHidden(true)
                         }
                     }
+                    // Steven's fork (device pass 3): the cards are the row's scroll targets.
+                    .scrollTargetLayout(isEnabled: focusLeads)
                     // ALWAYS positive — the reach lives inside the buttons' labels, the row's
                     // frame contains it whole, and nothing pokes outside the focus section.
                     // BUG-146: `lg` top and bottom everywhere but the Stage strip, whose top is
@@ -5445,7 +5461,10 @@ struct CatalogRowView: View {
                 // Steven's fork (device pass 2): every other step jumped instead of gliding — the
                 // focus engine's own scroll and the leading-edge glide raced. In focus-leads mode
                 // the engine no longer scrolls the row; only `alignFocusedCardToLeading` does.
-                .scrollDisabled(focusLeads && !FocusLeadsRow.engineScrolls)
+                // Device pass 3: `.scrollDisabled` stopped Left from reaching the card off the leading
+                // edge. Instead the row's cards are scroll targets with view-aligned behaviour, so
+                // the engine's own focus scroll lands on a card edge too and the glide below wins.
+                .modifier(FocusLeadsTargetBehavior(enabled: focusLeads))
                 // beta.19-rc1 verdict (M3, BUG-133): the row's horizontal geometry, into a reference
                 // box (never view state), for the morph-scroll math. `record` also stamps
                 // `RowsMotionClock` when the OFFSET moved ≥ 0.5 pt since the last stamp, so a
@@ -5807,23 +5826,32 @@ struct CatalogRowView: View {
     /// (trailer dwell), growing to the right from the leading edge, so the morph scroll finds it
     /// already fits.
     private func alignFocusedCardToLeading(_ id: String?) {
-        guard focusLeads, let id, let sample = hScroll.sample else { return }
-        let index: Int
-        if id == Self.seeAllFocusKey {
-            index = section.items.count
-        } else if let found = section.items.firstIndex(where: { $0.id == id }) {
-            index = found
-        } else {
-            return
-        }
-        guard let x = FocusLeadsRow.offset(index: index, cardWidth: posterStyle.cardWidth,
-                                           gap: rowGap, sample: sample) else { return }
-        if reduceMotion {
-            var tx = Transaction()
-            tx.disablesAnimations = true
-            withTransaction(tx) { rowPosition.scrollTo(x: x) }
-        } else {
-            withAnimation(FocusLeadsRow.animation) { rowPosition.scrollTo(x: x) }
+        guard focusLeads, let id else { return }
+        let isSeeAll = id == Self.seeAllFocusKey
+        guard isSeeAll || section.items.contains(where: { $0.id == id }) else { return }
+        // Device pass 3: on the next runloop turn, after the focus engine has issued its own
+        // scroll for this move, so this glide is the last word every time (every other step used
+        // to jump), and by item id rather than a computed offset.
+        let seeAllX: CGFloat? = isSeeAll ? hScroll.sample.flatMap {
+            FocusLeadsRow.offset(index: section.items.count, cardWidth: posterStyle.cardWidth, gap: rowGap, sample: $0)
+        } : nil
+        let animate = !reduceMotion
+        DispatchQueue.main.async {
+            guard focusedItemId == id else { return }
+            let move = {
+                if isSeeAll {
+                    if let seeAllX { rowPosition.scrollTo(x: seeAllX) }
+                } else {
+                    rowPosition.scrollTo(id: id, anchor: .leading)
+                }
+            }
+            if animate {
+                withAnimation(FocusLeadsRow.animation) { move() }
+            } else {
+                var tx = Transaction()
+                tx.disablesAnimations = true
+                withTransaction(tx) { move() }
+            }
         }
     }
 
