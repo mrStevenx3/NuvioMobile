@@ -6,7 +6,7 @@ import SharedCore
 // rail when Settings › Appearance › Navigation is "Orbit Bar" (the default in this fork). A row of
 // glass pills pinned to the screen's top-left corner, in three groups split by thin vertical rules:
 //
-//     [ 🔍  Films  Séries  📚  🧭 ]  |  [ Services  Studios ]  |  [ ⚙︎ ]
+//     [ 🔍  Films  Séries  📚  🧭 ]  |  [ Plateformes  Studios ]          …          [ ⚙︎ ]
 //
 // Films, Séries, Services and Studios are four views of the Home tab (`HomeContentFilter`); the
 // glyphs open Search, Library, Discover and Settings. Mounted once, in `MainTabView`'s overlay,
@@ -135,11 +135,14 @@ struct OrbitTopBar: View {
             pill([.search, .films, .series, .library, .discover])
             rule
             pill([.services, .studios])
-            rule
+            // Steven: Settings alone at the far right of the bar (the corner is free now that
+            // Home shows no title logo there).
+            Spacer(minLength: OrbitBarMetrics.groupGap)
             pill([.settings])
         }
-        // The focus section hugs the bar itself (device pass 1: drawn over the whole screen, it
-        // kept Down from reaching Settings' list).
+        .padding(.trailing, OrbitBarMetrics.leading)
+        // The focus section hugs the bar's band (device pass 1: drawn over the whole screen, it
+        // kept Down from reaching Settings' list); it spans the width so Right reaches Settings.
         .focusSection()
         // Pass 3: Up into the bar lands on the current page's item (Discover from Discover…).
         .defaultFocus($focused, currentItem, priority: .userInitiated)
