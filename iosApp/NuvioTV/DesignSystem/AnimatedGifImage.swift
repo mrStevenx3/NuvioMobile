@@ -1132,6 +1132,7 @@ private struct StreamingGifView: UIViewRepresentable {
             coordinator.generation += 1
         }
         if isAnimating, !coordinator.running {
+            view.image = nil
             coordinator.running = true
             coordinator.generation += 1
             let generation = coordinator.generation
@@ -1155,6 +1156,13 @@ private struct StreamingGifView: UIViewRepresentable {
         } else if !isAnimating, coordinator.running {
             coordinator.running = false
         }
+        // Steven (device pass): a tile that is not playing shows nothing from the stream — the
+        // cover under it shows, never the GIF's last frame (Netflix / Apple TV / Paramount+ ended on
+        // a frame without their cover's border, or zoomed in). Hidden at the UIKit level too.
+        if !isAnimating {
+            view.image = nil
+        }
+        view.isHidden = !isAnimating
     }
 
     static func dismantleUIView(_ view: UIImageView, coordinator: Coordinator) {
