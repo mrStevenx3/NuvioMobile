@@ -128,6 +128,8 @@ struct StageStripHome: View {
                     })
                     .onAppear { stage.rowAppeared(collection: studios) }
                         .environment(\.collectionRowHidesHeading, true)
+                        // Steven: Poster Size does not apply to the studio tiles either.
+                        .environment(\.posterStyle, .default)
                         // The row hugs its content (it filled the screen, title at the top).
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, StripGeometry.edgeMargin)
