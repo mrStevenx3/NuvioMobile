@@ -226,7 +226,11 @@ struct StageStripHome: View {
             DispatchQueue.main.async { showFirstItemOnStage() }
             // Device pass (Steven: back from Plateformes / Studios, Films kept the folder's art until
             // the first Down): once more after the page has settled (and the portal has opened).
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { showFirstItemOnStage() }
+            // Skipped if the viewer pressed anything meanwhile (focus may be on a card by then).
+            let changedAt = ProcessInfo.processInfo.systemUptime
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                if (ViewerInputClock.shared.lastAt ?? 0) <= changedAt { showFirstItemOnStage() }
+            }
         }
         .onChange(of: keys) { _, newKeys in
             stage.memory.prune(keeping: Set(newKeys))
