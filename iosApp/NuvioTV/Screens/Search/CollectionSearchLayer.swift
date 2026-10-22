@@ -1,68 +1,31 @@
 import SwiftUI
 import SharedCore
 
-/// Steven's fork (collection bar): search inside one collection folder. The Orbit keyboard over a
-/// Netflix-style result grid (`SearchGridResults`), matching the titles this folder's catalogs
-/// have loaded (every source tab, under the page's Films / Séries filter). Menu closes it.
+/// Steven's fork (collection bar): search inside one collection folder, on tvOS's own system
+/// search field and keyboard (Siri dictation from the remote's microphone, typing from an iPhone),
+/// over a Netflix-style result grid (`SearchGridResults`). Menu closes it.
+///
+/// Built like `SearchView` (see its header): `.searchable` sits on the results `ScrollView` inside
+/// Home's own `NavigationStack` (no nested stack), the typed text lives in `SearchQueryBox`, and
+/// the view that carries `.searchable` observes only that box, so a results update never
+/// re-applies the field's binding (the iPhone-keyboard flicker).
 struct CollectionSearchLayer: View {
     let tabs: [FolderTab]
     let typeFilter: String?
     let onClose: () -> Void
 
-    @StateObject private var queryBox = SearchQueryBox()
-    /// Pass 2: the add-ons' own platform search, for this folder's catalogs that declare one
-    /// (nil until a search has answered; then the results, possibly empty).
-    @State private var remote: [MetaPreview]?
-    @State private var searchingRemote = false
+    /// Held, never observed here (an `@State` box does not subscribe this view).
+    @State private var queryBox = SearchQueryBox()
 
     var body: some View {
-        let query = queryBox.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Pass 3 (Steven): films AND series whatever the Films / Séries tab, only from the
-        // « Tous les films / Toutes les séries » catalogs (never Top 10 or Nouveautés), and the
-        // add-on's platform-wide search when it has one; the loaded titles only for a folder
-        // whose add-on cannot search.
-        let canSearch = CollectionRemoteSearch.hasSearchableCatalogs(tabs)
-        let items = canSearch ? (remote ?? []) : Self.matches(query: query, tabs: tabs, typeFilter: nil)
         ZStack(alignment: .topLeading) {
             Color.black.opacity(0.94).ignoresSafeArea()
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                    OrbitSearchKeyboard(queryBox: queryBox)
-                    if query.isEmpty {
-                        EmptyView()
-                    } else if items.isEmpty, searchingRemote || (canSearch && remote == nil) {
-                        ProgressView()
-                    } else if items.isEmpty {
-                        Text("Aucun titre de cette collection ne correspond.")
-                            .font(Theme.Font.body)
-                            .foregroundStyle(Theme.Palette.textSecondary)
-                    } else {
-                        SearchGridResults(entries: SearchGridResults.entries(suggestions: [""], items: items),
-                                          items: items,
-                                          onPick: { queryBox.text = $0 },
-                                          onFocus: { _ in })
-                    }
-                }
-                .padding(.top, 140)
-                .padding(.horizontal, Theme.Spacing.screen)
-                .padding(.bottom, Theme.Spacing.screen)
+            CollectionSearchField(queryBox: queryBox) {
+                CollectionSearchResults(queryBox: queryBox, tabs: tabs)
             }
-            .scrollClipDisabled()
         }
-        .ignoresSafeArea()
         .focusSection()
         .onExitCommand { onClose() }
-        .task(id: query) {
-            remote = nil
-            guard query.count >= 2 else { searchingRemote = false; return }
-            searchingRemote = true
-            try? await Task.sleep(for: .milliseconds(350))
-            if Task.isCancelled { return }
-            let found = await CollectionRemoteSearch.search(query: query, tabs: tabs)
-            if Task.isCancelled { return }
-            remote = found
-            searchingRemote = false
-        }
     }
 
     static func merged(_ first: [MetaPreview], _ second: [MetaPreview]) -> [MetaPreview] {
@@ -175,4 +138,66 @@ enum CollectionRemoteSearch {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
 
+}
+
+
+/// The system search field: observes only the query box.
+private struct CollectionSearchField<Content: View>: View {
+    @ObservedObject var queryBox: SearchQueryBox
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ScrollView(.vertical) {
+            content()
+                .padding(.top, 30)
+                .padding(.horizontal, Theme.Spacing.screen)
+                .padding(.bottom, Theme.Spacing.screen)
+        }
+        .scrollClipDisabled()
+        .searchable(text: $queryBox.text, prompt: Text("Rechercher dans la collection"))
+    }
+}
+
+/// The results under the field: films and series of the folder's « Tous » catalogs, through the
+/// add-on's platform-wide search when it has one, else the titles already loaded.
+private struct CollectionSearchResults: View {
+    @ObservedObject var queryBox: SearchQueryBox
+    let tabs: [FolderTab]
+
+    @State private var remote: [MetaPreview]?
+    @State private var searchingRemote = false
+
+    var body: some View {
+        let query = queryBox.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let canSearch = CollectionRemoteSearch.hasSearchableCatalogs(tabs)
+        let items = canSearch ? (remote ?? []) : CollectionSearchLayer.matches(query: query, tabs: tabs, typeFilter: nil)
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            if query.isEmpty {
+                Color.clear.frame(height: 1)
+            } else if items.isEmpty, searchingRemote || (canSearch && remote == nil) {
+                ProgressView()
+            } else if items.isEmpty {
+                Text("Aucun titre de cette collection ne correspond.")
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+            } else {
+                SearchGridResults(entries: SearchGridResults.entries(suggestions: [""], items: items),
+                                  items: items,
+                                  onPick: { queryBox.text = $0 },
+                                  onFocus: { _ in })
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: query) {
+            remote = nil
+            guard query.count >= 2 else { searchingRemote = false; return }
+            searchingRemote = true
+            try? await Task.sleep(for: .milliseconds(350))
+            if Task.isCancelled { return }
+            let found = await CollectionRemoteSearch.search(query: query, tabs: tabs)
+            if Task.isCancelled { return }
+            remote = found
+            searchingRemote = false
+        }
+    }
 }
