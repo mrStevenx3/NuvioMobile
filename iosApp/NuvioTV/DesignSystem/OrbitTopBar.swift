@@ -391,11 +391,12 @@ struct CollectionFilterBar: View {
         // Pass 3 (Steven: Up never reached it): the focus section spans the screen's width in the
         // bar's band, so Up from any card of the top row finds the bar (the engine only searches
         // straight up, and the pill sits at the far right).
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .focusSection()
         .padding(.top, OrbitBarMetrics.top)
-        .padding(.trailing, trailing)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        // Pass 5 (Steven, device): back at the top-left, like Home's bar.
+        .padding(.leading, OrbitBarMetrics.leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea()
     }
 

@@ -5247,6 +5247,11 @@ struct CatalogRowView: View {
     /// item and none of the binding's other consumers can accidentally match it.
     private static let seeAllFocusKey = "\u{0}see-all"
 
+    static func uniqueItems(_ items: [MetaPreview]) -> [MetaPreview] {
+        var seen = Set<String>()
+        return items.filter { seen.insert($0.id).inserted }
+    }
+
     /// Which card holds focus. Needed here (rather than inside the card) because tvOS delivers
     /// remote commands to the *focused view chain* — the `Button`/`NavigationLink` below, never its
     /// label — so the play/pause mute toggle has to be attached at this level and gated on "this is
@@ -5513,6 +5518,10 @@ struct CatalogRowView: View {
         // Perf review 2026-10-17 (#4): the trailer gate (a UIAccessibility read plus the BUG-55
         // probe) once per body, not once per card.
         let rowTrailersActive = inlineTrailersActive
+        // Steven's fork (device pass, Marvel row): a catalog can list one title twice; the second
+        // copy took the first one's wako index and drew hidden (an empty slot after the frame),
+        // and a repeated id also confuses the lazy stack. One card per id.
+        let rowItems = CatalogRowView.uniqueItems(section.items)
         let trailersActive = rowTrailersActive && !wakoFrame
         // Steven's fork (wako frame, pass 3): every card keeps its poster width. The focused one is
         // hidden under the frame, the ones after it are DRAWN one frame-width further right (a
@@ -5523,15 +5532,15 @@ struct CatalogRowView: View {
         let wakoRowFocused = focusedItemId != nil
         let wakoLeadId: String? = !wakoRestFrame ? focusedItemId : focusedItemId ?? wakoRestId
             ?? (stripFocusMemory?.drivesDefaultFocus == true ? stripFocusMemory?.itemId(for: section.key) : nil)
-            ?? section.items.first?.id
-        let wakoLead: MetaPreview? = wakoFrame ? wakoLeadId.flatMap { id in section.items.first { $0.id == id } } : nil
+            ?? rowItems.first?.id
+        let wakoLead: MetaPreview? = wakoFrame ? wakoLeadId.flatMap { id in rowItems.first { $0.id == id } } : nil
         // Wako pass 10: See All leads too (one step past the last card), so the frame never vanishes
         // and the row never snaps back when focus reaches it.
         let wakoSeeAllLead = wakoFrame && wakoLeadId == Self.seeAllFocusKey
         let wakoIndex: [String: Int] = (wakoLead == nil && !wakoSeeAllLead) ? [:]
-            : Dictionary(section.items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let wakoLeadIndex: Int? = wakoSeeAllLead ? section.items.count : wakoLead.flatMap { wakoIndex[$0.id] }
-        let wakoPrevious: MetaPreview? = wakoLeadIndex.flatMap { $0 > 0 ? section.items[$0 - 1] : nil }
+            : Dictionary(rowItems.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let wakoLeadIndex: Int? = wakoSeeAllLead ? rowItems.count : wakoLead.flatMap { wakoIndex[$0.id] }
+        let wakoPrevious: MetaPreview? = wakoLeadIndex.flatMap { $0 > 0 ? rowItems[$0 - 1] : nil }
         // Pass 12: after-cards sit two steps past the viewport edge in layout; the next one must be
         // drawn one gap past the frame.
         let wakoShift = max(0, wakoFrameSize.width + rowGap - 2 * wakoStep)
@@ -5589,7 +5598,7 @@ struct CatalogRowView: View {
                                 .allowsHitTesting(false)
                                 .accessibilityHidden(true)
                         }
-                        ForEach(section.items, id: \.id) { item in
+                        ForEach(rowItems, id: \.id) { item in
                             Group {
                                 if let onSelect {
                                     Button { onSelect(item) } label: {
@@ -5699,7 +5708,7 @@ struct CatalogRowView: View {
                             // Steven's fork (wako frame): the See All tile comes after every card,
                             // so it is drawn past the frame like them (it sat one frame-width short,
                             // under the frame, with the last poster drawn after it).
-                            .modifier(WakoCardPlacement(index: section.items.count, lead: wakoLeadIndex,
+                            .modifier(WakoCardPlacement(index: rowItems.count, lead: wakoLeadIndex,
                                                         shift: wakoShift, step: posterStyle.cardWidth + rowGap,
                                                         reduceMotion: reduceMotion))
                         }
@@ -5970,7 +5979,7 @@ struct CatalogRowView: View {
         // Medium+), so it needs the morph scroll like a portrait card. Only the global Landscape
         // Posters toggle (`landscapeRowGeometry`, 360 → 360, `plan` returns nil) is skipped.
         guard !posterStyle.landscapeRowGeometry,
-              let index = section.items.firstIndex(where: { $0.id == itemId }) else { return }
+              let index = Self.uniqueItems(section.items).firstIndex(where: { $0.id == itemId }) else { return }
         hScroll.wideItemId = itemId
         // H3: supersede any still-pending pass from a previous expansion rather than letting both
         // race the same row.
@@ -6100,7 +6109,7 @@ struct CatalogRowView: View {
         guard let memory = stripFocusMemory, memory.drivesDefaultFocus,
               let id = memory.itemId(for: section.key),
               id != section.items.first?.id,
-              let index = section.items.firstIndex(where: { $0.id == id }) else { return }
+              let index = Self.uniqueItems(section.items).firstIndex(where: { $0.id == id }) else { return }
         DispatchQueue.main.async { applyStripMemoryScroll(id: id, index: index, attempt: 0, proxy: proxy) }
     }
 
@@ -6149,7 +6158,7 @@ struct CatalogRowView: View {
         // scroll for this move, so this glide is the last word every time (every other step used
         // to jump), and by item id rather than a computed offset.
         let seeAllX: CGFloat? = isSeeAll ? hScroll.sample.flatMap {
-            FocusLeadsRow.offset(index: section.items.count, cardWidth: posterStyle.cardWidth, gap: rowGap, sample: $0)
+            FocusLeadsRow.offset(index: Self.uniqueItems(section.items).count, cardWidth: posterStyle.cardWidth, gap: rowGap, sample: $0)
         } : nil
         let animate = !reduceMotion
         DispatchQueue.main.async {

@@ -127,7 +127,6 @@ struct FolderRowsPage: View {
             // Steven's fork (collection bar): Search / Films / Séries, top-left like Home's bar.
             if NavigationChrome.isOrbitBar() {
                 CollectionFilterBar(filter: $typeFilter,
-                                    trailing: FolderStageIntro.trailingMargin + folderLogoWidth + 28,
                                     onSearch: { searching = true })
                     .opacity(searching ? 0 : 1)
                     .disabled(searching)
@@ -569,7 +568,9 @@ private struct FolderStageLogoLayer: View {
     /// Pass 4 (Steven): with the collection bar, the settled logo is centred on the bar's own
     /// centre line (bar top 38 + pill padding 6 + item 62 / 2), not hung from the stage's slot top.
     private let orbitBar = NavigationChrome.isOrbitBar()
-    static let barCentreY: CGFloat = 38 + 6 + 31
+    static let barCentreY: CGFloat = 38 + 6 + 31 - 18
+    /// Pass 5 (Steven, device): the logo sits a little further up and right, in the corner.
+    static let orbitTrailingMargin: CGFloat = 58
     private var settledAlignment: Alignment { orbitBar ? .trailing : .topTrailing }
     @State private var phase: Phase = .hidden
 
@@ -581,7 +582,8 @@ private struct FolderStageLogoLayer: View {
             let compactTop = FolderStageLogo.compactTop(blockTop: geometry.stageBlockTop, slot: slot)
             // The frame sits at (0, 0); everything below is the offset of its CENTRE (scale anchor).
             let splashCenter = CGPoint(x: screen.size.width / 2, y: screen.size.height / 2)
-            let settledCenter = CGPoint(x: screen.size.width - FolderStageIntro.trailingMargin - width * compactScale / 2,
+            let settledCenter = CGPoint(x: screen.size.width - (orbitBar ? Self.orbitTrailingMargin : FolderStageIntro.trailingMargin)
+                                            - width * compactScale / 2,
                                         y: orbitBar ? Self.barCentreY : compactTop + slot * compactScale / 2)
             let center = phase == .settled ? settledCenter : splashCenter
             let scale: CGFloat = switch phase {
