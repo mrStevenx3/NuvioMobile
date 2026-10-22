@@ -82,6 +82,7 @@ struct StageStripHome: View {
     /// Steven's fork: see `StageTrendingHero.swift`.
     @AppStorage(StageTrendingHeroSetting.defaultsKey) private var trendingHeroOn = StageTrendingHeroSetting.defaultValue
     @ObservedObject private var trendingHero = StageTrendingHeroModel.shared
+    @AppStorage(StageTrendingHeroSetting.fullBleedKey) private var trendingHeroFullBleed = false
 
     /// Classic's row keys, so `pinnedRowUpFallbackTarget(rowKey:)` and the focus memory agree.
     static let continueWatchingKey = "continue-watching"
@@ -170,6 +171,7 @@ struct StageStripHome: View {
         .animation(.easeInOut(duration: 0.28), value: geo)
         .onAppear {
             if trendingHeroOn { trendingHero.loadIfNeeded() }
+            StageHeroFocus.shared.setFullBleed(trendingHeroFullBleed)
             stage.start()
             stage.swap.setReduceMotion(reduceMotion)
             stage.swap.setHidesTextWhilePaging(infoBelow)
@@ -183,6 +185,7 @@ struct StageStripHome: View {
             stage.stopBackgroundTrailer(reason: "disappear")
         }
         .onChange(of: infoBelow) { _, on in stage.swap.setHidesTextWhilePaging(on) }
+        .onChange(of: trendingHeroFullBleed) { _, on in StageHeroFocus.shared.setFullBleed(on) }
         .onChange(of: reduceMotion) { _, motion in
             stage.swap.setReduceMotion(motion)
             stage.bgTrailer.prefersReducedMotion = motion
@@ -229,6 +232,8 @@ struct StageStripHome: View {
         // Steven's fork (Orbit bar): a new page (Films, Séries, Services, Studios) shows its FIRST
         // title on the stage at once, while focus is still on the bar.
         .onChange(of: contentFilter.filter) { _, _ in
+            // The new page's strip starts on its first row: the hero, when it has one.
+            StageHeroFocus.shared.setOnTop(rowKeys.first == StageTrendingHeroSetting.rowKey)
             DispatchQueue.main.async { showFirstItemOnStage() }
             // Device pass (Steven: back from Plateformes / Studios, Films kept the folder's art until
             // the first Down): once more after the page has settled (and the portal has opened).
@@ -238,7 +243,11 @@ struct StageStripHome: View {
                 if (ViewerInputClock.shared.lastAt ?? 0) <= changedAt { showFirstItemOnStage() }
             }
         }
-        .onChange(of: keys) { _, newKeys in
+        .onChange(of: keys, initial: true) { _, newKeys in
+            // A new page (or the hero arriving) opens on its first row.
+            if newKeys.first != StageTrendingHeroSetting.rowKey { StageHeroFocus.shared.setOnTop(false) }
+            else if stage.currentRowKey == nil || stage.currentRowKey == StageTrendingHeroSetting.rowKey
+                        || !newKeys.contains(stage.currentRowKey ?? "") { StageHeroFocus.shared.setOnTop(true) }
             stage.memory.prune(keeping: Set(newKeys))
         }
         .onChange(of: geo, initial: true) { _, newGeometry in
@@ -275,7 +284,8 @@ struct StageStripHome: View {
         var seen = Set<String>()
         let filter = contentFilter.filter
         // Steven's fork: the trending hero leads the Films page.
-        if trendingHeroOn, filter == .all || filter == .movies, !trendingHero.items.isEmpty {
+        if trendingHeroOn, filter == .all || filter == .movies || filter == .series,
+           !trendingHero.items(series: filter == .series).isEmpty {
             keys.append(StageTrendingHeroSetting.rowKey)
             seen.insert(StageTrendingHeroSetting.rowKey)
         }
@@ -413,6 +423,7 @@ struct StageStripHome: View {
                        menuPagesToTop: true,
                        atTopExit: atTopExit,
                        onRowChange: { index, key in
+                           StageHeroFocus.shared.setOnTop(key == StageTrendingHeroSetting.rowKey)
                            let down = index > 0
                            if isScrolledDown != down { isScrolledDown = down }
                            // §7: a strip row owns focus again (also when focus comes back from the
@@ -447,11 +458,13 @@ struct StageStripHome: View {
     @ViewBuilder
     private func rowView(_ key: String) -> some View {
         if key == StageTrendingHeroSetting.rowKey {
-            StageTrendingHeroRow(model: trendingHero,
+            StageTrendingHeroRow(items: trendingHero.items(series: contentFilter.filter == .series),
                                  height: max(300, geometry.rowHeight - 10),
+                                 fullBleed: trendingHeroFullBleed,
                                  onFocusItem: { item in
                                      stage.report(item, source: key,
-                                                  prefetch: { trendingHero.items.prefix(4).compactMap(\.banner) })
+                                                  prefetch: { trendingHero.items(series: contentFilter.filter == .series)
+                                                      .prefix(4).compactMap(\.banner) })
                                  },
                                  onSelect: { actions.push(TitleRoute(preview: $0)) })
         } else if key == Self.continueWatchingKey {
@@ -579,7 +592,7 @@ struct StageStripHome: View {
     }
 
     private func firstPreview(ofRow key: String) -> MetaPreview? {
-        if key == StageTrendingHeroSetting.rowKey { return trendingHero.items.first }
+        if key == StageTrendingHeroSetting.rowKey { return trendingHero.items(series: contentFilter.filter == .series).first }
         if key == Self.continueWatchingKey {
             return model.continueWatching.first.map { StageCopy.preview(from: $0) }
         }

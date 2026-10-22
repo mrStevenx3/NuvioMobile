@@ -176,6 +176,8 @@ struct StageArtLayer: View {
 /// on a title change. Nothing is blurred per frame.
 struct StageBlurredArt: View {
     @ObservedObject var swap: StageSwapDriver
+    /// Steven's fork: the full-screen trending hero shows its backdrop sharp, full bleed.
+    @ObservedObject private var hero = StageHeroFocus.shared
     @State private var blurred: UIImage?
     @State private var shownIdentity = "-"
 
@@ -191,7 +193,33 @@ struct StageBlurredArt: View {
                     .transition(.opacity)
             }
             Color.black.opacity(0.35)
+            if hero.fullBleed, hero.heroOnTop, let image = art?.backdrop {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .overlay {
+                        LinearGradient(stops: [
+                            .init(color: .black.opacity(0.75), location: 0),
+                            .init(color: .black.opacity(0.2), location: 0.5),
+                            .init(color: .clear, location: 0.75),
+                        ], startPoint: .leading, endPoint: .trailing)
+                    }
+                    // Fades into the blurred page under the hero, like wako.
+                    .mask {
+                        LinearGradient(stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.55),
+                            .init(color: .clear, location: 0.82),
+                        ], startPoint: .top, endPoint: .bottom)
+                    }
+                    .id("sharp-\(art?.identity ?? "-")")
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.45), value: hero.fullBleed && hero.heroOnTop)
+        .animation(.easeInOut(duration: 0.45), value: art?.identity)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .ignoresSafeArea()
@@ -483,8 +511,8 @@ struct StageTextBlock: View {
                : Theme.Size.heroInfoPanelWidth,
                height: max(0, geometry.stageHeight - geometry.stageBlockTop - StripGeometry.stageBottomGap),
                alignment: .topLeading)
-        .opacity(heroFocus.active ? 0 : 1)
-        .animation(.easeOut(duration: 0.25), value: heroFocus.active)
+        .opacity(heroFocus.heroOnTop ? 0 : 1)
+        .animation(.easeOut(duration: 0.25), value: heroFocus.heroOnTop)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("stage_text_slot")
         .padding(.top, geometry.stageBlockTop)

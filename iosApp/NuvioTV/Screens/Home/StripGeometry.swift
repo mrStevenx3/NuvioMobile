@@ -485,7 +485,7 @@ nonisolated enum StageInfoBelow {
     static let synopsisLines = 3
     /// Device pass (Steven: the rows were too far apart): no extra gap after the synopsis; the
     /// page's own focus lift (2 × 20) and `pullUp` separate it from the next heading.
-    static let bottomGap: CGFloat = 0
+    static let bottomGap: CGFloat = -10
     /// Device pass (Steven: the title sat right under the posters): 24 (was 44), the block 20 pt lower.
     static let pullUp: CGFloat = 24
     /// The bold 34 title line above the meta line (`StageTextBlock`).

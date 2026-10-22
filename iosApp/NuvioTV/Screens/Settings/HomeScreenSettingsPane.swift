@@ -54,6 +54,7 @@ struct HomeScreenSettingsPane: View {
     /// classic layout is the default). Local-only.
     @AppStorage("hero_nuvio_style") private var heroNuvioStyle = false
     @AppStorage(StageTrendingHeroSetting.defaultsKey) private var trendingHeroOn = StageTrendingHeroSetting.defaultValue
+    @AppStorage(StageTrendingHeroSetting.fullBleedKey) private var trendingHeroFullBleed = false
 
     /// Mirrors HomeView's `home_upcoming_row_enabled` key: the "Upcoming" row of followed shows'
     /// next airing episodes, directly under Continue Watching. Default ON. Local-only.
@@ -138,10 +139,20 @@ struct HomeScreenSettingsPane: View {
                 SettingsToggleRow(
                     title: String(localized: "Hero des tendances"),
                     subtitle: trendingHeroOn
-                        ? String(localized: "Les films les plus vus de la semaine sur TMDB défilent en haut de l'accueil")
+                        ? String(localized: "Les films et séries tendance du jour sur TMDB défilent en haut de Films et Séries")
                         : String(localized: "L'accueil commence directement par les rangées"),
                     isOn: $trendingHeroOn
                 )
+                if trendingHeroOn {
+                    SettingsToggleRow(
+                        title: String(localized: "Hero plein écran"),
+                        subtitle: trendingHeroFullBleed
+                            ? String(localized: "L'image du titre en grand derrière l'accueil, comme wako")
+                            : String(localized: "L'image du titre dans une grande vignette")
+                        ,
+                        isOn: $trendingHeroFullBleed
+                    )
+                }
             }
 
             if model.catalogs.isEmpty {
