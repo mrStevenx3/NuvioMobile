@@ -99,6 +99,8 @@ struct StageStripHome: View {
             StageView(controller: stage, geometry: geo, hidesLogo: singleStudiosCollection != nil,
                       logoTopTrailing: true)
             if showsCollectionGrid {
+                // Pass 8 (Steven): Plateformes sits on plain black, whatever backdrop Nuvio has.
+                Color.black.ignoresSafeArea()
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
                 OrbitCollectionGrid(collections: gridCollections) { collection, folder in
                     stage.report(folder.flatMap { HomeRowPreviews.folder(collection: collection, folder: $0,

@@ -81,7 +81,6 @@ struct AppearanceSettingsPane: View {
     /// B1 (BUG-145 + FEAT-67): Show Catalog Details in Headings, device-local, live: the Stage,
     /// Discover, Classic Home and the folder page read the same key (`HeadingDetailsSetting`).
     @AppStorage(HeadingDetailsSetting.defaultsKey) private var catalogDetailsInHeadings = HeadingDetailsSetting.defaultValue
-    @AppStorage(OrbitSpaceTransition.defaultsKey) private var orbitSpaceTransition = OrbitSpaceTransition.Style.portal.rawValue
 
     private static let settingsStyleOptions: [(value: String, label: String)] = [
         ("default", String(localized: "Default")),
@@ -360,16 +359,6 @@ struct AppearanceSettingsPane: View {
                 .accessibilityIdentifier("appearance_row_navigation")
                 .focused($appearanceRowFocus, equals: "navigation")
 
-                // Steven's fork: the Orbit logo transition into Plateformes / Studios.
-                if NavigationChrome.style(raw: navigationStyle) == .orbit {
-                    SettingsPickerRow(
-                        title: String(localized: "Animation Plateformes / Studios"),
-                        selection: $orbitSpaceTransition,
-                        options: OrbitSpaceTransition.Style.allCases.map(\.rawValue),
-                        label: { OrbitSpaceTransition.Style(rawValue: $0)?.label ?? $0 }
-                    )
-                    .accessibilityIdentifier("appearance_row_orbit_transition")
-                }
 
                 if NavigationChrome.style(raw: navigationStyle) == .rail {
                     SettingsPickerRow(

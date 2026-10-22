@@ -126,9 +126,8 @@ struct OrbitTopBar: View {
     /// Pass 4: the launch focus (the engine's pick, the top-left Search glyph) is moved once onto
     /// the current page's item (Films at launch).
     @State private var placedLaunchFocus = false
-    /// Pass 7: the Plateformes / Studios entry transition (`OrbitSpaceTransition`), one per entry.
-    @State private var transition: (id: Int, style: OrbitSpaceTransition.Style, origin: CGPoint)?
-    @State private var itemCentres: [OrbitBarItem: CGPoint] = [:]
+    /// Pass 7: the Plateformes / Studios portal (`OrbitSpaceTransition`), one id per run.
+    @State private var transitionId: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -149,11 +148,11 @@ struct OrbitTopBar: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea()
         .overlay {
-            if let transition {
-                OrbitSpaceTransition(style: transition.style, origin: transition.origin) {
-                    if self.transition?.id == transition.id { self.transition = nil }
+            if let id = transitionId {
+                OrbitSpaceTransition {
+                    if transitionId == id { transitionId = nil }
                 }
-                .id(transition.id)
+                .id(id)
             }
         }
         .opacity(immersive ? 0 : 1)
@@ -188,12 +187,6 @@ struct OrbitTopBar: View {
                 }
                 .buttonStyle(OrbitBarButtonStyle())
                 .focused($focused, equals: item)
-                .onGeometryChange(for: CGPoint.self) { proxy in
-                    let frame = proxy.frame(in: .global)
-                    return CGPoint(x: frame.midX, y: frame.midY)
-                } action: { centre in
-                    itemCentres[item] = centre
-                }
                 .accessibilityLabel(item.accessibilityName)
                 .accessibilityIdentifier("orbit_bar_\(item)")
             }
@@ -226,13 +219,13 @@ struct OrbitTopBar: View {
     }
 
     private func select(_ item: OrbitBarItem) {
+        // Pass 7/8: the portal plays entering Plateformes / Studios from any other page, and leaving
+        // them for Search, Films, Séries, Library or Discover (not Settings, not between the two).
         let spaces: Set<HomeContentFilter> = [.services, .studios]
-        if let filter = item.homeFilter, spaces.contains(filter),
-           !(selectedTab == 0 && spaces.contains(homeFilter.filter)) {
-            let style = OrbitSpaceTransition.currentStyle
-            if style != .off, !reduceMotion {
-                transition = ((transition?.id ?? 0) + 1, style, itemCentres[item] ?? CGPoint(x: 400, y: 80))
-            }
+        let inSpace = selectedTab == 0 && spaces.contains(homeFilter.filter)
+        let toSpace = item.homeFilter.map(spaces.contains) ?? false
+        if !reduceMotion, inSpace != toSpace, item != .settings {
+            transitionId = (transitionId ?? 0) + 1
         }
         if let filter = item.homeFilter {
             homeFilter.set(filter)
