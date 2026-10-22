@@ -5295,7 +5295,16 @@ struct CatalogRowView: View {
     /// Wako pass 4: the negative padding did not move the scroll view's origin, so everything sat
     /// one inset too far right; the focused card rests on the viewport's own leading edge again,
     /// right under the row heading, and the previous one peeks in the strip's leading margin.
-    private func wakoAnchor(viewport: CGFloat) -> UnitPoint { .leading }
+    ///
+    /// Wako pass 12 (the Left bug): the focused card now rests ONE STEP in from the viewport's
+    /// leading edge, so the card before it lies inside the viewport (hidden under the frame). Left
+    /// then lands on a card the focus engine sees, and the engine no longer runs its own reveal
+    /// scroll against the row's glide (which shifted the row a step too far and left a hole).
+    private var wakoStep: CGFloat { posterStyle.cardWidth + rowGap }
+    private func wakoAnchor(viewport: CGFloat) -> UnitPoint {
+        let free = viewport - posterStyle.cardWidth
+        return UnitPoint(x: free > 0 ? min(1, wakoStep / free) : 0, y: 0.5)
+    }
     /// The frame's size: the 16:9 tile at the poster's height.
     private var wakoFrameSize: CGSize { posterStyle.artworkSize(expanded: true) }
 
@@ -5507,7 +5516,9 @@ struct CatalogRowView: View {
             : Dictionary(section.items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         let wakoLeadIndex: Int? = wakoSeeAllLead ? section.items.count : wakoLead.flatMap { wakoIndex[$0.id] }
         let wakoPrevious: MetaPreview? = wakoLeadIndex.flatMap { $0 > 0 ? section.items[$0 - 1] : nil }
-        let wakoShift = max(0, wakoFrameSize.width - posterStyle.cardWidth)
+        // Pass 12: after-cards sit two steps past the viewport edge in layout; the next one must be
+        // drawn one gap past the frame.
+        let wakoShift = max(0, wakoFrameSize.width + rowGap - 2 * wakoStep)
         // BUG-146 second trim (Steven, rc4: Stage headings "still slightly too high"): heading →
         // shelf spacing is `StripGeometry.headingGap` (12) inside the strip, `md` (16) elsewhere.
         VStack(alignment: .leading, spacing: StripGeometry.headingGap(inStrip: stripFocusMemory != nil)) {
@@ -5551,6 +5562,14 @@ struct CatalogRowView: View {
                     // row is shorter than the slot its neighbours reserve). Rows whose cards are all
                     // one height (Home's) lay out exactly as before.
                     LazyHStack(alignment: .top, spacing: rowGap) {
+                        // Wako pass 12: one card's room before the first card, so even the first one
+                        // rests a step in (see `wakoAnchor`). Not focusable.
+                        if wakoFrame {
+                            Color.clear
+                                .frame(width: posterStyle.cardWidth, height: 1)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                         ForEach(section.items, id: \.id) { item in
                             Group {
                                 if let onSelect {
