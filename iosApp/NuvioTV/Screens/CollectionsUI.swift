@@ -1416,7 +1416,10 @@ struct FolderDetailView: View {
             }
             // Batch F review r1 P1: Classic + Rows needs the band too (the Classic grid keeps its own
             // Edit Filters button inside `gridPage`).
-            if homeLayout == .stage || layout == .rows {
+            // Steven's fork: with the Orbit bar the collection has its own bar up there; the band's
+            // Go Back (Menu already goes back) is not wanted, only an Edit menu when there is one.
+            if homeLayout == .stage || layout == .rows,
+               !(NavigationChrome.isOrbitBar() && model.editableSources.isEmpty) {
                 // §2.6: visible and enabled at the top of the page (the strip's top focusable row,
                 // or the grid not scrolled), the existing Edit Filters rule.
                 FolderEditMenuBand(model: model,
