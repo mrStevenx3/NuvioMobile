@@ -215,6 +215,17 @@ private struct DetailCompactLogo: View {
 
     private var visible: Bool { followsFirstRow ? inRows : inRows && model.heroGone }
 
+    /// Steven's fork (device pass 2): in Apple TV style the logo fades in AFTER the hero text has
+    /// mostly gone, and leaves quickly.
+    private var fadeAnimation: Animation? {
+        if reduceMotion { return nil }
+        guard followsFirstRow else { return Animation.easeInOut(duration: 0.25) }
+        if visible {
+            return Animation.easeOut(duration: DetailAppleStyle.logoFade).delay(DetailAppleStyle.logoFadeDelay)
+        }
+        return Animation.easeIn(duration: 0.2)
+    }
+
     var body: some View {
         TitleLogoHeader(title: title, logoUrl: logoUrl, alignment: .center,
                         textFont: Theme.Font.screenTitle, slotHeight: Self.slotHeight,
@@ -223,12 +234,7 @@ private struct DetailCompactLogo: View {
             .lineLimit(1)
             .shadow(color: .black.opacity(0.5), radius: 8)
             .opacity(visible ? 1 : 0)
-            .animation(reduceMotion ? nil
-                       : followsFirstRow
-                           ? (visible ? .easeOut(duration: DetailAppleStyle.logoFade).delay(DetailAppleStyle.logoFadeDelay)
-                                      : .easeIn(duration: 0.2))
-                           : .easeInOut(duration: 0.25),
-                       value: visible)
+            .animation(fadeAnimation, value: visible)
             .allowsHitTesting(false)
             .accessibilityHidden(!visible)
             .accessibilityIdentifier("detail_compact_logo")
