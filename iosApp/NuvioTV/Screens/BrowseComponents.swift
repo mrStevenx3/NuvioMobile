@@ -5614,6 +5614,11 @@ struct CatalogRowView: View {
                             // `muteToggle(for:)` still never matches it. Only the settle
                             // tracker's `focusedItemId != nil` test changes meaning.
                             .focused($focusedItemId, equals: Self.seeAllFocusKey)
+                            // Steven's fork (wako frame): the See All tile comes after every card,
+                            // so it is drawn past the frame like them (it sat one frame-width short,
+                            // under the frame, with the last poster drawn after it).
+                            .modifier(WakoCardPlacement(place: wakoLeadIndex == nil ? .none : .after,
+                                                        shift: wakoShift, reduceMotion: reduceMotion))
                         }
 
                         // Steven's fork (`FocusLeadsRow`): room for the last card to reach the
