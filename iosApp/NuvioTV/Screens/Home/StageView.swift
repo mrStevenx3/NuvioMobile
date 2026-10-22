@@ -59,6 +59,22 @@ struct StageView: View {
             // The background trailer model is handed down on every host; only Home ever arms it
             // (`StageStripHome`), so on the folder page it stays idle and draws nothing.
             StageArtLayer(swap: controller.swap, geometry: geometry, trailer: controller.bgTrailer)
+            // Steven's fork (wako pass 6): with the title logo top-right, the right side of the stage
+            // art is shaded so the logo reads on any backdrop. Fixed, never animated.
+            if logoTopTrailing && geometry.infoBelow {
+                LinearGradient(stops: [
+                    .init(color: .clear, location: StageInfoBelow.rightShadeStart),
+                    .init(color: .black.opacity(StageInfoBelow.rightShadeOpacity), location: 1)
+                ], startPoint: .leading, endPoint: .trailing)
+                .mask {
+                    LinearGradient(colors: [.black, .black, .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: geometry.stageHeight + StripGeometry.stageBottomGap)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
             StageTextBlock(swap: controller.swap,
                            geometry: geometry,
                            hidesLogoWhenDisplaying: hidesLogoWhenDisplaying,
