@@ -117,6 +117,7 @@ struct StageStripHome: View {
         .onAppear {
             stage.start()
             stage.swap.setReduceMotion(reduceMotion)
+            stage.swap.setHidesTextWhilePaging(infoBelow)
             stage.bgTrailer.prefersReducedMotion = reduceMotion
             // §7: where Trailers on Focus plays in Stage, stated once on mount and once per actual
             // flip (`.onChange` below), never per render.
@@ -126,6 +127,7 @@ struct StageStripHome: View {
             // Home Layout switched to Classic (or the shell went away): the player slot goes back.
             stage.stopBackgroundTrailer(reason: "disappear")
         }
+        .onChange(of: infoBelow) { _, on in stage.swap.setHidesTextWhilePaging(on) }
         .onChange(of: reduceMotion) { _, motion in
             stage.swap.setReduceMotion(motion)
             stage.bgTrailer.prefersReducedMotion = motion

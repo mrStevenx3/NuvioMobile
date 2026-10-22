@@ -76,6 +76,10 @@ nonisolated struct StageSwapCore<P: StageSwapPayload>: Equatable {
     private(set) var fade: StageSwapFade = .instant
     private(set) var lastActivity: TimeInterval = -.infinity
     private(set) var pageInFlight = false
+    /// Steven's fork (`StageInfoBelow`, device pass 2): the text sits under the row, so it must
+    /// leave as the row leaves. A page start fades it out at once; the page end lets the usual
+    /// pause decide whether the next title swaps in or the same one fades back.
+    var hidesTextWhilePaging = false
     private(set) var pageEndedAt: TimeInterval = -.infinity
     /// The last rows motion (`RowsMotionClock`), fed by the driver before every tick.
     private(set) var lastMotion: TimeInterval = -.infinity
@@ -170,11 +174,24 @@ nonisolated struct StageSwapCore<P: StageSwapPayload>: Equatable {
         pageInFlight = true
         resting = nil
         cancelFadeOut()
+        if hidesTextWhilePaging, textOpacity > 0 {
+            textOpacity = 0
+            fade = reduceMotion ? .instant : .fadeOut(min(timing.fadeOut, 0.15))
+            if phase == .fadingIn {
+                phase = .idle
+                stepDue = nil
+            }
+        }
     }
 
     mutating func pageEnded(now: TimeInterval) {
         pageInFlight = false
         pageEndedAt = now
+        // Steven's fork: see `hidesTextWhilePaging`. A pausing phase with nothing pending fades
+        // the shown title back in at the gate; a title reported meanwhile swaps in instead.
+        if hidesTextWhilePaging, textOpacity < 1, phase == .idle {
+            phase = .pausing
+        }
     }
 
     mutating func motion(at t: TimeInterval) {
@@ -429,6 +446,12 @@ final class StageSwapDriver: ObservableObject {
     func setReduceMotion(_ on: Bool) {
         guard core.reduceMotion != on else { return }
         mutate { core, _ in core.reduceMotion = on }
+    }
+
+    /// Steven's fork: see `StageSwapCore.hidesTextWhilePaging`.
+    func setHidesTextWhilePaging(_ on: Bool) {
+        guard core.hidesTextWhilePaging != on else { return }
+        mutate { core, _ in core.hidesTextWhilePaging = on }
     }
 
     // MARK: Engine
