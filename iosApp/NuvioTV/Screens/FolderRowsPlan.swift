@@ -157,6 +157,13 @@ nonisolated struct FolderTabSnapshot {
 }
 
 extension FolderTabSnapshot {
+    /// Steven's fork (genre rows): a source filtered to a genre is titled by the genre alone
+    /// ("Action", not "Tous les films · Action").
+    var displayLabel: String {
+        if case .addon(_, _, _, let genre?, _)? = target, !genre.isEmpty { return genre }
+        return label
+    }
+
     /// Steven's fork (collection bar): the tab's catalog type, from its target.
     var contentType: String? {
         switch target {
@@ -248,7 +255,7 @@ nonisolated enum FolderRowsPlan {
                                                supportsPagination: supportsPagination)
         }
         return HomeCatalogSection(key: rowKey(folderId: folderId, tabIndex: t.tabIndex),
-                                  title: t.label,
+                                  title: t.displayLabel,
                                   subtitle: t.typeLabel,
                                   // Empty, so the Stage heading's "· add-on" suffix (W2-A) never
                                   // shows on a folder row.
@@ -266,7 +273,7 @@ nonisolated enum FolderRowsPlan {
             let rowSection = rowStatus == .loaded ? section(t, collectionId: collectionId, folderId: folderId) : nil
             return FolderStripRow(id: rowKey(folderId: folderId, tabIndex: t.tabIndex),
                                   order: t.tabIndex,
-                                  heading: t.label,
+                                  heading: t.displayLabel,
                                   status: rowStatus,
                                   section: rowSection,
                                   itemKeys: rowStatus == .loaded ? t.items.prefix(previewLimit).map(itemKey) : [],
