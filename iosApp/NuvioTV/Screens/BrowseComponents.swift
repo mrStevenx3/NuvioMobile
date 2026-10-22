@@ -107,6 +107,9 @@ nonisolated enum FocusLeadsRow {
     static let defaultsKey = "home_focus_leads_row"
     /// The gap between Home's catalog cards while this mode is on (Classic rows use 28).
     static let cardGap: CGFloat = 14
+    /// Escape hatch, read once: `defaults write … debug.focusLeadsEngineScroll -bool YES` gives the
+    /// focus engine its own row scroll back (the pre-device-pass-2 behaviour).
+    static let engineScrolls = UserDefaults.standard.bool(forKey: "debug.focusLeadsEngineScroll")
     /// The glide that brings the focused card to the leading edge. Short enough to keep up with a
     /// held Right, long enough to read as the row sliding under a fixed selection.
     static let animation = Animation.easeOut(duration: 0.32)
@@ -5439,6 +5442,10 @@ struct CatalogRowView: View {
                                                   : leadingEdgeAllowance))
                 }
                 .scrollClipDisabled()
+                // Steven's fork (device pass 2): every other step jumped instead of gliding — the
+                // focus engine's own scroll and the leading-edge glide raced. In focus-leads mode
+                // the engine no longer scrolls the row; only `alignFocusedCardToLeading` does.
+                .scrollDisabled(focusLeads && !FocusLeadsRow.engineScrolls)
                 // beta.19-rc1 verdict (M3, BUG-133): the row's horizontal geometry, into a reference
                 // box (never view state), for the morph-scroll math. `record` also stamps
                 // `RowsMotionClock` when the OFFSET moved ≥ 0.5 pt since the last stamp, so a

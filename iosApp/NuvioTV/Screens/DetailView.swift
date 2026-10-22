@@ -223,7 +223,12 @@ private struct DetailCompactLogo: View {
             .lineLimit(1)
             .shadow(color: .black.opacity(0.5), radius: 8)
             .opacity(visible ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: visible)
+            .animation(reduceMotion ? nil
+                       : followsFirstRow
+                           ? (visible ? .easeOut(duration: DetailAppleStyle.logoFade).delay(DetailAppleStyle.logoFadeDelay)
+                                      : .easeIn(duration: 0.2))
+                           : .easeInOut(duration: 0.25),
+                       value: visible)
             .allowsHitTesting(false)
             .accessibilityHidden(!visible)
             .accessibilityIdentifier("detail_compact_logo")
@@ -525,6 +530,7 @@ struct DetailView: View {
     /// can sit below non-focusable ones such as Parental Guide). The logo rides with this row; with
     /// the topmost row it was already scrolled away on the first Down.
     @State private var logoAnchorRow: DetailRowID?
+    @State private var synopsisExtraHeight: CGFloat = 0
     /// FEAT-35 section toggle "Ratings" (closes FEAT-28): the Cinematic ratings strip and the meta
     /// line's IMDb ★ (D10). Classic's chips are untouched.
     @AppStorage(DetailSettingsKeys.sectionRatings) private var sectionRatings = true
@@ -805,6 +811,12 @@ struct DetailView: View {
                         }
                         if sectionParentalGuide {
                             parentalGuideSection
+                                // Steven's fork (device pass 2): in Apple TV style the guide belongs
+                                // to the hero view; it sat under the compact logo once in the rows.
+                                // Not focusable, so hiding it changes no focus path.
+                                .opacity(appleStyle && focusedRow != nil ? 0 : 1)
+                                .animation(reduceMotion ? nil : .easeInOut(duration: DetailAppleStyle.heroFade),
+                                           value: appleStyle && focusedRow != nil)
                                 .detailRowAnchored(.parental, focusedRow: $focusedRow, offsets: $detailRowOffsets)
                         }
                     }
@@ -1860,18 +1872,22 @@ struct DetailView: View {
                 userInteracted = true
                 withdrawTrailerBridgeIfLeaving()
             },
-            synopsisBeside: appleStyle
+            synopsisBeside: appleStyle,
+            onSynopsisExtraHeight: { extra in synopsisExtraHeight = extra }
         ) {
             actionRow
         }
         // Steven's fork (Apple TV style): the hero text fades out while focus is in the rows and
         // back in on the way up. Opacity only, so focus and layout are untouched.
-        .opacity(appleStyle && focusedRow != nil ? 0 : 1)
+        .opacity(appleStyle && focusedRow != nil ? DetailAppleStyle.hiddenButFocusable : 1)
         // Steven's fork: the unfolded synopsis overlay draws over the rows that follow the hero.
         .zIndex(appleStyle ? 1 : 0)
         .animation(reduceMotion ? nil : .easeInOut(duration: DetailAppleStyle.heroFade),
                    value: appleStyle && focusedRow != nil)
         .focused($heroHasFocus)
+        // Steven's fork (device pass 2): room under the hero for the unfolded synopsis, set inside
+        // the unfold animation, so the rows below move down with it.
+        .padding(.bottom, appleStyle ? synopsisExtraHeight : 0)
         // BUG-187: the Cinematic teaser is in the hero but not in `heroFocus`; forget the card too.
         .onChange(of: heroHasFocus) { _, inHero in if inHero { focusMemory.clear() } }
         // W2-A: the hero's real height for the dim ramp. Rounded, and written only on a change,

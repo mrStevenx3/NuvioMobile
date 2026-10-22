@@ -5359,6 +5359,8 @@ struct ContinueWatchingRow: View {
                     .stripShelfPadding()
                 }
                 .scrollClipDisabled()
+                // Steven's fork (device pass 2): see `CatalogRowView`'s `.scrollDisabled`.
+                .scrollDisabled(focusLeads && !FocusLeadsRow.engineScrolls)
                 // Review r1 (A P2-3): the strip's restore path; absent outside the strip.
                 .modifier(StripRowScrollRestore(enabled: stripFocusMemory != nil || focusLeads,
                                                 box: hScroll,

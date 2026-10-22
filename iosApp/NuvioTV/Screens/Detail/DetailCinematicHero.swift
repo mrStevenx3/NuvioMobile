@@ -93,11 +93,16 @@ struct DetailCinematicHero<Actions: View>: View {
     /// to the right of the action row, two lines, with a chevron button that opens the full text.
     /// The credits block is not drawn in that mode (the synopsis takes its place).
     var synopsisBeside: Bool = false
+    /// How much taller the unfolded synopsis is than its two lines (0 folded). `DetailView` adds
+    /// it under the hero, inside the same animation, so the rows below move down with the text.
+    var onSynopsisExtraHeight: (CGFloat) -> Void = { _ in }
     @ViewBuilder let actions: () -> Actions
 
     @State private var measuredSynopsisHeight: CGFloat = 0
     /// Steven's fork: the beside-synopsis is unfolded (see `synopsisBesideBlock`).
     @State private var synopsisUnfolded = false
+    @State private var synopsisFoldedHeight: CGFloat = 0
+    @State private var synopsisFullHeight: CGFloat = 0
     /// The rendered height of four `Theme.Font.synopsis` lines (a hidden probe, font-only). The slot
     /// is sized from this, not from `UIFont.lineHeight` — see `DetailSynopsisTeaser.resolvedSlotHeight`.
     @State private var measuredFourLineHeight: CGFloat = 0
@@ -408,38 +413,62 @@ struct DetailCinematicHero<Actions: View>: View {
     /// Menu folds an unfolded synopsis; nil otherwise, so Menu keeps its usual meaning (Back).
     private var foldSynopsisOnExit: (() -> Void)? {
         guard synopsisUnfolded else { return nil }
-        return { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { synopsisUnfolded = false } }
+        return { setSynopsisUnfolded(false) }
     }
 
+    private func setSynopsisUnfolded(_ unfolded: Bool) {
+        withAnimation(reduceMotion ? nil : DetailAppleStyle.unfoldAnimation) {
+            synopsisUnfolded = unfolded
+            onSynopsisExtraHeight(unfolded ? max(0, synopsisFullHeight - synopsisFoldedHeight) : 0)
+        }
+    }
+
+    /// Steven's fork (`synopsisBeside`): two lines of synopsis beside the action row and a chevron
+    /// at their end. Device pass 2: the chevron unrolls the full text IN PLACE, downward (a clip
+    /// that grows from two lines to the full height, no platter, nothing darkened), and the page
+    /// below moves down by the same amount (`onSynopsisExtraHeight`, applied by `DetailView` under
+    /// the hero), so nothing is covered. Menu on the chevron, or leaving the hero, rolls it back.
     private func synopsisBesideBlock(_ overview: String) -> some View {
         HStack(alignment: .top, spacing: Theme.Spacing.lg) {
-            // Two-line sizer: the block's height in both states.
+            // Two-line sizer: the block's layout height in both states.
             Text(overview)
                 .font(Theme.Font.detail)
                 .lineLimit(DetailAppleStyle.synopsisLines)
                 .hidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(alignment: .topLeading) {
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { h in
+                    if synopsisFoldedHeight != h { synopsisFoldedHeight = h }
+                })
+                .background(alignment: .topLeading) {
+                    // Full-height probe at the same width.
                     Text(overview)
                         .font(Theme.Font.detail)
-                        .foregroundStyle(Theme.Palette.textPrimary)
-                        .lineLimit(synopsisUnfolded ? nil : DetailAppleStyle.synopsisLines)
-                        .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .background(alignment: .top) {
-                            if synopsisUnfolded {
-                                let shape = RoundedRectangle(cornerRadius: Theme.Radius.hero)
-                                shape.fill(.regularMaterial)
-                                    .overlay(shape.fill(Color.black.opacity(0.35)))
-                                    .padding(-Theme.Spacing.md)
-                                    .transition(.opacity)
-                            }
-                        }
-                        .accessibilityIdentifier("detail_synopsis_beside")
+                        .hidden()
+                        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { h in
+                            if synopsisFullHeight != h { synopsisFullHeight = h }
+                        })
+                }
+                .overlay(alignment: .topLeading) {
+                    ZStack(alignment: .topLeading) {
+                        Text(overview)
+                            .lineLimit(DetailAppleStyle.synopsisLines)
+                            .opacity(synopsisUnfolded ? 0 : 1)
+                        Text(overview)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .opacity(synopsisUnfolded ? 1 : 0)
+                    }
+                    .font(Theme.Font.detail)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .frame(height: synopsisUnfolded ? max(synopsisFullHeight, synopsisFoldedHeight) : synopsisFoldedHeight,
+                           alignment: .top)
+                    .clipped()
+                    .accessibilityIdentifier("detail_synopsis_beside")
                 }
             Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { synopsisUnfolded.toggle() }
+                setSynopsisUnfolded(!synopsisUnfolded)
             } label: {
                 Image(systemName: "chevron.down")
                     .font(Theme.Font.metaStrong)
@@ -451,9 +480,9 @@ struct DetailCinematicHero<Actions: View>: View {
             .accessibilityLabel(String(localized: "Shows the full synopsis"))
             .accessibilityIdentifier("detail_synopsis_more")
         }
-        // Leaving the hero folds it back, so the page never scrolls with an open overlay.
+        // Leaving the hero rolls it back, so the page never scrolls with it open.
         .onChange(of: heroFocus.wrappedValue) { _, focus in
-            if focus == nil, synopsisUnfolded { synopsisUnfolded = false }
+            if focus == nil, synopsisUnfolded { setSynopsisUnfolded(false) }
         }
     }
 

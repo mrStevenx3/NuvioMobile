@@ -52,5 +52,13 @@ nonisolated enum DetailAppleStyle {
     static let bottomFrostStart: CGFloat = 0.55
     /// The frost reaches full strength once the dim reaches this.
     static let fullFrostDim: Double = 0.35
-    static let heroFade = 0.25
+    static let heroFade = 0.4
+    /// The compact logo fades in once the hero text has mostly faded (device pass 2: the two
+    /// overlapped on the first Down).
+    static let logoFadeDelay = 0.25
+    static let logoFade = 0.35
+    static let unfoldAnimation = Animation.easeInOut(duration: 0.35)
+    /// UIKit's focus engine skips views at opacity 0, so the faded hero stays at this (invisible)
+    /// opacity and Up can still reach it (device pass 2: Up never came back to the hero).
+    static let hiddenButFocusable = 0.011
 }
