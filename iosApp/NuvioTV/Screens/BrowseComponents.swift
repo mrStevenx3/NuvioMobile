@@ -246,10 +246,14 @@ struct WakoCardPlacement: ViewModifier {
                 still.disablesAnimations = true
                 if oldLead == newLead || reduceMotion {
                     if target != offsetX { withTransaction(still) { offsetX = target } }
+                } else if newPlace == .after, WakoLeadFrame.place(index: index, lead: oldLead) != .after,
+                          let oldLead, let newLead, newLead < oldLead {
+                    // Wako pass 15 (Steven, device video): on a Left the card leaving the frame no
+                    // longer slides out from under it; it appears in place, in its slot, fading in
+                    // (the row's glide is cancelled for it). Pass 11's hold-still, restored.
+                    withTransaction(still) { offsetX = target + CGFloat(oldLead - newLead) * step }
+                    withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 } else if target != offsetX {
-                    // Wako pass 13: on a Left the card leaving the frame animates 0 → shift while
-                    // the row glides right, so it slides out from under the frame to its slot while
-                    // fading in — the exact mirror of a Right (pass 11 held it still in its slot).
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 }
             }
@@ -293,6 +297,10 @@ private struct WakoLeadFrameArt: View {
 
     var body: some View {
         ZStack {
+            // Pass 15 (Steven, device video): the frame is opaque while its art loads — it showed the
+            // poster sliding underneath through the empty frame. A dark slate pane with the title
+            // until the art lands, faded in over it.
+            Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255)
             CachedAsyncImage(string: InlineTrailerCard.landscapeArtworkURL(item),
                              fallback: item.poster,
                              decodeSize: .points(width: size.width, height: size.height))
