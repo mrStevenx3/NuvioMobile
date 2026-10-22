@@ -126,6 +126,7 @@ struct OrbitTopBar: View {
     /// Pass 4: the launch focus (the engine's pick, the top-left Search glyph) is moved once onto
     /// the current page's item (Films at launch).
     @State private var placedLaunchFocus = false
+    @State private var searchReady = false
     /// Pass 7: the Plateformes / Studios portal (`OrbitSpaceTransition`), one id per run.
     @State private var transitionId: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -175,12 +176,16 @@ struct OrbitTopBar: View {
         }
         // Steven: at launch the cursor sits on Films (the hero / first row took it late).
         .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { searchReady = true }
             OrbitBarLaunchFocus.place {
                 guard selectedTab == 0 else { return }
                 if focused != currentItem { focused = currentItem }
             }
         }
         .onChange(of: focused) { _, item in
+            if item != nil, !searchReady {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { searchReady = true }
+            }
             guard !placedLaunchFocus, let item else { return }
             placedLaunchFocus = true
             if item != currentItem {
@@ -197,6 +202,9 @@ struct OrbitTopBar: View {
                 }
                 .buttonStyle(OrbitBarButtonStyle())
                 .focused($focused, equals: item)
+                // Steven: the engine's first pick was Search (top-left), flashing before Films.
+                // Search is out of reach until the first focus has landed.
+                .disabled(item == .search && !searchReady)
                 .accessibilityLabel(item.accessibilityName)
                 .accessibilityIdentifier("orbit_bar_\(item)")
             }
@@ -446,6 +454,7 @@ struct CollectionFilterBar: View {
 
     @FocusState private var focused: OrbitBarItem?
     @State private var placedEntryFocus = false
+    @State private var searchReady = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -455,6 +464,8 @@ struct CollectionFilterBar: View {
                 }
                 .buttonStyle(OrbitBarButtonStyle())
                 .focused($focused, equals: item)
+                // Steven: Search flashed before Films on entry; out of reach until Films has focus.
+                .disabled(item == .search && !searchReady)
                 .accessibilityLabel(item.accessibilityName)
             }
         }
@@ -470,6 +481,7 @@ struct CollectionFilterBar: View {
             guard !placedEntryFocus else { return }
             placedEntryFocus = true
             focused = isSelected(.series) && !isSelected(.films) ? .series : .films
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { searchReady = true }
             OrbitBarLaunchFocus.place {
                 let target: OrbitBarItem = isSelected(.series) && !isSelected(.films) ? .series : .films
                 if focused != target { focused = target }
