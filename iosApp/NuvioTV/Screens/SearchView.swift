@@ -419,6 +419,44 @@ private struct SearchContent: View {
 
     @ViewBuilder
     private var searchResults: some View {
+        if NavigationChrome.isOrbitBar() {
+            orbitResults
+        } else {
+            classicResults
+        }
+    }
+
+    /// Steven's fork (Orbit): Netflix-style results, a text list on the left and a poster grid.
+    @ViewBuilder
+    private var orbitResults: some View {
+        if let emptyState = model.emptyState {
+            SearchEmptyStateView(
+                state: emptyState,
+                onRetry: { model.retrySearch() },
+                onOpenSettings: {
+                    NotificationCenter.default.post(name: .nuvioOpenSettings,
+                                                    object: nil,
+                                                    userInfo: ["category": "sources"])
+                }
+            )
+        } else if model.isLoading && model.rows.isEmpty && model.topResult == nil {
+            HStack(spacing: Theme.Spacing.md) {
+                ProgressView()
+                Text("Searching\u{2026}")
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+            }
+        } else {
+            let items = SearchGridResults.items(top: model.topResult, rows: model.rows)
+            SearchGridResults(entries: SearchGridResults.entries(suggestions: model.suggestions, items: items),
+                              items: items,
+                              onPick: { setQuery($0) },
+                              onFocus: { owner.wash.report($0) })
+        }
+    }
+
+    @ViewBuilder
+    private var classicResults: some View {
         // B3 d: first under the system band; hidden until the first rows (or a settle) arrive.
         if !model.suggestions.isEmpty, !(model.rows.isEmpty && model.isLoading) {
             SearchSuggestionRow(suggestions: model.suggestions, query: trimmedQuery) { index, text in
