@@ -108,8 +108,7 @@ struct FolderRowsPage: View {
                       hidesLogo: false,
                       probeID: "debug_stage_folder",
                       logoAlignment: .topLeading,
-                      textTopOffset: NavigationChrome.isOrbitBar() ? 50 : 0,
-                      textLeadingOffset: NavigationChrome.isOrbitBar() ? 40 : 0)
+                      textTopOffset: NavigationChrome.isOrbitBar() ? 50 : 0)
             VStack(spacing: 0) {
                 // The stage block's place: nothing focusable lives here, so Up from the top row
                 // goes straight to the Edit band.
@@ -573,7 +572,8 @@ private struct FolderStageLogoLayer: View {
     private let orbitBar = NavigationChrome.isOrbitBar()
     static let barCentreY: CGFloat = 38 + 6 + 31 - 18
     /// Pass 5 (Steven, device): the logo sits a little further up and right, in the corner.
-    static let orbitTrailingMargin: CGFloat = 58
+    /// Steven: a little further right (was 58).
+    static let orbitTrailingMargin: CGFloat = 30
     private var settledAlignment: Alignment { orbitBar ? .trailing : .topTrailing }
     @State private var phase: Phase = .hidden
 
