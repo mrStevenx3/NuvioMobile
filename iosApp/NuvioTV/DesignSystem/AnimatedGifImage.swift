@@ -76,7 +76,7 @@ struct AnimatedGifImage: View {
 
     /// Visible only once there is something to show AND the tile wants animation — until then the
     /// cover (this view's own fallback, or the caller's) shows through.
-    private var gifVisible: Bool { isAnimating && loader.image != nil }
+    private var gifVisible: Bool { isAnimating && (loader.image != nil || loader.data != nil) }
 
     var body: some View {
         ZStack {
@@ -92,8 +92,21 @@ struct AnimatedGifImage: View {
                 contentMode: contentMode,
                 isAnimating: isAnimating
             )
-            .opacity(gifVisible ? 1 : 0)
+            .opacity(gifVisible && loader.data == nil ? 1 : 0)
             .allowsHitTesting(false)
+
+            // Steven's fork (GIF smoothness): the focused tile plays the GIF's own bytes through
+            // ImageIO's animator — every source frame, at its own delay and full resolution —
+            // instead of the budget-capped pre-decoded frame array (which drops frames to a
+            // 20 fps floor, or lowers resolution, to fit memory). Only the focused tile plays, so
+            // only one stream decodes at a time; a failure falls back to the array path.
+            if let data = loader.data {
+                StreamingGifView(data: data, contentMode: contentMode, isAnimating: isAnimating) {
+                    loader.streamingFailed()
+                }
+                .opacity(gifVisible ? 1 : 0)
+                .allowsHitTesting(false)
+            }
         }
         .animation(.easeInOut(duration: 0.15), value: gifVisible)
         .onAppear {
@@ -167,6 +180,10 @@ private struct AnimatedUIImageView: UIViewRepresentable {
 @MainActor
 private final class AnimatedGifLoader: ObservableObject {
     @Published var image: UIImage?
+    /// The GIF's raw bytes for `StreamingGifView` (nil until fetched, or after a stream failure).
+    @Published var data: Data?
+    /// A stream failed for `currentURL`: use the pre-decoded frame array from now on.
+    private var streamingDisabled = false
 
     private var currentURL: URL?
     /// BUG-39: the render target this loader will decode `currentURL` at, set once per URL by
@@ -214,13 +231,40 @@ private final class AnimatedGifLoader: ObservableObject {
         task = nil
         didRequestLoad = false
         attemptCount = 0
+        data = nil
+        streamingDisabled = false
         image = AnimatedGifCache.cached(url)
+    }
+
+    /// The stream could not start (ImageIO refused the bytes): fall back to the decoded array.
+    func streamingFailed() {
+        guard !streamingDisabled else { return }
+        streamingDisabled = true
+        data = nil
+        didRequestLoad = false
+        loadIfNeeded()
     }
 
     /// Lazily start the fetch+decode — called on the tile's FIRST focus, not at mount.
     func loadIfNeeded() {
-        guard let url = currentURL, image == nil, !didRequestLoad else { return }
+        guard let url = currentURL, image == nil, data == nil, !didRequestLoad else { return }
         didRequestLoad = true
+
+        if !streamingDisabled {
+            attemptCount += 1
+            let isFinalAttempt = attemptCount >= Self.maxLoadAttempts
+            task = Task { [weak self] in
+                let bytes = await AnimatedGifDecoder.fetchForStreaming(url)
+                if Task.isCancelled { return }
+                guard let self, self.currentURL == url else { return }
+                if let bytes {
+                    self.data = bytes
+                } else if !isFinalAttempt {
+                    self.didRequestLoad = false
+                }
+            }
+            return
+        }
 
         if let cached = AnimatedGifCache.cached(url) {
             image = cached
@@ -473,6 +517,12 @@ private enum AnimatedGifDecoder {
         let cappedScale = max(1.0, min(scale.isFinite ? scale : 1.0, 2.0))
         let growth = 1.0 + 0.5 * (cappedScale - 1.0)
         return Int((Double(maxDecodedBytesPerGif) * growth).rounded())
+    }
+
+    /// Steven's fork: the validated bytes alone (same session, disk cache and checks), off the
+    /// main actor, for `StreamingGifView`.
+    static func fetchForStreaming(_ url: URL) async -> Data? {
+        await Task.detached(priority: .userInitiated) { try? await fetchData(url) }.value
     }
 
     private nonisolated static func fetchData(_ url: URL) async throws -> Data {
@@ -1044,5 +1094,72 @@ private enum AnimatedGifDecoder {
     private nonisolated static func readUnsignedShort(_ bytes: [UInt8], _ start: Int) -> Int {
         guard start + 1 < bytes.count else { return 0 }
         return Int(bytes[start]) | (Int(bytes[start + 1]) << 8)
+    }
+}
+
+
+/// Steven's fork (GIF smoothness): plays a GIF's bytes with `CGAnimateImageDataWithBlock`, which
+/// decodes frame by frame on ImageIO's own queue and hands each one over at the file's own timing
+/// — every frame, full resolution, constant memory. Runs only while `isAnimating` (the focused
+/// tile); a stop flag in the coordinator ends the stream at the next frame.
+private struct StreamingGifView: UIViewRepresentable {
+    let data: Data
+    let contentMode: ContentMode
+    let isAnimating: Bool
+    let onFailure: () -> Void
+
+    final class Coordinator {
+        var generation = 0
+        var running = false
+        var data: Data?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIImageView {
+        let view = UIImageView()
+        view.contentMode = contentMode == .fill ? .scaleAspectFill : .scaleAspectFit
+        view.clipsToBounds = true
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: UIImageView, context: Context) {
+        let coordinator = context.coordinator
+        if coordinator.data != data {
+            coordinator.data = data
+            coordinator.running = false
+            coordinator.generation += 1
+        }
+        if isAnimating, !coordinator.running {
+            coordinator.running = true
+            coordinator.generation += 1
+            let generation = coordinator.generation
+            let status = CGAnimateImageDataWithBlock(data as CFData, nil) { [weak view, weak coordinator] _, image, stop in
+                // ImageIO calls this on the main queue; the flags are only ever written there.
+                guard let view, let coordinator, coordinator.running,
+                      coordinator.generation == generation else {
+                    stop.pointee = true
+                    return
+                }
+                if Thread.isMainThread {
+                    view.image = UIImage(cgImage: image)
+                } else {
+                    DispatchQueue.main.async { view.image = UIImage(cgImage: image) }
+                }
+            }
+            if status != noErr {
+                coordinator.running = false
+                DispatchQueue.main.async { onFailure() }
+            }
+        } else if !isAnimating, coordinator.running {
+            coordinator.running = false
+        }
+    }
+
+    static func dismantleUIView(_ view: UIImageView, coordinator: Coordinator) {
+        coordinator.running = false
+        coordinator.generation += 1
+        view.image = nil
     }
 }
