@@ -1275,7 +1275,11 @@ struct DetailView: View {
             } else if DetailLatePlayFocus.isUserMove(old: old, new: new) {
                 userMovedInHero = true
             }
+            if new != nil { pinAppleHeroTop("hero-pin-focus") }
         }
+        // Steven's fork (Apple TV style): the Trailer button mounting late re-lays the action row,
+        // and the focus engine may nudge the page down; put the full-screen hero back.
+        .onChange(of: model.trailerVideoURL != nil) { _, _ in pinAppleHeroTop("hero-pin-trailer") }
         // Review r1 #2: the series Play button only mounts once `seriesAction` and `meta` land, so
         // `.defaultFocus` (which runs once) had no target and focus settled on another button.
         // Review r2 #1: a disabled Play is not a target, so also re-check when it turns enabled.
@@ -1654,6 +1658,17 @@ struct DetailView: View {
     /// Person) or a cover also reads row → nil, and must never scroll the page under it. Animates
     /// exactly like `anchorPass`, Reduce Motion included. The probe note carries no `top=` token,
     /// so the UI anchor oracle never counts it as a residual.
+    /// Steven's fork (Apple TV style): the hero fills the first screen, so while focus stays in it
+    /// the page must rest at the top. Once the engine has settled, scroll back if it drifted.
+    private func pinAppleHeroTop(_ note: String) {
+        guard appleStyle, focusedRow == nil else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard focusedRow == nil else { return }
+            _ = heroTopPass(note, onlyIfDrifted: true)
+        }
+    }
+
     @discardableResult
     private func heroTopPass(_ note: String, onlyIfDrifted: Bool = false) -> Bool {
         guard !Task.isCancelled, focusedRow == nil, heroHasFocus, bridgePhase == .idle else { return false }

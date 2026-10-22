@@ -150,6 +150,14 @@ struct DetailCinematicHero<Actions: View>: View {
                 .accessibilityHidden(true)
             content
                 .padding(.bottom, synopsisBeside ? DetailAppleStyle.heroBottomInset : 0)
+            // Steven's fork (Apple TV style): the credits leave the synopsis column for the
+            // bottom-right corner, below the buttons; the unfolded synopsis still fades them.
+            if synopsisBeside && !credits.isEmpty {
+                creditsBlock
+                    .opacity(synopsisUnfolded ? 0 : 1)
+                    .padding(.bottom, DetailAppleStyle.creditsBottomInset)
+                    .frame(maxWidth: .infinity, alignment: .bottomTrailing)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .onChange(of: measuredTruncated, initial: true) { _, _ in syncSynopsisTruncated() }
@@ -204,16 +212,12 @@ struct DetailCinematicHero<Actions: View>: View {
             .fixedSize(horizontal: synopsisBeside, vertical: false)
             .layoutPriority(1)
             if synopsisBeside {
-                // Device pass 3: the synopsis beside the buttons, the credits under it at the
-                // bottom right. Unfolding draws over the credits (they fade) and moves nothing.
+                // Device pass 3: the synopsis beside the buttons. The credits are drawn in the
+                // hero's bottom-right corner (see `body`); unfolding draws over them and moves nothing.
                 VStack(alignment: .trailing, spacing: Theme.Spacing.md) {
                     if synopsisSlotVisible, let overview, !overview.isEmpty {
                         synopsisBesideBlock(overview)
                             .zIndex(1)
-                    }
-                    if !credits.isEmpty {
-                        creditsBlock
-                            .opacity(synopsisUnfolded ? 0 : 1)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .bottomTrailing)

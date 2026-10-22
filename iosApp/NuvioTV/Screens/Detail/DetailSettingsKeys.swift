@@ -54,9 +54,12 @@ nonisolated enum DetailAppleStyle {
     /// The frost reaches full strength once the dim reaches this.
     static let fullFrostDim: Double = 0.35
     static let heroFade = 0.4
-    /// The hero fills the screen in this style (no peek of the first row); its content keeps this
-    /// gap to the bottom edge, so the buttons and the credits sit at the very bottom.
-    static let heroBottomInset: CGFloat = 50
+    /// The hero fills the screen in this style (no peek of the first row). The buttons keep this
+    /// gap to the bottom edge: closer, the focus engine scrolls the page to give the focused
+    /// button room (device: it did as the Trailer button mounted, pulling the studio logos up).
+    static let heroBottomInset: CGFloat = 120
+    /// The credits are not focusable, so they sit lower, alone in the bottom-right corner.
+    static let creditsBottomInset: CGFloat = 30
     /// Device pass 3: a larger compact logo, and the rows rest lower to leave it room.
     static let logoSlotHeight: CGFloat = 130
     static let logoMaxWidth: CGFloat = 640
