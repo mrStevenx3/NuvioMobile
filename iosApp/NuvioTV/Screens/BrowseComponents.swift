@@ -5180,10 +5180,10 @@ struct CatalogRowView: View {
     private var wakoLeading: CGFloat { StripGeometry.edgeMargin + railLeadingInset }
     /// The scroll anchor that rests a card at `wakoLeading` inside a viewport of `viewport` points:
     /// `scrollTo(id:anchor:)` lines up the same unit point of the card and of the viewport.
-    private func wakoAnchor(viewport: CGFloat) -> UnitPoint {
-        let free = viewport - posterStyle.cardWidth
-        return UnitPoint(x: free > 0 ? min(1, wakoLeading / free) : 0, y: 0.5)
-    }
+    /// Wako pass 4: the negative padding did not move the scroll view's origin, so everything sat
+    /// one inset too far right; the focused card rests on the viewport's own leading edge again,
+    /// right under the row heading, and the previous one peeks in the strip's leading margin.
+    private func wakoAnchor(viewport: CGFloat) -> UnitPoint { .leading }
     /// The frame's size: the 16:9 tile at the poster's height.
     private var wakoFrameSize: CGSize { posterStyle.artworkSize(expanded: true) }
 
@@ -5434,13 +5434,6 @@ struct CatalogRowView: View {
                     // row is shorter than the slot its neighbours reserve). Rows whose cards are all
                     // one height (Home's) lay out exactly as before.
                     LazyHStack(alignment: .top, spacing: rowGap) {
-                        // Wako pass 3: the content starts at the strip's inset (see `wakoLeading`).
-                        if wakoFrame {
-                            Color.clear
-                                .frame(width: max(0, wakoLeading - rowGap), height: 1)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
                         ForEach(section.items, id: \.id) { item in
                             Group {
                                 if let onSelect {
@@ -5592,8 +5585,6 @@ struct CatalogRowView: View {
                                                   : leadingEdgeAllowance))
                 }
                 .scrollClipDisabled()
-                // Wako pass 3: over the strip's leading inset, to the screen's left edge.
-                .padding(.leading, wakoFrame ? -wakoLeading : 0)
                 // Steven's fork (device pass 2): every other step jumped instead of gliding — the
                 // focus engine's own scroll and the leading-edge glide raced. In focus-leads mode
                 // the engine no longer scrolls the row; only `alignFocusedCardToLeading` does.
@@ -5650,7 +5641,6 @@ struct CatalogRowView: View {
                     if wakoFrame {
                         WakoLeadFrame(item: wakoLead, size: wakoFrameSize,
                                       cornerRadius: posterStyle.cornerRadius, reduceMotion: reduceMotion)
-                            .padding(.leading, wakoLeading)
                             .padding(.top, (stripFocusMemory != nil ? StripGeometry.shelfTopPadding : Theme.Spacing.lg)
                                      + cardTopReach)
                     }
