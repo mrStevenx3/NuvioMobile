@@ -5337,11 +5337,13 @@ struct CatalogRowView: View {
         // Perf review 2026-10-17 (#4): the trailer gate (a UIAccessibility read plus the BUG-55
         // probe) once per body, not once per card.
         let trailersActive = inlineTrailersActive && !wakoFrame
-        // Steven's fork (wako frame): only the focused card is hidden (the frame shows it). The one
-        // before it stays visible in the leading margin, as wako's sliver on the left, and that also
-        // keeps it on screen for the focus engine, so Left reaches it (wako pass 3).
+        // Steven's fork (wako frame): the focused card and every card before it are hidden (the
+        // frame shows the focused one); the rest show as posters.
         let wakoLead: MetaPreview? = wakoFrame ? focusedItemId.flatMap { id in section.items.first { $0.id == id } } : nil
-        let wakoHidden: Set<String> = wakoLead.map { [$0.id] } ?? []
+        let wakoHidden: Set<String> = {
+            guard let wakoLead, let index = section.items.firstIndex(where: { $0.id == wakoLead.id }) else { return [] }
+            return Set(section.items.prefix(index + 1).map(\.id))
+        }()
         // BUG-146 second trim (Steven, rc4: Stage headings "still slightly too high"): heading →
         // shelf spacing is `StripGeometry.headingGap` (12) inside the strip, `md` (16) elsewhere.
         VStack(alignment: .leading, spacing: StripGeometry.headingGap(inStrip: stripFocusMemory != nil)) {
