@@ -79,6 +79,9 @@ struct StageStripHome: View {
     @AppStorage(StageInfoBelow.defaultsKey) private var infoBelow = false
     @AppStorage("inline_trailers_enabled") private var inlineTrailersEnabled = false
     @AppStorage("trailer_playback_location") private var trailerPlaybackLocation = "poster"
+    /// Steven's fork: see `StageTrendingHero.swift`.
+    @AppStorage(StageTrendingHeroSetting.defaultsKey) private var trendingHeroOn = StageTrendingHeroSetting.defaultValue
+    @ObservedObject private var trendingHero = StageTrendingHeroModel.shared
 
     /// Classic's row keys, so `pinnedRowUpFallbackTarget(rowKey:)` and the focus memory agree.
     static let continueWatchingKey = "continue-watching"
@@ -166,6 +169,7 @@ struct StageStripHome: View {
         // font), animated like Classic's plan animation; never with a swap or a page.
         .animation(.easeInOut(duration: 0.28), value: geo)
         .onAppear {
+            if trendingHeroOn { trendingHero.loadIfNeeded() }
             stage.start()
             stage.swap.setReduceMotion(reduceMotion)
             stage.swap.setHidesTextWhilePaging(infoBelow)
@@ -270,6 +274,11 @@ struct StageStripHome: View {
         var keys: [String] = []
         var seen = Set<String>()
         let filter = contentFilter.filter
+        // Steven's fork: the trending hero leads the Films page.
+        if trendingHeroOn, filter == .all || filter == .movies, !trendingHero.items.isEmpty {
+            keys.append(StageTrendingHeroSetting.rowKey)
+            seen.insert(StageTrendingHeroSetting.rowKey)
+        }
         let showsContinue = filter == .all || filter == .movies || filter == .series
         if showsContinue, !model.continueWatching.isEmpty, seen.insert(Self.continueWatchingKey).inserted {
             keys.append(Self.continueWatchingKey)
@@ -437,7 +446,15 @@ struct StageStripHome: View {
 
     @ViewBuilder
     private func rowView(_ key: String) -> some View {
-        if key == Self.continueWatchingKey {
+        if key == StageTrendingHeroSetting.rowKey {
+            StageTrendingHeroRow(model: trendingHero,
+                                 height: max(300, geometry.rowHeight - 10),
+                                 onFocusItem: { item in
+                                     stage.report(item, source: key,
+                                                  prefetch: { trendingHero.items.prefix(4).compactMap(\.banner) })
+                                 },
+                                 onSelect: { actions.push(TitleRoute(preview: $0)) })
+        } else if key == Self.continueWatchingKey {
             continueWatchingRow
         } else if key == Self.upcomingKey {
             upcomingRow
@@ -562,6 +579,7 @@ struct StageStripHome: View {
     }
 
     private func firstPreview(ofRow key: String) -> MetaPreview? {
+        if key == StageTrendingHeroSetting.rowKey { return trendingHero.items.first }
         if key == Self.continueWatchingKey {
             return model.continueWatching.first.map { StageCopy.preview(from: $0) }
         }

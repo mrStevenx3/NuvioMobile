@@ -53,6 +53,7 @@ struct HomeScreenSettingsPane: View {
     /// Mirrors HomeHeroForeground's `hero_nuvio_style` key (UX-2 hero redesign v2, opt-in —
     /// classic layout is the default). Local-only.
     @AppStorage("hero_nuvio_style") private var heroNuvioStyle = false
+    @AppStorage(StageTrendingHeroSetting.defaultsKey) private var trendingHeroOn = StageTrendingHeroSetting.defaultValue
 
     /// Mirrors HomeView's `home_upcoming_row_enabled` key: the "Upcoming" row of followed shows'
     /// next airing episodes, directly under Continue Watching. Default ON. Local-only.
@@ -131,6 +132,17 @@ struct HomeScreenSettingsPane: View {
                     : String(localized: "Year, genres and synopsis at the top of the screen"),
                 isOn: $stageInfoBelow
             )
+
+            // Steven's fork: see `StageTrendingHero.swift` (Stage layout only).
+            if isStage {
+                SettingsToggleRow(
+                    title: String(localized: "Hero des tendances"),
+                    subtitle: trendingHeroOn
+                        ? String(localized: "Les films les plus vus de la semaine sur TMDB défilent en haut de l'accueil")
+                        : String(localized: "L'accueil commence directement par les rangées"),
+                    isOn: $trendingHeroOn
+                )
+            }
 
             if model.catalogs.isEmpty {
                 Text("Install add-ons to customize your Home rows.")

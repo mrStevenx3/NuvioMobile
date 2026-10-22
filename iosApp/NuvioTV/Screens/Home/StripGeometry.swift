@@ -294,7 +294,8 @@ nonisolated struct StripGeometry: Equatable, Sendable {
     /// Steven's fork (`StageInfoBelow`): one meta line, a gap and `StageInfoBelow.synopsisLines`
     /// synopsis lines, plus a bottom gap before the next row's heading.
     private static func infoBandHeight(_ i: Inputs) -> CGFloat {
-        pixelCeil(metaSlot + slotGap + CGFloat(StageInfoBelow.synopsisLines) * i.synopsisLineHeight
+        pixelCeil(StageInfoBelow.titleLine + slotGap + metaSlot + slotGap
+                  + CGFloat(StageInfoBelow.synopsisLines) * i.synopsisLineHeight
                   + StageInfoBelow.bottomGap)
     }
 
@@ -482,8 +483,13 @@ nonisolated enum StageStripTuning {
 nonisolated enum StageInfoBelow {
     static let defaultsKey = "home_stage_info_below"
     static let synopsisLines = 3
-    static let bottomGap: CGFloat = 16
-    static let pullUp: CGFloat = 44
+    /// Device pass (Steven: the rows were too far apart): no extra gap after the synopsis; the
+    /// page's own focus lift (2 × 20) and `pullUp` separate it from the next heading.
+    static let bottomGap: CGFloat = 0
+    /// Device pass (Steven: the title sat right under the posters): 24 (was 44), the block 20 pt lower.
+    static let pullUp: CGFloat = 24
+    /// The bold 34 title line above the meta line (`StageTextBlock`).
+    static let titleLine: CGFloat = 41
     /// The stage can be shorter in this mode: it holds no text block any more.
     static let stageFloor: CGFloat = 300
     /// Steven's fork (Orbit Home): the stage's height above the first row's heading.

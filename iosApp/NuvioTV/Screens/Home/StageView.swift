@@ -196,9 +196,19 @@ struct StageBlurredArt: View {
         .clipped()
         .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.45), value: shownIdentity)
-        .task(id: art?.identity ?? "-") {
-            guard let image = art?.backdrop, let cg = image.cgImage else { return }
+        // Device pass (Steven: Netflix's colours stayed after a tab change until the first Down):
+        // a title is often presented before its backdrop has loaded, and the backdrop then lands
+        // under the SAME identity, which this task did not re-run for. Keyed on the image too; a
+        // new title without its image yet clears the old one instead of keeping it.
+        .task(id: "\(art?.identity ?? "-")|\(art?.backdrop.map { ObjectIdentifier($0).hashValue } ?? 0)") {
             let identity = art?.identity ?? "-"
+            guard let image = art?.backdrop, let cg = image.cgImage else {
+                if identity != shownIdentity {
+                    blurred = nil
+                    shownIdentity = identity
+                }
+                return
+            }
             let result = await Task.detached(priority: .utility) { () -> UIImage? in
                 guard let small = StageBlurredArt.downscale(cg, width: 640) else { return nil }
                 return DetailBackdropBlurRenderer.render(small)
@@ -352,6 +362,8 @@ struct StageTextBlock: View {
     }
 
     @ObservedObject private var seeAllFocus = StageSeeAllFocus.shared
+    /// Steven's fork: the trending hero draws its own logo and text.
+    @ObservedObject private var heroFocus = StageHeroFocus.shared
 
     var body: some View {
         let output = swap.output
@@ -439,6 +451,10 @@ struct StageTextBlock: View {
                             .animation(nil, value: copy.synopsis)
                     }
                     .frame(width: Theme.Size.heroInfoPanelWidth, alignment: .leading)
+                    // Device pass (Steven: one synopsis line only): the slot frame above is only
+                    // a few points tall with the compact Orbit stage, and it squeezed the
+                    // synopsis to one line. The band takes its own height.
+                    .fixedSize(horizontal: false, vertical: true)
                     .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
                     .offset(y: geometry.infoBandTop - geometry.stageBlockTop)
                     // Steven's fork: no synopsis under the See All tile.
@@ -467,6 +483,8 @@ struct StageTextBlock: View {
                : Theme.Size.heroInfoPanelWidth,
                height: max(0, geometry.stageHeight - geometry.stageBlockTop - StripGeometry.stageBottomGap),
                alignment: .topLeading)
+        .opacity(heroFocus.active ? 0 : 1)
+        .animation(.easeOut(duration: 0.25), value: heroFocus.active)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("stage_text_slot")
         .padding(.top, geometry.stageBlockTop)

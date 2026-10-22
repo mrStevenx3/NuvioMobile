@@ -559,7 +559,10 @@ struct StripPager<Row: View>: View {
         // Batch F review r1 P2: with fit pages the last row must still be able to rest at the strip's
         // top (viewport = P + peek), so the spacer after it makes up what it is shorter than P.
         // Every earlier row then has at least as much content after it.
-        Color.clear.frame(height: geometry.peek + max(0, page - (rowKeys.last.map { fitPageHeight($0, page: page) } ?? page)))
+        // Steven's fork (Orbit Home: the last catalog showed no synopsis): with the compact stage
+        // the strip is taller than a page, so the room after the last row is the strip less it.
+        Color.clear.frame(height: max(geometry.peek + max(0, page - (rowKeys.last.map { fitPageHeight($0, page: page) } ?? page)),
+                                      geometry.stripHeight - (rowKeys.last.map { fitPageHeight($0, page: page) } ?? page)))
     }
 
     /// Batch F: a row's measured height. The first measurement lands at once (a page sized before

@@ -336,7 +336,8 @@ nonisolated enum FocusLeadsRow {
     static let defaultsKey = "home_focus_leads_row"
     /// The gap between Home's catalog cards while this mode is on (Classic rows use 28).
     /// Steven's fork (device pass, wako): tighter, 10 (was 14).
-    static let cardGap: CGFloat = 10
+    /// Device pass (Steven: closer, like wako): 6 (was 10, then 14).
+    static let cardGap: CGFloat = 6
     /// Escape hatch, read once: `defaults write … debug.focusLeadsEngineScroll -bool YES` gives the
     /// focus engine its own row scroll back (the pre-device-pass-2 behaviour).
     static let engineScrolls = UserDefaults.standard.bool(forKey: "debug.focusLeadsEngineScroll")
@@ -5834,7 +5835,17 @@ struct CatalogRowView: View {
                     // card before it sits hidden at the viewport's left edge and the engine's own
                     // restore picks it. Focus arriving from outside the row on that card goes back
                     // to the frame's title; a Left inside the row (old id set) is left alone.
-                    if wakoFrame, oldId == nil, let id,
+                    // Device pass 2 (still landing left after Back): the old id is not always nil
+                    // on a pop (the row can keep it under the cover), so the test is the viewer's
+                    // own input instead: only a recent Left or swipe may move onto that card.
+                    let viewerLeft: Bool = {
+                        let clock = ViewerInputClock.shared
+                        guard clock.isLive, let at = clock.lastAt,
+                              ProcessInfo.processInfo.systemUptime - at < 0.6 else { return oldId != nil }
+                        return clock.lastKindLabel == ViewerInputKind.left.rawValue
+                            || clock.lastKindLabel == ViewerInputKind.swipe.rawValue
+                    }()
+                    if wakoFrame, !viewerLeft, let id,
                        let rest = wakoRestId ?? stripFocusMemory?.itemId(for: section.key), rest != id {
                         let items = Self.uniqueItems(section.items)
                         if let r = items.firstIndex(where: { $0.id == rest }),

@@ -310,6 +310,8 @@ struct OrbitCollectionGrid: View {
     /// (it reset to the first one). Static, so it survives the grid being rebuilt on the pop.
     @MainActor private static var lastFocused: String?
     @MainActor private static var leftWithFocus = false
+    @MainActor private static var lostAt: TimeInterval = 0
+    @MainActor private static var appearedAt: TimeInterval = 0
 
     private var entries: [Entry] {
         var seen = Set<String>()
@@ -355,7 +357,10 @@ struct OrbitCollectionGrid: View {
         // they were laid out for (the default style), whatever Small / Large says.
         .environment(\.posterStyle, .default)
         .onChange(of: focused) { _, id in
-            guard let id, let entry = entries.first(where: { $0.id == id }) else { return }
+            guard let id, let entry = entries.first(where: { $0.id == id }) else {
+                Self.lostAt = ProcessInfo.processInfo.systemUptime
+                return
+            }
             Self.lastFocused = id
             onFolderFocus(entry.collection, entry.folder)
         }
@@ -365,9 +370,19 @@ struct OrbitCollectionGrid: View {
             guard Self.leftWithFocus, let last = Self.lastFocused,
                   entries.contains(where: { $0.id == last }) else { return }
             Self.leftWithFocus = false
+            // Twice: the engine's own default (the first tile) can land after the first ask.
             DispatchQueue.main.async { focused = last }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                if focused != last, ProcessInfo.processInfo.systemUptime - Self.appearedAt < 0.6 { focused = last }
+            }
+            Self.appearedAt = ProcessInfo.processInfo.systemUptime
         }
-        .onDisappear { Self.leftWithFocus = focused != nil }
+        // Device pass (still back on the first tile): the push takes focus off the tile before the
+        // grid disappears, so `focused` was already nil here. A loss just before counts.
+        .onDisappear {
+            let now = ProcessInfo.processInfo.systemUptime
+            Self.leftWithFocus = focused != nil || now - Self.lostAt < 1.0
+        }
     }
 }
 
