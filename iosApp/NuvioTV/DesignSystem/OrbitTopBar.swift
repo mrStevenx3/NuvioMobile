@@ -359,6 +359,11 @@ struct OrbitCollectionGrid: View {
 /// shows every row); Search opens `CollectionSearchLayer` over the page.
 struct CollectionFilterBar: View {
     @Binding var filter: String?
+    /// Pass 2 (Steven): top-right, just left of the folder logo; `trailing` is its gap to the
+    /// screen's right edge (the logo's corner margin plus the logo's own room).
+    var trailing: CGFloat = 0
+    /// The pill's width, for the logo to make room for it.
+    var onWidth: (CGFloat) -> Void = { _ in }
     let onSearch: () -> Void
 
     @FocusState private var focused: OrbitBarItem?
@@ -377,10 +382,11 @@ struct CollectionFilterBar: View {
         .padding(OrbitBarMetrics.pillPadding)
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
         .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
         .focusSection()
         .padding(.top, OrbitBarMetrics.top)
-        .padding(.leading, OrbitBarMetrics.leading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.trailing, trailing)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .ignoresSafeArea()
     }
 

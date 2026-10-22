@@ -72,6 +72,8 @@ struct FolderRowsPage: View {
     @State private var typeFilter: String?
     /// Steven's fork (collection bar): the in-collection search layer is open.
     @State private var searching = false
+    /// The collection bar's width: the settled folder logo sits just left of it.
+    @State private var collectionBarWidth: CGFloat = 0
 
     /// The rows the filter keeps (all of them with no filter).
     private var filteredRows: [FolderStripRow] {
@@ -118,10 +120,15 @@ struct FolderRowsPage: View {
             // Steven's fork: drawn above the strip so its black intro covers the whole page.
             FolderStageLogoLayer(title: model.folderTitle,
                                  logoUrl: model.titleLogoUrl,
-                                 geometry: geo)
+                                 geometry: geo,
+                                 trailingReserve: NavigationChrome.isOrbitBar() && collectionBarWidth > 0
+                                     ? collectionBarWidth + 28 : 0)
             // Steven's fork (collection bar): Search / Films / Séries, top-left like Home's bar.
             if NavigationChrome.isOrbitBar() {
-                CollectionFilterBar(filter: $typeFilter, onSearch: { searching = true })
+                CollectionFilterBar(filter: $typeFilter,
+                                    trailing: FolderStageIntro.trailingMargin,
+                                    onWidth: { if abs($0 - collectionBarWidth) > 0.5 { collectionBarWidth = $0 } },
+                                    onSearch: { searching = true })
                     .opacity(searching ? 0 : 1)
                     .disabled(searching)
                 if searching {
@@ -278,6 +285,8 @@ struct FolderRowsPage: View {
                     )
                     // Steven's fork: the same wako lead frame as Home's rows (`WakoLeadFrame`).
                     .environment(\.homeRowFocusLeads, true)
+                    // Pass 15b: the frame stays at rest too (no empty slot before the first poster).
+                    .environment(\.wakoRestFrame, true)
                 }
             case .loading:
                 StripLoadingRow(heading: row.heading)
@@ -543,6 +552,8 @@ private struct FolderStageLogoLayer: View {
     let title: String
     let logoUrl: String?
     let geometry: StripGeometry
+    /// Steven's fork (collection bar): room kept right of the settled logo for the bar.
+    var trailingReserve: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Phase { case hidden, splash, settled }
@@ -556,7 +567,8 @@ private struct FolderStageLogoLayer: View {
             let compactTop = FolderStageLogo.compactTop(blockTop: geometry.stageBlockTop, slot: slot)
             // The frame sits at (0, 0); everything below is the offset of its CENTRE (scale anchor).
             let splashCenter = CGPoint(x: screen.size.width / 2, y: screen.size.height / 2)
-            let settledCenter = CGPoint(x: screen.size.width - FolderStageIntro.trailingMargin - width * compactScale / 2,
+            let settledCenter = CGPoint(x: screen.size.width - FolderStageIntro.trailingMargin - trailingReserve
+                                            - width * compactScale / 2,
                                         y: compactTop + slot * compactScale / 2)
             let center = phase == .settled ? settledCenter : splashCenter
             let scale: CGFloat = switch phase {
