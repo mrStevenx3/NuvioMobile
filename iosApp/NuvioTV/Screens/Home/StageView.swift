@@ -34,19 +34,24 @@ struct StageView: View {
     /// own folder logo has risen, so the title block reads top-down from the stage block's top
     /// instead of floating ~100 pt below it when the wordmark is short. The slot's height never changes.
     let logoAlignment: Alignment
+    /// Steven's fork (wako pass 6): the title logo at the stage's top-RIGHT. Home passes it with
+    /// Info Below (the stage then holds only the logo; the meta line and synopsis are under the row).
+    let logoTopTrailing: Bool
 
     init(controller: StageController,
          geometry: StripGeometry,
          hidesLogoWhenDisplaying: String? = nil,
          hidesLogo: Bool = false,
          probeID: String = "debug_stage",
-         logoAlignment: Alignment = .bottomLeading) {
+         logoAlignment: Alignment = .bottomLeading,
+         logoTopTrailing: Bool = false) {
         self.controller = controller
         self.geometry = geometry
         self.hidesLogoWhenDisplaying = hidesLogoWhenDisplaying
         self.hidesLogo = hidesLogo
         self.probeID = probeID
         self.logoAlignment = logoAlignment
+        self.logoTopTrailing = logoTopTrailing
     }
 
     var body: some View {
@@ -59,6 +64,7 @@ struct StageView: View {
                            hidesLogoWhenDisplaying: hidesLogoWhenDisplaying,
                            hidesLogo: hidesLogo,
                            logoAlignment: logoAlignment,
+                           logoTopTrailing: logoTopTrailing && geometry.infoBelow,
                            copySource: controller.copySource)
             #if DEBUG
             StageDebugLabel(debug: controller.swap.debug, geometry: geometry, probeID: probeID)
@@ -215,6 +221,8 @@ struct StageTextBlock: View {
     /// defect is unexplained. The device pass opens the Netflix folder in his config and looks at
     /// row 2; do not call BUG-190 closed before that.
     let logoAlignment: Alignment
+    /// Wako pass 6: see `StageView.logoTopTrailing` (already gated on Info Below).
+    let logoTopTrailing: Bool
     /// W2-A's Continue Watching copy input (`StageController.copySource`); a nil lookup = Classic copy.
     @ObservedObject var copySource: StageCopySource
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -224,12 +232,14 @@ struct StageTextBlock: View {
          hidesLogoWhenDisplaying: String?,
          hidesLogo: Bool = false,
          logoAlignment: Alignment = .bottomLeading,
+         logoTopTrailing: Bool = false,
          copySource: StageCopySource) {
         _swap = ObservedObject(wrappedValue: swap)
         self.geometry = geometry
         self.hidesLogoWhenDisplaying = hidesLogoWhenDisplaying
         self.hidesLogo = hidesLogo
         self.logoAlignment = logoAlignment
+        self.logoTopTrailing = logoTopTrailing
         _copySource = ObservedObject(wrappedValue: copySource)
     }
 
@@ -254,11 +264,11 @@ struct StageTextBlock: View {
                 ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: StripGeometry.slotGap) {
                     HeroLogo(item: shown.item, image: shown.logo, maxHeight: geometry.logoSlot, ink: shown.logoInk)
-                        .frame(height: geometry.logoSlot, alignment: logoAlignment)
+                        .frame(height: geometry.logoSlot, alignment: logoTopTrailing ? .topTrailing : logoAlignment)
                         // The alignment flips while the logo is still hidden (the folder logo's
                         // rise); it must not glide.
                         .transaction(value: logoAlignment) { $0.animation = nil }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: logoTopTrailing ? .trailing : .leading)
                         // S3; FEAT-70: also hidden while the folder page's logo is docked here.
                         // Shown on the folder logo's rise with the strip's page curve.
                         .opacity(hidesLogo || shown.identity == hidesLogoWhenDisplaying ? 0 : 1)
@@ -323,7 +333,12 @@ struct StageTextBlock: View {
                 .accessibilityIdentifier("stage_info")
             }
         }
-        .frame(width: Theme.Size.heroInfoPanelWidth,
+        // Wako pass 6: with the logo top-right the slot spans the screen (less the right margin); the
+        // info-below block keeps its own panel width at the left.
+        .frame(width: logoTopTrailing
+               ? max(Theme.Size.heroInfoPanelWidth,
+                     UIScreen.main.bounds.width - geometry.stageBlockLeading - StageInfoBelow.logoTrailingMargin)
+               : Theme.Size.heroInfoPanelWidth,
                height: max(0, geometry.stageHeight - geometry.stageBlockTop - StripGeometry.stageBottomGap),
                alignment: .topLeading)
         .accessibilityElement(children: .contain)

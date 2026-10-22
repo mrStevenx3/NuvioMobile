@@ -93,7 +93,8 @@ struct StageStripHome: View {
             // this view never re-renders on a swap (#5); switched off, it draws nothing and the
             // page background shows through.
             AmbientWashLayer(feed: stage.swap.washFeed)
-            StageView(controller: stage, geometry: geo)
+            // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
+            StageView(controller: stage, geometry: geo, logoTopTrailing: true)
             VStack(spacing: 0) {
                 // The stage block's place. Nothing focusable lives here, so Up from row 0 goes to
                 // the tab bar (in Rail mode Up has no target there and never reveals, §6).
