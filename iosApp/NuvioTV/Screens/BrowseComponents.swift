@@ -201,13 +201,15 @@ struct WakoLeadFrame: View {
 struct WakoCardPlacement: ViewModifier {
     let place: WakoLeadFrame.Place
     let shift: CGFloat
+    /// One card step (card width + gap): how far the row glides per press.
+    var step: CGFloat = 0
     let reduceMotion: Bool
 
-    /// Whether the card is drawn shifted past the frame. Driven from `place` in `onChange` so the
-    /// one transition that must NOT glide can skip the animation (wako pass 8): on Left the card that
-    /// held the frame becomes the first card after it, and gliding it from under the frame left a
-    /// hole on the right while it travelled; it now appears in its slot and rides the row's glide.
-    @State private var shownAfter = false
+    /// The drawn offset. Driven from `place` in `onChange` (wako pass 9): on Left the card that held
+    /// the frame becomes the first card after it. It is put straight at its final spot on screen
+    /// (one step further, cancelling the row's glide to the right) and holds still while it fades
+    /// in, instead of sliding out from under the frame.
+    @State private var offsetX: CGFloat = 0
 
     private var opacity: Double {
         switch place {
@@ -218,18 +220,21 @@ struct WakoCardPlacement: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .offset(x: shownAfter ? shift : 0)
+            .offset(x: offsetX)
             .opacity(opacity)
             .animation(reduceMotion ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds), value: opacity)
             .onChange(of: place, initial: true) { old, new in
-                let after = new == .after
-                guard after != shownAfter else { return }
-                if old == new || reduceMotion || (old == .lead && new == .after) {
-                    var tx = Transaction()
-                    tx.disablesAnimations = true
-                    withTransaction(tx) { shownAfter = after }
+                let target: CGFloat = new == .after ? shift : 0
+                guard target != offsetX else { return }
+                var still = Transaction()
+                still.disablesAnimations = true
+                if old == new || reduceMotion {
+                    withTransaction(still) { offsetX = target }
+                } else if old == .lead && new == .after {
+                    withTransaction(still) { offsetX = target + step }
+                    withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 } else {
-                    withAnimation(FocusLeadsRow.animation) { shownAfter = after }
+                    withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 }
             }
     }
@@ -5580,7 +5585,8 @@ struct CatalogRowView: View {
                             // transparent views.
                             .modifier(WakoCardPlacement(place: WakoLeadFrame.place(index: wakoIndex[item.id],
                                                                                    lead: wakoLeadIndex),
-                                                        shift: wakoShift, reduceMotion: reduceMotion))
+                                                        shift: wakoShift, step: posterStyle.cardWidth + rowGap,
+                                                        reduceMotion: reduceMotion))
                             .id(item.id)
                         }
 
