@@ -284,6 +284,8 @@ final class DiscoverGridViewModel: ObservableObject {
     /// keeps the selection when its catalog is still offered (re-fetching only when the catalog's
     /// own entry changed), else opens the default. Internal for the tests.
     func applySources(options: [DiscoverCatalogOption], state: DiscoverSourcesState) {
+        // Steven's fork: only TMDB's general catalog, one per type (Films, Séries).
+        let options = OrbitDiscoverCatalogs.general(options)
         if sourcesState != state { sourcesState = state }
         let signature = DiscoverRowsPlan.optionsSignature(options)
         guard signature != optionsSignature else { return }
@@ -485,5 +487,36 @@ final class DiscoverGridViewModel: ObservableObject {
         NSLog("[DiscoverGrid] cancel reason=%@", reason)
         task.cancel()
         inFlight = nil
+    }
+}
+
+
+/// Steven's fork: Discover offers TMDB's general catalog only, one per type (movie, series), with
+/// its genres. Falls back to every catalog when no TMDB add-on is installed.
+nonisolated enum OrbitDiscoverCatalogs {
+    static let types = ["movie", "series"]
+
+    static func isTmdb(_ option: DiscoverCatalogOption) -> Bool {
+        let text = (option.key + " " + option.addonName + " " + option.manifestUrl).lowercased()
+        return text.contains("tmdb")
+    }
+
+    /// The best "general" catalog of a type: one with genres, preferring Popular / Discover names.
+    static func score(_ option: DiscoverCatalogOption) -> Int {
+        let name = (option.catalogId + " " + option.catalogName).lowercased()
+        var score = option.genreOptions.isEmpty ? 0 : 10
+        if name.contains("popular") || name.contains("populaire") { score += 5 }
+        if name.contains("discover") || name.contains("découv") { score += 4 }
+        if name.contains("trending") || name.contains("tendance") { score += 2 }
+        if option.genreRequired { score -= 3 }
+        return score
+    }
+
+    static func general(_ options: [DiscoverCatalogOption]) -> [DiscoverCatalogOption] {
+        let tmdb = options.filter(isTmdb)
+        guard !tmdb.isEmpty else { return options }
+        return types.compactMap { type in
+            tmdb.filter { $0.type == type }.max { score($0) < score($1) }
+        }
     }
 }

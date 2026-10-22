@@ -206,16 +206,20 @@ struct WakoLeadFrame: View {
 /// Wako pass 3: a card's place around the frame — drawn shifted past the frame when after it, hidden
 /// under it when focused, dimmed before it. Render-only (offset, opacity): layout never changes.
 struct WakoCardPlacement: ViewModifier {
-    let place: WakoLeadFrame.Place
+    /// This card's index in the row (the See All tile: one past the last card).
+    let index: Int?
+    /// The lead card's index (nil while the row does not hold focus).
+    let lead: Int?
     let shift: CGFloat
     /// One card step (card width + gap): how far the row glides per press.
     var step: CGFloat = 0
     let reduceMotion: Bool
 
-    /// The drawn offset. Driven from `place` in `onChange` (wako pass 9): on Left the card that held
-    /// the frame becomes the first card after it. It is put straight at its final spot on screen
-    /// (one step further, cancelling the row's glide to the right) and holds still while it fades
-    /// in, instead of sliding out from under the frame.
+    private var place: WakoLeadFrame.Place { WakoLeadFrame.place(index: index, lead: lead) }
+
+    /// The drawn offset. Wako pass 11: on a Left (one press or several), a card that turns into an
+    /// "after" card is put straight at its final spot on screen (cancelling the row's glide to the
+    /// right) and holds still while it fades in, instead of sliding in from the left under the frame.
     @State private var offsetX: CGFloat = 0
 
     private var opacity: Double {
@@ -230,17 +234,20 @@ struct WakoCardPlacement: ViewModifier {
             .offset(x: offsetX)
             .opacity(opacity)
             .animation(reduceMotion ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds), value: opacity)
-            .onChange(of: place, initial: true) { old, new in
-                let target: CGFloat = new == .after ? shift : 0
-                guard target != offsetX else { return }
+            .onChange(of: lead, initial: true) { oldLead, newLead in
+                let oldPlace = WakoLeadFrame.place(index: index, lead: oldLead)
+                let newPlace = WakoLeadFrame.place(index: index, lead: newLead)
+                let target: CGFloat = newPlace == .after ? shift : 0
                 var still = Transaction()
                 still.disablesAnimations = true
-                if old == new || reduceMotion {
-                    withTransaction(still) { offsetX = target }
-                } else if old == .lead && new == .after {
-                    withTransaction(still) { offsetX = target + step }
+                if oldLead == newLead || reduceMotion {
+                    if target != offsetX { withTransaction(still) { offsetX = target } }
+                } else if newPlace == .after, oldPlace != .after,
+                          let oldLead, let newLead, newLead < oldLead {
+                    // The row glides right by (oldLead − newLead) steps: start that far right.
+                    withTransaction(still) { offsetX = target + CGFloat(oldLead - newLead) * step }
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
-                } else {
+                } else if target != offsetX {
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 }
             }
@@ -5615,8 +5622,7 @@ struct CatalogRowView: View {
                             // fades out as it slides into the frame, and fades back in, dimmed, as
                             // it leaves it on the left. Never 0: the focus engine skips fully
                             // transparent views.
-                            .modifier(WakoCardPlacement(place: WakoLeadFrame.place(index: wakoIndex[item.id],
-                                                                                   lead: wakoLeadIndex),
+                            .modifier(WakoCardPlacement(index: wakoIndex[item.id], lead: wakoLeadIndex,
                                                         shift: wakoShift, step: posterStyle.cardWidth + rowGap,
                                                         reduceMotion: reduceMotion))
                             .id(item.id)
@@ -5655,8 +5661,9 @@ struct CatalogRowView: View {
                             // Steven's fork (wako frame): the See All tile comes after every card,
                             // so it is drawn past the frame like them (it sat one frame-width short,
                             // under the frame, with the last poster drawn after it).
-                            .modifier(WakoCardPlacement(place: wakoLeadIndex == nil ? .none : (wakoSeeAllLead ? .lead : .after),
-                                                        shift: wakoShift, reduceMotion: reduceMotion))
+                            .modifier(WakoCardPlacement(index: section.items.count, lead: wakoLeadIndex,
+                                                        shift: wakoShift, step: posterStyle.cardWidth + rowGap,
+                                                        reduceMotion: reduceMotion))
                         }
 
                         // Steven's fork (`FocusLeadsRow`): room for the last card to reach the
