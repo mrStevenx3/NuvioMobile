@@ -53,6 +53,11 @@ struct DiscoverTabRoot: View {
             }
         }
         .onAppear { model.start() }
-        .onDisappear { model.stop() }
+        // Steven's fork (device pass): leaving Discover puts it back on Films, every genre, so a
+        // return never opens on the last genre browsed.
+        .onDisappear {
+            if NavigationChrome.isOrbitBar() { model.resetToDefault() }
+            model.stop()
+        }
     }
 }

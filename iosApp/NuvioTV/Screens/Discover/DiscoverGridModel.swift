@@ -339,6 +339,12 @@ final class DiscoverGridViewModel: ObservableObject {
         activate(option, genre: genre, reason: "catalog")
     }
 
+    /// Steven's fork: Films, all genres (what Discover opens on).
+    func resetToDefault() {
+        if typeOptions.contains("movie") { select(type: "movie") }
+        select(genrePill: DiscoverGridPlan.allGenre)
+    }
+
     /// Genre pill (`DiscoverGridPlan.allGenre` = "All"): persisted per catalog.
     func select(genrePill value: String) {
         guard let option = selectedOption else { return }
