@@ -164,9 +164,9 @@ struct OrbitTopBar: View {
         // into it, and every remote press then went nowhere). The rail's blocker, mounted here
         // too, takes it out of the focus engine; a landing there anyway comes back to the bar.
         .background(alignment: .topLeading) {
-            HiddenTabBarFocusBlocker(onFocusLandedInHiddenBar: {
-                DispatchQueue.main.async { focused = currentItem }
-            })
+            // No redirect (device pass: with the system search keyboard it pulled focus off the
+            // keys onto the results); the blocker alone keeps the hidden bar unfocusable.
+            HiddenTabBarFocusBlocker()
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
         }

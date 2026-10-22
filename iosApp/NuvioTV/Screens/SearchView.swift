@@ -44,9 +44,7 @@ struct SearchView: View {
                 SearchFieldLayer(owner: owner, queryBox: owner.queryBox)
                 // BUG-195: the system field mounts ~1.1 s after the tab appears; until then the page
                 // shows this look-alike, above the real field so the field mounts underneath it.
-                if !NavigationChrome.isOrbitBar() {
-                    SearchPlaceholderLayer(queryBox: owner.queryBox)
-                }
+                SearchPlaceholderLayer(queryBox: owner.queryBox)
             }
             .navigationDestination(for: TitleRoute.self) { route in
                 DetailView(preview: route.preview)
@@ -91,6 +89,10 @@ struct SearchView: View {
         .onDisappear {
             SearchOpenProbe.disappear()
             owner.model.stop()
+            // Device pass (Steven): leaving Search clears it; a return opens on an empty field.
+            if NavigationChrome.isOrbitBar(), path.isEmpty, !owner.queryBox.text.isEmpty {
+                owner.queryBox.text = ""
+            }
         }
     }
 }
@@ -300,6 +302,8 @@ private struct SearchFieldLayer: View {
     let owner: SearchViewOwner
     @ObservedObject var queryBox: SearchQueryBox
 
+    static let appKeyboard = false
+
     #if DEBUG
     private static let legacyLiveQuery = SearchPerfProbe.legacy
     #else
@@ -331,7 +335,9 @@ private struct SearchFieldLayer: View {
     /// otherwise.
     @ViewBuilder
     private var field: some View {
-        if NavigationChrome.isOrbitBar() {
+        // Device pass (Steven): Apple's own search keyboard is back (dictation on the remote's
+        // mic, typing from the iPhone); the app-drawn row stays only behind this flag.
+        if NavigationChrome.isOrbitBar() && Self.appKeyboard {
             VStack(alignment: .leading, spacing: 0) {
                 OrbitSearchKeyboard(queryBox: queryBox)
                     .padding(.top, 140)
