@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// FEAT-35 (Detail revamp, 2026-10-02): the device-local `@AppStorage` keys behind the Detail
 /// page's layout picker, its section toggles and the spoiler setting. Device-local on purpose, like
