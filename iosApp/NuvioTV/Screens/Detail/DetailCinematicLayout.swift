@@ -40,10 +40,13 @@ nonisolated enum DetailCinematicLayout {
         max(heroMinimumHeight, containerHeight - screenPadding - pageRowSpacing - peekBand)
     }
 
-    /// Steven's fork (Apple TV style): no peek band — the hero fills the screen below the page's
-    /// top padding, so nothing of the first row shows until the first Down.
+    /// Steven's fork (Apple TV style): no peek band — the hero runs past the bottom of the screen,
+    /// so nothing of the first row shows until the first Down. The container height SwiftUI
+    /// reports stops at the bottom safe area, so the hero overshoots it by `fullScreenOverscan`
+    /// (device: at exactly the container height the studio logos still peeked in).
+    static let fullScreenOverscan: CGFloat = 100
     static func fullScreenHeroHeight(containerHeight: CGFloat) -> CGFloat {
-        max(heroMinimumHeight, containerHeight - screenPadding)
+        max(heroMinimumHeight, containerHeight - screenPadding + fullScreenOverscan)
     }
 }
 
