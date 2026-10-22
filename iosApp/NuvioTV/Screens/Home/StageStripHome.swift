@@ -367,6 +367,9 @@ struct StageStripHome: View {
         })
         // Wave H: warm every folder's hero art when the ROW appears, not on first focus.
         .onAppear { stage.rowAppeared(collection: collection) }
+        // Steven's fork (wako pass 3): a collection row shows no info band under it, so its page
+        // fits the row (`StripPager.fitPageHeight`) instead of keeping the band's room.
+        .preference(key: StripRowSkipsInfoBandKey.self, value: true)
     }
 
     // MARK: Seed (§4.3)

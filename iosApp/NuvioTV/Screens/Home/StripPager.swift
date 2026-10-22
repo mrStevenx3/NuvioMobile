@@ -357,6 +357,9 @@ struct StripPager<Row: View>: View {
     @State private var uncoverGateKey: String?
     /// Batch F: each mounted row's measured height, read only with `StageStripTuning.fitRows`.
     @State private var fitHeights: [String: CGFloat] = [:]
+    /// Steven's fork (wako pass 3): rows that draw no info band (`StripRowSkipsInfoBandKey`), which
+    /// fit their page even with Info Below on.
+    @State private var infoFreeKeys: Set<String> = []
     /// Per-hop bookkeeping, including the mounted window (see `StripPagerBox`).
     @State private var box = StripPagerBox()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -540,6 +543,11 @@ struct StripPager<Row: View>: View {
                     .modifier(StripRowHeightReader(key: key, enabled: StageStripTuning.fitRows) { key, height in
                         noteFitHeight(height, for: key)
                     })
+                    .onPreferenceChange(StripRowSkipsInfoBandKey.self) { skips in
+                        if skips != infoFreeKeys.contains(key) {
+                            if skips { infoFreeKeys.insert(key) } else { infoFreeKeys.remove(key) }
+                        }
+                    }
             }
             .frame(height: pageForRow, alignment: .top)
             .disabled(uncoverGateKey.map { $0 != key } ?? false)
@@ -584,7 +592,7 @@ struct StripPager<Row: View>: View {
     private func fitPageHeight(_ key: String, page: CGFloat) -> CGFloat {
         // Steven's fork (`StageInfoBelow`): the info band is drawn at a fixed y under the row
         // (`StripGeometry.infoBandTop`), so every page keeps the fixed height that reserves it.
-        guard StageStripTuning.fitRows, !geometry.infoBelow,
+        guard StageStripTuning.fitRows, !geometry.infoBelow || infoFreeKeys.contains(key),
               let measured = fitHeights[key], measured > 0 else { return page }
         return StripGeometry.fitPageHeight(measured: measured, page: page, focusLift: geometry.focusLift)
     }
@@ -1007,3 +1015,13 @@ private struct StripExitCommandModifier: ViewModifier {
     }
 }
 
+
+
+/// Steven's fork (wako pass 3): set by a strip row that draws no `StageInfoBelow` band under it (a
+/// collection row), so the pager fits its page to the row even with Info Below on.
+struct StripRowSkipsInfoBandKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}

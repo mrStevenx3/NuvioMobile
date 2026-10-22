@@ -289,7 +289,8 @@ struct StageTextBlock: View {
                 // Steven's fork (`StageInfoBelow`): the meta line and synopsis in the band under
                 // the focused row (`StripGeometry.infoBandTop`), like wako. Same swap fade as the
                 // logo, since both live under the same `.id`.
-                if geometry.infoBelow {
+                // Wako pass 3: never for a collection folder (its row's page is fitted, no band).
+                if geometry.infoBelow, !shown.identity.hasPrefix(collectionHeroType + ":") {
                     VStack(alignment: .leading, spacing: StripGeometry.slotGap) {
                         Text(copy.meta)
                             .font(Theme.Font.metaStrong)

@@ -28,6 +28,9 @@ et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADL
 - Collections (accueil Stage, `FolderRowsPage`) : à l'ouverture, logo en grand sur fond noir puis glisse
   en haut à droite (`FolderStageLogoLayer`, réglages `FolderStageIntro`) ; plus de logo « docké » dans le stage.
 - Accueil (rangées « focus leads », affiches portrait) : cadre paysage FIXE à gauche façon wako (`WakoLeadFrame`,
-  BrowseComponents.swift) : il montre le titre sélectionné (image + logo, bord blanc) et passe au suivant en fondu ;
-  la carte sélectionnée prend la largeur du cadre (affiche masquée dessous), les affiches glissent d'un cran ; marges du strip 60 à gauche, 0 à droite (affiches coupées par le bord) ; aussi dans les collections.
+  BrowseComponents.swift) : il montre le titre sélectionné (image + logo, bord blanc), fondu au suivant ;
+  cartes à largeur fixe, celles après le cadre décalées au rendu (`WakoCardPlacement`), la précédente en
+  aperçu sombre au bord gauche (le scroll de la rangée déborde sur la marge, `wakoLeading`) ; aussi dans
+  les collections. Marges du strip : 60 à gauche, 0 à droite. Rangées de collections (Studios, Services…)
+  sans bande d'infos : page ajustée (`StripRowSkipsInfoBandKey`).
   Bandes-annonces dans les cartes coupées sur ces rangées pour l'instant (à remettre dans le cadre).
