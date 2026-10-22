@@ -44,7 +44,9 @@ struct SearchView: View {
                 SearchFieldLayer(owner: owner, queryBox: owner.queryBox)
                 // BUG-195: the system field mounts ~1.1 s after the tab appears; until then the page
                 // shows this look-alike, above the real field so the field mounts underneath it.
-                SearchPlaceholderLayer(queryBox: owner.queryBox)
+                if !NavigationChrome.isOrbitBar() {
+                    SearchPlaceholderLayer(queryBox: owner.queryBox)
+                }
             }
             .navigationDestination(for: TitleRoute.self) { route in
                 DetailView(preview: route.preview)
@@ -309,13 +311,7 @@ private struct SearchFieldLayer: View {
         // content under it must not. `SearchContent` gets no live text, so its stored inputs are
         // unchanged and SwiftUI skips its body. The DEBUG `-debug.searchLegacy` A/B hands it the
         // binding again, which is the pre-fix behaviour.
-        SearchContent(model: owner.model, owner: owner, liveQuery: Self.legacyLiveQuery ? $queryBox.text : nil)
-            .searchable(text: $queryBox.text, prompt: Text("Search movies & shows"))
-            // The iPhone keyboard's return key. The remote's inline keyboard has none.
-            .onSubmit(of: .search) {
-                owner.model.recordSearch(queryBox.text)
-                owner.historyOnOpen.submitted(queryBox.text)
-            }
+        field
             .onChange(of: queryBox.text) { _, newValue in
                 owner.historyOnOpen.queryChanged(to: newValue)
                 owner.model.queryChanged(newValue)
@@ -328,6 +324,31 @@ private struct SearchFieldLayer: View {
                     owner.wash.queryTyped()
                 }
             }
+    }
+
+    /// Steven's fork (Orbit bar): the app's own one-row keyboard over the results (the remote
+    /// could not reach tvOS's system search keyboard under the Orbit bar); the system field
+    /// otherwise.
+    @ViewBuilder
+    private var field: some View {
+        if NavigationChrome.isOrbitBar() {
+            VStack(alignment: .leading, spacing: 0) {
+                OrbitSearchKeyboard(queryBox: queryBox)
+                    .padding(.top, 140)
+                    .padding(.horizontal, Theme.Spacing.screen)
+                SearchContent(model: owner.model, owner: owner, liveQuery: nil)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .ignoresSafeArea(edges: .top)
+        } else {
+            SearchContent(model: owner.model, owner: owner, liveQuery: Self.legacyLiveQuery ? $queryBox.text : nil)
+                .searchable(text: $queryBox.text, prompt: Text("Search movies & shows"))
+                // The iPhone keyboard's return key. The remote's inline keyboard has none.
+                .onSubmit(of: .search) {
+                    owner.model.recordSearch(queryBox.text)
+                    owner.historyOnOpen.submitted(queryBox.text)
+                }
+        }
     }
 }
 
