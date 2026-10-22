@@ -126,6 +126,8 @@ struct WakoLeadFrame: View {
     /// Wako pass 5: the title before `item`, drawn as a dim poster sliver left of the frame (the
     /// row's own card for it sits outside the viewport, where the lazy stack does not draw it).
     var previous: MetaPreview? = nil
+    /// Wako pass 10: the row's See All tile holds focus; the frame shows it in landscape.
+    var seeAll = false
     let size: CGSize
     var posterWidth: CGFloat = 0
     var gap: CGFloat = 0
@@ -150,6 +152,11 @@ struct WakoLeadFrame: View {
                     .id("prev-" + previous.id)
                     .transition(.opacity)
             }
+            if item == nil, seeAll {
+                WakoSeeAllFrame(size: size, cornerRadius: cornerRadius)
+                    .id("see-all")
+                    .transition(.opacity)
+            }
             if let item {
                 WakoLeadFrameArt(item: item, size: size, cornerRadius: cornerRadius,
                                  playingURL: trailersEnabled ? trailer.playingURL : nil,
@@ -160,7 +167,7 @@ struct WakoLeadFrame: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .animation(reduceMotion ? nil : .easeInOut(duration: Self.fadeSeconds), value: item?.id)
+        .animation(reduceMotion ? nil : .easeInOut(duration: Self.fadeSeconds), value: item?.id ?? (seeAll ? "see-all" : nil))
         .animation(reduceMotion ? nil : .easeInOut(duration: Self.fadeSeconds), value: previous?.id)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -237,6 +244,28 @@ struct WakoCardPlacement: ViewModifier {
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 }
             }
+    }
+}
+
+/// Wako pass 10: the See All tile drawn in the frame, in landscape.
+private struct WakoSeeAllFrame: View {
+    let size: CGSize
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            Image(systemName: "chevron.right.circle.fill")
+                .font(.system(size: 64, weight: .medium))
+            Text("See All")
+                .font(Theme.Font.sectionTitle)
+        }
+        .foregroundStyle(Color.white)
+        .frame(width: size.width, height: size.height)
+        .background(RoundedRectangle(cornerRadius: cornerRadius).fill(.ultraThinMaterial))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .strokeBorder(Color.white, lineWidth: WakoLeadFrame.borderWidth)
+        }
     }
 }
 
@@ -5464,9 +5493,12 @@ struct CatalogRowView: View {
         // render offset, animated with the row's glide), the ones before it are dimmed (only the
         // last one shows, as a sliver at the screen's left edge).
         let wakoLead: MetaPreview? = wakoFrame ? focusedItemId.flatMap { id in section.items.first { $0.id == id } } : nil
-        let wakoIndex: [String: Int] = wakoLead == nil ? [:]
+        // Wako pass 10: See All leads too (one step past the last card), so the frame never vanishes
+        // and the row never snaps back when focus reaches it.
+        let wakoSeeAllLead = wakoFrame && focusedItemId == Self.seeAllFocusKey
+        let wakoIndex: [String: Int] = (wakoLead == nil && !wakoSeeAllLead) ? [:]
             : Dictionary(section.items.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let wakoLeadIndex: Int? = wakoLead.flatMap { wakoIndex[$0.id] }
+        let wakoLeadIndex: Int? = wakoSeeAllLead ? section.items.count : wakoLead.flatMap { wakoIndex[$0.id] }
         let wakoPrevious: MetaPreview? = wakoLeadIndex.flatMap { $0 > 0 ? section.items[$0 - 1] : nil }
         let wakoShift = max(0, wakoFrameSize.width - posterStyle.cardWidth)
         // BUG-146 second trim (Steven, rc4: Stage headings "still slightly too high"): heading →
@@ -5623,7 +5655,7 @@ struct CatalogRowView: View {
                             // Steven's fork (wako frame): the See All tile comes after every card,
                             // so it is drawn past the frame like them (it sat one frame-width short,
                             // under the frame, with the last poster drawn after it).
-                            .modifier(WakoCardPlacement(place: wakoLeadIndex == nil ? .none : .after,
+                            .modifier(WakoCardPlacement(place: wakoLeadIndex == nil ? .none : (wakoSeeAllLead ? .lead : .after),
                                                         shift: wakoShift, reduceMotion: reduceMotion))
                         }
 
@@ -5723,7 +5755,7 @@ struct CatalogRowView: View {
                 // edge, at the cards' own top (shelf padding + reach band). Never focusable.
                 .overlay(alignment: .topLeading) {
                     if wakoFrame {
-                        WakoLeadFrame(item: wakoLead, previous: wakoPrevious, size: wakoFrameSize,
+                        WakoLeadFrame(item: wakoLead, previous: wakoPrevious, seeAll: wakoSeeAllLead, size: wakoFrameSize,
                                       posterWidth: posterStyle.cardWidth, gap: rowGap,
                                       cornerRadius: posterStyle.cornerRadius, reduceMotion: reduceMotion,
                                       trailersEnabled: rowTrailersActive)

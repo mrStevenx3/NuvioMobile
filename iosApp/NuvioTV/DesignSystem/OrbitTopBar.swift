@@ -136,6 +136,8 @@ struct OrbitTopBar: View {
         // The focus section hugs the bar itself (device pass 1: drawn over the whole screen, it
         // kept Down from reaching Settings' list).
         .focusSection()
+        // Pass 3: Up into the bar lands on the current page's item (Discover from Discover…).
+        .defaultFocus($focused, currentItem, priority: .userInitiated)
         .padding(.top, OrbitBarMetrics.top)
         .padding(.leading, OrbitBarMetrics.leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -168,6 +170,11 @@ struct OrbitTopBar: View {
         Rectangle()
             .fill(Color.white.opacity(0.35))
             .frame(width: 1.5, height: OrbitBarMetrics.ruleHeight)
+    }
+
+    /// The item of the page on screen.
+    private var currentItem: OrbitBarItem {
+        OrbitBarItem.allCases.first(where: isSelected) ?? .films
     }
 
     private func isSelected(_ item: OrbitBarItem) -> Bool {
