@@ -96,7 +96,7 @@ struct StageStripHome: View {
             // page background shows through.
             AmbientWashLayer(feed: stage.swap.washFeed)
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
-            StageView(controller: stage, geometry: geo, logoTopTrailing: true)
+            StageView(controller: stage, geometry: geo, logoBottomTrailing: true)
             if showsCollectionGrid {
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
                 OrbitCollectionGrid(collections: gridCollections) { collection, folder in

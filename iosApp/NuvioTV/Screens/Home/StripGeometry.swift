@@ -487,4 +487,6 @@ nonisolated enum StageInfoBelow {
     /// Wako pass 6: the shade behind the top-right logo, from this fraction of the width to the edge.
     static let rightShadeStart: CGFloat = 0.45
     static let rightShadeOpacity: Double = 0.55
+    /// Wako pass 7: how far below the stage the bottom-right shade fades out.
+    static let shadeFadeBelowStage: CGFloat = 160
 }

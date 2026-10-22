@@ -36,7 +36,7 @@ struct StageView: View {
     let logoAlignment: Alignment
     /// Steven's fork (wako pass 6): the title logo at the stage's top-RIGHT. Home passes it with
     /// Info Below (the stage then holds only the logo; the meta line and synopsis are under the row).
-    let logoTopTrailing: Bool
+    let logoBottomTrailing: Bool
 
     init(controller: StageController,
          geometry: StripGeometry,
@@ -44,14 +44,14 @@ struct StageView: View {
          hidesLogo: Bool = false,
          probeID: String = "debug_stage",
          logoAlignment: Alignment = .bottomLeading,
-         logoTopTrailing: Bool = false) {
+         logoBottomTrailing: Bool = false) {
         self.controller = controller
         self.geometry = geometry
         self.hidesLogoWhenDisplaying = hidesLogoWhenDisplaying
         self.hidesLogo = hidesLogo
         self.probeID = probeID
         self.logoAlignment = logoAlignment
-        self.logoTopTrailing = logoTopTrailing
+        self.logoBottomTrailing = logoBottomTrailing
     }
 
     var body: some View {
@@ -59,17 +59,21 @@ struct StageView: View {
             // The background trailer model is handed down on every host; only Home ever arms it
             // (`StageStripHome`), so on the folder page it stays idle and draws nothing.
             StageArtLayer(swap: controller.swap, geometry: geometry, trailer: controller.bgTrailer)
-            // Steven's fork (wako pass 6): with the title logo top-right, the right side of the stage
-            // art is shaded so the logo reads on any backdrop. Fixed, never animated.
-            if logoTopTrailing && geometry.infoBelow {
+            // Steven's fork (wako pass 7): with the title logo bottom-right, the stage art's lower
+            // right is shaded so the logo reads on any backdrop. Fixed, never animated.
+            if logoBottomTrailing && geometry.infoBelow {
                 LinearGradient(stops: [
                     .init(color: .clear, location: StageInfoBelow.rightShadeStart),
                     .init(color: .black.opacity(StageInfoBelow.rightShadeOpacity), location: 1)
                 ], startPoint: .leading, endPoint: .trailing)
                 .mask {
-                    LinearGradient(colors: [.black, .black, .clear], startPoint: .top, endPoint: .bottom)
-                        .frame(height: geometry.stageHeight + StripGeometry.stageBottomGap)
-                        .frame(maxHeight: .infinity, alignment: .top)
+                    VStack(spacing: 0) {
+                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                            .frame(height: geometry.stageHeight)
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                            .frame(height: StageInfoBelow.shadeFadeBelowStage)
+                        Color.clear
+                    }
                 }
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
@@ -80,7 +84,7 @@ struct StageView: View {
                            hidesLogoWhenDisplaying: hidesLogoWhenDisplaying,
                            hidesLogo: hidesLogo,
                            logoAlignment: logoAlignment,
-                           logoTopTrailing: logoTopTrailing && geometry.infoBelow,
+                           logoBottomTrailing: logoBottomTrailing && geometry.infoBelow,
                            copySource: controller.copySource)
             #if DEBUG
             StageDebugLabel(debug: controller.swap.debug, geometry: geometry, probeID: probeID)
@@ -237,8 +241,8 @@ struct StageTextBlock: View {
     /// defect is unexplained. The device pass opens the Netflix folder in his config and looks at
     /// row 2; do not call BUG-190 closed before that.
     let logoAlignment: Alignment
-    /// Wako pass 6: see `StageView.logoTopTrailing` (already gated on Info Below).
-    let logoTopTrailing: Bool
+    /// Wako pass 6: see `StageView.logoBottomTrailing` (already gated on Info Below).
+    let logoBottomTrailing: Bool
     /// W2-A's Continue Watching copy input (`StageController.copySource`); a nil lookup = Classic copy.
     @ObservedObject var copySource: StageCopySource
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -248,14 +252,14 @@ struct StageTextBlock: View {
          hidesLogoWhenDisplaying: String?,
          hidesLogo: Bool = false,
          logoAlignment: Alignment = .bottomLeading,
-         logoTopTrailing: Bool = false,
+         logoBottomTrailing: Bool = false,
          copySource: StageCopySource) {
         _swap = ObservedObject(wrappedValue: swap)
         self.geometry = geometry
         self.hidesLogoWhenDisplaying = hidesLogoWhenDisplaying
         self.hidesLogo = hidesLogo
         self.logoAlignment = logoAlignment
-        self.logoTopTrailing = logoTopTrailing
+        self.logoBottomTrailing = logoBottomTrailing
         _copySource = ObservedObject(wrappedValue: copySource)
     }
 
@@ -280,11 +284,18 @@ struct StageTextBlock: View {
                 ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: StripGeometry.slotGap) {
                     HeroLogo(item: shown.item, image: shown.logo, maxHeight: geometry.logoSlot, ink: shown.logoInk)
-                        .frame(height: geometry.logoSlot, alignment: logoTopTrailing ? .topTrailing : logoAlignment)
+                        // Wako pass 7: its own width, so the trailing frame below can move it right
+                        // (device: it stayed on the left, filling the slot).
+                        .fixedSize(horizontal: logoBottomTrailing, vertical: false)
+                        .frame(height: geometry.logoSlot, alignment: logoBottomTrailing ? .bottomTrailing : logoAlignment)
                         // The alignment flips while the logo is still hidden (the folder logo's
                         // rise); it must not glide.
                         .transaction(value: logoAlignment) { $0.animation = nil }
-                        .frame(maxWidth: .infinity, alignment: logoTopTrailing ? .trailing : .leading)
+                        .frame(maxWidth: .infinity, alignment: logoBottomTrailing ? .trailing : .leading)
+                        // Wako pass 7: bottom-right of the stage, just above the rows.
+                        .padding(.top, logoBottomTrailing
+                                 ? max(0, geometry.stageHeight - geometry.stageBlockTop - StripGeometry.stageBottomGap - geometry.logoSlot)
+                                 : 0)
                         // S3; FEAT-70: also hidden while the folder page's logo is docked here.
                         // Shown on the folder logo's rise with the strip's page curve.
                         .opacity(hidesLogo || shown.identity == hidesLogoWhenDisplaying ? 0 : 1)
@@ -351,7 +362,7 @@ struct StageTextBlock: View {
         }
         // Wako pass 6: with the logo top-right the slot spans the screen (less the right margin); the
         // info-below block keeps its own panel width at the left.
-        .frame(width: logoTopTrailing
+        .frame(width: logoBottomTrailing
                ? max(Theme.Size.heroInfoPanelWidth,
                      UIScreen.main.bounds.width - geometry.stageBlockLeading - StageInfoBelow.logoTrailingMargin)
                : Theme.Size.heroInfoPanelWidth,
