@@ -63,7 +63,11 @@ struct DiscoverGridPage: View {
     }
 
     private var columns: [GridItem] {
-        [GridItem(
+        if Self.netflixStyle {
+            return Array(repeating: GridItem(.fixed(Self.tileSize.width), spacing: Self.tileGap, alignment: .top),
+                         count: Self.tileColumns)
+        }
+        return [GridItem(
             .adaptive(minimum: posterStyle.width + Theme.Spacing.rowGap),
             spacing: Theme.Spacing.rowGap
         )]
@@ -123,6 +127,16 @@ struct DiscoverGridPage: View {
     private var band: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.md) {
+                // Steven's fork (Netflix-style Discover): the page's title (the genre, or Films /
+                // Séries), then the pickers beside it.
+                if Self.netflixStyle {
+                    Text(headerTitle)
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.trailing, Theme.Spacing.md)
+                }
                 if let type = model.selectedType {
                     PillMenu(title: DiscoverRowsPlan.typeLabel(type),
                              systemImage: "film.stack",
@@ -197,7 +211,11 @@ struct DiscoverGridPage: View {
                 ForEach(Array(model.items.enumerated()), id: \.element.discoverTileKey) { index, item in
                     let key = Self.tileKey(item)
                     NavigationLink(value: TitleRoute(preview: item)) {
-                        PosterCard(title: item.name, imageURL: item.poster, fallbackImageURL: item.rawPosterUrl)
+                        if Self.netflixStyle {
+                            DiscoverLandscapeTile(item: item, size: Self.tileSize)
+                        } else {
+                            PosterCard(title: item.name, imageURL: item.poster, fallbackImageURL: item.rawPosterUrl)
+                        }
                     }
                     .cardFocusButtonStyle()
                     .posterButtonShape()
@@ -219,6 +237,29 @@ struct DiscoverGridPage: View {
     }
 
     static func tileKey(_ item: MetaPreview) -> String { "\(item.type):\(item.id)" }
+
+    // MARK: Netflix style (Steven's fork, Orbit bar)
+
+    /// Landscape tiles, six per row, under a title header.
+    static var netflixStyle: Bool { NavigationChrome.isOrbitBar() }
+    static let tileColumns = 6
+    static let tileGap: CGFloat = 24
+    static var tileSize: CGSize {
+        let width = floor((UIScreen.main.bounds.width - 2 * Theme.Spacing.screen
+                           - CGFloat(tileColumns - 1) * tileGap) / CGFloat(tileColumns))
+        return CGSize(width: width, height: floor(width * 9 / 16))
+    }
+
+    /// The genre picked, or the type (Films / Séries) with every genre.
+    private var headerTitle: String {
+        if let option = model.selectedOption, let genres = DiscoverGridPlan.genreChoices(option) {
+            let current = DiscoverGridPlan.pillValue(model.selectedGenre)
+            if model.selectedGenre != nil {
+                return DiscoverGridPlan.genreLabels(genres)[current] ?? DiscoverGridPlan.genreLabel(current)
+            }
+        }
+        return model.selectedType.map { DiscoverRowsPlan.typeLabel($0) } ?? String(localized: "Discover")
+    }
 
     private var loadingPanel: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
@@ -418,4 +459,23 @@ private struct DiscoverGridProbeLabel: View {
 extension MetaPreview {
     /// FEAT-73 review r1: the grid's `ForEach` identity, the same `type:id` the items are deduped by.
     var discoverTileKey: String { DiscoverGridPage.tileKey(self) }
+}
+
+
+/// Steven's fork (Netflix-style Discover): a landscape tile, the title's backdrop with its logo.
+struct DiscoverLandscapeTile: View {
+    let item: MetaPreview
+    let size: CGSize
+
+    var body: some View {
+        CachedAsyncImage(string: InlineTrailerCard.landscapeArtworkURL(item),
+                         fallback: item.poster,
+                         decodeSize: .points(width: size.width, height: size.height))
+            .frame(width: size.width, height: size.height)
+            .clipped()
+            .overlay(alignment: .bottomLeading) {
+                InlineTrailerTitleOverlay(item: item, tileWidth: size.width, tileHeight: size.height)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
 }
