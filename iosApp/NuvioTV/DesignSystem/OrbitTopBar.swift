@@ -133,11 +133,13 @@ struct OrbitTopBar: View {
             rule
             pill([.settings])
         }
+        // The focus section hugs the bar itself (device pass 1: drawn over the whole screen, it
+        // kept Down from reaching Settings' list).
+        .focusSection()
         .padding(.top, OrbitBarMetrics.top)
         .padding(.leading, OrbitBarMetrics.leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea()
-        .focusSection()
         .opacity(immersive ? 0 : 1)
         .allowsHitTesting(!immersive)
         .disabled(immersive)
@@ -236,5 +238,71 @@ private struct OrbitBarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+
+// MARK: - Services / Studios grid
+
+/// Steven's fork (Orbit bar): the Services and Studios pages lay their collections' folders out on
+/// a grid, like the tvOS home screen's apps, under the bar and over the stage art (which follows
+/// the focused folder). Each tile opens the folder page, exactly as from a collection row.
+struct OrbitCollectionGrid: View {
+    let collections: [NuvioCollection]
+    /// The focused folder (nil when focus leaves the grid), for the stage.
+    let onFolderFocus: (NuvioCollection, CollectionFolder?) -> Void
+
+    private struct Entry: Identifiable {
+        let collection: NuvioCollection
+        let folder: CollectionFolder
+        var id: String { "\(collection.id)/\(folder.id)" }
+    }
+
+    @FocusState private var focused: String?
+
+    private var entries: [Entry] {
+        var seen = Set<String>()
+        var out: [Entry] = []
+        for collection in collections {
+            for folder in collection.folders {
+                let entry = Entry(collection: collection, folder: folder)
+                if seen.insert(entry.id).inserted { out.append(entry) }
+            }
+        }
+        return out
+    }
+
+    static let columnMinimum: CGFloat = 400
+    static let spacing: CGFloat = 40
+    static let top: CGFloat = 170
+
+    var body: some View {
+        let entries = entries
+        ScrollView(.vertical) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.columnMinimum), spacing: Self.spacing, alignment: .top)],
+                      alignment: .leading, spacing: Self.spacing + 12) {
+                ForEach(entries) { entry in
+                    NavigationLink(value: FolderRoute(collectionId: entry.collection.id, folder: entry.folder)) {
+                        FolderTile(folder: entry.folder,
+                                   collectionBackdropUrl: entry.collection.backdropImageUrl,
+                                   collectionId: entry.collection.id,
+                                   stillFocused: focused == entry.id)
+                    }
+                    .cardFocusButtonStyle()
+                    .posterButtonShape()
+                    .focused($focused, equals: entry.id)
+                    .id(entry.id)
+                }
+            }
+            .padding(.top, Self.top)
+            .padding(.horizontal, StripGeometry.edgeMargin)
+            .padding(.bottom, 80)
+        }
+        .scrollClipDisabled()
+        .focusSection()
+        .onChange(of: focused) { _, id in
+            guard let id, let entry = entries.first(where: { $0.id == id }) else { return }
+            onFolderFocus(entry.collection, entry.folder)
+        }
     }
 }

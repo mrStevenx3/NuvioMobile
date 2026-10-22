@@ -97,6 +97,16 @@ struct StageStripHome: View {
             AmbientWashLayer(feed: stage.swap.washFeed)
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
             StageView(controller: stage, geometry: geo, logoTopTrailing: true)
+            if showsCollectionGrid {
+                // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
+                OrbitCollectionGrid(collections: gridCollections) { collection, folder in
+                    stage.report(folder.flatMap { HomeRowPreviews.folder(collection: collection, folder: $0,
+                                                                         showsDetails: catalogDetailsInHeadings) },
+                                 source: collection.id,
+                                 rowHeading: collection.title,
+                                 prefetch: { HomeRowPreviews.collectionArtURLs(collection) })
+                }
+            } else {
             VStack(spacing: 0) {
                 // The stage block's place. Nothing focusable lives here, so Up from row 0 goes to
                 // the tab bar (in Rail mode Up has no target there and never reveals, §6).
@@ -105,6 +115,7 @@ struct StageStripHome: View {
                     .allowsHitTesting(false)
                 strip(keys: keys, geometry: geo)
                     .frame(height: geo.stripHeight)
+            }
             }
             #if DEBUG
             StripDebugLabel(debug: stage.swap.debug)
@@ -174,6 +185,11 @@ struct StageStripHome: View {
         .onChange(of: seedSignature, initial: true) { _, _ in
             stage.seed(seedItem, rowHeading: seedRowHeading)
         }
+        // Steven's fork (Orbit bar): a new page (Films, Séries, Services, Studios) shows its FIRST
+        // title on the stage at once, while focus is still on the bar.
+        .onChange(of: contentFilter.filter) { _, _ in
+            DispatchQueue.main.async { showFirstItemOnStage() }
+        }
         .onChange(of: keys) { _, newKeys in
             stage.memory.prune(keeping: Set(newKeys))
         }
@@ -239,6 +255,25 @@ struct StageStripHome: View {
             }
         }
         return keys
+    }
+
+    /// Steven's fork (Orbit bar): Services / Studios draw a folder grid instead of the strip.
+    private var showsCollectionGrid: Bool {
+        contentFilter.filter == .services || contentFilter.filter == .studios
+    }
+
+    /// The collections the grid lays out: the page's rows, in Home's order.
+    private var gridCollections: [NuvioCollection] {
+        rowKeys.compactMap { key in
+            if case .collection(let collection)? = homeRow(for: key) { return collection }
+            return nil
+        }
+    }
+
+    /// Puts the page's first title (or first folder) on the stage.
+    private func showFirstItemOnStage() {
+        guard let item = seedItem, let key = rowKeys.first(where: { firstPreview(ofRow: $0) != nil }) else { return }
+        stage.report(item, source: key, rowHeading: seedRowHeading, prefetch: { [] })
     }
 
     /// Steven's fork (Orbit bar, `HomeContentFilter`): Films keeps the movie catalogs, Séries the

@@ -36,4 +36,4 @@ et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADL
 - Barre de navigation Orbit (`OrbitTopBar.swift`, style `orbit` par défaut, Réglages > Apparence > Navigation) :
   en haut à gauche, [Recherche Films Séries Bibliothèque Découverte] | [Services Studios] | [Réglages] ;
   barre tvOS masquée. Films/Séries/Services/Studios = filtres de l'accueil Stage (`HomeContentFilter`,
-  `StageStripHome.rowKeys`) ; Services/Studios repérés par le titre des collections. Pas d'Add-ons ni Profil dans la barre.
+  `StageStripHome.rowKeys`) ; Services/Studios repérés par le titre des collections et affichés en grille de dossiers (`OrbitCollectionGrid`) ; changer de page montre son 1er titre sur le stage. Pas d'Add-ons ni Profil dans la barre.
