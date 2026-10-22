@@ -56,10 +56,12 @@ nonisolated enum DetailAppleStyle {
     static let bottomFrostStart: CGFloat = 0.55
     /// The frost reaches full strength once the dim reaches this.
     static let fullFrostDim: Double = 0.35
-    /// The backdrop's blur radius once fully frosted (reached at `fullFrostDim`).
-    static let backdropBlurMax: CGFloat = 40
-    /// How much the blurred layer is scaled up at full blur, to hide its soft edges.
-    static let backdropBlurOverscale: CGFloat = 0.15
+    /// Device pass 6: the blurred still's source width and blur radius, in pixels of that source
+    /// (640 px across the 1920 pt screen, so 14 px ≈ 42 pt).
+    static let blurSourcePixels = 640
+    static let blurRadiusPixels: Double = 14
+    /// The top fade over the scrolled rows (content above it fades out under the compact logo).
+    static let topFadeHeight: CGFloat = 190
     static let heroFade = 0.4
     /// The hero fills the screen in this style (no peek of the first row). The buttons keep this
     /// gap to the bottom edge: closer, the focus engine scrolls the page to give the focused

@@ -152,17 +152,16 @@ struct DetailCinematicHero<Actions: View>: View {
                 .padding(.bottom, synopsisBeside ? DetailAppleStyle.heroBottomInset : 0)
             // Steven's fork (Apple TV style): the credits leave the synopsis column for the
             // bottom-right corner, below the buttons; the unfolded synopsis still fades them.
-            if synopsisBeside && !credits.isEmpty {
+            if synopsisBeside {
+                // Device pass 5/6: the cast only comes with the full meta, seconds in; it fades in
+                // on its own (an animation on the whole hero made the meta line stutter).
                 creditsBlock
-                    .opacity(synopsisUnfolded ? 0 : 1)
+                    .opacity(synopsisUnfolded || credits.isEmpty ? 0 : 1)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: credits.isEmpty)
                     .padding(.bottom, DetailAppleStyle.creditsBottomInset)
                     .frame(maxWidth: .infinity, alignment: .bottomTrailing)
-                    // Device pass 5: the cast only comes with the full meta, seconds in; fade it
-                    // in instead of popping.
-                    .transition(.opacity)
             }
         }
-        .animation(reduceMotion || !synopsisBeside ? nil : .easeOut(duration: 0.5), value: credits.isEmpty)
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .onChange(of: measuredTruncated, initial: true) { _, _ in syncSynopsisTruncated() }
         .onChange(of: heroFocus.wrappedValue) { _, _ in syncSynopsisTruncated() }

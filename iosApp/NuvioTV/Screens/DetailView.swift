@@ -1,4 +1,5 @@
 import Combine
+import CoreImage
 import QuartzCore
 import SwiftUI
 import SharedCore
@@ -274,7 +275,7 @@ final class DetailLogoLiftModel: ObservableObject {
 
 /// Steven's fork (Apple TV style): the frosted backdrop. The lower part of the screen is always
 /// frosted (a material faded in from `DetailAppleStyle.bottomFrostStart`); as the page scrolls
-/// that band hands over to the blurred backdrop (`DetailBackdropBlur`).
+/// that band hands over to the blurred backdrop (`DetailBlurredBackdrop`).
 /// Observes the dim model itself, like `DetailTopScrim`, so `DetailView.body` never re-renders
 /// per dim step.
 private struct DetailFrostLayer: View {
@@ -295,7 +296,7 @@ private struct DetailFrostLayer: View {
                     ], startPoint: .top, endPoint: .bottom)
                 }
                 // Device pass 4: the scrolled page no longer lays a grey material over everything;
-                // the backdrop itself blurs (`DetailBackdropBlur`), and this band fades out as it
+                // the backdrop itself blurs (`DetailBlurredBackdrop`), and this band fades out as it
                 // does, so the scrolled page reads as one even blur, not a darker bottom.
                 .opacity(1 - blurProgress)
                 .animation(.linear(duration: 0.12), value: blurProgress)
@@ -306,31 +307,57 @@ private struct DetailFrostLayer: View {
     }
 }
 
-/// Steven's fork (device pass 4, Apple TV style): blurs the backdrop as the page scrolls down,
-/// following the dim model (full at `DetailAppleStyle.fullFrostDim`). A modifier that observes the
-/// model itself, so a dim step re-renders the blur only, never `DetailView.body` (BUG-41).
-private struct DetailBackdropBlur: ViewModifier {
+/// Steven's fork (device pass 6, Apple TV style): the scrolled page's frosted backdrop. The
+/// backdrop is fetched small (640 px), blurred once on a background task, and drawn full screen;
+/// only its opacity follows the dim model (full at `DetailAppleStyle.fullFrostDim`), which costs
+/// nothing per frame. Observes the dim model itself (BUG-41).
+private struct DetailBlurredBackdrop: View {
+    let urls: [URL]
     @ObservedObject var model: ScrollDimModel
-    let enabled: Bool
+    @State private var image: UIImage?
 
-    private var radius: CGFloat {
-        guard enabled else { return 0 }
-        let t = min(1, max(0, model.value / DetailAppleStyle.fullFrostDim))
-        return (CGFloat(t) * DetailAppleStyle.backdropBlurMax).rounded()
+    private var progress: Double { min(1, max(0, model.value / DetailAppleStyle.fullFrostDim)) }
+
+    var body: some View {
+        GeometryReader { geo in
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
+        }
+        .ignoresSafeArea()
+        .opacity(progress)
+        .animation(.linear(duration: 0.12), value: progress)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .task(id: urls) {
+            let request = ArtworkDecodeRequest(size: .pixels(DetailAppleStyle.blurSourcePixels), fill: true, scale: 1)
+            guard !urls.isEmpty,
+                  let source = await ImageFallbackPlan.load(candidates: urls, request: request),
+                  let cgImage = source.cgImage else { return }
+            let blurred = await Task.detached(priority: .utility) {
+                DetailBackdropBlurRenderer.render(cgImage)
+            }.value
+            guard !Task.isCancelled, let blurred else { return }
+            image = blurred
+        }
     }
+}
 
-    /// Device pass 5: `opaque: true` clipped the blur to the safe-area frame (black bands at the
-    /// top and sides). A plain blur fades the picture's own edges instead, so the layer is scaled
-    /// up a little as it blurs to push that soft rim off screen.
-    private var overscale: CGFloat {
-        1 + radius / DetailAppleStyle.backdropBlurMax * DetailAppleStyle.backdropBlurOverscale
-    }
-
-    func body(content: Content) -> some View {
-        content
-            .blur(radius: radius)
-            .scaleEffect(overscale)
-            .animation(.linear(duration: 0.12), value: radius)
+/// The one-off Gaussian blur behind `DetailBlurredBackdrop` (edges clamped, so no dark rim).
+nonisolated enum DetailBackdropBlurRenderer {
+    static func render(_ cgImage: CGImage) -> UIImage? {
+        let input = CIImage(cgImage: cgImage)
+        guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
+        filter.setValue(input.clampedToExtent(), forKey: kCIInputImageKey)
+        filter.setValue(DetailAppleStyle.blurRadiusPixels, forKey: kCIInputRadiusKey)
+        guard let output = filter.outputImage?.cropped(to: input.extent),
+              let rendered = CIContext(options: [.useSoftwareRenderer: false]).createCGImage(output, from: input.extent)
+        else { return nil }
+        return UIImage(cgImage: rendered)
     }
 }
 
@@ -350,6 +377,36 @@ private struct DetailFadeWhenFrosted: ViewModifier {
         content
             .opacity(opacity)
             .animation(.linear(duration: 0.12), value: opacity)
+    }
+}
+
+/// Steven's fork (device pass 6, Apple TV style): masks the scroll content so whatever sits above
+/// the rows' rest (the faded hero, a previous row) fades to nothing under the compact logo,
+/// following the dim model. Observes the model itself (BUG-41).
+private struct DetailTopFadeMask: ViewModifier {
+    @ObservedObject var model: ScrollDimModel
+    let enabled: Bool
+
+    private var hidden: Double { min(1, max(0, model.value / DetailAppleStyle.fullFrostDim)) }
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.mask {
+                VStack(spacing: 0) {
+                    LinearGradient(stops: [
+                        .init(color: .black.opacity(1 - hidden), location: 0),
+                        .init(color: .black.opacity(1 - hidden), location: 0.55),
+                        .init(color: .black, location: 1)
+                    ], startPoint: .top, endPoint: .bottom)
+                    .frame(height: DetailAppleStyle.topFadeHeight)
+                    Color.black
+                }
+                .ignoresSafeArea()
+                .animation(.linear(duration: 0.12), value: hidden)
+            }
+        } else {
+            content
+        }
     }
 }
 
@@ -785,6 +842,10 @@ struct DetailView: View {
     /// `.onChange(of: focusedRow)` on every change; set only by `anchorPass`, for the row it
     /// anchored. The relayout pass below only fires when `lastAnchored?.row == focusedRow`.
     @State private var lastAnchored: (row: DetailRowID, top: CGFloat)?
+    /// Steven's fork (device pass 6): on the hero exit in Apple TV style, the row whose top rests
+    /// at the anchor (`top`) while `focus` holds focus. See `anchorPass`.
+    private struct AppleExitAnchor { let focus: DetailRowID; let top: DetailRowID }
+    @State private var appleExitAnchor: AppleExitAnchor?
 
     init(preview: MetaPreview) {
         self.preview = preview
@@ -821,10 +882,8 @@ struct DetailView: View {
                 // FEAT-32: the still lands enlarged when the trailer cover goes and settles to 1.
                 .scaleEffect(TrailerBridgeChoreography.backdropScale(bridgePhase))
                 .animation(TrailerBridgeChoreography.backdropAnimation(to: bridgePhase), value: bridgePhase)
-                .modifier(DetailBackdropBlur(model: dimModel, enabled: appleStyle))
             if showPosterBackdrop {
                 posterBackdropLayer
-                    .modifier(DetailBackdropBlur(model: dimModel, enabled: appleStyle))
                     .transition(.opacity)
             }
             // Tear the trailer's libmpv instance down while the stream player (also libmpv) is open,
@@ -845,11 +904,17 @@ struct DetailView: View {
                                   zoomKey: model.trailerZoomKey, videoId: model.trailerVideoId,
                                   surfaceTag: "detail-bg")
                     .ignoresSafeArea()
-                    .modifier(DetailBackdropBlur(model: dimModel, enabled: appleStyle))
                     .transition(.opacity)
             }
             // FEAT-35: each layout has its own scrim. Written out at both call sites (here and the
             // trailer cover's copy) so the two always compose the same way (Codex r3 rule).
+            // Steven's fork (device pass 6, Apple TV style): the scrolled page's blur is a still,
+            // blurred ONCE off the main thread, cross-faded in over the backdrop and the trailer.
+            // A live `.blur` on the full-screen 4K backdrop re-rendered every frame and made every
+            // animation on the page stutter on the Apple TV.
+            if appleStyle {
+                DetailBlurredBackdrop(urls: blurredBackdropURLs, model: dimModel)
+            }
             if detailLayout == .cinematic {
                 cinematicScrimOverlay(posterBackdropVisible: showPosterBackdrop)
                     // Device pass 5: no dark shading over the blurred page (Apple TV style).
@@ -888,12 +953,8 @@ struct DetailView: View {
                         // Guide), in every layout — Apple TV style no longer forces it off.
                         if sectionParentalGuide {
                             parentalGuideSection
-                                // Steven's fork (device pass 2): in Apple TV style the guide belongs
-                                // to the hero view; it sat under the compact logo once in the rows.
-                                // Not focusable, so hiding it changes no focus path.
-                                .opacity(appleStyle && focusedRow != nil ? 0 : 1)
-                                .animation(reduceMotion ? nil : .easeInOut(duration: DetailAppleStyle.heroFade),
-                                           value: appleStyle && focusedRow != nil)
+                                // Device pass 6: shown as an ordinary row in every style (it used
+                                // to hide while focus was in the rows, so it only flashed by).
                                 .detailRowAnchored(.parental, focusedRow: $focusedRow, offsets: $detailRowOffsets)
                         }
                     }
@@ -962,8 +1023,11 @@ struct DetailView: View {
             // fixed scrim (`DetailTopScrim`), so the system one is hidden here. A/B:
             // `-debug.detailEdgeEffectShown YES` puts it back.
             .scrollEdgeEffectHidden(!DetailDim.edgeEffectShown, for: .top)
+            // Device pass 6 (Apple TV style): the content above the rows fades OUT (a mask)
+            // instead of being shaded by the black top scrim, which read as a dark band.
+            .modifier(DetailTopFadeMask(model: dimModel, enabled: appleStyle))
             // BUG-96: fades whatever of the previous row sits above the anchored rest.
-            .overlay(alignment: .top) { DetailTopScrim(model: dimModel) }
+            .overlay(alignment: .top) { if !appleStyle { DetailTopScrim(model: dimModel) } }
             // FEAT-60 (Steven rc3, the Apple TV app and Fusion): once focus leaves the Cinematic
             // hero, a small title logo fades in at the top so the page still names what it is.
             .overlay(alignment: .top) {
@@ -1595,6 +1659,15 @@ struct DetailView: View {
     /// same art), and swapping it made the big logo blink just as the credits appeared.
     @State private var stickyLogoUrl: String?
     private var heroLogoUrl: String? { appleStyle ? (stickyLogoUrl ?? logoUrl) : logoUrl }
+    /// Device pass 6: the backdrop's URLs for the blurred still (the larger rendition first).
+    private var blurredBackdropURLs: [URL] {
+        guard let backgroundUrl else { return [] }
+        var out: [URL] = []
+        for raw in [DetailBackdropURL.upgraded(backgroundUrl), backgroundUrl] {
+            if let url = URL(string: raw), !out.contains(url) { out.append(url) }
+        }
+        return out
+    }
     /// Poster art for the right-hand backdrop layer — independent of `backgroundUrl`'s
     /// banner/backdrop preference (tester ask: mirror mobile's "poster stays on the right" layout).
     private var posterUrl: String? { model.meta?.poster ?? preview.poster }
@@ -1758,7 +1831,8 @@ struct DetailView: View {
     private func anchorPass(_ row: DetailRowID, note: String, onlyIfDrifted: Bool = false) -> Bool {
         // Codex BUG-96 r2 (P2): the sleeps swallow cancellation (`try?`), so the pass itself must
         // refuse to run once cancelled (disappear, bridge leaving idle, a newer focus change).
-        guard !Task.isCancelled, focusedRow == row, bridgePhase == .idle, let rowTop = detailRowOffsets[row] else { return false }
+        let anchorRow = (appleExitAnchor?.focus == row ? appleExitAnchor?.top : nil) ?? row
+        guard !Task.isCancelled, focusedRow == row, bridgePhase == .idle, let rowTop = detailRowOffsets[anchorRow] else { return false }
         let inset = dimModel.contentInsetTop
         let target = DetailRowAnchor.scrollTarget(rowTop: rowTop, contentInsetTop: inset, screenRest: anchorRest)
         let expected = DetailRowAnchor.expectedOffset(scrollTarget: target, contentInsetTop: inset)
@@ -1770,7 +1844,8 @@ struct DetailView: View {
         } else {
             withAnimation(.easeOut(duration: 0.3)) { detailScrollPosition.scrollTo(y: target) }
         }
-        lastAnchored = (row, rowTop)
+        // The FOCUSED row's own top, which the relayout pass compares against.
+        lastAnchored = (row, detailRowOffsets[row] ?? rowTop)
         if DetailScrollProbe.enabled {
             dimModel.anchorNote = String(format: "%@ top=%.0f y=%.0f %@", String(describing: row), rowTop, target, note)
         }
@@ -2533,6 +2608,8 @@ struct DetailView: View {
         // `lastAnchored` from the row that just lost focus must never let the relayout pass
         // below anchor the newly-focused row on its behalf.
         lastAnchored = nil
+        // Device pass 6: the topmost-row anchor belongs to the hero-exit visit only.
+        if appleExitAnchor?.focus != row { appleExitAnchor = nil }
         guard let row else {
             detailAnchorTask?.cancel()
             detailAnchorTask = nil
@@ -2568,7 +2645,16 @@ struct DetailView: View {
            DetailRowAnchor.heroExit(old: old, new: row,
                                     pageAtTop: DetailRowAnchor.isAtTop(contentOffset: dimModel.lastContentOffset,
                                                                        contentInsetTop: dimModel.contentInsetTop)) {
-            if logoAnchorRow != row { logoAnchorRow = row }
+            // Device pass 6 (Apple TV style): rest the TOPMOST row (studio logos, Parental Guide —
+            // not focusable) at the anchor, not the focused one, so those rows show on the first
+            // Down instead of being scrolled past.
+            appleExitAnchor = nil
+            if appleStyle, let rowTop = detailRowOffsets[row],
+               let top = detailRowOffsets.min(by: { $0.value < $1.value }), top.key != row, top.value < rowTop {
+                appleExitAnchor = AppleExitAnchor(focus: row, top: top.key)
+            }
+            let logoRow = appleExitAnchor?.top ?? row
+            if logoAnchorRow != logoRow { logoAnchorRow = logoRow }
             startBlendAnchor(row, fallbackNote: "blend-fallback+hero-exit", revealNote: "hero-exit")
             return
         }
