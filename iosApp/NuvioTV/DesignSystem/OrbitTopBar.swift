@@ -351,3 +351,69 @@ struct OrbitCollectionGrid: View {
         }
     }
 }
+
+// MARK: - Collection bar
+
+/// Steven's fork (collection bar): the folder page's own bar, in the Orbit bar's style and place —
+/// Search, Films, Séries. Films / Séries keep only that type's rows (selecting the lit one again
+/// shows every row); Search opens `CollectionSearchLayer` over the page.
+struct CollectionFilterBar: View {
+    @Binding var filter: String?
+    let onSearch: () -> Void
+
+    @FocusState private var focused: OrbitBarItem?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach([OrbitBarItem.search, .films, .series], id: \.self) { item in
+                Button { select(item) } label: {
+                    OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
+                }
+                .buttonStyle(OrbitBarButtonStyle())
+                .focused($focused, equals: item)
+                .accessibilityLabel(item.accessibilityName)
+            }
+        }
+        .padding(OrbitBarMetrics.pillPadding)
+        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+        .focusSection()
+        .padding(.top, OrbitBarMetrics.top)
+        .padding(.leading, OrbitBarMetrics.leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .ignoresSafeArea()
+    }
+
+    private func type(of item: OrbitBarItem) -> String? {
+        switch item {
+        case .films: return "movie"
+        case .series: return "series"
+        default: return nil
+        }
+    }
+
+    private func isSelected(_ item: OrbitBarItem) -> Bool {
+        guard let type = type(of: item) else { return false }
+        return filter == type
+    }
+
+    private func select(_ item: OrbitBarItem) {
+        guard let type = type(of: item) else { onSearch(); return }
+        filter = filter == type ? nil : type
+    }
+}
+
+/// Steven's fork (collection bar): which folder rows a type filter keeps. "series" also keeps any
+/// non-movie type (tv, anime…), like Home's Séries.
+enum CollectionTypeFilter {
+    static func keeps(_ contentType: String?, filter: String?) -> Bool {
+        guard let filter else { return true }
+        guard let contentType else { return false }
+        return filter == "movie" ? contentType == "movie" : contentType != "movie"
+    }
+
+    static func rows(_ rows: [FolderStripRow], filter: String?) -> [FolderStripRow] {
+        guard filter != nil else { return rows }
+        return rows.filter { keeps($0.contentType, filter: filter) }
+    }
+}

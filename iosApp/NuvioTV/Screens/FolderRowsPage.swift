@@ -68,9 +68,19 @@ struct FolderRowsPage: View {
     /// B1: Show Catalog Details in Headings (`HeadingDetailsSetting`), the folder line's gate.
     @AppStorage(HeadingDetailsSetting.defaultsKey) private var catalogDetailsInHeadings = HeadingDetailsSetting.defaultValue
 
+    /// Steven's fork (collection bar): the Films / Séries filter ("movie", "series"; nil = all).
+    @State private var typeFilter: String?
+    /// Steven's fork (collection bar): the in-collection search layer is open.
+    @State private var searching = false
+
+    /// The rows the filter keeps (all of them with no filter).
+    private var filteredRows: [FolderStripRow] {
+        CollectionTypeFilter.rows(model.stripRows, filter: typeFilter)
+    }
+
     var body: some View {
         let geo = geometry
-        let allRows = model.stripRows
+        let allRows = filteredRows
         let shownRows = FolderRowsPlan.visible(allRows, focusedTabIndex: deepestFocusedTab)
         let state = FolderRowsPlan.pageState(allRows, allSettled: model.allSettled)
         let folderIdentity = folderPreview.map { "\($0.type):\($0.id)" }
@@ -103,10 +113,24 @@ struct FolderRowsPage: View {
                 stripArea(state: state, rows: shownRows, geometry: geo)
                     .frame(height: geo.stripHeight)
             }
+            // The search layer owns focus while open.
+            .disabled(searching)
             // Steven's fork: drawn above the strip so its black intro covers the whole page.
             FolderStageLogoLayer(title: model.folderTitle,
                                  logoUrl: model.titleLogoUrl,
                                  geometry: geo)
+            // Steven's fork (collection bar): Search / Films / Séries, top-left like Home's bar.
+            if NavigationChrome.isOrbitBar() {
+                CollectionFilterBar(filter: $typeFilter, onSearch: { searching = true })
+                    .opacity(searching ? 0 : 1)
+                    .disabled(searching)
+                if searching {
+                    CollectionSearchLayer(tabs: model.tabs, typeFilter: typeFilter) {
+                        searching = false
+                    }
+                    .transition(.opacity)
+                }
+            }
             #if DEBUG
             FolderRowsProbeLabel(debug: debug,
                                  stageDebug: stage.swap.debug,
@@ -428,7 +452,7 @@ struct FolderRowsPage: View {
         // `stripFocusGained` never arms a trailer here (only `StageStripHome` arms one).
         stage.stripFocusGained()
         stage.noteStripRowChanged(key: key)
-        let rows = model.stripRows
+        let rows = filteredRows
         if let tab = rows.first(where: { $0.id == key })?.order, tab > (deepestFocusedTab ?? Int.min) {
             deepestFocusedTab = tab
         }

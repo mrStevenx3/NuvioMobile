@@ -157,6 +157,15 @@ nonisolated struct FolderTabSnapshot {
 }
 
 extension FolderTabSnapshot {
+    /// Steven's fork (collection bar): the tab's catalog type, from its target.
+    var contentType: String? {
+        switch target {
+        case .collectionSource(_, let contentType, _)?: return contentType
+        case .addon(_, let contentType, _, _, _)?: return contentType
+        case nil: return nil
+        }
+    }
+
     /// The view model's mapping, exactly `getCatalogSectionsForRows`'s target rule: TMDB and Trakt
     /// tabs need their `sourceKey`, add-on tabs their `manifestUrl`.
     init(tab: FolderTab, tabIndex: Int) {
@@ -262,7 +271,8 @@ nonisolated enum FolderRowsPlan {
                                   section: rowSection,
                                   itemKeys: rowStatus == .loaded ? t.items.prefix(previewLimit).map(itemKey) : [],
                                   itemCount: t.items.count,
-                                  hasMore: t.canLoadMore)
+                                  hasMore: t.canLoadMore,
+                                  contentType: t.contentType)
         }
     }
 

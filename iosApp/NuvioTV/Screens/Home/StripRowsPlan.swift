@@ -46,6 +46,9 @@ nonisolated struct StripRow: Identifiable, Equatable {
     let itemCount: Int
     /// The row can page further (`hasMore`, the See All gate), part of the equality key.
     let hasMore: Bool
+    /// Steven's fork (collection bar): the row's catalog type ("movie", "series"…), for the
+    /// collection page's Films / Séries filter. Not part of the equality key.
+    var contentType: String? = nil
 
     var isFocusable: Bool { status == .loaded }
 
