@@ -65,8 +65,6 @@ struct FolderRowsPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @AppStorage("no_zoom_on_focus") private var noZoomOnFocus = false
-    /// Steven's fork: Home's "Infos sous l'affiche" here too, so a collection reads like Films / Séries.
-    @AppStorage(StageInfoBelow.defaultsKey) private var infoBelow = false
     /// B1: Show Catalog Details in Headings (`HeadingDetailsSetting`), the folder line's gate.
     @AppStorage(HeadingDetailsSetting.defaultsKey) private var catalogDetailsInHeadings = HeadingDetailsSetting.defaultValue
 
@@ -126,7 +124,6 @@ struct FolderRowsPage: View {
             stage.uncoverSource = "folder"
             stage.start()
             stage.swap.setReduceMotion(reduceMotion)
-            stage.swap.setHidesTextWhilePaging(infoBelow)
             if !initialFocusWaitOver {
                 DispatchQueue.main.asyncAfter(deadline: .now() + FolderRowsPlan.initialFocusWaitLimit) {
                     initialFocusWaitOver = true
@@ -181,8 +178,7 @@ struct FolderRowsPage: View {
 
     /// The same inputs as Home (S1), so the stage block sits exactly where Home's does.
     private var geometry: StripGeometry {
-        StripGeometry.make(.live(style: posterStyle, noZoom: noZoomOnFocus, leadingInset: railLeadingInset,
-                                 infoBelow: infoBelow))
+        StripGeometry.make(.live(style: posterStyle, noZoom: noZoomOnFocus, leadingInset: railLeadingInset))
     }
 
     // MARK: Strip
@@ -258,7 +254,6 @@ struct FolderRowsPage: View {
                     )
                     // Steven's fork: the same wako lead frame as Home's rows (`WakoLeadFrame`).
                     .environment(\.homeRowFocusLeads, true)
-                    .environment(\.wakoRestFrame, true)
                 }
             case .loading:
                 StripLoadingRow(heading: row.heading)

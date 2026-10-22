@@ -5577,14 +5577,6 @@ struct CatalogRowView: View {
                     // row is shorter than the slot its neighbours reserve). Rows whose cards are all
                     // one height (Home's) lay out exactly as before.
                     LazyHStack(alignment: .top, spacing: rowGap) {
-                        // Wako pass 12: one card's room before the first card, so even the first one
-                        // rests a step in (see `wakoAnchor`). Not focusable.
-                        if wakoFrame {
-                            Color.clear
-                                .frame(width: posterStyle.cardWidth, height: 1)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
                         ForEach(section.items, id: \.id) { item in
                             Group {
                                 if let onSelect {
@@ -5715,6 +5707,11 @@ struct CatalogRowView: View {
                     }
                     // Steven's fork (device pass 3): the cards are the row's scroll targets.
                     .scrollTargetLayout(isEnabled: focusLeads)
+                    // Wako pass 12: one card's room before the first card, so even the first one
+                    // rests a step in (see `wakoAnchor`). Pass 15: padding, not a 1-pt-tall first
+                    // child — the lazy stack sized its ideal height from it, so the collection
+                    // page's fitted pages came out a heading tall and its rows overlapped.
+                    .padding(.leading, wakoFrame ? posterStyle.cardWidth + rowGap : 0)
                     // ALWAYS positive — the reach lives inside the buttons' labels, the row's
                     // frame contains it whole, and nothing pokes outside the focus section.
                     // BUG-146: `lg` top and bottom everywhere but the Stage strip, whose top is
