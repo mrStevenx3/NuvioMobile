@@ -212,7 +212,7 @@ struct DiscoverGridPage: View {
                     let key = Self.tileKey(item)
                     NavigationLink(value: TitleRoute(preview: item)) {
                         if Self.netflixStyle {
-                            DiscoverLandscapeTile(item: item, size: Self.tileSize)
+                            DiscoverLandscapeTile(item: item, size: Self.tileSize, focused: focusedTile == key)
                         } else {
                             PosterCard(title: item.name, imageURL: item.poster, fallbackImageURL: item.rawPosterUrl)
                         }
@@ -466,6 +466,9 @@ extension MetaPreview {
 struct DiscoverLandscapeTile: View {
     let item: MetaPreview
     let size: CGSize
+    /// From the page's `@FocusState` (never `@Environment(\.isFocused)`, BUG-65): a white frame
+    /// and a small lift, like the Home frame.
+    var focused = false
 
     var body: some View {
         CachedAsyncImage(string: InlineTrailerCard.landscapeArtworkURL(item),
@@ -477,5 +480,13 @@ struct DiscoverLandscapeTile: View {
                 InlineTrailerTitleOverlay(item: item, tileWidth: size.width, tileHeight: size.height)
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 4)
+            }
+            .scaleEffect(focused ? 1.08 : 1)
+            .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: 18, y: 10)
+            .zIndex(focused ? 1 : 0)
+            .animation(.easeOut(duration: 0.18), value: focused)
     }
 }

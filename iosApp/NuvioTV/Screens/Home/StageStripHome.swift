@@ -106,6 +106,18 @@ struct StageStripHome: View {
                                  rowHeading: collection.title,
                                  prefetch: { HomeRowPreviews.collectionArtURLs(collection) })
                 }
+            } else if let studios = singleStudiosCollection {
+                // Steven's fork (Orbit Studios, one row): the row at the bottom of the screen under
+                // a large title, so the stage art shows above it.
+                VStack(alignment: .leading, spacing: 0) {
+                    Spacer(minLength: 0)
+                    collectionRow(studios)
+                        .environment(\.collectionRowLargeHeading, true)
+                        .padding(.leading, StripGeometry.edgeMargin)
+                        .padding(.bottom, 70)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .focusSection()
             } else {
             VStack(spacing: 0) {
                 // The stage block's place. Nothing focusable lives here, so Up from row 0 goes to
@@ -261,6 +273,14 @@ struct StageStripHome: View {
     /// strip like Films / Séries (Steven, pass 5), its folder tiles kept in their own portrait shape.
     private var showsCollectionGrid: Bool {
         contentFilter.filter == .services
+    }
+
+    /// Steven's fork (Orbit Studios): the page's only row, when it is a collection.
+    private var singleStudiosCollection: NuvioCollection? {
+        guard contentFilter.filter == .studios else { return nil }
+        let keys = rowKeys
+        guard keys.count == 1, case .collection(let collection)? = homeRow(for: keys[0]) else { return nil }
+        return collection
     }
 
     /// The collections the grid lays out: the page's rows, in Home's order.

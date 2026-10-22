@@ -72,6 +72,8 @@ struct CollectionRowView: View {
     @Environment(\.posterStyle) private var style
     /// BUG-146 second trim: nil outside the Stage strip (Classic keeps `md` under the heading).
     @Environment(\.stripFocusMemory) private var stripFocusMemory
+    /// Steven's fork (Orbit Studios page): the collection's title drawn large over its tiles.
+    @Environment(\.collectionRowLargeHeading) private var largeHeading
 
     /// rc14 (BUG-122): see `PinnedRowGeometry.shortRowLayoutCompensation`. The natural shelf is
     /// `shelfMinHeight`'s pre-floor value — the tallest tile plus its caption chrome, inside the
@@ -292,7 +294,7 @@ struct CollectionRowView: View {
             // engine; all paddings must stay positive).
             if cardTopReach == 0 {
                 Text(collection.title)
-                    .font(Theme.Font.sectionTitle)
+                    .font(largeHeading ? .system(size: 56, weight: .bold) : Theme.Font.sectionTitle)
                     .foregroundStyle(Theme.Palette.textPrimary)
                     .stripHeadingLineLimit()
             }
@@ -2289,4 +2291,17 @@ final class ClassicRowsFocusMemory {
     }
 
     func isCurrent(_ g: Int) -> Bool { g == generation }
+}
+
+
+/// Steven's fork (Orbit Studios page): `CollectionRowView` draws its heading large.
+private struct CollectionRowLargeHeadingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var collectionRowLargeHeading: Bool {
+        get { self[CollectionRowLargeHeadingKey.self] }
+        set { self[CollectionRowLargeHeadingKey.self] = newValue }
+    }
 }
