@@ -111,13 +111,13 @@ struct StageStripHome: View {
                 // Nuvio has.
                 Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255).ignoresSafeArea()
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
-                OrbitCollectionGrid(collections: gridCollections) { collection, folder in
+                OrbitCollectionGrid(collections: gridCollections, onFolderFocus: { collection, folder in
                     stage.report(folder.flatMap { HomeRowPreviews.folder(collection: collection, folder: $0,
                                                                          showsDetails: catalogDetailsInHeadings) },
                                  source: collection.id,
                                  rowHeading: collection.title,
                                  prefetch: { HomeRowPreviews.collectionArtURLs(collection) })
-                }
+                }, restoreGeneration: gridRestoreGeneration)
             } else if let studios = singleStudiosCollection {
                 // Steven's fork (Orbit Studios, one row): the row at the bottom of the screen under
                 // a large title, so the stage art shows above it.
@@ -257,8 +257,13 @@ struct StageStripHome: View {
         }
         // HomeView's `syncHeroFocusCover` rule: a push or the stream picker restores row focus when it
         // lifts; the shell alone (a tab switch, a cross-stack cover) does not.
-        .onChange(of: cover, initial: true) { _, _ in
+        .onChange(of: cover, initial: true) { old, new in
             syncCover(shell: nil)
+            // Plateformes: the grid's own tile restore on the pop (Steven: always back on Netflix).
+            if showsCollectionGrid {
+                if new.pushed, !old.pushed { OrbitCollectionGrid.notePush() }
+                if !new.pushed, old.pushed { gridRestoreGeneration &+= 1 }
+            }
         }
         .onReceive(tabBarVisibility.$homeSurfaceCovered) { covered in
             // `@Published` emits on willSet: use the payload, not the property.
@@ -327,6 +332,9 @@ struct StageStripHome: View {
     private var showsCollectionGrid: Bool {
         contentFilter.filter == .services
     }
+
+    /// Bumped when a folder pushed from the Plateformes grid pops (`OrbitCollectionGrid`).
+    @State private var gridRestoreGeneration = 0
 
     /// Pass 7: the Studios page's focused folder (its logo above the row).
     @State private var studiosFocusedFolderId: String?

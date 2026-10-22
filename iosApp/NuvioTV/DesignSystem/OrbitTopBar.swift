@@ -298,6 +298,9 @@ struct OrbitCollectionGrid: View {
     let collections: [NuvioCollection]
     /// The focused folder (nil when focus leaves the grid), for the stage.
     let onFolderFocus: (NuvioCollection, CollectionFolder?) -> Void
+    /// Bumped by Home on the pop of a folder pushed from the grid (`StageCover.pushed` going false),
+    /// in case the grid stayed mounted under the push and never re-appeared.
+    var restoreGeneration = 0
 
     private struct Entry: Identifiable {
         let collection: NuvioCollection
@@ -313,6 +316,15 @@ struct OrbitCollectionGrid: View {
     @MainActor private static var leftWithFocus = false
     @MainActor private static var lostAt: TimeInterval = 0
     @MainActor private static var appearedAt: TimeInterval = 0
+    /// Pass 4 (Steven: always back on Netflix): the tile the folder was opened from, kept at the
+    /// push. `lastFocused` itself is overwritten by the engine's own landing on the first tile,
+    /// which happens BEFORE the grid's `onAppear` on the pop.
+    @MainActor private static var pushedFrom: String?
+
+    /// Home, on the push edge while the grid is shown.
+    static func notePush() {
+        if let lastFocused { pushedFrom = lastFocused }
+    }
 
     private var entries: [Entry] {
         var seen = Set<String>()
@@ -370,9 +382,24 @@ struct OrbitCollectionGrid: View {
         // Only a return from a folder (the grid had focus when it went away), never an arrival
         // from the bar, which keeps focus where the viewer is.
         .onAppear {
-            guard Self.leftWithFocus, let last = Self.lastFocused,
-                  entries.contains(where: { $0.id == last }) else { return }
+            guard Self.leftWithFocus else { return }
             Self.leftWithFocus = false
+            restoreFocus()
+        }
+        .onChange(of: restoreGeneration) { _, _ in restoreFocus() }
+        // Device pass (still back on the first tile): the push takes focus off the tile before the
+        // grid disappears, so `focused` was already nil here. A loss just before counts.
+        .onDisappear {
+            let now = ProcessInfo.processInfo.systemUptime
+            Self.leftWithFocus = focused != nil || now - Self.lostAt < 1.0
+            if Self.leftWithFocus { Self.notePush() }
+        }
+    }
+
+    private func restoreFocus() {
+        guard let last = Self.pushedFrom ?? Self.lastFocused,
+              entries.contains(where: { $0.id == last }) else { return }
+        do {
             let appeared = ProcessInfo.processInfo.systemUptime
             Self.appearedAt = appeared
             restoreTarget = last
@@ -385,13 +412,10 @@ struct OrbitCollectionGrid: View {
                     focused = last
                 }
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { restoreTarget = nil }
-        }
-        // Device pass (still back on the first tile): the push takes focus off the tile before the
-        // grid disappears, so `focused` was already nil here. A loss just before counts.
-        .onDisappear {
-            let now = ProcessInfo.processInfo.systemUptime
-            Self.leftWithFocus = focused != nil || now - Self.lostAt < 1.0
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                restoreTarget = nil
+                Self.pushedFrom = nil
+            }
         }
     }
 }

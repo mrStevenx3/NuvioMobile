@@ -3,7 +3,7 @@ import SharedCore
 import SwiftUI
 
 // Steven's fork (Orbit Home): a hero at the very top of Home's Films and Séries pages, cycling
-// through TMDB's trending titles of the DAY (`trending/movie/day`, `trending/tv/day`; Steven
+// through TMDB's "incontournables" (most voted, rated 7.5+; see `fetch`). Was the trending titles (Steven
 // already has the week's as a catalog). It is the strip's first row: one focusable stop (Select
 // opens the title, Left / Right go to the previous / next one, it moves on by itself every few
 // seconds), and its title is reported to the stage like any focused card.
@@ -89,13 +89,21 @@ final class StageTrendingHeroModel: ObservableObject {
         let lang = language.isEmpty ? "en" : language
         let short = String(lang.prefix(2))
         let media = tv ? "tv" : "movie"
-        guard let url = URL(string: "https://api.themoviedb.org/3/trending/\(media)/day?api_key=\(apiKey)&language=\(lang)"),
+        // Pass 3 (Steven: the trending titles are the same as his Nouveaux films / Top 10 rows):
+        // "Les incontournables" — the most voted titles rated 7.5+, a different page of 20 every
+        // day of the week, shuffled, so the hero is a catalogue of its own.
+        let day = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
+        let page = day % 7 + 1
+        let address = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(lang)"
+            + "&sort_by=vote_count.desc&vote_average.gte=7.5&page=\(page)"
+        guard let url = URL(string: address),
               let response = try? await URLSession.shared.data(from: url),
               let trending = try? JSONDecoder().decode(TrendingResponse.self, from: response.0) else {
             NSLog("[TrendingHero] trending %@ request failed", media)
             return []
         }
-        let ids = (trending.results ?? []).prefix(limit).map(\.id)
+        var generator = SeededGenerator(seed: UInt64(day) &* (tv ? 7919 : 104_729))
+        let ids = Array((trending.results ?? []).map(\.id).shuffled(using: &generator).prefix(limit))
         let details = await withTaskGroup(of: (Int, Details?).self) { group in
             for (index, id) in ids.enumerated() {
                 group.addTask {
@@ -309,6 +317,9 @@ struct StageTrendingHeroRow: View {
     @ViewBuilder
     private func info(_ item: MetaPreview) -> some View {
         VStack(alignment: .leading, spacing: 14) {
+            Text("Les incontournables")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.85))
             if let logo = item.logo, !logo.isEmpty {
                 CachedAsyncImage(string: logo, contentMode: .fit, decodeSize: .points(width: 560, height: 170))
                     .frame(maxWidth: 560, maxHeight: 170, alignment: .bottomLeading)
@@ -356,5 +367,18 @@ struct StageTrendingHeroRow: View {
 private struct StageHeroButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+/// The day's shuffle, the same all day (the hero does not reshuffle on every launch).
+nonisolated struct SeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
     }
 }

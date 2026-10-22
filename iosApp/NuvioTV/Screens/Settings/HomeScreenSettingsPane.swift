@@ -137,9 +137,9 @@ struct HomeScreenSettingsPane: View {
             // Steven's fork: see `StageTrendingHero.swift` (Stage layout only).
             if isStage {
                 SettingsToggleRow(
-                    title: String(localized: "Hero des tendances"),
+                    title: String(localized: "Hero des incontournables"),
                     subtitle: trendingHeroOn
-                        ? String(localized: "Les films et séries tendance du jour sur TMDB défilent en haut de Films et Séries")
+                        ? String(localized: "Les incontournables (films et séries les mieux notés sur TMDB) défilent en haut de Films et Séries")
                         : String(localized: "L'accueil commence directement par les rangées"),
                     isOn: $trendingHeroOn
                 )

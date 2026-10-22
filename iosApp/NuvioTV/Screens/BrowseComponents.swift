@@ -226,8 +226,14 @@ struct WakoCardPlacement: ViewModifier {
     /// The drawn offset (0, or `shift` for the cards after the frame), always animated with the row's
     /// glide, so Left and Right mirror each other (wako pass 13).
     @State private var offsetX: CGFloat = 0
+    /// Pass 16 (Steven: Left still not natural): on a Left the card leaving the frame waits in its
+    /// slot, hidden, while the card that held that slot slides away, then fades in on the cleared
+    /// slot (it faded in on top of the sliding card).
+    @State private var waitsForSlot = false
+    @State private var waitGeneration = 0
 
     private var opacity: Double {
+        if waitsForSlot { return WakoLeadFrame.hiddenOpacity }
         switch place {
         case .none, .after: return 1
         case .lead, .before: return WakoLeadFrame.hiddenOpacity
@@ -238,12 +244,16 @@ struct WakoCardPlacement: ViewModifier {
         content
             .offset(x: offsetX)
             .opacity(opacity)
-            .animation(reduceMotion ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds), value: opacity)
+            // Pass 16 (Steven: a see-through poster while moving Right): a card going under the
+            // frame hides at once; it used to fade out over 0.4 s while sliding into the frame,
+            // half visible beside it. Only a card coming back fades (in).
+            .animation(reduceMotion || opacity < 1 ? nil : .easeOut(duration: WakoLeadFrame.fadeSeconds), value: opacity)
             .onChange(of: lead, initial: true) { oldLead, newLead in
                 let newPlace = WakoLeadFrame.place(index: index, lead: newLead)
                 let target: CGFloat = newPlace == .after ? shift : 0
                 var still = Transaction()
                 still.disablesAnimations = true
+                if waitsForSlot, newPlace != .after || oldLead != newLead { waitsForSlot = false }
                 if oldLead == newLead || reduceMotion {
                     if target != offsetX { withTransaction(still) { offsetX = target } }
                 } else if newPlace == .after, WakoLeadFrame.place(index: index, lead: oldLead) != .after,
@@ -251,8 +261,17 @@ struct WakoCardPlacement: ViewModifier {
                     // Wako pass 15 (Steven, device video): on a Left the card leaving the frame no
                     // longer slides out from under it; it appears in place, in its slot, fading in
                     // (the row's glide is cancelled for it). Pass 11's hold-still, restored.
-                    withTransaction(still) { offsetX = target + CGFloat(oldLead - newLead) * step }
+                    withTransaction(still) {
+                        offsetX = target + CGFloat(oldLead - newLead) * step
+                        waitsForSlot = true
+                    }
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
+                    waitGeneration &+= 1
+                    let generation = waitGeneration
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                        guard generation == waitGeneration else { return }
+                        waitsForSlot = false
+                    }
                 } else if target != offsetX {
                     withAnimation(FocusLeadsRow.animation) { offsetX = target }
                 }
