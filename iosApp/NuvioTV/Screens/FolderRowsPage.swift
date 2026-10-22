@@ -88,14 +88,12 @@ struct FolderRowsPage: View {
             StageView(controller: stage,
                       geometry: geo,
                       hidesLogoWhenDisplaying: folderIdentity,
-                      hidesLogo: FolderStageLogo.docked(followsFocus: followsFocus),
+                      // Steven's fork: the folder logo never docks in the stage's slot any more (it
+                      // goes straight to the top-left corner after its intro), so the slot is the
+                      // stage title's own from the start, top-aligned as after the old rise.
+                      hidesLogo: false,
                       probeID: "debug_stage_folder",
-                      // BUG-190: top-aligned once the folder logo has risen out of the slot.
-                      logoAlignment: FolderStageLogo.docked(followsFocus: followsFocus) ? .bottomLeading : .topLeading)
-            FolderStageLogoLayer(title: model.folderTitle,
-                                 logoUrl: model.titleLogoUrl,
-                                 geometry: geo,
-                                 docked: FolderStageLogo.docked(followsFocus: followsFocus))
+                      logoAlignment: .topLeading)
             VStack(spacing: 0) {
                 // The stage block's place: nothing focusable lives here, so Up from the top row
                 // goes straight to the Edit band.
@@ -105,6 +103,10 @@ struct FolderRowsPage: View {
                 stripArea(state: state, rows: shownRows, geometry: geo)
                     .frame(height: geo.stripHeight)
             }
+            // Steven's fork: drawn above the strip so its black intro covers the whole page.
+            FolderStageLogoLayer(title: model.folderTitle,
+                                 logoUrl: model.titleLogoUrl,
+                                 geometry: geo)
             #if DEBUG
             FolderRowsProbeLabel(debug: debug,
                                  stageDebug: stage.swap.debug,
@@ -504,40 +506,91 @@ final class FolderRowsPageBox {
 // MARK: - Folder logo (§2.5)
 
 /// One persistent layer, always mounted, never removed or re-identified (Steven: "title always
-/// visible"): the folder's title logo, or its name in `Theme.Font.hero` when it has none. Docked
-/// in the stage's logo slot at full size until the first move, then risen to 60 % above the stage
-/// block with the strip's page curve, and never re-docked (Q1).
+/// visible"): the folder's title logo, or its name in `Theme.Font.hero` when it has none.
+///
+/// Steven's fork (collections pass 1): opening a folder plays an intro like an app launch on Apple
+/// TV — the logo shows large in the middle of a black screen, then glides to the top-left corner
+/// (its compact place, `FolderStageLogo.compactTop`) while the black fades away, and stays there.
+/// It no longer docks in the stage's logo slot or waits for the first move. Reduce Motion skips
+/// the intro. The intro plays once per page; a pop back from Detail finds the logo in its corner.
 private struct FolderStageLogoLayer: View {
     let title: String
     let logoUrl: String?
     let geometry: StripGeometry
-    let docked: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private enum Phase { case hidden, splash, settled }
+    @State private var phase: Phase = .hidden
+
     var body: some View {
-        let slot = geometry.logoSlot
-        TitleLogoHeader(title: title,
-                        logoUrl: logoUrl,
-                        alignment: .topLeading,
-                        textFont: Theme.Font.hero,
-                        slotHeight: slot,
-                        decodeSize: .points(width: Theme.Size.heroInfoPanelWidth, height: slot))
-            // A long folder name wraps inside the slot instead of running into the meta line.
-            .lineLimit(2)
-            .minimumScaleFactor(0.6)
-            .multilineTextAlignment(.leading)
-            .frame(width: Theme.Size.heroInfoPanelWidth, height: slot, alignment: .topLeading)
-            .scaleEffect(docked ? 1 : FolderStageLogo.compactScale, anchor: .topLeading)
-            .offset(y: FolderStageLogo.offsetY(docked: docked, blockTop: geometry.stageBlockTop, slot: slot))
-            // The strip's page curve, so the rise and a Down's glide retune together.
-            .animation(reduceMotion ? nil : .easeOut(duration: StageStripTuning.pageSeconds), value: docked)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("folder_stage_logo")
-            .padding(.top, geometry.stageBlockTop)
-            .padding(.leading, geometry.stageBlockLeading)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .allowsHitTesting(false)
+        GeometryReader { screen in
+            let slot = geometry.logoSlot
+            let width = Theme.Size.heroInfoPanelWidth
+            let compactScale = FolderStageLogo.compactScale
+            let leading = geometry.stageBlockLeading
+            let compactTop = FolderStageLogo.compactTop(blockTop: geometry.stageBlockTop, slot: slot)
+            // The frame sits at (0, 0); everything below is the offset of its CENTRE (scale anchor).
+            let splashCenter = CGPoint(x: screen.size.width / 2, y: screen.size.height / 2)
+            let settledCenter = CGPoint(x: leading + width * compactScale / 2,
+                                        y: compactTop + slot * compactScale / 2)
+            let center = phase == .settled ? settledCenter : splashCenter
+            let scale: CGFloat = switch phase {
+            case .hidden: FolderStageIntro.splashScale * 0.85
+            case .splash: FolderStageIntro.splashScale
+            case .settled: compactScale
+            }
+            ZStack(alignment: .topLeading) {
+                Color.black
+                    .opacity(phase == .settled ? 0 : 1)
+                    .ignoresSafeArea()
+                TitleLogoHeader(title: title,
+                                logoUrl: logoUrl,
+                                alignment: phase == .settled ? .topLeading : .center,
+                                textFont: Theme.Font.hero,
+                                slotHeight: slot,
+                                decodeSize: .points(width: width * FolderStageIntro.splashScale,
+                                                    height: slot * FolderStageIntro.splashScale))
+                    // A long folder name wraps inside the slot instead of running into the meta line.
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                    .multilineTextAlignment(phase == .settled ? .leading : .center)
+                    .frame(width: width, height: slot, alignment: phase == .settled ? .topLeading : .center)
+                    .scaleEffect(scale, anchor: .center)
+                    .opacity(phase == .hidden ? 0 : 1)
+                    .offset(x: center.x - width / 2, y: center.y - slot / 2)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("folder_stage_logo")
+            }
+        }
+        .allowsHitTesting(false)
+        .onAppear(perform: playIntro)
     }
+
+    private func playIntro() {
+        guard phase == .hidden else { return }
+        if reduceMotion {
+            phase = .settled
+            return
+        }
+        withAnimation(.easeOut(duration: FolderStageIntro.appearSeconds)) { phase = .splash }
+        DispatchQueue.main.asyncAfter(deadline: .now() + FolderStageIntro.appearSeconds + FolderStageIntro.holdSeconds) {
+            withAnimation(.spring(response: FolderStageIntro.glideSeconds, dampingFraction: 0.88)) {
+                phase = .settled
+            }
+        }
+    }
+}
+
+/// Steven's fork (collections pass 1): the folder intro's timing and size.
+nonisolated enum FolderStageIntro {
+    /// The logo's size on the black intro screen, relative to the stage logo slot.
+    static let splashScale: CGFloat = 1.5
+    /// Fade + slight zoom in of the logo on black.
+    static let appearSeconds = 0.35
+    /// How long the big logo stays before it glides away.
+    static let holdSeconds = 0.6
+    /// The glide to the top-left corner (spring response).
+    static let glideSeconds = 0.75
 }
 
 // MARK: - Non-focusable rows (§2.3)

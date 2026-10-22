@@ -25,3 +25,5 @@ Préparer : Java 17 (temurin), `git clone` + `git submodule update --init MPVKit
 quickjs-kt 1.0.5-tvos via `scaffolding/build-quickjs-tvos.sh` du dépôt youngchris29-art/NuvioTV @6265f00,
 local.properties (mêmes clés que les secrets), puis `./gradlew :shared:linkDebugFrameworkTvosSimulatorArm64`
 et xcodebuild scheme NuvioTV (simulateur tvOS, ARCHS=arm64). 8 Go de RAM : GRADLE_OPTS=-Xmx4g.
+- Collections (accueil Stage, `FolderRowsPage`) : à l'ouverture, logo en grand sur fond noir puis glisse
+  en haut à gauche (`FolderStageLogoLayer`, réglages `FolderStageIntro`) ; plus de logo « docké » dans le stage.
