@@ -187,9 +187,9 @@ object FolderDetailRepository {
         }
         activeInputsSnapshot = retainedInputs(collection, folder)
 
-        val sources = folder.resolvedSources
-        val showAll = collection.showAllTab && sources.size > 1
         val addons = AddonRepository.uiState.value.addons
+        val sources = expandGenreRows(folder.resolvedSources, addons)
+        val showAll = collection.showAllTab && sources.size > 1
 
         val tabs = buildList {
             if (showAll) {
@@ -617,3 +617,31 @@ private fun traktCatalogId(source: CollectionSource): String =
         TraktListSort.normalize(source.sortBy),
         TraktSortHow.normalize(source.sortHow),
     ).joinToString("_")
+
+// Steven's fork (genre rows): a folder source on one of Steven's platform add-ons' "everything"
+// catalogs ("Tous les films" = `<prefix>-all-movies`, "Toutes les séries" = `<prefix>-all-series`),
+// added WITHOUT a genre, opens as one row per preferred genre the catalog offers — so a collection
+// gets Action, Comédie, … rows without adding each one in the editor. A source that already has a
+// genre, or a catalog offering none of these genres, is left as it is.
+private val preferredMovieGenres = listOf(
+    "Action", "Aventure", "Animation", "Comédie", "Drame", "Horreur", "Science-Fiction", "Thriller",
+)
+private val preferredSeriesGenres = listOf(
+    "Action & Aventure", "Animation", "Comédie", "Drame", "Crime", "Mystère", "Science-Fiction & Fantastique",
+)
+
+private fun expandGenreRows(
+    sources: List<CollectionSource>,
+    addons: List<com.nuvio.app.features.addons.ManagedAddon>,
+): List<CollectionSource> = sources.flatMap { source ->
+    val catalogSource = source.addonCatalogSource()
+    val catalogId = catalogSource?.catalogId.orEmpty()
+    val everything = catalogId.endsWith("-all-movies") || catalogId.endsWith("-all-series")
+    if (catalogSource == null || catalogSource.genre != null || !everything) return@flatMap listOf(source)
+    val catalog = addons.findCollectionCatalog(catalogSource)?.catalog ?: return@flatMap listOf(source)
+    val options = catalog.extra.firstOrNull { it.name == "genre" }?.options.orEmpty()
+    val preferred = if (catalogId.endsWith("-all-movies")) preferredMovieGenres else preferredSeriesGenres
+    val genres = preferred.filter { it in options }
+    if (genres.isEmpty()) listOf(source) else genres.map { source.copy(genre = it) }
+}
+
