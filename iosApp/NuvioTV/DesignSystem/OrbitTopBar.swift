@@ -418,8 +418,17 @@ enum CollectionTypeFilter {
         return filter == "movie" ? contentType == "movie" : contentType != "movie"
     }
 
+    /// Pass 2 (Steven: a series catalog showed under Films): the catalog's own name wins over its
+    /// declared type ("Nouvelles séries" is a series row even when its add-on declares "movie").
+    static func effectiveType(declared: String?, name: String) -> String? {
+        let n = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        if n.contains("serie") || n.contains("show") || n.contains("anime") { return "series" }
+        if n.contains("film") || n.contains("movie") { return "movie" }
+        return declared
+    }
+
     static func rows(_ rows: [FolderStripRow], filter: String?) -> [FolderStripRow] {
         guard filter != nil else { return rows }
-        return rows.filter { keeps($0.contentType, filter: filter) }
+        return rows.filter { keeps(effectiveType(declared: $0.contentType, name: $0.heading), filter: filter) }
     }
 }

@@ -51,7 +51,8 @@ struct CollectionSearchLayer: View {
         guard !words.isEmpty else { return [] }
         var out: [MetaPreview] = []
         var seen = Set<String>()
-        for tab in tabs where !tab.isAllTab && CollectionTypeFilter.keeps(tab.type, filter: typeFilter) {
+        for tab in tabs where !tab.isAllTab && CollectionTypeFilter.keeps(CollectionTypeFilter.effectiveType(declared: tab.type, name: tab.label),
+                                                                        filter: typeFilter) {
             for item in tab.items {
                 let name = item.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
                 guard words.allSatisfy({ name.contains($0) }), seen.insert(item.id).inserted else { continue }

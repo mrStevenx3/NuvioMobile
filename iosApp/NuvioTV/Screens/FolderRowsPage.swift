@@ -72,8 +72,9 @@ struct FolderRowsPage: View {
     @State private var typeFilter: String?
     /// Steven's fork (collection bar): the in-collection search layer is open.
     @State private var searching = false
-    /// The collection bar's width: the settled folder logo sits just left of it.
-    @State private var collectionBarWidth: CGFloat = 0
+    /// Pass 3 (Steven): the folder logo in the corner, the bar just left of it — the settled
+    /// logo's drawn width sets the bar's gap to the edge.
+    @State private var folderLogoWidth: CGFloat = 0
 
     /// The rows the filter keeps (all of them with no filter).
     private var filteredRows: [FolderStripRow] {
@@ -121,13 +122,11 @@ struct FolderRowsPage: View {
             FolderStageLogoLayer(title: model.folderTitle,
                                  logoUrl: model.titleLogoUrl,
                                  geometry: geo,
-                                 trailingReserve: NavigationChrome.isOrbitBar() && collectionBarWidth > 0
-                                     ? collectionBarWidth + 28 : 0)
+                                 onLogoWidth: { if abs($0 - folderLogoWidth) > 0.5 { folderLogoWidth = $0 } })
             // Steven's fork (collection bar): Search / Films / Séries, top-left like Home's bar.
             if NavigationChrome.isOrbitBar() {
                 CollectionFilterBar(filter: $typeFilter,
-                                    trailing: FolderStageIntro.trailingMargin,
-                                    onWidth: { if abs($0 - collectionBarWidth) > 0.5 { collectionBarWidth = $0 } },
+                                    trailing: FolderStageIntro.trailingMargin + folderLogoWidth + 28,
                                     onSearch: { searching = true })
                     .opacity(searching ? 0 : 1)
                     .disabled(searching)
@@ -552,8 +551,8 @@ private struct FolderStageLogoLayer: View {
     let title: String
     let logoUrl: String?
     let geometry: StripGeometry
-    /// Steven's fork (collection bar): room kept right of the settled logo for the bar.
-    var trailingReserve: CGFloat = 0
+    /// Steven's fork (collection bar): the settled logo's drawn width (points, compact scale).
+    var onLogoWidth: (CGFloat) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Phase { case hidden, splash, settled }
@@ -567,8 +566,7 @@ private struct FolderStageLogoLayer: View {
             let compactTop = FolderStageLogo.compactTop(blockTop: geometry.stageBlockTop, slot: slot)
             // The frame sits at (0, 0); everything below is the offset of its CENTRE (scale anchor).
             let splashCenter = CGPoint(x: screen.size.width / 2, y: screen.size.height / 2)
-            let settledCenter = CGPoint(x: screen.size.width - FolderStageIntro.trailingMargin - trailingReserve
-                                            - width * compactScale / 2,
+            let settledCenter = CGPoint(x: screen.size.width - FolderStageIntro.trailingMargin - width * compactScale / 2,
                                         y: compactTop + slot * compactScale / 2)
             let center = phase == .settled ? settledCenter : splashCenter
             let scale: CGFloat = switch phase {
@@ -587,6 +585,7 @@ private struct FolderStageLogoLayer: View {
                                 slotHeight: slot,
                                 decodeSize: .points(width: width * FolderStageIntro.splashScale,
                                                     height: slot * FolderStageIntro.splashScale))
+                    .reportsContentWidth { onLogoWidth(min($0, width) * compactScale) }
                     // A long folder name wraps inside the slot instead of running into the meta line.
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)

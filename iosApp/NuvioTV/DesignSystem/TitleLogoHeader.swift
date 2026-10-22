@@ -31,6 +31,15 @@ struct TitleLogoHeader: View {
     private let upgrade: ArtworkURLUpgrade.Role?
     @State private var image: UIImage?
     @Environment(\.displayScale) private var displayScale
+    /// Steven's fork (collection bar): the drawn logo's (or text's) width, for a neighbour that
+    /// sits beside it. nil everywhere else (nothing measured).
+    private var onContentWidth: ((CGFloat) -> Void)?
+
+    func reportsContentWidth(_ report: @escaping (CGFloat) -> Void) -> TitleLogoHeader {
+        var copy = self
+        copy.onContentWidth = report
+        return copy
+    }
 
     init(
         title: String,
@@ -74,12 +83,14 @@ struct TitleLogoHeader: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .modifier(ContentWidthReport(report: onContentWidth))
                     .frame(maxWidth: Theme.Size.heroLogoMaxWidth, maxHeight: slotHeight, alignment: alignment)
                     .accessibilityLabel(title)
             } else {
                 Text(title)
                     .font(textFont)
                     .foregroundStyle(Theme.Palette.textPrimary)
+                    .modifier(ContentWidthReport(report: onContentWidth))
             }
         }
         // Codex round 1: when a logo is configured, text-while-loading and the loaded logo share
@@ -125,5 +136,19 @@ extension TitleLogoHeader {
     static func slotHeight(logoUrl: String?, slotHeight: CGFloat) -> CGFloat? {
         guard let logoUrl, URL(string: logoUrl) != nil else { return nil }
         return slotHeight
+    }
+}
+
+
+/// Steven's fork: reports a view's width when asked to, and is inert otherwise.
+private struct ContentWidthReport: ViewModifier {
+    let report: ((CGFloat) -> Void)?
+
+    func body(content: Content) -> some View {
+        if let report {
+            content.onGeometryChange(for: CGFloat.self) { $0.size.width } action: { report($0) }
+        } else {
+            content
+        }
     }
 }
