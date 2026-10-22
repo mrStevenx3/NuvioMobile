@@ -69,7 +69,8 @@ struct FolderRowsPage: View {
     @AppStorage(HeadingDetailsSetting.defaultsKey) private var catalogDetailsInHeadings = HeadingDetailsSetting.defaultValue
 
     /// Steven's fork (collection bar): the Films / Séries filter ("movie", "series"; nil = all).
-    @State private var typeFilter: String?
+    /// Pass 4 (Steven): a collection opens on Films with the Orbit bar, like Home.
+    @State private var typeFilter: String? = NavigationChrome.isOrbitBar() ? "movie" : nil
     /// Steven's fork (collection bar): the in-collection search layer is open.
     @State private var searching = false
     /// Pass 3 (Steven): the folder logo in the corner, the bar just left of it — the settled

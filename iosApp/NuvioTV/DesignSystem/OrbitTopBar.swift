@@ -411,7 +411,7 @@ struct CollectionFilterBar: View {
 
     private func select(_ item: OrbitBarItem) {
         guard let type = type(of: item) else { onSearch(); return }
-        filter = filter == type ? nil : type
+        filter = type
     }
 }
 
