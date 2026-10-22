@@ -150,6 +150,16 @@ struct OrbitTopBar: View {
         .disabled(immersive)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: immersive)
         .onReceive(tabBarVisibility.$immersiveHidden) { immersive = $0 }
+        // Pass 6: the hidden system tab bar is still focusable (Search's system field sends focus
+        // into it, and every remote press then went nowhere). The rail's blocker, mounted here
+        // too, takes it out of the focus engine; a landing there anyway comes back to the bar.
+        .background(alignment: .topLeading) {
+            HiddenTabBarFocusBlocker(onFocusLandedInHiddenBar: {
+                DispatchQueue.main.async { focused = currentItem }
+            })
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+        }
         .onChange(of: focused) { _, item in
             guard !placedLaunchFocus, let item else { return }
             placedLaunchFocus = true
