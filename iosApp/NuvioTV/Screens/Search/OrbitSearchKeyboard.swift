@@ -14,6 +14,7 @@ struct OrbitSearchKeyboard: View {
     private static let modeKey = "#mode"
     private static let spaceKey = "#space"
     private static let deleteKey = "#delete"
+    private static let dictateKey = "#dictate"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -34,6 +35,7 @@ struct OrbitSearchKeyboard: View {
                     key(char) { Text(char).font(.system(size: 34, weight: .semibold)) }
                 }
                 key(Self.deleteKey) { Image(systemName: "delete.left").font(.system(size: 28, weight: .semibold)) }
+                dictateKey
             }
             .focusSection()
             // Up from the results lands back on the key last used (the engine's default otherwise).
@@ -62,6 +64,32 @@ struct OrbitSearchKeyboard: View {
         }
         .buttonStyle(OrbitKeyButtonStyle())
         .focused($focusedKey, equals: id)
+    }
+
+    /// Pass 2 (Steven: Siri dictation is a must): a system text field drawn as a mic key. Selecting
+    /// it opens tvOS's full-screen keyboard on the query, where holding the Siri button dictates and
+    /// the iPhone keyboard types; the results update behind it as the text changes.
+    private var dictateKey: some View {
+        let focused = focusedKey == Self.dictateKey
+        return TextField("", text: $queryBox.text)
+            .textFieldStyle(.plain)
+            .foregroundStyle(Color.clear)
+            .tint(Color.clear)
+            .frame(width: 96, height: 58)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(focused ? Color.white : Color.white.opacity(0.14))
+            }
+            .overlay {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(focused ? Color.black : Color.white)
+                    .allowsHitTesting(false)
+            }
+            .scaleEffect(focused ? 1.12 : 1)
+            .animation(.easeOut(duration: 0.12), value: focused)
+            .focused($focusedKey, equals: Self.dictateKey)
+            .accessibilityLabel(Text("Dicter"))
     }
 
     private func press(_ id: String) {
