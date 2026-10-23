@@ -119,56 +119,58 @@ private final class OrbitSearchHostController: UIViewController {
     }
 }
 
-/// Under the keyboard: the recent searches while the field is empty, else the suggestions and
-/// the titles found.
+/// Under the keyboard: the recent searches while the field is empty, else every title found as
+/// ONE poster grid across the screen (Steven, device pass: with a suggestions column beside the
+/// grid, Down jumped to the bottom and Right back up, the focus engine hopping between two columns
+/// of different heights). Titles without a poster are left out (they drew empty tiles).
 private struct OrbitSearchResults: View {
     @ObservedObject var model: SearchViewModel
     let onPick: (String) -> Void
     let onOpen: (MetaPreview) -> Void
 
-    private static let listWidth: CGFloat = 420
-    private static let columns = 5
-    private static let spacing: CGFloat = 32
+    private static let columns = 7
+    private static let spacing: CGFloat = 30
 
     var body: some View {
-        let gridWidth = OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin - Self.listWidth - 56
+        let gridWidth = OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin
         let posterWidth = floor((gridWidth - CGFloat(Self.columns - 1) * Self.spacing) / CGFloat(Self.columns))
-        let items = SearchGridResults.items(top: model.topResult, rows: model.rows)
-        let entries = model.queryIsEmpty ? model.history
-            : SearchGridResults.entries(suggestions: model.suggestions, items: items)
+        let items = SearchGridResults.items(top: model.topResult, rows: model.rows).filter { item in
+            let poster: String? = item.poster
+            return !(poster?.isEmpty ?? true)
+        }
         ScrollView(.vertical) {
-            HStack(alignment: .top, spacing: 56) {
-                VStack(alignment: .leading, spacing: 6) {
-                    if model.queryIsEmpty, !entries.isEmpty {
+            VStack(alignment: .leading, spacing: 28) {
+                if model.queryIsEmpty {
+                    if !model.history.isEmpty {
                         Text("Recherches récentes")
                             .font(.system(size: 26, weight: .semibold))
                             .foregroundStyle(Color.white.opacity(0.55))
-                            .padding(.leading, 18)
-                            .padding(.bottom, 8)
-                    }
-                    ForEach(entries, id: \.self) { entry in
-                        Button { onPick(entry) } label: {
-                            OrbitSearchEntry(text: entry)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(model.history, id: \.self) { entry in
+                                    Button { onPick(entry) } label: {
+                                        OrbitSearchEntry(text: entry)
+                                    }
+                                    .buttonStyle(OrbitSearchEntryStyle())
+                                }
+                            }
+                            .padding(.vertical, 6)
                         }
-                        .buttonStyle(OrbitSearchEntryStyle())
+                        .scrollClipDisabled()
+                        .focusSection()
                     }
-                }
-                .frame(width: Self.listWidth, alignment: .leading)
-                .focusSection()
-
-                VStack(alignment: .leading, spacing: 24) {
-                    if !model.queryIsEmpty {
-                        if items.isEmpty, model.isLoading {
-                            ProgressView()
-                        } else if items.isEmpty {
-                            Text("Aucun résultat.")
-                                .font(.system(size: 28, weight: .medium))
-                                .foregroundStyle(Color.white.opacity(0.6))
-                        }
+                } else if items.isEmpty {
+                    if model.isLoading {
+                        ProgressView()
+                    } else {
+                        Text("Aucun résultat.")
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.6))
                     }
+                } else {
                     LazyVGrid(columns: Array(repeating: GridItem(.fixed(posterWidth), spacing: Self.spacing, alignment: .top),
                                              count: Self.columns),
-                              alignment: .leading, spacing: Self.spacing) {
+                              alignment: .leading, spacing: Self.spacing + 10) {
                         ForEach(items, id: \.id) { item in
                             Button { onOpen(item) } label: {
                                 PosterCard(title: item.name, imageURL: item.poster, fallbackImageURL: item.rawPosterUrl,
@@ -178,15 +180,16 @@ private struct OrbitSearchResults: View {
                             .posterButtonShape()
                         }
                     }
+                    .focusSection()
                 }
-                .frame(width: gridWidth, alignment: .topLeading)
-                .focusSection()
             }
+            .frame(width: gridWidth, alignment: .topLeading)
             .padding(.horizontal, OrbitHomeLayout.margin)
-            .padding(.top, 30)
+            // Room for the focused poster's lift: the page is clipped at its top now, so the posters
+            // no longer slide up under the Orbit bar.
+            .padding(.top, 40)
             .padding(.bottom, 80)
         }
-        .scrollClipDisabled()
     }
 }
 
@@ -200,7 +203,7 @@ private struct OrbitSearchEntry: View {
             .truncationMode(.tail)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
-            .frame(width: 420, alignment: .leading)
+            .fixedSize()
     }
 }
 
