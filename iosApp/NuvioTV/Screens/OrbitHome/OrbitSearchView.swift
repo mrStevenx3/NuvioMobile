@@ -117,7 +117,8 @@ final class OrbitSearchBridge {
 /// Steven (device pass): Menu sent the cursor to the hidden system tab bar (it vanished, and the
 /// next Down misbehaved). Menu is the page's own here: from the results it goes back up to the
 /// keyboard (results scrolled to their top); from the keyboard it goes to the Orbit bar.
-private final class OrbitSearchHostController: UIViewController {
+private final class OrbitSearchHostController: UIViewController, UIGestureRecognizerDelegate {
+    private weak var upRecognizer: UIGestureRecognizer?
     weak var searchBar: UISearchBar?
     weak var results: OrbitSearchResultsController?
     private var focusTarget: UIFocusEnvironment?
@@ -128,6 +129,11 @@ private final class OrbitSearchHostController: UIViewController {
         let menu = UITapGestureRecognizer(target: self, action: #selector(menuPressed))
         menu.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
         view.addGestureRecognizer(menu)
+        let up = UITapGestureRecognizer(target: self, action: #selector(upPressed))
+        up.allowedPressTypes = [NSNumber(value: UIPress.PressType.upArrow.rawValue)]
+        up.delegate = self
+        view.addGestureRecognizer(up)
+        upRecognizer = up
     }
 
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
@@ -135,17 +141,39 @@ private final class OrbitSearchHostController: UIViewController {
         return super.preferredFocusEnvironments
     }
 
+    /// Steven: Menu in the results goes to their first line (same column); from the first line or
+    /// the suggestions, to the keyboard; from the keyboard, to the Orbit bar.
     @objc private func menuPressed() {
         let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
-        if let results, let focused, focused.isDescendant(of: results.view), let searchBar {
-            results.scrollToTop()
-            focusTarget = searchBar
-            setNeedsFocusUpdate()
-            updateFocusIfNeeded()
-            focusTarget = nil
+        if let results, let focused, let place = results.focusedPlace(focused) {
+            if !place.suggestions, place.line > 0, let target = results.prepareFirstLine(column: place.column) {
+                move(to: target)
+            } else if let searchBar {
+                move(to: searchBar)
+            }
         } else {
             NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
         }
+    }
+
+    /// Up from the keyboard: the Orbit bar (the system sent it to the hidden tab bar: no way up).
+    @objc private func upPressed() {
+        NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
+    }
+
+    private func move(to target: UIFocusEnvironment) {
+        focusTarget = target
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        focusTarget = nil
+    }
+
+    // Up is taken only while the focus is NOT in the results (the keyboard or the field).
+    func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive press: UIPress) -> Bool {
+        guard recognizer === upRecognizer else { return true }
+        let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+        guard let focused, let results else { return true }
+        return !focused.isDescendant(of: results.view)
     }
 }
 

@@ -48,7 +48,8 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: Self.layout())
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.backgroundColor = .clear
-        collectionView.remembersLastFocusedIndexPath = true
+        // The page picks the focused cell itself on Menu (`focusFirstLine`).
+        collectionView.remembersLastFocusedIndexPath = false
         collectionView.delegate = self
         collectionView.contentInset = UIEdgeInsets(top: 30, left: 0, bottom: 80, right: 0)
         view.addSubview(collectionView)
@@ -95,14 +96,51 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         apply()
     }
 
-    private func apply() {
-        let found = SearchGridResults.items(top: model.topResult, rows: model.rows).filter { item in
-            let poster: String? = item.poster
-            return !(poster?.isEmpty ?? true)
+    /// Steven: titles whose poster does not load drew grey squares. A title shows once its poster
+    /// is loaded (at the cell's own decode size), never if it fails.
+    private var posterLoaded: [String: Bool] = [:]
+    private var reapplyScheduled = false
+
+    private var posterRequest: ArtworkDecodeRequest {
+        let width = (view.bounds.width > 0 ? view.bounds.width : OrbitHomeLayout.screenWidth) - 2 * Self.margin
+        let posterWidth = floor((width - CGFloat(Self.columns - 1) * Self.spacing) / CGFloat(Self.columns))
+        return ArtworkDecodeRequest(size: .points(width: posterWidth, height: floor(posterWidth * 1.5)),
+                                    fill: true, scale: traitCollection.displayScale)
+    }
+
+    private func posterReady(_ item: MetaPreview) -> Bool {
+        let key = item.id
+        if let known = posterLoaded[key] { return known }
+        let poster: String? = item.poster
+        guard let url = poster.flatMap(URL.init(string:)) else { posterLoaded[key] = false; return false }
+        let request = posterRequest
+        if ArtworkStore.cached(url, decode: request) != nil { posterLoaded[key] = true; return true }
+        posterLoaded[key] = false
+        Task { [weak self] in
+            let ok = (try? await ArtworkStore.fetch(url, decode: request)) != nil
+            guard let self, ok else { return }
+            self.posterLoaded[key] = true
+            self.scheduleApply()
         }
+        return false
+    }
+
+    private func scheduleApply() {
+        guard !reapplyScheduled else { return }
+        reapplyScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            guard let self else { return }
+            self.reapplyScheduled = false
+            self.apply()
+        }
+    }
+
+    private func apply() {
+        let all = SearchGridResults.items(top: model.topResult, rows: model.rows)
+        let found = all.filter { posterReady($0) }
         titles = Dictionary(found.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let entries = model.queryIsEmpty ? model.history
-            : SearchGridResults.entries(suggestions: model.suggestions, items: found, limit: 10)
+            : SearchGridResults.entries(suggestions: model.suggestions, items: all, limit: 10)
         var snapshot = NSDiffableDataSourceSnapshot<Section, Item>()
         snapshot.appendSections([.suggestions, .titles])
         var seen = Set<String>()
@@ -111,8 +149,32 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         dataSource.apply(snapshot, animatingDifferences: false)
     }
 
-    func scrollToTop() {
-        collectionView?.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: true)
+    /// Menu: the first line of posters, same column (nil when already there or nothing to show).
+    private var preferredPath: IndexPath?
+
+    /// The focused cell's place: nil outside the grid, else (in the suggestions line?, column).
+    func focusedPlace(_ focused: UIView) -> (suggestions: Bool, line: Int, column: Int)? {
+        guard focused.isDescendant(of: collectionView) else { return nil }
+        var view: UIView? = focused
+        while let v = view, !(v is UICollectionViewCell) { view = v.superview }
+        guard let cell = view as? UICollectionViewCell, let path = collectionView.indexPath(for: cell) else { return nil }
+        if path.section == Section.suggestions.rawValue { return (true, 0, 0) }
+        return (false, path.item / Self.columns, path.item % Self.columns)
+    }
+
+    /// Scrolls back to the top and names the first line's cell in `column` as the focus target.
+    func prepareFirstLine(column: Int) -> UIFocusEnvironment? {
+        let count = collectionView.numberOfItems(inSection: Section.titles.rawValue)
+        guard count > 0 else { return nil }
+        preferredPath = IndexPath(item: min(column, count - 1), section: Section.titles.rawValue)
+        collectionView.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: false)
+        collectionView.layoutIfNeeded()
+        return collectionView
+    }
+
+    func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+        defer { preferredPath = nil }
+        return preferredPath
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
