@@ -100,9 +100,12 @@ struct OrbitHomeRowView: View {
                                onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                     .offset(x: L.margin, y: L.cardsTop)
 
-                if isCurrent {
-                    let card = row.cards[lead]
-                    let info = OrbitInfo.make(card.preview, meta: metaStore.meta(for: card.preview))
+                // Always there, shown only on the current row: a text block created mid-move was
+                // laid out at its final place at once and floated over the posters while the row
+                // was still gliding (Steven's video). Only the title change cross-fades.
+                let card = row.cards[lead]
+                let info = OrbitInfo.make(card.preview, meta: metaStore.meta(for: card.preview))
+                ZStack(alignment: .topLeading) {
                     VStack(alignment: .leading, spacing: 16) {
                         OrbitMetaLine(info: info)
                             .frame(height: 36)
@@ -117,8 +120,9 @@ struct OrbitHomeRowView: View {
                     .frame(width: L.synopsisWidth, alignment: .topLeading)
                     .id(card.id)
                     .transition(.opacity.animation(L.crossfade))
-                    .offset(x: L.margin + 12, y: L.metaCentre - 18)
                 }
+                .opacity(isCurrent ? 1 : 0)
+                .offset(x: L.margin + 12, y: L.metaCentre - 18)
             }
         }
         .frame(width: L.screenWidth, height: L.rowPitch, alignment: .topLeading)
@@ -175,8 +179,9 @@ struct OrbitLeadFrame: View {
         ZStack(alignment: .topLeading) {
             // Opaque at all times: the row slides under it.
             Color(white: 0.1)
+            // The art persists across titles and swaps once the new image is ready.
+            OrbitSwapImage(url: card.landscape ?? meta?.backdrop, fallback: card.poster, size: size)
             ZStack(alignment: .bottomLeading) {
-                OrbitImage(url: card.landscape ?? meta?.backdrop, fallback: card.poster, size: size, placeholder: card.poster)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL,
                                       onFailure: onTrailerFailure,
@@ -188,32 +193,34 @@ struct OrbitLeadFrame: View {
                         .transition(.opacity.animation(.easeOut(duration: 0.4)))
                 }
                 LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
-                OrbitTitleMark(name: card.preview.name, logo: OrbitInfo.make(card.preview, meta: meta).logo,
-                               maxSize: CGSize(width: 440, height: 130), textSize: 54)
-                    .padding(.leading, 28)
-                    .padding(.bottom, 24)
-                if let badge = card.badge {
-                    Text(badge)
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.55)))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .padding(.trailing, 22)
-                        .padding(.bottom, 26)
+                // The title's own marks change with it.
+                ZStack(alignment: .bottomLeading) {
+                    OrbitTitleMark(name: card.preview.name, logo: OrbitInfo.make(card.preview, meta: meta).logo,
+                                   maxSize: CGSize(width: 440, height: 130), textSize: 54)
+                        .padding(.leading, 28)
+                        .padding(.bottom, 24)
+                    if let badge = card.badge {
+                        Text(badge)
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.55)))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                            .padding(.trailing, 22)
+                            .padding(.bottom, 26)
+                    }
+                    if let progress = card.progress {
+                        OrbitProgressBar(progress: progress)
+                            .padding(.horizontal, 28)
+                            .padding(.bottom, 10)
+                    }
                 }
-                if let progress = card.progress {
-                    OrbitProgressBar(progress: progress)
-                        .padding(.horizontal, 28)
-                        .padding(.bottom, 10)
-                }
+                .frame(width: size.width, height: size.height, alignment: .bottomLeading)
+                .id(card.id)
+                .transition(.opacity.animation(OrbitHomeLayout.crossfade))
             }
             .frame(width: size.width, height: size.height)
-            .id(card.id)
-            // The new title fades in over the old one, which leaves once covered.
-            .transition(.asymmetric(insertion: .opacity.animation(OrbitHomeLayout.crossfade),
-                                    removal: .opacity.animation(.linear(duration: 0.01).delay(0.24))))
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: L.frameRadius, style: .continuous))
@@ -282,5 +289,60 @@ struct OrbitImage: View {
                          failure: { Color.clear })
             .frame(width: size.width, height: size.height)
             .clipped()
+    }
+}
+
+/// The frame's art. It never shows an empty pane: a new title's image is fetched first and cross-
+/// fades in OVER the current one once it is ready (the poster stands in for a first image that is
+/// not loaded yet). The frame's logo and text change at once; the art follows as soon as it can.
+struct OrbitSwapImage: View {
+    let url: String?
+    let fallback: String?
+    let size: CGSize
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var shown: UIImage?
+    @State private var generation = 0
+
+    var body: some View {
+        ZStack {
+            if let shown {
+                Image(uiImage: shown)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .id(generation)
+                    .zIndex(Double(generation))
+                    .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
+                                            removal: .opacity.animation(.linear(duration: 0.01).delay(0.26))))
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipped()
+        .task(id: "\(url ?? "-")|\(fallback ?? "-")") { await load() }
+    }
+
+    private func show(_ image: UIImage) {
+        generation &+= 1
+        shown = image
+    }
+
+    private func load() async {
+        let frame = ArtworkDecodeRequest(size: .points(width: size.width, height: size.height), fill: true, scale: displayScale)
+        let poster = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.posterWidth, height: OrbitHomeLayout.cardHeight),
+                                          fill: true, scale: displayScale)
+        let main = url.flatMap(URL.init(string:))
+        let backup = fallback.flatMap(URL.init(string:))
+        if let main, let image = ArtworkStore.cached(main, decode: frame) { show(image); return }
+        if shown == nil, let backup, let image = ArtworkStore.cached(backup, decode: poster) { show(image) }
+        for candidate in [main, backup].compactMap({ $0 }) {
+            if let image = try? await ArtworkStore.fetch(candidate, decode: frame) {
+                guard !Task.isCancelled else { return }
+                show(image)
+                return
+            }
+            if Task.isCancelled { return }
+        }
     }
 }
