@@ -284,7 +284,14 @@ struct OrbitDetailView: View {
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         .background(OrbitHomeLayout.background.ignoresSafeArea())
         .ignoresSafeArea()
-        .defaultFocus($focus, .play, priority: .userInitiated)
+        // Back from an actor's page the engine's own landing is the card left from (Lire else).
+        .defaultFocus($focus, resumeFocus ?? .play, priority: .userInitiated)
+        // Steven: a press ends the return at once (Right was pulled back to the card). The
+        // clock was never installed on this page, so the press went unseen.
+        .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
+        .onMoveCommand { _ in
+            if resuming { resuming = false; resumeFocus = nil }
+        }
         // Menu from a section: back to the hero; from the hero, the page leaves (system default).
         .onExitCommand(perform: section == .hero || showSynopsis ? nil : { backToHero() })
         .onChange(of: focus) { old, new in
