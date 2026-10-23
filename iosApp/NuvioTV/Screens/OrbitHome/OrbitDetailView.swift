@@ -74,6 +74,8 @@ struct OrbitDetailView: View {
     let preview: MetaPreview
 
     @StateObject private var model: DetailViewModel
+    /// Steven: 4K / Dolby Vision / HDR / Atmos when his sources have them.
+    @StateObject private var quality = OrbitQualityModel()
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("detail_trailer_background") private var backgroundTrailerEnabled = true
@@ -294,7 +296,9 @@ struct OrbitDetailView: View {
             tabBarVisibility.pushImmersive()
             armHeroTrailer()
         }
+        .onChange(of: qualityRequest) { _, _ in requestQuality() }
         .onDisappear {
+            quality.stop()
             visible = false
             if cinema {
                 cinema = false
@@ -391,6 +395,24 @@ struct OrbitDetailView: View {
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
     }
 
+    /// What the sources are asked for (the film, or the series' next episode), once known.
+    private var qualityRequest: String {
+        guard let meta else { return "-" }
+        if isSeries { return model.seriesAction.map { "s:\($0.videoId)" } ?? "-" }
+        return "m:\(meta.id)"
+    }
+
+    private func requestQuality() {
+        guard let meta else { return }
+        if isSeries {
+            guard let action = model.seriesAction else { return }
+            quality.start(type: meta.type, videoId: action.videoId, parentMetaId: meta.id,
+                          season: action.seasonNumber?.value, episode: action.episodeNumber?.value)
+        } else {
+            quality.start(type: preview.type, videoId: meta.id, parentMetaId: nil, season: nil, episode: nil)
+        }
+    }
+
     private func backToHero() {
         focus = .play
         enter(.hero)
@@ -477,8 +499,11 @@ struct OrbitDetailView: View {
                     }
                 }
                 .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
-                OrbitDetailMetaLine(meta: meta, preview: preview)
-                    .padding(.top, 34)
+                HStack(spacing: 18) {
+                    OrbitDetailMetaLine(meta: meta, preview: preview)
+                    OrbitQualityBadges(quality: quality.found)
+                }
+                .padding(.top, 34)
                 actions
                     .padding(.top, 36)
             }
@@ -501,7 +526,11 @@ struct OrbitDetailView: View {
                 }
                 credits
             }
-            .frame(maxWidth: .infinity, alignment: .bottomLeading)
+            // Steven: the synopsis and the credits further right and lower.
+            .frame(maxWidth: 780, alignment: .bottomLeading)
+            .padding(.leading, 90)
+            .offset(y: 40)
+            .frame(maxWidth: .infinity, alignment: .bottomTrailing)
             .focusSection()
         }
         .padding(.horizontal, L.margin)
