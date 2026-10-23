@@ -233,6 +233,9 @@ struct StageStripHome: View {
         // §4.3 seed: once the rows gate opens, the first strip row's first item (the card tvOS
         // focuses at launch), so the first commit is a silent gap-fill: no double paint.
         .onChange(of: seedSignature, initial: true) { _, _ in
+            // Steven: Plateformes seeded its first tile (Netflix's poster wall) on the hidden stage,
+            // and it showed through the cross-fade into Studios. Nothing is staged there.
+            guard !showsCollectionGrid else { return }
             stage.seed(seedItem, rowHeading: seedRowHeading)
         }
         // Steven's fork (Orbit bar): a new page (Films, Séries, Services, Studios) shows its FIRST
@@ -390,6 +393,7 @@ struct StageStripHome: View {
 
     /// Puts the page's first title (or first folder) on the stage.
     private func showFirstItemOnStage() {
+        guard !showsCollectionGrid else { return }
         guard let item = seedItem, let key = rowKeys.first(where: { firstPreview(ofRow: $0) != nil }) else { return }
         stage.report(item, source: key, rowHeading: seedRowHeading, prefetch: { [] })
     }
