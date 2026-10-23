@@ -12,6 +12,10 @@ struct PersonDetailView: View {
     let personName: String
 
     @StateObject private var model: PersonDetailViewModel
+    /// Steven (Orbit): an actor's page is immersive like the title page it comes from. Without
+    /// it the Orbit bar came back for this page and kept the focus on the way back, so the title
+    /// page found no card focused and the cast row restarted at its first actor.
+    @Environment(\.tabBarVisibility) private var tabBarVisibility
 
     /// BUG-34: anchors `.prefersDefaultFocus` on the header/bio block so initial focus can never
     /// settle on a credit poster (see `topBlock` for the full story).
@@ -69,7 +73,11 @@ struct PersonDetailView: View {
                 .focusScope(topFocusNamespace)
             }
         }
-        .onAppear { model.start() }
+        .onAppear {
+            tabBarVisibility.pushImmersive()
+            model.start()
+        }
+        .onDisappear { tabBarVisibility.popImmersive() }
         // BUG-179: the full biography, in the same sheet the Cinematic Detail page uses for a long
         // synopsis (Menu closes it through the cover's own dismissal; focus comes back to the
         // top block, the only focusable it covered).
