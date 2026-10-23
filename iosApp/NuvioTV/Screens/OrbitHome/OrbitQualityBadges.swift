@@ -172,8 +172,8 @@ struct OrbitQualityBadges: View {
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(Color.white.opacity(0.92))
                 .frame(width: height * aspect, height: height)
-                // Steven: the definitions (4K, HD, SD) in a thin rounded frame, the age box's own
-                // stroke; the Full HD mark is a box already, the Dolby and HDR marks stay free.
+                // Steven: every technical badge in a thin rounded frame, the age box's own stroke;
+                // the Full HD and HDR10 marks are boxes already, the Dolby marks stay free.
                 .modifier(OrbitBadgeFrame(on: Self.framed(flag)))
                 .accessibilityLabel(text)
                 .transition(.opacity)
@@ -183,7 +183,8 @@ struct OrbitQualityBadges: View {
     }
 
     static func framed(_ flag: OrbitQuality) -> Bool {
-        flag == .uhd || flag == .hd || flag == .sd
+        // Everything but the Dolby marks, and the Full HD and HDR10 marks (boxes already).
+        flag == .uhd || flag == .hd || flag == .sd || flag == .hdr10Plus || flag == .hdr
     }
 
     /// Each logo's height, so they read at one size side by side: the two-line Dolby marks and
@@ -193,7 +194,8 @@ struct OrbitQualityBadges: View {
         case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 28
         case "orbit-badge-fullhd": return 28
         case "orbit-badge-4k": return 13
-        case "orbit-badge-hdr10plus": return 15
+        case "orbit-badge-hdr10plus": return 12
+        case "orbit-badge-hdr": return 13
         case "orbit-badge-sd", "orbit-badge-hd": return 13
         default: return 20
         }
