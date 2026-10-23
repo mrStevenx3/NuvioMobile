@@ -55,7 +55,9 @@ enum OrbitDetailLayout {
     static let heroHeight: CGFloat = 990
     static let sectionGap: CGFloat = 70
     /// Where a section's top rests on screen when the focus is in it.
-    static let sectionRest: CGFloat = 90
+    /// Steven (the page bounced on Left / Right): low enough that the focused card, lifted, sits
+    /// well inside the screen, so the system has no reason to move the page itself.
+    static let sectionRest: CGFloat = 200
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
@@ -196,9 +198,14 @@ struct OrbitDetailView: View {
         // Menu from a section: back to the hero; from the hero, the page leaves (system default).
         .onExitCommand(perform: section == .hero || showSynopsis ? nil : { backToHero() })
         .onChange(of: focus) { old, new in
-            if let new {
-                enter(new.section)
+            guard let new else { return }
+            // Steven: coming into a row (from another section) lands on its first card, far left.
+            if let old, old.section != new.section, new.section != .hero, new.section != .episodes,
+               let first = firstFocus(of: new.section), first != new {
+                focus = first
+                return
             }
+            enter(new.section)
         }
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
@@ -253,6 +260,24 @@ struct OrbitDetailView: View {
     }
 
     // MARK: Focus / scroll
+
+    /// A section's first card (the far left of its row).
+    private func firstFocus(of target: OrbitDetailSection) -> OrbitDetailFocus? {
+        switch target {
+        case .cast:
+            return (meta?.cast ?? []).firstIndex { $0.tmdbId != nil }.map { .cast($0) }
+        case .saga:
+            return meta?.collectionItems.first.map { .saga($0.id) }
+        case .trailers:
+            return meta?.trailers.first.map { .trailerClip($0.id) }
+        case .similar:
+            return meta?.moreLikeThis.first.map { .similar($0.id) }
+        case .about:
+            return companies.first?.company.tmdbId != nil ? .company(0) : .about
+        case .hero, .episodes:
+            return nil
+        }
+    }
 
     private func anchor(_ proxy: ScrollViewProxy, _ target: OrbitDetailSection, duration: Double) {
         withAnimation(reduceMotion ? nil : .easeInOut(duration: duration)) {
