@@ -133,7 +133,7 @@ struct OrbitQualityBadges: View {
     var logos: [Int: String] = [:]
 
     var body: some View {
-        HStack(alignment: .center, spacing: 22) {
+        HStack(alignment: .center, spacing: 20) {
             // Always the best definition the sources have, one badge.
             if quality.contains(.uhd) {
                 badge("4K", asset: "orbit-badge-4k", flag: .uhd)
@@ -163,9 +163,9 @@ struct OrbitQualityBadges: View {
     private func badge(_ text: String, asset: String, flag: OrbitQuality) -> some View {
         // Steven's own logo files first (the regex logos looked poor: small, padded, uneven).
         if let image = UIImage(named: asset), image.size.height > 0 {
-            // Each logo at its height, but never wider than 92 pt (the wide marks come down).
+            // Each logo at its height, but never wider than 80 pt (the wide marks come down).
             let aspect = image.size.width / image.size.height
-            let height = min(Self.logoHeight(asset), 92 / aspect)
+            let height = min(Self.logoHeight(asset), 80 / aspect)
             Image(asset)
                 .renderingMode(.template)
                 .resizable()
@@ -183,11 +183,12 @@ struct OrbitQualityBadges: View {
     /// the boxed 1080p taller, the wide HDR10+ lower.
     static func logoHeight(_ asset: String) -> CGFloat {
         switch asset {
-        case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 32
-        case "orbit-badge-fullhd": return 32
-        case "orbit-badge-hdr10plus": return 18
-        case "orbit-badge-sd", "orbit-badge-hd": return 24
-        default: return 24
+        case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 28
+        case "orbit-badge-fullhd": return 28
+        case "orbit-badge-4k": return 17
+        case "orbit-badge-hdr10plus": return 15
+        case "orbit-badge-sd", "orbit-badge-hd": return 20
+        default: return 20
         }
     }
 
