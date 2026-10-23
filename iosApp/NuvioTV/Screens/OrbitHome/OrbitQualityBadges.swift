@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Detail (Steven, 2026-10-23): the best quality the viewer's own sources offer for the title,
 // shown on the hero beside the meta line — the best definition (4K, else Full HD, HD, SD), Dolby
@@ -111,26 +112,44 @@ struct OrbitQualityBadges: View {
         HStack(spacing: 10) {
             // Always the best definition the sources have, one badge.
             if quality.contains(.uhd) {
-                badge("4K")
+                badge("4K", asset: "orbit-badge-4k")
             } else if quality.contains(.fullHD) {
-                badge("Full HD")
+                badge("Full HD", asset: "orbit-badge-fullhd")
             } else if quality.contains(.hd) {
-                badge("HD")
+                badge("HD", asset: "orbit-badge-hd")
             } else if quality.contains(.sd) {
-                badge("SD")
+                badge("SD", asset: "orbit-badge-sd")
             }
             if quality.contains(.dolbyVision) {
-                badge("Dolby Vision")
+                badge("Dolby Vision", asset: "orbit-badge-dolby-vision")
             } else if quality.contains(.hdr10Plus) {
-                badge("HDR10+")
+                badge("HDR10+", asset: "orbit-badge-hdr10plus")
             } else if quality.contains(.hdr) {
-                badge("HDR")
+                badge("HDR", asset: "orbit-badge-hdr")
             }
-            if quality.contains(.atmos) { badge("Dolby Atmos") }
+            if quality.contains(.atmos) { badge("Dolby Atmos", asset: "orbit-badge-dolby-atmos") }
         }
     }
 
-    private func badge(_ text: String) -> some View {
+    /// Steven's official logo when its image is in the asset catalog (`asset`, drawn white),
+    /// else the text badge.
+    @ViewBuilder
+    private func badge(_ text: String, asset: String) -> some View {
+        if UIImage(named: asset) != nil {
+            Image(asset)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .foregroundStyle(Color.white.opacity(0.92))
+                .frame(height: 30)
+                .accessibilityLabel(text)
+                .transition(.opacity)
+        } else {
+            textBadge(text)
+        }
+    }
+
+    private func textBadge(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 20, weight: .heavy))
             .foregroundStyle(Color.white.opacity(0.92))
