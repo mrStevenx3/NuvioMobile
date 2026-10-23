@@ -10,8 +10,8 @@ import SwiftUI
 //    under the sections it goes dark and soft, so text reads on any art (a bright Pixar still too).
 //  - The hero, the first screen: logo (or name), a plain meta line ("2001 · 1 h 32 · Animation,
 //    Comédie · U · ★ 8,1"), the actions (Lire / Reprendre, Recommencer, Bande-annonce, Vu, Ma
-//    liste — the focused one says its name), and on the right the synopsis (Select opens it in
-//    full in a panel) with "Avec … · Réalisé par …". The muted trailer plays behind it after a
+//    liste — the focused one says its name), the synopsis on the same line (its arrow opens it in
+//    full in a panel), "Avec … · Réalisé par …" small at the bottom right, the art's bottom blurred. The muted trailer plays behind it after a
 //    rest on the hero.
 //  - Then the sections, each a row: Épisodes (series), Casting, the saga, Bandes-annonces,
 //    À voir aussi, À propos (studios' logos, parental guide, details in plain French).
@@ -489,53 +489,52 @@ struct OrbitDetailView: View {
 
     private var hero: some View {
         let L = OrbitDetailLayout.self
-        return HStack(alignment: .bottom, spacing: 60) {
-            VStack(alignment: .leading, spacing: 0) {
-                Group {
-                    if cinema {
-                        Color.clear
-                    } else {
-                        titleMark(cinema: false)
-                    }
+        return VStack(alignment: .leading, spacing: 0) {
+            Group {
+                if cinema {
+                    Color.clear
+                } else {
+                    titleMark(cinema: false)
                 }
-                .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
-                OrbitDetailMetaLine(meta: meta, preview: preview)
-                    .padding(.top, 34)
-                // On their own line under it (beside it, they cut the genres short).
-                OrbitQualityBadges(quality: quality.found)
-                    .frame(height: 42, alignment: .leading)
-                    .padding(.top, 16)
+            }
+            .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
+            OrbitDetailMetaLine(meta: meta, preview: preview)
+                .padding(.top, 34)
+            // On their own line under it (beside it, they cut the genres short).
+            OrbitQualityBadges(quality: quality.found)
+                .frame(height: 42, alignment: .leading)
+                .padding(.top, 16)
+            // Steven (Apple TV style): the synopsis on the buttons' line, its arrow opens it in
+            // full; Right from the last button lands on the arrow.
+            HStack(alignment: .center, spacing: 40) {
                 actions
-                    .padding(.top, 36)
-            }
-            .frame(width: 900, alignment: .bottomLeading)
-            // Left from the synopsis (above the buttons' line) comes back to the buttons.
-            .focusSection()
-
-            VStack(alignment: .leading, spacing: 22) {
+                    .layoutPriority(1)
                 if let overview {
-                    // Steven: "Plus" was hard to reach (the teaser sat above the buttons' line,
-                    // so Right from the last button found nothing). Its own focus section
-                    // catches Right from any button.
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = true }
-                    } label: {
-                        OrbitSynopsisTeaser(text: overview, focused: focus == .synopsis)
+                    HStack(alignment: .center, spacing: 28) {
+                        Text(overview)
+                            .font(.system(size: 25, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(focus == .synopsis ? 1 : 0.9))
+                            .lineSpacing(4)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: 760, alignment: .leading)
+                        OrbitSynopsisArrow(focused: focus == .synopsis) {
+                            withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = true }
+                        }
+                        .focused($focus, equals: .synopsis)
                     }
-                    .buttonStyle(OrbitPlainStyle())
-                    .focused($focus, equals: .synopsis)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                credits
             }
-            // Steven: the synopsis and the credits further right and lower.
-            .frame(maxWidth: 780, alignment: .bottomLeading)
-            .padding(.leading, 90)
-            .offset(y: 40)
-            .frame(maxWidth: .infinity, alignment: .bottomTrailing)
+            .padding(.top, 36)
             .focusSection()
+            // The cast and the direction, small, bottom right.
+            credits
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 44)
         }
         .padding(.horizontal, L.margin)
-        .padding(.bottom, 110)
+        .padding(.bottom, 80)
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .focusSection()
     }
@@ -547,7 +546,7 @@ struct OrbitDetailView: View {
         }
         let actors = cast.prefix(3).map(\.name)
         let directors = meta?.director ?? []
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .trailing, spacing: 6) {
             if !actors.isEmpty {
                 (Text(String(localized: "Avec ")).foregroundStyle(Color.white.opacity(0.6))
                  + Text(actors.joined(separator: ", ")).foregroundStyle(Color.white))
@@ -557,9 +556,9 @@ struct OrbitDetailView: View {
                  + Text(directors.joined(separator: ", ")).foregroundStyle(Color.white))
             }
         }
-        .font(.system(size: 25, weight: .medium))
+        .font(.system(size: 23, weight: .medium))
         .lineLimit(1)
-        .padding(.leading, 18)
+        .multilineTextAlignment(.trailing)
     }
 
     @ViewBuilder
@@ -818,6 +817,19 @@ private struct OrbitDetailBackground: View {
             OrbitSwapImage(url: url, fallback: nil, size: size)
                 .blur(radius: dimmed ? 26 : 0, opaque: true)
                 .scaleEffect(dimmed ? 1.06 : (cinema ? 1.05 : 1))
+            // Steven: the bottom of the art melts into a blur (Apple TV style), under the
+            // synopsis and the credits. On the still art only (a live blur over the trailer costs
+            // the Apple TV too much): the trailer covers it as it fades in, and it is back when
+            // the art returns. Gone in cinema and under the sections.
+            OrbitSwapImage(url: url, fallback: nil, size: size)
+                .blur(radius: 40, opaque: true)
+                .mask(LinearGradient(stops: [
+                    .init(color: .clear, location: 0.48),
+                    .init(color: .black.opacity(0.7), location: 0.7),
+                    .init(color: .black, location: 0.88),
+                ], startPoint: .top, endPoint: .bottom))
+                .opacity(cinema || dimmed ? 0 : 1)
+                .allowsHitTesting(false)
             if let trailerURL {
                 TrailerHeroPlayer(urlString: trailerURL,
                                   onFailure: { _ in onTrailerFailure() },
@@ -1142,28 +1154,24 @@ struct OrbitPlainStyle: ButtonStyle {
 
 // MARK: - Synopsis
 
-private struct OrbitSynopsisTeaser: View {
-    let text: String
+/// The round arrow after the synopsis on the buttons' line: opens it in full.
+private struct OrbitSynopsisArrow: View {
     let focused: Bool
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(text)
-                .font(.system(size: 27, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.94))
-                .lineSpacing(5)
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
-            Text(String(localized: "Plus"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Color.white.opacity(focused ? 1 : 0.6))
+        Button(action: action) {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(focused ? Color.black : Color.white)
+                .frame(width: 104, height: 68)
+                .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.2)))
+                .scaleEffect(focused ? 1.06 : 1)
+                .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 16, y: 8)
+                .animation(.easeOut(duration: 0.18), value: focused)
         }
-        .padding(18)
-        .frame(maxWidth: 820, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(Color.white.opacity(focused ? 0.14 : 0)))
-        .scaleEffect(focused ? 1.02 : 1, anchor: .leading)
-        .animation(.easeOut(duration: 0.18), value: focused)
+        .buttonStyle(OrbitPlainStyle())
+        .accessibilityLabel(String(localized: "Synopsis"))
     }
 }
 
