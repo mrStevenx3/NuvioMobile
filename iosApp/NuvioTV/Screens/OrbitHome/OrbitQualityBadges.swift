@@ -48,35 +48,56 @@ final class OrbitQualityModel: ObservableObject {
     @Published private(set) var found: OrbitQuality = []
     private var watcher: FlowWatcher?
     private var requested: String?
+    private var pending: Task<Void, Never>?
+    /// Streams already read, per add-on group (only the new ones are read on each update).
+    private var readCount: [String: Int] = [:]
+
+    /// The badges seen this session per title, shown at once on a return (half an hour).
+    private static var memory: [String: (quality: OrbitQuality, at: Date)] = [:]
 
     func start(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?) {
         let key = "\(type):\(videoId)"
         guard requested != key else { return }
         requested = key
-        found = []
+        readCount = [:]
+        found = Self.memory[key].flatMap { Date().timeIntervalSince($0.at) < 1800 ? $0.quality : nil } ?? []
         watcher?.cancel()
-        watcher = FlowWatcherKt.watch(StreamsRepository.shared.uiState) { [weak self] emitted in
-            guard let self, let state = emitted as? StreamsUiState else { return }
-            var seen = self.found
-            for group in state.groups {
-                for stream in group.streams {
-                    let text = [stream.name, stream.title, stream.description_, stream.streamLabel]
-                        .compactMap { $0 }.joined(separator: " ")
-                    seen.formUnion(OrbitQuality.read(text))
+        pending?.cancel()
+        // Steven: never at the page's expense — the request goes out once the page has settled.
+        pending = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.watcher = FlowWatcherKt.watch(StreamsRepository.shared.uiState) { [weak self] emitted in
+                guard let self, let state = emitted as? StreamsUiState else { return }
+                var seen = self.found
+                for group in state.groups {
+                    let done = self.readCount[group.addonId] ?? 0
+                    let streams = group.streams
+                    guard streams.count > done else { continue }
+                    for stream in streams[done...] {
+                        let text = [stream.name, stream.title, stream.description_, stream.streamLabel]
+                            .compactMap { $0 }.joined(separator: " ")
+                        seen.formUnion(OrbitQuality.read(text))
+                    }
+                    self.readCount[group.addonId] = streams.count
+                }
+                if seen != self.found {
+                    Self.memory[key] = (seen, Date())
+                    withAnimation(.easeInOut(duration: 0.3)) { self.found = seen }
                 }
             }
-            if seen != self.found {
-                withAnimation(.easeInOut(duration: 0.3)) { self.found = seen }
-            }
+            // The same request the source picker makes (manual selection, the same ids), so when
+            // Lire is pressed the repository already holds the answer and the list shows at once.
+            // With "auto-play the first source" on, the picker asks its own way (it re-fetches).
+            StreamsRepository.shared.load(type: type, videoId: videoId, parentMetaId: parentMetaId,
+                                          season: season.map { KotlinInt(int: Int32($0)) },
+                                          episode: episode.map { KotlinInt(int: Int32($0)) },
+                                          manualSelection: true)
         }
-        // Manual selection: the page only looks, nothing auto-plays from here.
-        StreamsRepository.shared.load(type: type, videoId: videoId, parentMetaId: parentMetaId,
-                                      season: season.map { KotlinInt(int: Int32($0)) },
-                                      episode: episode.map { KotlinInt(int: Int32($0)) },
-                                      manualSelection: true)
     }
 
     func stop() {
+        pending?.cancel()
         watcher?.cancel()
         watcher = nil
     }
