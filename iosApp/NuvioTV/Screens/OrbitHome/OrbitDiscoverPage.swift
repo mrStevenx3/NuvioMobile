@@ -89,6 +89,16 @@ struct OrbitDiscoverPage: View {
             .focused($canvasFocused)
             .disabled(items.isEmpty)
             .onMoveCommand(perform: move)
+            // Steven: Menu sent the cursor to the hidden system tab bar (it vanished). Menu now goes
+            // back to the first line, then to the bar.
+            .onExitCommand {
+                if line > 0 {
+                    withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { index = index % D.columns }
+                    syncLock()
+                } else {
+                    NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
+                }
+            }
             .offset(y: D.gridTop - 20)
 
             header

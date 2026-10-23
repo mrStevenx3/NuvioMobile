@@ -50,10 +50,10 @@ private struct OrbitSearchContainer: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIViewController {
         let coordinator = context.coordinator
-        let results = UIHostingController(rootView: OrbitSearchResults(model: model,
-                                                                       onPick: { coordinator.setQuery($0) },
-                                                                       onOpen: onOpen))
-        results.view.backgroundColor = .clear
+        // Device pass 2: the results are a UIKit collection view the search container tracks.
+        let results = OrbitSearchResultsController(model: model,
+                                                   onPick: { coordinator.setQuery($0) },
+                                                   onOpen: onOpen)
         let search = UISearchController(searchResultsController: results)
         search.searchResultsUpdater = coordinator
         search.obscuresBackgroundDuringPresentation = false

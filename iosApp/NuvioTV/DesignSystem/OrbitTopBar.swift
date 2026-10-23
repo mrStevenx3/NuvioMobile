@@ -178,6 +178,10 @@ struct OrbitTopBar: View {
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .orbitBarFocusRequest)) { _ in
+            OrbitBarLock.shared.set(false)
+            DispatchQueue.main.async { focused = currentItem }
+        }
         // Steven: at launch the cursor sits on Films (the hero / first row took it late).
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { searchReady = true }

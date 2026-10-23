@@ -23,6 +23,12 @@ nonisolated enum OrbitHomeSetting {
     static let trailersKey = "orbit_home_trailers"
 }
 
+extension Notification.Name {
+    /// Asks the Orbit bar to take focus (its current page's item): Menu at the top of an Orbit page.
+    /// The system's own Menu sent focus to the hidden tab bar, where the cursor vanished.
+    static let orbitBarFocusRequest = Notification.Name("OrbitBarFocusRequest")
+}
+
 /// Keeps the Orbit bar out of the focus engine's reach while Orbit Home is scrolled down.
 @MainActor
 final class OrbitBarLock: ObservableObject {
@@ -307,7 +313,9 @@ struct OrbitHomeView: View {
 
     /// Menu: back to the top from below it; at the top, the system's own (the bar, then out).
     private func exitAction(index: Int) -> (() -> Void)? {
-        guard index > 0 else { return nil }
+        guard index > 0 else {
+            return { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
+        }
         return { goTop() }
     }
 
