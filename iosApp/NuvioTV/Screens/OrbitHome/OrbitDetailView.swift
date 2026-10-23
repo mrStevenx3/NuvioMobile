@@ -94,6 +94,12 @@ struct OrbitDetailView: View {
     /// The muted trailer behind the hero, after a rest there.
     @State private var heroTrailerOn = false
     @State private var heroRestTask: Task<Void, Never>?
+    /// Steven (2026-10-23): the trailer plays IN the page, full screen with its sound ("cinema"):
+    /// the interface sinks away, the backdrop pushes in, the trailer fades over it (no black screen).
+    @State private var cinema = false
+    @State private var cinemaHint = false
+    @State private var cinemaHintTask: Task<Void, Never>?
+    @FocusState private var cinemaFocused: Bool
 
     init(preview: MetaPreview) {
         self.preview = preview
@@ -141,17 +147,26 @@ struct OrbitDetailView: View {
         let L = OrbitDetailLayout.self
         ZStack(alignment: .topLeading) {
             OrbitDetailBackground(url: backdropURL,
-                                  trailerURL: heroTrailerOn && section == .hero && !coverUp ? model.trailerVideoURL : nil,
+                                  trailerURL: cinema || (heroTrailerOn && section == .hero && !coverUp) ? model.trailerVideoURL : nil,
                                   zoomKey: model.trailerZoomKey,
-                                  dimmed: section != .hero,
-                                  onTrailerFailure: { model.trailerFailed() },
-                                  onTrailerEnded: { withAnimation(.easeInOut(duration: 0.6)) { heroTrailerOn = false } })
+                                  dimmed: section != .hero && !cinema,
+                                  cinema: cinema,
+                                  onTrailerFailure: {
+                                      model.trailerFailed()
+                                      if cinema { exitCinema() }
+                                  },
+                                  onTrailerEnded: {
+                                      if cinema { exitCinema() } else { withAnimation(.easeInOut(duration: 0.6)) { heroTrailerOn = false } }
+                                  })
 
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: L.sectionGap) {
                     hero
                         .frame(height: L.heroHeight, alignment: .bottomLeading)
+                        // Cinema: the interface sinks a little and fades away.
+                        .opacity(cinema ? 0 : 1)
+                        .offset(y: cinema ? 50 : 0)
                         .id(OrbitDetailSection.hero)
                     if isSeries, let meta {
                         OrbitEpisodesSection(meta: meta,
@@ -173,6 +188,8 @@ struct OrbitDetailView: View {
                 }
                 .padding(.bottom, 160)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // Cinema: the whole page out of focus (the trailer's catcher holds it).
+                .disabled(cinema)
             }
             .scrollClipDisabled()
             .ignoresSafeArea()
@@ -192,6 +209,35 @@ struct OrbitDetailView: View {
             // Steven: Left / Right inside a section let the system nudge the page ("ça se
             // replace"); each move inside a section holds it at its place again.
             .onChange(of: anchorTick) { _, _ in anchor(proxy, section, duration: 0.22) }
+            }
+
+            if cinema {
+                // The one focusable thing while the trailer plays: Menu ends it.
+                Button {} label: {
+                    ZStack(alignment: .bottomLeading) {
+                        Color.clear
+                        if cinemaHint {
+                            VStack(alignment: .leading, spacing: 12) {
+                                OrbitTitleMark(name: title, logo: logoURL,
+                                               maxSize: CGSize(width: 340, height: 120), textSize: 40)
+                                Text(String(localized: "Appuyez sur Retour pour quitter"))
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(Color.white.opacity(0.75))
+                            }
+                            .shadow(color: .black.opacity(0.6), radius: 12)
+                            .padding(.leading, OrbitDetailLayout.margin)
+                            .padding(.bottom, 70)
+                            .transition(.opacity.combined(with: .offset(y: 16)))
+                        }
+                    }
+                    .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(OrbitPlainStyle())
+                .focused($cinemaFocused)
+                .onExitCommand(perform: exitCinema)
+                .transition(.opacity)
+                .zIndex(5)
             }
 
             if showSynopsis, let overview {
@@ -232,12 +278,18 @@ struct OrbitDetailView: View {
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
         .onAppear {
             visible = true
+            // The trailer behind the hero is muted; only the cinema mode has sound.
+            HeroTrailerAudioState.shared.setMuted(value: true)
             model.start()
             tabBarVisibility.pushImmersive()
             armHeroTrailer()
         }
         .onDisappear {
             visible = false
+            if cinema {
+                cinema = false
+                HeroTrailerAudioState.shared.setMuted(value: true)
+            }
             model.stop()
             tabBarVisibility.popImmersive()
             stopHeroTrailer()
@@ -332,6 +384,41 @@ struct OrbitDetailView: View {
         }
     }
 
+    /// Bande-annonce: the trailer in the page, with its sound. Already playing muted behind the
+    /// hero, it simply carries on (the sound comes in); else it fades in over the backdrop once its
+    /// first frame is ready.
+    private func startCinema() {
+        guard model.trailerVideoURL != nil else { return }
+        heroRestTask?.cancel()
+        HeroTrailerAudioState.shared.setMuted(value: false)
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) {
+            cinema = true
+            heroTrailerOn = true
+            cinemaHint = true
+        }
+        DispatchQueue.main.async { cinemaFocused = true }
+        cinemaHintTask?.cancel()
+        cinemaHintTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.6)) { cinemaHint = false }
+        }
+    }
+
+    /// Back (or the trailer's end): the trailer fades to the backdrop, the backdrop eases back,
+    /// the interface rises again, the focus on Bande-annonce.
+    private func exitCinema() {
+        guard cinema else { return }
+        cinemaHintTask?.cancel()
+        HeroTrailerAudioState.shared.setMuted(value: true)
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.5)) {
+            cinema = false
+            heroTrailerOn = false
+            cinemaHint = false
+        }
+        DispatchQueue.main.async { focus = .trailer }
+    }
+
     private func stopHeroTrailer() {
         heroRestTask?.cancel()
         if heroTrailerOn { withAnimation(.easeInOut(duration: 0.4)) { heroTrailerOn = false } }
@@ -421,11 +508,7 @@ struct OrbitDetailView: View {
             if model.trailerVideoURL != nil {
                 OrbitActionButton(icon: "play.rectangle.fill", label: String(localized: "Bande-annonce"),
                                   focused: focus == .trailer) {
-                    if let url = model.trailerVideoURL {
-                        model.trailerPlayback = TrailerPlaybackItem(id: "hero-trailer", url: url, title: title,
-                                                                    zoomKey: model.trailerZoomKey,
-                                                                    videoId: model.trailerVideoId)
-                    }
+                    startCinema()
                 }
                 .focused($focus, equals: .trailer)
             }
@@ -652,6 +735,8 @@ private struct OrbitDetailBackground: View {
     let trailerURL: String?
     let zoomKey: String
     let dimmed: Bool
+    /// The trailer plays full screen with sound: the art pushes in, the shades lift.
+    var cinema: Bool = false
     let onTrailerFailure: () -> Void
     let onTrailerEnded: () -> Void
 
@@ -661,7 +746,7 @@ private struct OrbitDetailBackground: View {
             OrbitHomeLayout.background
             OrbitSwapImage(url: url, fallback: nil, size: size)
                 .blur(radius: dimmed ? 26 : 0, opaque: true)
-                .scaleEffect(dimmed ? 1.06 : 1)
+                .scaleEffect(dimmed ? 1.06 : (cinema ? 1.05 : 1))
             if let trailerURL {
                 TrailerHeroPlayer(urlString: trailerURL,
                                   onFailure: { _ in onTrailerFailure() },
@@ -670,24 +755,30 @@ private struct OrbitDetailBackground: View {
                                   onPlaybackEnded: onTrailerEnded,
                                   cornerRadius: 0)
                     .frame(width: size.width, height: size.height)
+                    .scaleEffect(cinema ? 1.05 : 1)
                     .transition(.opacity)
             }
             // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
-            LinearGradient(stops: [
-                .init(color: .black.opacity(0.78), location: 0),
-                .init(color: .black.opacity(0.35), location: 0.45),
-                .init(color: .clear, location: 0.7),
-            ], startPoint: .leading, endPoint: .trailing)
-            LinearGradient(stops: [
-                .init(color: .clear, location: 0.35),
-                .init(color: .black.opacity(0.75), location: 1),
-            ], startPoint: .top, endPoint: .bottom)
+            Group {
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.78), location: 0),
+                    .init(color: .black.opacity(0.35), location: 0.45),
+                    .init(color: .clear, location: 0.7),
+                ], startPoint: .leading, endPoint: .trailing)
+                LinearGradient(stops: [
+                    .init(color: .clear, location: 0.35),
+                    .init(color: .black.opacity(0.75), location: 1),
+                ], startPoint: .top, endPoint: .bottom)
+            }
+            // Cinema: only a light bottom shade stays (for the title and the hint).
+            .opacity(cinema ? 0.35 : 1)
             // Under the sections: dark enough for white text on any art.
             Color.black.opacity(dimmed ? 0.62 : 0)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
         .animation(.easeInOut(duration: 0.45), value: dimmed)
+        .animation(.easeInOut(duration: 0.8), value: cinema)
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
