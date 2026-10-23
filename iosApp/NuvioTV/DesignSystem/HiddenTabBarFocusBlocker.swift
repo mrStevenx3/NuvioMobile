@@ -164,7 +164,7 @@ struct HiddenTabBarFocusBlocker: UIViewRepresentable {
             guard window != nil else { return }
             HiddenTabBarFocusBlocker.current = self
             apply()
-            for delay in [0.3, 1.0, 2.5] {
+            for delay in [0.05, 0.15, 0.3, 1.0, 2.5] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.apply() }
             }
             // Re-apply on every focus move (cheap, one notification per move): if UIKit ever
@@ -189,7 +189,7 @@ struct HiddenTabBarFocusBlocker: UIViewRepresentable {
         func apply() {
             // r3b P2-3: this runs on every focus update, so it must not re-walk the controller
             // tree when the cached bar is still in the window and still blocked.
-            if let bar = blockedBar, bar.window != nil, !bar.isUserInteractionEnabled, tabController != nil {
+            if let bar = blockedBar, bar.window != nil, !bar.isUserInteractionEnabled, bar.alpha == 0, tabController != nil {
                 HiddenTabBarFocusBlocker.isBlocking = true
                 applyReservedInset()
                 return
@@ -209,6 +209,10 @@ struct HiddenTabBarFocusBlocker: UIViewRepresentable {
                 bar.isUserInteractionEnabled = false
                 tabController.setNeedsFocusUpdate()
             }
+            // Steven (Orbit bar, 2026-10-23): at a cold launch the system bar (Home, Search,
+            // Discover) showed beside the Orbit bar until `.toolbarVisibility(.hidden)` resolved.
+            // This blocker only mounts where the system bar must never show: made transparent.
+            if bar.alpha != 0 { bar.alpha = 0 }
             HiddenTabBarFocusBlocker.isBlocking = true
             if !loggedSuccess {
                 loggedSuccess = true

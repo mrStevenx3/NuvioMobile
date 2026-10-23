@@ -131,10 +131,10 @@ struct StageStripHome: View {
                 OrbitStudiosBackdrop(url: studiosBackdropURL(studios))
                     .ignoresSafeArea()
                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
-                // Steven: the studio's logo top left, very large.
+                // Steven: the studio's logo top left, its top on the Orbit bar's (22 + 6).
                 studiosLogo(studios)
                     .padding(.leading, OrbitHomeLayout.margin)
-                    .padding(.top, 60)
+                    .padding(.top, 28)
                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
                 VStack(alignment: .leading, spacing: 0) {
                     Spacer(minLength: 0)
@@ -377,7 +377,7 @@ struct StageStripHome: View {
                     .transition(.opacity)
             } else if let title = folder?.title {
                 Text(title)
-                    .font(.system(size: 64, weight: .heavy))
+                    .font(.system(size: 52, weight: .heavy))
                     .foregroundStyle(Color.white)
                     .lineLimit(2)
                     .minimumScaleFactor(0.5)
@@ -391,7 +391,7 @@ struct StageStripHome: View {
         .allowsHitTesting(false)
     }
 
-    static let studiosLogoSize = CGSize(width: 520, height: 160)
+    static let studiosLogoSize = CGSize(width: 400, height: 120)
 
     /// The focused studio's backdrop (the first studio's until a tile takes focus).
     private func studiosBackdropURL(_ collection: NuvioCollection) -> String? {
