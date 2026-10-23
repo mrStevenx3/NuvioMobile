@@ -190,7 +190,6 @@ struct OrbitHomeView: View {
                 }
             }
             .offset(y: scroll)
-            .animation(reduceMotion ? nil : OrbitHomeLayout.vertical, value: index)
 
             // The page's one focusable stop, under the bar's band.
             Button(action: select) {
@@ -258,25 +257,25 @@ struct OrbitHomeView: View {
         switch direction {
         case .down:
             guard index + 1 < sections.count else { return }
-            current = index + 1
+            withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = index + 1 }
         case .up:
             guard index > 0 else { return }   // the bar takes it (unlocked at the top)
-            current = index - 1
+            withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = index - 1 }
         case .left, .right:
             let delta = direction == .right ? 1 : -1
             switch sections[index] {
             case .hero:
                 let count = heroItems.count
                 guard count > 1 else { return }
-                heroIndex = (heroIndex + delta + count) % count
+                withAnimation(OrbitHomeLayout.horizontal) { heroIndex = (heroIndex + delta + count) % count }
             case .genres:
                 let lead = (leads["genres"] ?? 0) + delta
                 guard genres.indices.contains(lead) else { return }
-                leads["genres"] = lead
+                withAnimation(OrbitHomeLayout.horizontal) { leads["genres"] = lead }
             case .row(let row):
                 let lead = min(leads[row.id] ?? 0, row.cards.count - 1) + delta
                 guard row.cards.indices.contains(lead) else { return }
-                leads[row.id] = lead
+                withAnimation(OrbitHomeLayout.horizontal) { leads[row.id] = lead }
             }
         @unknown default:
             return
@@ -313,7 +312,7 @@ struct OrbitHomeView: View {
     }
 
     private func goTop() {
-        current = 0
+        withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = 0 }
         refreshAfterMove()
     }
 

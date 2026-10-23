@@ -80,7 +80,6 @@ struct OrbitHomeRowView: View {
                 .lineLimit(1)
                 .frame(height: 40, alignment: .center)
                 .offset(x: L.margin + 4, y: -20)
-                .animation(L.vertical, value: isCurrent)
 
             // The posters.
             ZStack(alignment: .topLeading) {
@@ -92,7 +91,6 @@ struct OrbitHomeRowView: View {
                     }
                 }
             }
-            .animation(L.horizontal, value: lead)
             .offset(y: L.cardsTop)
 
             // The frame, over them.
@@ -118,12 +116,11 @@ struct OrbitHomeRowView: View {
                     }
                     .frame(width: L.synopsisWidth, alignment: .topLeading)
                     .id(card.id)
-                    .transition(.opacity)
+                    .transition(.opacity.animation(L.crossfade))
                     .offset(x: L.margin + 12, y: L.metaCentre - 18)
                 }
             }
         }
-        .animation(L.crossfade, value: row.cards.indices.contains(lead) ? row.cards[lead].id : "-")
         .frame(width: L.screenWidth, height: L.rowPitch, alignment: .topLeading)
     }
 }
@@ -179,7 +176,7 @@ struct OrbitLeadFrame: View {
             // Opaque at all times: the row slides under it.
             Color(white: 0.1)
             ZStack(alignment: .bottomLeading) {
-                OrbitImage(url: card.landscape ?? meta?.backdrop, fallback: card.poster, size: size)
+                OrbitImage(url: card.landscape ?? meta?.backdrop, fallback: card.poster, size: size, placeholder: card.poster)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL,
                                       onFailure: onTrailerFailure,
@@ -188,7 +185,7 @@ struct OrbitLeadFrame: View {
                                       onPlaybackEnded: onTrailerEnded,
                                       cornerRadius: L.frameRadius)
                         .frame(width: size.width, height: size.height)
-                        .transition(.opacity)
+                        .transition(.opacity.animation(.easeOut(duration: 0.4)))
                 }
                 LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
                 OrbitTitleMark(name: card.preview.name, logo: OrbitInfo.make(card.preview, meta: meta).logo,
@@ -213,10 +210,9 @@ struct OrbitLeadFrame: View {
                 }
             }
             .frame(width: size.width, height: size.height)
-            .animation(.easeOut(duration: 0.4), value: trailerURL)
             .id(card.id)
             // The new title fades in over the old one, which leaves once covered.
-            .transition(.asymmetric(insertion: .opacity,
+            .transition(.asymmetric(insertion: .opacity.animation(OrbitHomeLayout.crossfade),
                                     removal: .opacity.animation(.linear(duration: 0.01).delay(0.24))))
         }
         .frame(width: size.width, height: size.height)
@@ -225,7 +221,6 @@ struct OrbitLeadFrame: View {
             RoundedRectangle(cornerRadius: L.frameRadius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : 0.2), lineWidth: focused ? L.frameBorder : 1.5)
         }
-        .animation(.easeOut(duration: 0.2), value: focused)
     }
 }
 
@@ -265,11 +260,26 @@ struct OrbitImage: View {
     var fallback: String? = nil
     var mode: ContentMode = .fill
     let size: CGSize
+    /// Shown while `url` loads (the frame shows the poster, already loaded by the row, until its
+    /// landscape art lands; it stayed an empty grey pane on a slow network).
+    var placeholder: String? = nil
 
     var body: some View {
         CachedAsyncImage(string: url, fallback: fallback, contentMode: mode,
                          decodeSize: .points(width: size.width, height: size.height),
-                         loading: { Color.clear }, failure: { Color.clear })
+                         loading: {
+                             if let placeholder {
+                                 CachedAsyncImage(string: placeholder, contentMode: .fill,
+                                                  decodeSize: .points(width: OrbitHomeLayout.posterWidth,
+                                                                      height: OrbitHomeLayout.cardHeight),
+                                                  loading: { Color.clear }, failure: { Color.clear })
+                                     .frame(width: size.width, height: size.height)
+                                     .clipped()
+                             } else {
+                                 Color.clear
+                             }
+                         },
+                         failure: { Color.clear })
             .frame(width: size.width, height: size.height)
             .clipped()
     }

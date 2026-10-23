@@ -35,7 +35,7 @@ struct OrbitHomeHeroView: View {
                                           onPlaybackEnded: onTrailerEnded,
                                           cornerRadius: L.heroRadius)
                             .frame(width: L.heroWidth, height: L.heroHeight)
-                            .transition(.opacity)
+                            .transition(.opacity.animation(.easeOut(duration: 0.5)))
                     }
                     LinearGradient(stops: [
                         .init(color: .black.opacity(0.72), location: 0),
@@ -68,9 +68,8 @@ struct OrbitHomeHeroView: View {
                     .padding(.leading, 88)
                     .padding(.bottom, 44)
                 }
-                .animation(.easeOut(duration: 0.5), value: trailerURL)
                 .id("\(item.type):\(item.id)")
-                .transition(.asymmetric(insertion: .opacity,
+                .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.35)),
                                         removal: .opacity.animation(.linear(duration: 0.01).delay(0.35))))
             }
         }
@@ -80,8 +79,6 @@ struct OrbitHomeHeroView: View {
             RoundedRectangle(cornerRadius: L.heroRadius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 0.85 : 0.25), lineWidth: focused ? 3 : 1.5)
         }
-        .animation(.easeInOut(duration: 0.35), value: item.map { "\($0.type):\($0.id)" } ?? "-")
-        .animation(.easeOut(duration: 0.2), value: focused)
     }
 }
 
@@ -125,7 +122,6 @@ struct OrbitGenresView: View {
                 }
             }
         }
-        .animation(L.horizontal, value: lead)
         .frame(width: L.screenWidth, height: L.chipHeight + 20, alignment: .topLeading)
     }
 }
@@ -155,7 +151,6 @@ struct OrbitGenreChip: View {
                 .strokeBorder(Color.white.opacity(focused ? 1 : 0.22), lineWidth: focused ? 4 : 1.5)
         }
         .scaleEffect(focused ? 1.04 : 1)
-        .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
 
@@ -186,7 +181,6 @@ struct OrbitAmbient: View {
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         .clipped()
         .animation(.easeInOut(duration: 0.5), value: shown)
-        .animation(OrbitHomeLayout.vertical, value: visible)
         .task(id: url ?? "-") {
             guard let url, let address = URL(string: url) else { return }
             guard let full = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(320), fill: true, scale: 1)),
