@@ -1,20 +1,22 @@
 import Combine
 import SharedCore
 import SwiftUI
-import UIKit
 
-// Orbit Library (Steven's fork, 2026-10-23): the Library tab rebuilt on Orbit Discover's principle.
-// The old page was a stock `ScrollView` + adaptive `LazyVGrid` the focus engine scrolled in jumps,
-// laid out at Nuvio's margins. Here:
+// Orbit Library (Steven's fork, 2026-10-23): the Library tab rebuilt for Orbit. The old page was a
+// stock `ScrollView` + adaptive `LazyVGrid` the focus engine scrolled in jumps, laid out at Nuvio's
+// margins. Here:
 //  - the header (title, count line, then the List / Type / Sort / filter pills) stays fixed under
 //    the Orbit bar, at Orbit's margin;
-//  - the grid is ONE focusable stop that takes the presses itself (7 posters a line): Left / Right
-//    inside the line, Down / Up one line with the whole grid gliding on one curve, the selected
-//    line resting on the grid's second line; Up from the first line goes to the pills;
+//  - every poster is its own Button (7 a line), so focus moves at the system's own speed and a
+//    hold opens the system menu beside the poster (Mark as Watched / Unwatched, Remove), as on
+//    every other card. Nothing is scrolled by the focus engine: the posters are drawn at their
+//    places, and when the focus changes line the whole grid glides one line on one curve, the
+//    focused line resting on the grid's second line. Only the lines near the focus exist;
 //  - Menu goes back to the first line, then to the Orbit bar;
-//  - a hold opens the selected poster's menu (Mark as Watched / Unwatched, Remove);
-//  - back from a title, the selection is the poster it was opened from.
+//  - back from a title, the focus is the poster it was opened from.
 // Data, filters, sort, provider lists and the hold actions are the existing `LibraryViewModel`'s.
+// (A single focusable canvas, as on Discover, made the hold impossible to catch reliably and
+// delayed the focus; given up for this page.)
 
 enum OrbitLibraryLayout {
     static let columns = 7
@@ -38,13 +40,10 @@ struct OrbitLibraryPage<Cloud: View>: View {
     @ViewBuilder let cloudContent: () -> Cloud
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var canvasFocused: Bool
+    /// The focused poster (nil when the focus is elsewhere).
+    @FocusState private var focusedIndex: Int?
+    /// The poster the grid is placed for (the focused one, kept when the focus leaves).
     @State private var index = 0
-    /// The poster whose hold menu is open (its index), nil when closed.
-    @State private var menuIndex: Int?
-    /// When the menu last closed: the Select that closed it must not open the title.
-    @State private var menuClosedAt = Date.distantPast
-    @FocusState private var menuFocus: Int?
 
     private var entries: [LibraryGridEntry] { model.entries }
     private var line: Int { index / OrbitLibraryLayout.columns }
@@ -54,10 +53,9 @@ struct OrbitLibraryPage<Cloud: View>: View {
         let D = OrbitLibraryLayout.self
         let L = OrbitHomeLayout.self
         let line = self.line
-        let restLine = min(line, 1)
-        let scroll = CGFloat(restLine - line) * D.pitch
+        let scroll = CGFloat(min(line, 1) - line) * D.pitch
         let lines = entries.isEmpty ? 0 : (entries.count + D.columns - 1) / D.columns
-        let window = max(0, line - 2)...max(max(0, line - 2), min(lines - 1, line + 4))
+        let window = max(0, line - 2)...max(max(0, line - 2), min(lines - 1, line + 3))
 
         ZStack(alignment: .topLeading) {
             L.background.ignoresSafeArea()
@@ -83,36 +81,14 @@ struct OrbitLibraryPage<Cloud: View>: View {
                     }
                     .ignoresSafeArea()
                 }
-
-                // The grid's one focusable stop (a Button: Select opens at once). A hold is caught
-                // by `OrbitHoldCatcher` (a gesture on the Button never fired, and a focusable view
-                // with a gesture delayed every Select by the hold's wait).
-                Button {
-                    guard menuIndex == nil, Date().timeIntervalSince(menuClosedAt) > 0.4,
-                          entries.indices.contains(index) else { return }
-                    onOpen(entries[index].item.toMetaPreview())
-                } label: {
-                    Color.clear
-                        .frame(width: L.screenWidth, height: L.screenHeight - D.gridTop + 20)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(OrbitLibraryCanvasStyle())
-                .focused($canvasFocused)
-                .disabled(entries.isEmpty || menuIndex != nil)
-                .background(OrbitHoldCatcher {
-                    guard canvasFocused, menuIndex == nil, entries.indices.contains(index) else { return }
-                    openMenu()
-                })
-                .onMoveCommand(perform: move)
+                .focusSection()
                 .onExitCommand {
                     if line > 0 {
-                        withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { index = index % D.columns }
-                        syncLock()
+                        focusedIndex = index % D.columns
                     } else {
                         NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
                     }
                 }
-                .offset(y: D.gridTop - 20)
             } else if showingCloud && cloudConnected {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 28) { cloudContent() }
@@ -131,116 +107,24 @@ struct OrbitLibraryPage<Cloud: View>: View {
             }
 
             header
-                .disabled((canvasFocused && line > 0) || menuIndex != nil)
-
-            if let menuIndex, showsGrid, entries.indices.contains(menuIndex) {
-                Color.black.opacity(0.45)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
-                // The held poster stays bright above the dim.
-                OrbitLibraryTile(entry: entries[menuIndex], focused: true)
-                    .offset(posterOrigin(menuIndex))
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
-                holdMenu(entries[menuIndex])
-                    .offset(menuOrigin(menuIndex))
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
-            }
+                // Out of reach while the grid is scrolled (Up from a lower line stays in the grid).
+                .disabled(focusedIndex != nil && line > 0)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .ignoresSafeArea()
+        .onChange(of: focusedIndex) { old, new in
+            guard let new else { syncLock(); return }
+            let D = OrbitLibraryLayout.self
+            let lineChanged = new / D.columns != index / D.columns
+            withAnimation(reduceMotion || !lineChanged || old == nil ? nil : OrbitHomeLayout.vertical) { index = new }
+            syncLock()
+        }
         .onChange(of: model.selectedSectionKey) { _, _ in index = 0 }
         .onChange(of: model.selectedType) { _, _ in index = 0 }
         .onChange(of: model.activeSmartFilters) { _, _ in index = 0 }
         .onChange(of: model.effectiveSortOption) { _, _ in index = 0 }
         .onChange(of: entries.count) { _, count in if index >= count { index = max(0, count - 1) } }
-        .onChange(of: canvasFocused) { _, _ in syncLock() }
         .onDisappear { OrbitBarLock.shared.set(false) }
-    }
-
-    // MARK: Hold menu
-
-    private func openMenu() {
-        withAnimation(.easeOut(duration: 0.18)) { menuIndex = index }
-        // The menu's first item takes the focus once it is on screen.
-        DispatchQueue.main.async { menuFocus = 0 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { if menuIndex != nil, menuFocus == nil { menuFocus = 0 } }
-    }
-
-    private func closeMenu() {
-        menuClosedAt = Date()
-        withAnimation(.easeOut(duration: 0.15)) { menuIndex = nil }
-        menuFocus = nil
-        DispatchQueue.main.async { canvasFocused = true }
-    }
-
-    /// The hold menu beside the poster: Mark as Watched / Unwatched and Remove. Up / Down inside,
-    /// Menu closes it.
-    private func holdMenu(_ entry: LibraryGridEntry) -> some View {
-        let preview = entry.item.toMetaPreview()
-        let isSeries = TitleHoldMenuPolicy.isSeries(type: preview.type)
-        let isWatched = TitleHoldMenuItems.liveWatched(preview, isSeries: isSeries)
-        return VStack(alignment: .leading, spacing: 6) {
-            Text(entry.item.name)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.6))
-                .lineLimit(1)
-                .padding(.horizontal, 22)
-                .padding(.top, 6)
-                .padding(.bottom, 4)
-            Button {
-                TitleHoldMenuItems(preview: preview, revision: 0, includesLibraryAction: false, didAct: {})
-                    .performWatchedAction(labelIsWatched: isWatched, isSeries: isSeries)
-                closeMenu()
-            } label: {
-                Label(TitleHoldMenuPolicy.watchedLabel(isWatched: isWatched, isSeries: isSeries),
-                      systemImage: TitleHoldMenuPolicy.watchedIcon(isWatched: isWatched))
-            }
-            .focused($menuFocus, equals: 0)
-            if model.selectedSectionAllowsRemove {
-                Button(role: .destructive) {
-                    let listKey = model.selectedSectionKey
-                    let listTitle = model.selectedSectionTitle
-                    closeMenu()
-                    model.requestRemove(entry, listKey: listKey, listTitle: listTitle)
-                } label: {
-                    Label(LibraryGridPolicy.removeLabel(listTitle: model.selectedSectionTitle), systemImage: "trash")
-                }
-                .focused($menuFocus, equals: 1)
-            }
-        }
-        .buttonStyle(OrbitHoldMenuItemStyle())
-        .padding(14)
-        .frame(width: Self.menuWidth, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(white: 0.1)))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 1.5))
-        .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
-        .focusSection()
-        .onExitCommand(perform: closeMenu)
-    }
-
-    static var menuWidth: CGFloat { 470 }
-
-    /// Where poster `i` is drawn on screen (its line's place after the grid's glide).
-    private func posterOrigin(_ i: Int) -> CGSize {
-        let D = OrbitLibraryLayout.self
-        let l = i / D.columns
-        let scroll = CGFloat(min(line, 1) - line) * D.pitch
-        return CGSize(width: OrbitHomeLayout.margin + CGFloat(i % D.columns) * (D.tileWidth + D.gap),
-                      height: D.gridTop + scroll + CGFloat(l) * D.pitch)
-    }
-
-    /// The menu beside the poster: on its right, or on its left near the screen's right edge.
-    private func menuOrigin(_ i: Int) -> CGSize {
-        let D = OrbitLibraryLayout.self
-        let poster = posterOrigin(i)
-        let width = Self.menuWidth
-        var x = poster.width + D.tileWidth + 30
-        if x + width > OrbitHomeLayout.screenWidth - OrbitHomeLayout.margin {
-            x = poster.width - 30 - width
-        }
-        return CGSize(width: x, height: poster.height + 20)
     }
 
     private func lineView(_ l: Int) -> some View {
@@ -250,46 +134,39 @@ struct OrbitLibraryPage<Cloud: View>: View {
         return ZStack(alignment: .topLeading) {
             if start < end {
                 ForEach(start..<end, id: \.self) { i in
-                    OrbitLibraryTile(entry: entries[i], focused: canvasFocused && i == index)
+                    posterButton(i)
                         .offset(x: CGFloat(i - start) * (D.tileWidth + D.gap))
-                        .zIndex(i == index ? 1 : 0)
+                        .zIndex(i == focusedIndex ? 1 : 0)
                 }
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: D.pitch, alignment: .topLeading)
     }
 
-    // MARK: Input
-
-    private func move(_ direction: MoveCommandDirection) {
-        let D = OrbitLibraryLayout.self
-        guard !entries.isEmpty else { return }
-        var next = index
-        switch direction {
-        case .left:
-            guard index % D.columns > 0 else { return }
-            next = index - 1
-        case .right:
-            guard index % D.columns < D.columns - 1, index + 1 < entries.count else { return }
-            next = index + 1
-        case .down:
-            guard (line + 1) * D.columns < entries.count else { return }
-            next = min(entries.count - 1, index + D.columns)
-        case .up:
-            guard line > 0 else { return }   // the pills take it (unlocked on the first line)
-            next = index - D.columns
-        @unknown default:
-            return
+    private func posterButton(_ i: Int) -> some View {
+        let entry = entries[i]
+        let preview = entry.item.toMetaPreview()
+        return Button { onOpen(preview) } label: {
+            OrbitLibraryTile(entry: entry, focused: focusedIndex == i)
         }
-        let vertical = direction == .up || direction == .down
-        withAnimation(reduceMotion ? nil : (vertical ? OrbitHomeLayout.vertical : .easeOut(duration: 0.16))) {
-            index = next
+        .buttonStyle(OrbitLibraryPosterStyle())
+        .focused($focusedIndex, equals: i)
+        // The system hold menu, as on every card (the list-aware Remove after the watched toggle).
+        .libraryHoldMenu(preview: preview) {
+            let listKey = model.selectedSectionKey
+            let listTitle = model.selectedSectionTitle
+            if model.selectedSectionAllowsRemove {
+                Button(role: .destructive) {
+                    model.requestRemove(entry, listKey: listKey, listTitle: listTitle)
+                } label: {
+                    Label(LibraryGridPolicy.removeLabel(listTitle: listTitle), systemImage: "trash")
+                }
+            }
         }
-        syncLock()
     }
 
     private func syncLock() {
-        OrbitBarLock.shared.set(canvasFocused && line > 0)
+        OrbitBarLock.shared.set(focusedIndex != nil && line > 0)
     }
 
     // MARK: Header
@@ -480,74 +357,14 @@ private struct OrbitLibraryTile: View {
         }
         .scaleEffect(focused ? 1.08 : 1)
         .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: 18, y: 10)
+        .animation(.easeOut(duration: 0.14), value: focused)
     }
 }
 
-private struct OrbitHoldMenuItemStyle: ButtonStyle {
+/// The poster draws its own focus (the white frame and the lift); no system platter.
+private struct OrbitLibraryPosterStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        OrbitHoldMenuItem(configuration: configuration)
-    }
-}
-
-private struct OrbitHoldMenuItem: View {
-    let configuration: ButtonStyle.Configuration
-    @Environment(\.isFocused) private var focused
-
-    var body: some View {
-        let destructive = configuration.role == .destructive
         configuration.label
-            .font(.system(size: 28, weight: .semibold))
-            .foregroundStyle(focused ? (destructive ? Color.red : Color.black)
-                                     : (destructive ? Color(red: 1, green: 0.35, blue: 0.35) : Color.white))
-            .padding(.horizontal, 22)
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-            .background(Capsule().fill(focused ? Color.white : Color.clear))
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: focused)
-    }
-}
-
-private struct OrbitLibraryCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
-}
-
-/// Catches a hold of Select (0.5 s) anywhere in the window while mounted: a gesture recognizer on
-/// the window sees the presses of whatever is focused (the grid's Button), which SwiftUI's own
-/// gestures on that Button never did. The page checks that the grid has the focus.
-struct OrbitHoldCatcher: UIViewRepresentable {
-    let onHold: () -> Void
-
-    func makeUIView(context: Context) -> CatcherView {
-        let view = CatcherView()
-        view.onHold = onHold
-        return view
-    }
-
-    func updateUIView(_ view: CatcherView, context: Context) { view.onHold = onHold }
-
-    final class CatcherView: UIView {
-        var onHold: (() -> Void)?
-        private var recognizer: UILongPressGestureRecognizer?
-        private weak var attachedWindow: UIWindow?
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            if let recognizer, let attachedWindow { attachedWindow.removeGestureRecognizer(recognizer) }
-            recognizer = nil
-            attachedWindow = nil
-            guard let window else { return }
-            let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
-            hold.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
-            hold.allowedTouchTypes = []
-            hold.minimumPressDuration = 0.5
-            hold.cancelsTouchesInView = false
-            window.addGestureRecognizer(hold)
-            recognizer = hold
-            attachedWindow = window
-        }
-
-        @objc private func held(_ recognizer: UILongPressGestureRecognizer) {
-            if recognizer.state == .began { onHold?() }
-        }
+            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
