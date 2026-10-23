@@ -2,20 +2,22 @@ import Combine
 import SharedCore
 import SwiftUI
 
-// Orbit Plateformes (Steven, 2026-10-23, on trial): under the platform grid, "Tendances sur
-// <platform>" — what is popular on the focused platform right now (TMDB's discover by watch
-// provider in the viewer's region, films and series interleaved). It follows the last focused
+// Orbit Plateformes (Steven, 2026-10-23, on trial): under the platforms, "Films populaires sur
+// <platform>" and "Séries populaires sur <platform>" — TMDB's discover by watch provider in the
+// viewer's region, by popularity (it is what is popular there, not only what is new: hence
+// "populaires"). Each row scrolls sideways through its 20 titles. The rows follow the last focused
 // platform, so the viewer sees what is inside before opening it. A platform TMDB does not know
-// shows no row.
+// shows no rows.
 
 @MainActor
 final class OrbitPlatformTrendingModel: ObservableObject {
     static let shared = OrbitPlatformTrendingModel()
 
     @Published private(set) var title: String?
-    @Published private(set) var items: [MetaPreview] = []
+    @Published private(set) var movies: [MetaPreview] = []
+    @Published private(set) var series: [MetaPreview] = []
 
-    private var cache: [Int: [MetaPreview]] = [:]
+    private var cache: [Int: (movies: [MetaPreview], series: [MetaPreview])] = [:]
     private var pending: Task<Void, Never>?
     private var current: Int?
 
@@ -40,14 +42,14 @@ final class OrbitPlatformTrendingModel: ObservableObject {
         guard let provider = Self.providerId(forTitle: folderTitle) else {
             pending?.cancel()
             current = nil
-            withAnimation(.easeInOut(duration: 0.25)) { title = nil; items = [] }
+            withAnimation(.easeInOut(duration: 0.25)) { title = nil; movies = []; series = [] }
             return
         }
         guard provider != current else { return }
         current = provider
         pending?.cancel()
         if let cached = cache[provider] {
-            withAnimation(.easeInOut(duration: 0.25)) { title = folderTitle; items = cached }
+            withAnimation(.easeInOut(duration: 0.25)) { title = folderTitle; movies = cached.movies; series = cached.series }
             return
         }
         let key = TmdbSettingsRepository.shared.effectiveApiKey()
@@ -59,8 +61,9 @@ final class OrbitPlatformTrendingModel: ObservableObject {
             guard !Task.isCancelled, let self, self.current == provider else { return }
             self.cache[provider] = found
             withAnimation(.easeInOut(duration: 0.25)) {
-                self.title = found.isEmpty ? nil : folderTitle
-                self.items = found
+                self.title = found.movies.isEmpty && found.series.isEmpty ? nil : folderTitle
+                self.movies = found.movies
+                self.series = found.series
             }
         }
     }
@@ -87,18 +90,13 @@ final class OrbitPlatformTrendingModel: ObservableObject {
         return "FR"
     }
 
-    nonisolated private static func fetch(provider: Int, apiKey: String, language: String) async -> [MetaPreview] {
+    nonisolated private static func fetch(provider: Int, apiKey: String,
+                                          language: String) async -> (movies: [MetaPreview], series: [MetaPreview]) {
         let lang = language.isEmpty ? "fr-FR" : language
         let region = region(language: lang)
         async let movies = page(media: "movie", provider: provider, region: region, apiKey: apiKey, language: lang)
         async let series = page(media: "tv", provider: provider, region: region, apiKey: apiKey, language: lang)
-        let (m, s) = await (movies, series)
-        var out: [MetaPreview] = []
-        for i in 0..<max(m.count, s.count) {
-            if i < m.count { out.append(m[i]) }
-            if i < s.count { out.append(s[i]) }
-        }
-        return Array(out.prefix(20))
+        return await (movies, series)
     }
 
     nonisolated private static func page(media: String, provider: Int, region: String, apiKey: String,
@@ -125,44 +123,60 @@ final class OrbitPlatformTrendingModel: ObservableObject {
     }
 }
 
-/// The row under the grid: "Tendances sur Netflix", then the posters, each opening its title.
+/// The rows under the platforms: "Films populaires sur Netflix", "Séries populaires sur Netflix",
+/// each scrolling sideways, each poster opening its title.
 struct OrbitPlatformTrendingRow: View {
     @ObservedObject var model = OrbitPlatformTrendingModel.shared
     @FocusState private var focused: String?
-    /// When the focus last left the row (the grid keeps its own landing when coming back up).
+    /// When the focus last left the rows (the platforms keep their own landing when coming back up).
     @MainActor static var lostAt: TimeInterval = 0
 
-    static let posterWidth: CGFloat = 200
-    static let posterHeight: CGFloat = 300
+    static let posterWidth: CGFloat = 170
+    static let posterHeight: CGFloat = 255
     static let spacing: CGFloat = 24
 
     var body: some View {
-        let count = Int((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin + Self.spacing) / (Self.posterWidth + Self.spacing))
-        VStack(alignment: .leading, spacing: 18) {
-            if let title = model.title, !model.items.isEmpty {
-                Text(String(format: String(localized: "Tendances sur %@"), title))
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .id("heading-\(title)")
-                    .transition(.opacity)
-                HStack(spacing: Self.spacing) {
-                    ForEach(Array(model.items.prefix(count)), id: \.id) { item in
-                        NavigationLink(value: TitleRoute(preview: item)) {
-                            OrbitTrendingPoster(item: item, focused: focused == item.id)
-                        }
-                        .buttonStyle(OrbitPlatformTileStyle())
-                        .focused($focused, equals: item.id)
-                    }
+        VStack(alignment: .leading, spacing: 30) {
+            if let title = model.title {
+                if !model.movies.isEmpty {
+                    row(heading: String(format: String(localized: "Films populaires sur %@"), title),
+                        items: model.movies, key: "movies-\(title)")
                 }
-                .id("row-\(title)")
-                .transition(.opacity)
+                if !model.series.isEmpty {
+                    row(heading: String(format: String(localized: "Séries populaires sur %@"), title),
+                        items: model.series, key: "series-\(title)")
+                }
             }
         }
-        .frame(height: Self.posterHeight + 60, alignment: .topLeading)
-        .focusSection()
         .onChange(of: focused) { _, id in
             if id == nil { Self.lostAt = ProcessInfo.processInfo.systemUptime }
         }
+    }
+
+    private func row(heading: String, items: [MetaPreview], key: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(heading)
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(Color.white)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Self.spacing) {
+                    ForEach(items, id: \.id) { item in
+                        NavigationLink(value: TitleRoute(preview: item)) {
+                            OrbitTrendingPoster(item: item, focused: focused == "\(key)/\(item.id)")
+                        }
+                        .buttonStyle(OrbitPlatformTileStyle())
+                        .focused($focused, equals: "\(key)/\(item.id)")
+                    }
+                }
+                .padding(.vertical, 14)
+                .padding(.trailing, OrbitHomeLayout.margin)
+            }
+            .scrollClipDisabled()
+            .padding(.vertical, -14)
+        }
+        .id(key)
+        .transition(.opacity)
+        .focusSection()
     }
 }
 
