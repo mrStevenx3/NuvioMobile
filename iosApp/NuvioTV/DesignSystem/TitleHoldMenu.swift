@@ -267,7 +267,7 @@ struct TitleHoldMenuItems: View {
         LibraryRepository.shared.isSaved(id: preview.id, type: preview.type)
     }
 
-    private static func liveWatched(_ preview: MetaPreview, isSeries: Bool) -> Bool {
+    static func liveWatched(_ preview: MetaPreview, isSeries: Bool) -> Bool {
         TitleHoldMenuPolicy.effectiveWatched(
             titleMarked: WatchedRepository.shared.isWatched(id: preview.id, type: preview.type, season: nil, episode: nil),
             fullyWatchedSeries: isSeries
@@ -295,7 +295,7 @@ struct TitleHoldMenuItems: View {
     }
 
     /// "Mark as Watched" / "Mark as Unwatched".
-    private func performWatchedAction(labelIsWatched: Bool, isSeries: Bool) {
+    func performWatchedAction(labelIsWatched: Bool, isSeries: Bool) {
         if isSeries {
             // Mark-all / unmark-all across the released episodes. The shared side only has the
             // toggle (it fetches the series' meta first, so it is fire-and-forget), and it decides
