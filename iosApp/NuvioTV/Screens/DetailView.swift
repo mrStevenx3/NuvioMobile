@@ -590,7 +590,10 @@ final class DetailRailFocusBox {
 /// Full detail screen for a single title, fed by the shared `MetaDetailsRepository`.
 /// Constructed from a `MetaPreview` (the card the user focused), then enriched in place as the
 /// repository resolves full metadata.
-struct DetailView: View {
+/// Steven's fork (2026-10-23): RETIRED — no route opens it any more (`DetailView` in
+/// OrbitDetailView.swift opens the Orbit page). Kept only until the file can be removed with a build
+/// at hand (its shared helpers are used elsewhere).
+struct LegacyDetailView: View {
     let preview: MetaPreview
 
     /// Not `@EnvironmentObject`: DetailView can be reached outside the tab shell entirely (a Top
