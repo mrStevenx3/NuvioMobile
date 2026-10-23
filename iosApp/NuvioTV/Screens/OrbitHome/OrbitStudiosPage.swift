@@ -17,6 +17,7 @@ struct OrbitStudiosPage: View {
     let collection: NuvioCollection
 
     @FocusState private var focused: String?
+    @Environment(\.displayScale) private var displayScale
     /// The studio the page shows (backdrop, logo, films): the focused one, kept when the focus
     /// goes down to the films.
     @State private var shownId: String?
@@ -114,6 +115,7 @@ struct OrbitStudiosPage: View {
                 shownId = folders.first?.id
             }
             if let folder = shownFolder { films.focus(title: folder.title) }
+            prefetchBackdrops()
         }
         .onDisappear {
             let now = ProcessInfo.processInfo.systemUptime
@@ -122,6 +124,20 @@ struct OrbitStudiosPage: View {
     }
 
     @MainActor private static var lostTilesAt: TimeInterval = 0
+
+    /// Steven (Illumination stayed on the slate a moment): every studio's backdrop is fetched
+    /// as the page opens, decoded exactly as `OrbitStudiosBackdrop` asks, so a change is instant.
+    private func prefetchBackdrops() {
+        let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.screenWidth,
+                                                         height: OrbitHomeLayout.screenHeight),
+                                           fill: true, scale: displayScale)
+        let urls = folders.compactMap { Self.backdropURL($0) }.compactMap(URL.init(string:))
+        Task(priority: .utility) {
+            for url in urls where ArtworkStore.cached(url, decode: request) == nil {
+                _ = try? await ArtworkStore.fetch(url, decode: request)
+            }
+        }
+    }
 
     /// Back from a studio: the tile it was opened from (asked a few times: the engine's own
     /// restoration lands late), until the viewer presses anything.
@@ -243,6 +259,9 @@ final class OrbitStudioFilmsModel: ObservableObject {
         if t.contains("blumhouse") { return "3172" }
         if t.contains("legendary") { return "923" }
         if t.contains("lionsgate") { return "1632" }
+        if t.contains("pathe") { return "7981|866" }
+        if t.contains("gaumont") { return "9" }
+        if t.contains("studiocanal") { return "694" }
         if t.contains("disney") { return "2|6125" }
         return nil
     }
