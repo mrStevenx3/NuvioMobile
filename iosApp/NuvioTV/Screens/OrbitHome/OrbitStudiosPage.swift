@@ -134,22 +134,30 @@ struct OrbitStudiosPage: View {
         let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.screenWidth,
                                                          height: OrbitHomeLayout.screenHeight),
                                            fill: true, scale: displayScale)
-        let urls = folders.compactMap { Self.backdropURL($0) }.compactMap(URL.init(string:))
-        for folder in folders where tints[folder.id] == nil {
-            guard let url = Self.backdropURL(folder) else { continue }
-            let id = folder.id
-            if let cached = ArtworkColorStore.shared.cachedColor(for: [url], use: .wash) {
-                tints[id] = cached
-            } else {
-                ArtworkColorStore.shared.color(for: [url], use: .wash) { color in
-                    if let color { tints[id] = color }
-                }
-            }
+        // Each backdrop fetched, then its colour sampled (the colour store samples only art that
+        // is already in memory: asked before the fetch, it answered nothing — Steven saw no tint).
+        let jobs: [(id: String, raw: String, url: URL)] = folders.compactMap { folder in
+            guard let raw = Self.backdropURL(folder), let url = URL(string: raw) else { return nil }
+            return (folder.id, raw, url)
         }
         Task(priority: .utility) {
-            for url in urls where ArtworkStore.cached(url, decode: request) == nil {
-                _ = try? await ArtworkStore.fetch(url, decode: request)
+            for job in jobs {
+                if ArtworkStore.cached(job.url, decode: request) == nil {
+                    _ = try? await ArtworkStore.fetch(job.url, decode: request)
+                }
+                await MainActor.run { sampleTint(id: job.id, raw: job.raw) }
             }
+        }
+    }
+
+    private func sampleTint(id: String, raw: String) {
+        guard tints[id] == nil else { return }
+        if let cached = ArtworkColorStore.shared.cachedColor(for: [raw], use: .wash) {
+            tints[id] = cached
+            return
+        }
+        ArtworkColorStore.shared.color(for: [raw], use: .wash) { color in
+            if let color { tints[id] = color }
         }
     }
 
