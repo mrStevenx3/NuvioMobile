@@ -136,6 +136,27 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
         upRecognizer = up
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        restoreOpenedTitle(attempt: 0)
+    }
+
+    /// Back from a title: the poster it was opened from, asked again a few times (the system's own
+    /// restoration to the keyboard can land after the first ask).
+    private func restoreOpenedTitle(attempt: Int) {
+        guard let results, let target = results.prepareRestore() else { return }
+        let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+        if let cell = results.restoredCell, let focused, focused.isDescendant(of: cell) {
+            results.restoreDone()
+            return
+        }
+        move(to: target)
+        guard attempt < 4 else { results.restoreDone(); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            self?.restoreOpenedTitle(attempt: attempt + 1)
+        }
+    }
+
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
         if let focusTarget { return [focusTarget] }
         return super.preferredFocusEnvironments

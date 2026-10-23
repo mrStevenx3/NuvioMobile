@@ -181,9 +181,30 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         guard let item = dataSource.itemIdentifier(for: indexPath) else { return }
         switch item {
         case .suggestion(let text): onPick(text)
-        case .title(let id): if let preview = titles[id] { onOpen(preview) }
+        case .title(let id):
+            if let preview = titles[id] {
+                lastOpened = indexPath
+                onOpen(preview)
+            }
         }
     }
+
+    /// Steven: back from a title, the cursor went back up to the keyboard. The poster it was
+    /// opened from takes focus again.
+    private var lastOpened: IndexPath?
+
+    func prepareRestore() -> UIFocusEnvironment? {
+        guard let path = lastOpened, path.section < collectionView.numberOfSections,
+              path.item < collectionView.numberOfItems(inSection: path.section) else { return nil }
+        preferredPath = path
+        collectionView.scrollToItem(at: path, at: .centeredVertically, animated: false)
+        collectionView.layoutIfNeeded()
+        return collectionView
+    }
+
+    func restoreDone() { lastOpened = nil }
+
+    var restoredCell: UIView? { lastOpened.flatMap { collectionView.cellForItem(at: $0) } }
 
     private static func layout() -> UICollectionViewCompositionalLayout {
         UICollectionViewCompositionalLayout { index, environment in
