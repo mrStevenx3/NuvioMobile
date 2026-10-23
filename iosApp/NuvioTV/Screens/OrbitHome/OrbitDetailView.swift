@@ -499,11 +499,12 @@ struct OrbitDetailView: View {
                     }
                 }
                 .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
-                HStack(spacing: 18) {
-                    OrbitDetailMetaLine(meta: meta, preview: preview)
-                    OrbitQualityBadges(quality: quality.found, logos: quality.logos)
-                }
-                .padding(.top, 34)
+                OrbitDetailMetaLine(meta: meta, preview: preview)
+                    .padding(.top, 34)
+                // On their own line under it (beside it, they cut the genres short).
+                OrbitQualityBadges(quality: quality.found)
+                    .frame(height: 34, alignment: .leading)
+                    .padding(.top, 16)
                 actions
                     .padding(.top, 36)
             }

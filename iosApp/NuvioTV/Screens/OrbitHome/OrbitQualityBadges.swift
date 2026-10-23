@@ -155,20 +155,15 @@ struct OrbitQualityBadges: View {
     /// else the text badge.
     @ViewBuilder
     private func badge(_ text: String, asset: String, flag: OrbitQuality) -> some View {
-        if let url = logos[flag.rawValue] {
-            // The logo the viewer's badge rules use in the source list.
-            CachedAsyncImage(string: url, contentMode: .fit, decodeSize: .points(width: 180, height: 44))
-                .frame(height: 32)
-                .frame(maxWidth: 160)
-                .accessibilityLabel(text)
-                .transition(.opacity)
-        } else if UIImage(named: asset) != nil {
+        // Steven's own logo files first (the regex logos looked poor: small, padded, uneven).
+        if UIImage(named: asset) != nil {
             Image(asset)
                 .renderingMode(.template)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(Color.white.opacity(0.92))
                 .frame(height: 30)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel(text)
                 .transition(.opacity)
         } else {
