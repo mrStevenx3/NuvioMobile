@@ -20,11 +20,12 @@ nonisolated struct OrbitQuality: OptionSet, Sendable, Equatable {
     static let fullHD = OrbitQuality(rawValue: 1 << 5)
     static let hd = OrbitQuality(rawValue: 1 << 6)
     static let sd = OrbitQuality(rawValue: 1 << 7)
+    static let hdr10 = OrbitQuality(rawValue: 1 << 8)
 
     /// The one quality a badge rule's name stands for ("Dolby Vision", "DV", "4K", "Atmos"…).
     static func single(_ name: String) -> OrbitQuality? {
         let read = read(name)
-        for flag in [OrbitQuality.dolbyVision, .hdr10Plus, .atmos, .uhd, .fullHD, .hd, .sd, .hdr] where read.contains(flag) {
+        for flag in [OrbitQuality.dolbyVision, .hdr10Plus, .hdr10, .atmos, .uhd, .fullHD, .hd, .sd, .hdr] where read.contains(flag) {
             return flag
         }
         return nil
@@ -47,6 +48,9 @@ nonisolated struct OrbitQuality: OptionSet, Sendable, Equatable {
         if t.contains("dolby vision") || t.contains("dovi") || t.contains(" dv ") || t.contains("hdr dv")
             || t.contains("dv hdr") || t.contains(" dv+") || t.contains("+dv") { out.insert(.dolbyVision) }
         if t.contains("hdr10+") || t.contains("hdr10plus") || t.contains("hdr10 plus") { out.insert(.hdr10Plus) }
+        // HDR10 alone (many films have only it): "hdr10" not followed by "+" / "plus".
+        if t.replacingOccurrences(of: "hdr10+", with: "").replacingOccurrences(of: "hdr10plus", with: "")
+            .replacingOccurrences(of: "hdr10 plus", with: "").contains("hdr10") { out.insert(.hdr10) }
         if t.contains("hdr") { out.insert(.hdr) }
         if t.contains("atmos") { out.insert(.atmos) }
         return out
@@ -129,7 +133,7 @@ struct OrbitQualityBadges: View {
     var logos: [Int: String] = [:]
 
     var body: some View {
-        HStack(alignment: .center, spacing: 26) {
+        HStack(alignment: .center, spacing: 22) {
             // Always the best definition the sources have, one badge.
             if quality.contains(.uhd) {
                 badge("4K", asset: "orbit-badge-4k", flag: .uhd)
@@ -144,6 +148,8 @@ struct OrbitQualityBadges: View {
                 badge("Dolby Vision", asset: "orbit-badge-dolby-vision", flag: .dolbyVision)
             } else if quality.contains(.hdr10Plus) {
                 badge("HDR10+", asset: "orbit-badge-hdr10plus", flag: .hdr10Plus)
+            } else if quality.contains(.hdr10) {
+                badge("HDR10", asset: "orbit-badge-hdr10", flag: .hdr10)
             } else if quality.contains(.hdr) {
                 badge("HDR", asset: "orbit-badge-hdr", flag: .hdr)
             }
@@ -156,14 +162,16 @@ struct OrbitQualityBadges: View {
     @ViewBuilder
     private func badge(_ text: String, asset: String, flag: OrbitQuality) -> some View {
         // Steven's own logo files first (the regex logos looked poor: small, padded, uneven).
-        if UIImage(named: asset) != nil {
+        if let image = UIImage(named: asset), image.size.height > 0 {
+            // Each logo at its height, but never wider than 92 pt (the wide marks come down).
+            let aspect = image.size.width / image.size.height
+            let height = min(Self.logoHeight(asset), 92 / aspect)
             Image(asset)
                 .renderingMode(.template)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(Color.white.opacity(0.92))
-                .frame(height: Self.logoHeight(asset))
-                .fixedSize(horizontal: true, vertical: false)
+                .frame(width: height * aspect, height: height)
                 .accessibilityLabel(text)
                 .transition(.opacity)
         } else {
@@ -175,10 +183,11 @@ struct OrbitQualityBadges: View {
     /// the boxed 1080p taller, the wide HDR10+ lower.
     static func logoHeight(_ asset: String) -> CGFloat {
         switch asset {
-        case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 40
-        case "orbit-badge-fullhd": return 38
-        case "orbit-badge-hdr10plus": return 24
-        default: return 28
+        case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 32
+        case "orbit-badge-fullhd": return 32
+        case "orbit-badge-hdr10plus": return 18
+        case "orbit-badge-sd", "orbit-badge-hd": return 24
+        default: return 24
         }
     }
 
