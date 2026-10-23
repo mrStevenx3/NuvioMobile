@@ -574,8 +574,8 @@ struct OrbitDetailView: View {
                 .padding(.top, 34)
             // On their own line under it (beside it, they cut the genres short).
             OrbitQualityBadges(quality: quality.found)
-                .frame(height: 42, alignment: .leading)
-                .padding(.top, 16)
+                .frame(height: 30, alignment: .leading)
+                .padding(.top, 8)
             // Steven (Apple TV style): the synopsis on the buttons' line, its arrow opens it in
             // full; Right from the last button lands on the arrow.
             // The synopsis starts at one place (about under the logo's end), whatever the buttons:

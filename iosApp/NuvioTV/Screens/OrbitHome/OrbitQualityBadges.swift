@@ -185,7 +185,7 @@ struct OrbitQualityBadges: View {
         switch asset {
         case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 28
         case "orbit-badge-fullhd": return 28
-        case "orbit-badge-4k": return 17
+        case "orbit-badge-4k": return 14
         case "orbit-badge-hdr10plus": return 15
         case "orbit-badge-sd", "orbit-badge-hd": return 20
         default: return 20
