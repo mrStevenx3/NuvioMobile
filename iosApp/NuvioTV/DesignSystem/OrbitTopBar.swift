@@ -434,6 +434,9 @@ struct OrbitCollectionGrid: View {
                             }
                         }
                     }
+                    // Steven (on trial): what is popular on the focused platform.
+                    OrbitPlatformTrendingRow()
+                        .padding(.top, 14)
                 }
                 .padding(.top, Self.top)
                 .padding(.horizontal, OrbitHomeLayout.margin)
@@ -455,12 +458,14 @@ struct OrbitCollectionGrid: View {
             Self.lastFocused = id
             onFolderFocus(entry.collection, entry.folder)
             updateHalo(entry)
+            OrbitPlatformTrendingModel.shared.focus(title: entry.folder.title)
         }
         // Only a return from a folder (the grid had focus when it went away), never an arrival
         // from the bar, which keeps focus where the viewer is.
         .onAppear {
             if haloColor == nil, let first = entries.first(where: { $0.id == Self.lastFocused }) ?? entries.first {
                 updateHalo(first)
+                OrbitPlatformTrendingModel.shared.focus(title: first.folder.title)
             }
             guard Self.leftWithFocus else { return }
             Self.leftWithFocus = false
@@ -544,7 +549,9 @@ struct OrbitPlatformTile: View {
                     .padding(20)
             }
             if folder.focusGifEnabled, let gif, !gif.isEmpty {
-                AnimatedGifImage(string: gif, fallback: nil, isAnimating: focused, targetSize: size)
+                // Fitted, not filled (Steven: Paramount+'s animation was cropped to a zoomed
+                // mountain); its bars take the GIF's own edge colour.
+                AnimatedGifImage(string: gif, fallback: nil, contentMode: .fit, isAnimating: focused, targetSize: size)
             }
         }
         .frame(width: size.width, height: size.height)

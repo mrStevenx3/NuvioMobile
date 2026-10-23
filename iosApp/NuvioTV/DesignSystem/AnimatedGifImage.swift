@@ -1120,7 +1120,10 @@ private struct StreamingGifView: UIViewRepresentable {
     }
 
     /// Whether a frame has visible content: at least 3 % of a 16 × 16 sample brighter than dark.
-    static func hasContent(_ image: CGImage) -> Bool {
+    static func hasContent(_ image: CGImage) -> Bool { sample(image).content }
+
+    /// The frame's content test and its top-left colour (a fitted GIF's bars take it).
+    static func sample(_ image: CGImage) -> (content: Bool, corner: UIColor) {
         let side = 16
         var pixels = [UInt8](repeating: 0, count: side * side * 4)
         let drawn: Bool = pixels.withUnsafeMutableBytes { buffer in
@@ -1131,13 +1134,16 @@ private struct StreamingGifView: UIViewRepresentable {
             context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
             return true
         }
-        guard drawn else { return true }
+        guard drawn else { return (true, .black) }
         var lit = 0
         for i in stride(from: 0, to: pixels.count, by: 4) {
             let luma = 0.299 * Double(pixels[i]) + 0.587 * Double(pixels[i + 1]) + 0.114 * Double(pixels[i + 2])
             if luma > 40 { lit += 1 }
         }
-        return lit * 100 >= side * side * 3
+        // Row 0 of the bitmap is the image's top (CGContext draws flipped into memory order).
+        let corner = UIColor(red: CGFloat(pixels[0]) / 255, green: CGFloat(pixels[1]) / 255,
+                             blue: CGFloat(pixels[2]) / 255, alpha: 1)
+        return (lit * 100 >= side * side * 3, corner)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -1175,10 +1181,15 @@ private struct StreamingGifView: UIViewRepresentable {
                 let show = { [weak view, weak coordinator] in
                     guard let view, let coordinator else { return }
                     view.image = UIImage(cgImage: image)
-                    if !coordinator.revealed,
-                       Self.hasContent(image) || ProcessInfo.processInfo.systemUptime - coordinator.startedAt > 1.5 {
-                        coordinator.revealed = true
-                        UIView.animate(withDuration: 0.2) { view.alpha = 1 }
+                    if !coordinator.revealed {
+                        let sample = Self.sample(image)
+                        if sample.content || ProcessInfo.processInfo.systemUptime - coordinator.startedAt > 1.5 {
+                            coordinator.revealed = true
+                            // A fitted GIF (Plateformes: Paramount+'s is not 16:9) fills its bars
+                            // with its own edge colour.
+                            if view.contentMode == .scaleAspectFit { view.backgroundColor = sample.corner }
+                            UIView.animate(withDuration: 0.2) { view.alpha = 1 }
+                        }
                     }
                 }
                 if Thread.isMainThread { show() } else { DispatchQueue.main.async(execute: show) }
