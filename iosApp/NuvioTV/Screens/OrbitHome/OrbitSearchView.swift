@@ -188,6 +188,42 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
         NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
     }
 
+    /// Steven: Down from the Orbit bar into the keyboard (field empty) lands on "a", not on
+    /// whichever key sat under the bar's item.
+    override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+        super.didUpdateFocus(in: context, with: coordinator)
+        guard let next = context.nextFocusedItem, contains(next), !contains(context.previouslyFocusedItem),
+              (searchBar?.text ?? "").isEmpty else { return }
+        if let results, let view = next as? UIView, view.isDescendant(of: results.view) { return }
+        guard let key = letterA(near: next), key !== next else { return }
+        DispatchQueue.main.async { [weak self] in self?.move(to: key) }
+    }
+
+    private func contains(_ item: UIFocusEnvironment?) -> Bool {
+        var env = item
+        while let current = env {
+            if current === self { return true }
+            env = current.parentFocusEnvironment
+        }
+        return false
+    }
+
+    /// The keyboard's "a": by its name, else the third key of the focused key's row (after
+    /// "123" and the space bar).
+    private func letterA(near key: UIFocusItem) -> UIFocusItem? {
+        guard let container = key.parentFocusEnvironment?.focusItemContainer else { return nil }
+        let everything = CGRect(x: -20_000, y: -20_000, width: 40_000, height: 40_000)
+        let items = container.focusItems(in: everything).filter { $0.canBecomeFocused }
+        if let named = items.first(where: {
+            (($0 as? NSObject)?.accessibilityLabel ?? "").lowercased() == "a"
+        }) { return named }
+        let keyFrame = key.frame
+        let row = items
+            .filter { abs($0.frame.midY - keyFrame.midY) < 24 }
+            .sorted { $0.frame.minX < $1.frame.minX }
+        return row.count > 2 ? row[2] : nil
+    }
+
     private func move(to target: UIFocusEnvironment) {
         focusTarget = target
         setNeedsFocusUpdate()

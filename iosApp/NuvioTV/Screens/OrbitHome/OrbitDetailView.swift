@@ -532,8 +532,10 @@ struct OrbitDetailView: View {
             .padding(.top, 36)
             .focusSection()
             // The cast and the direction, small, bottom right.
+            // Its room is held from the start (the cast arrives with the details a moment after
+            // the page): else the whole block rose once they came in.
             credits
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, minHeight: 62, maxHeight: 62, alignment: .bottomTrailing)
                 .padding(.top, 34)
         }
         .padding(.horizontal, L.margin)
