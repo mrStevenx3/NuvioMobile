@@ -129,38 +129,11 @@ struct StageStripHome: View {
             } else if let studios = singleStudiosCollection {
                 // Steven's fork (Orbit Studios, one row): the row at the bottom of the screen under
                 // a large title, so the stage art shows above it.
-                // Steven (2026-10-23): the page's own backdrop (the focused studio's, at once), not
-                // the stage's, which lagged and kept the last studio's art.
-                OrbitStudiosBackdrop(url: studiosBackdropURL(studios))
-                    .ignoresSafeArea()
+                // Steven (2026-10-23): the Orbit Studios page (`OrbitStudiosPage`): the studio's
+                // backdrop and logo, his studio icons, the studio's new films.
+                OrbitStudiosPage(collection: studios)
                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
-                // Steven: the studio's logo top left, its top on the Orbit bar's (22 + 6).
-                studiosLogo(studios)
-                    .padding(.leading, OrbitHomeLayout.margin)
-                    .padding(.top, 28)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
-                VStack(alignment: .leading, spacing: 0) {
-                    Spacer(minLength: 0)
-                    CollectionRowView(collection: studios, entryFirstGeneration: studiosEntryGeneration,
-                                      onFolderFocusChange: { folder in
-                        if let folder { studiosFocusedFolderId = folder.id }
-                        stage.report(folder.flatMap { HomeRowPreviews.folder(collection: studios, folder: $0,
-                                                                             showsDetails: catalogDetailsInHeadings) },
-                                     source: studios.id,
-                                     rowHeading: studios.title,
-                                     prefetch: { HomeRowPreviews.collectionArtURLs(studios) })
-                    })
                     .onAppear { stage.rowAppeared(collection: studios) }
-                        .environment(\.collectionRowHidesHeading, true)
-                        // Steven: Poster Size does not apply to the studio tiles either.
-                        .environment(\.posterStyle, .default)
-                        // The row hugs its content (it filled the screen, title at the top).
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, StripGeometry.edgeMargin)
-                        .padding(.bottom, 70)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .focusSection()
             } else {
             VStack(spacing: 0) {
                 // The stage block's place. Nothing focusable lives here, so Up from row 0 goes to

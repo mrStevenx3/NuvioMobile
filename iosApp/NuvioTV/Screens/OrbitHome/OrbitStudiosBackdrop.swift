@@ -10,6 +10,8 @@ import UIKit
 
 struct OrbitStudiosBackdrop: View {
     let url: String?
+    /// Where the bottom blur starts (0 = top, 1 = bottom).
+    var blurFrom: CGFloat = 0.6
 
     @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
@@ -38,8 +40,8 @@ struct OrbitStudiosBackdrop: View {
                     .blur(radius: 36, opaque: true)
                     .mask {
                         LinearGradient(stops: [
-                            .init(color: .clear, location: 0.6),
-                            .init(color: .black, location: 0.84),
+                            .init(color: .clear, location: blurFrom),
+                            .init(color: .black, location: min(1, blurFrom + 0.24)),
                         ], startPoint: .top, endPoint: .bottom)
                     }
                     .id("blur-\(shownURL ?? "-")")
