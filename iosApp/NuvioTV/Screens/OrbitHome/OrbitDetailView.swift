@@ -296,7 +296,7 @@ struct OrbitDetailView: View {
             tabBarVisibility.pushImmersive()
             armHeroTrailer()
         }
-        .onChange(of: qualityRequest) { _, _ in requestQuality() }
+        .onChange(of: qualityRequest, initial: true) { _, _ in requestQuality() }
         .onDisappear {
             quality.stop()
             visible = false
