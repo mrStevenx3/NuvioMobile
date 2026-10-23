@@ -129,6 +129,7 @@ struct OrbitTopBar: View {
     /// the current page's item (Films at launch).
     @State private var placedLaunchFocus = false
     @State private var searchReady = false
+    @State private var autoSelectGeneration = 0
     /// Pass 7: the Plateformes / Studios portal (`OrbitSpaceTransition`), one id per run.
     @State private var transitionId: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -186,6 +187,16 @@ struct OrbitTopBar: View {
             }
         }
         .onChange(of: focused) { _, item in
+            // Steven (2026-10-23): Films, Séries, Plateformes and Studios open on focus, like the
+            // Apple TV's own tab bar — after a short rest, so passing over one opens nothing.
+            autoSelectGeneration &+= 1
+            if let item, item.homeFilter != nil, placedLaunchFocus, !isSelected(item) {
+                let generation = autoSelectGeneration
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    guard generation == autoSelectGeneration, focused == item, !isSelected(item) else { return }
+                    select(item)
+                }
+            }
             if item != nil, !searchReady {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { searchReady = true }
             }

@@ -27,8 +27,8 @@ enum OrbitHomeLayout {
     static let heroHeight: CGFloat = 860
     static let heroRadius: CGFloat = 24
     static var heroWidth: CGFloat { screenWidth - 2 * margin }
-    /// From the hero's top to the chips' top (the chips peek under the hero).
-    static let heroPitch: CGFloat = 905
+    /// From the hero's top to the first row's heading centre (the heading peeks under the hero).
+    static let heroPitch: CGFloat = 910
 
     // Genres
     static let chipWidth: CGFloat = 272

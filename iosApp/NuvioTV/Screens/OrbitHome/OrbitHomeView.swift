@@ -134,7 +134,7 @@ struct OrbitHomeView: View {
     private var sections: [Section] {
         var out: [Section] = []
         if !heroItems.isEmpty { out.append(.hero) }
-        out.append(.genres)
+        // Steven: no genre chips (Découvrir covers it).
         out.append(contentsOf: rows.map(Section.row))
         return out
     }
