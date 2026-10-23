@@ -101,13 +101,27 @@ final class OrbitPlatformTrendingModel: ObservableObject {
 
     nonisolated private static func page(media: String, provider: Int, region: String, apiKey: String,
                                          language: String) async -> [MetaPreview] {
-        guard let url = URL(string: "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(language)"
-                            + "&watch_region=\(region)&with_watch_providers=\(provider)"
-                            + "&with_watch_monetization_types=flatrate&sort_by=popularity.desc&page=1"),
-              let response = try? await URLSession.shared.data(from: url),
-              let decoded = try? JSONDecoder().decode(Response.self, from: response.0) else { return [] }
+        // Steven: the new titles, not the all-time popular ones. What came out on the platform in
+        // the last four months (series: episodes aired in that window), the most popular first;
+        // the plain popular list when the window has too few.
         let tv = media == "tv"
-        return (decoded.results ?? []).compactMap { r -> MetaPreview? in
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let today = formatter.string(from: Date())
+        let since = formatter.string(from: Date().addingTimeInterval(-120 * 24 * 3600))
+        let window = tv ? "&air_date.gte=\(since)&air_date.lte=\(today)"
+                        : "&primary_release_date.gte=\(since)&primary_release_date.lte=\(today)"
+        let base = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(language)"
+            + "&watch_region=\(region)&with_watch_providers=\(provider)"
+            + "&with_watch_monetization_types=flatrate&sort_by=popularity.desc&page=1"
+        var found = await Self.results(base + window)
+        if found.count < 8 {
+            let popular = await Self.results(base)
+            let seen = Set(found.map(\.id))
+            found += popular.filter { !seen.contains($0.id) }
+        }
+        return found.compactMap { r -> MetaPreview? in
             guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path else { return nil }
             let date = r.release_date ?? r.first_air_date
             return MetaPreview(id: "tmdb:\(r.id)", type: tv ? "series" : "movie", name: name,
@@ -120,6 +134,13 @@ final class OrbitPlatformTrendingModel: ObservableObject {
                                genres: [], rawPosterUrl: nil, landscapePoster: nil,
                                rawLandscapePosterUrl: nil, customPosterApplied: false)
         }
+    }
+
+    nonisolated private static func results(_ address: String) async -> [Response.Result] {
+        guard let url = URL(string: address),
+              let response = try? await URLSession.shared.data(from: url),
+              let decoded = try? JSONDecoder().decode(Response.self, from: response.0) else { return [] }
+        return decoded.results ?? []
     }
 }
 
@@ -139,17 +160,27 @@ struct OrbitPlatformTrendingRow: View {
         VStack(alignment: .leading, spacing: 30) {
             if let title = model.title {
                 if !model.movies.isEmpty {
-                    row(heading: String(format: String(localized: "Films populaires sur %@"), title),
+                    row(heading: String(format: String(localized: "Nouveaux films sur %@"), title),
                         items: model.movies, key: "movies-\(title)")
                 }
                 if !model.series.isEmpty {
-                    row(heading: String(format: String(localized: "Séries populaires sur %@"), title),
+                    row(heading: String(format: String(localized: "Nouveautés séries sur %@"), title),
                         items: model.series, key: "series-\(title)")
                 }
             }
         }
-        .onChange(of: focused) { _, id in
-            if id == nil { Self.lostAt = ProcessInfo.processInfo.systemUptime }
+        .onChange(of: focused) { old, id in
+            guard let id else { Self.lostAt = ProcessInfo.processInfo.systemUptime; return }
+            // Steven: coming into a row (down from the platforms, or from the other row) lands on
+            // its first title, far left, not the one under the previous focus.
+            let rowKey = String(id.prefix { $0 != "/" })
+            let oldRow = old.map { String($0.prefix { $0 != "/" }) }
+            guard oldRow != rowKey, let title = model.title else { return }
+            let items = rowKey.hasPrefix("movies-") ? model.movies : model.series
+            let expectedKey = rowKey.hasPrefix("movies-") ? "movies-\(title)" : "series-\(title)"
+            guard rowKey == expectedKey, let first = items.first else { return }
+            let target = "\(rowKey)/\(first.id)"
+            if id != target { focused = target }
         }
     }
 
