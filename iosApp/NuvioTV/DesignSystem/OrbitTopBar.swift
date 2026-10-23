@@ -121,6 +121,7 @@ struct OrbitTopBar: View {
     let showsDiscover: Bool
 
     @ObservedObject private var homeFilter = HomeContentFilterModel.shared
+    @ObservedObject private var barLock = OrbitBarLock.shared
     @FocusState private var focused: OrbitBarItem?
     @State private var immersive = false
     /// Pass 4: the launch focus (the engine's pick, the top-left Search glyph) is moved once onto
@@ -142,6 +143,8 @@ struct OrbitTopBar: View {
             pill([.settings])
         }
         .padding(.trailing, OrbitBarMetrics.leading)
+        // Orbit Home: out of reach while the page is scrolled down (Up is the page's own).
+        .disabled(barLock.locked)
         // The focus section hugs the bar's band (device pass 1: drawn over the whole screen, it
         // kept Down from reaching Settings' list); it spans the width so Right reaches Settings.
         .focusSection()

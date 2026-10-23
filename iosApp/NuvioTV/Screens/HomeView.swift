@@ -973,11 +973,13 @@ struct HomeView: View {
                 // BUG-27 `.onExitCommand` inside it) with `StageStripHome`; the Classic branch below
                 // is unchanged, kept at its original indentation so its diff stays empty.
                 if isStageLayout {
-                    StageStripHome(model: model,
-                                   actions: StageHomeActions(resume: { resume = $0 },
-                                                             push: { homePath.append($0) }),
-                                   cover: StageCover(pushed: !homePath.isEmpty, resume: resume != nil),
-                                   isScrolledDown: $isScrolledDown)
+                    // Steven's fork: Orbit Home for Films / Séries with the Orbit bar.
+                    OrbitHomeSwitch(model: model,
+                                    actions: StageHomeActions(resume: { resume = $0 },
+                                                              push: { homePath.append($0) }),
+                                    pushGenre: { homePath.append(OrbitGenreRoute(genre: $0)) },
+                                    cover: StageCover(pushed: !homePath.isEmpty, resume: resume != nil),
+                                    isScrolledDown: $isScrolledDown)
                 } else {
                 ScrollViewReader { scrollProxy in
                     Group {
@@ -1290,6 +1292,9 @@ struct HomeView: View {
             }
             .navigationDestination(for: FolderRoute.self) { route in
                 FolderDetailView(route: route)
+            }
+            .navigationDestination(for: OrbitGenreRoute.self) { route in
+                OrbitGenrePage(genre: route.genre)
             }
             .fullScreenCover(item: $resume, onDismiss: {
                 guard let pick = homePostPlayPending else { return }

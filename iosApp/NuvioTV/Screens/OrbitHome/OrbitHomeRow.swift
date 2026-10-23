@@ -1,0 +1,265 @@
+import SharedCore
+import SwiftUI
+
+// Orbit Home (Steven's fork): one row, drawn rather than scrolled. Every card sits at a computed x
+// for its distance from the row's lead (`OrbitHomeLayout.cardX`), all moving together on one curve
+// when the lead changes; the lead's landscape frame is drawn OVER the row, opaque, so the card
+// entering it slides under it and the card leaving it comes out from under it, as in the
+// reference. Only the cards near the lead exist (two before, six after).
+
+/// One card of a row.
+struct OrbitCard: Identifiable, Equatable {
+    let id: String
+    let preview: MetaPreview
+    let poster: String?
+    let landscape: String?
+    /// Continue Watching: "S2:E4" (or the time left) in the frame's corner.
+    var badge: String?
+    /// Continue Watching: 0…1.
+    var progress: Double?
+    /// Continue Watching: the entry to resume.
+    var entry: WatchProgressEntry?
+
+    static func == (a: OrbitCard, b: OrbitCard) -> Bool {
+        a.id == b.id && a.poster == b.poster && a.landscape == b.landscape && a.badge == b.badge
+            && a.progress == b.progress
+    }
+
+    static func catalog(_ item: MetaPreview) -> OrbitCard {
+        OrbitCard(id: "\(item.type):\(item.id)", preview: item, poster: item.poster,
+                  landscape: InlineTrailerCard.landscapeArtworkURL(item))
+    }
+
+    static func continueWatching(_ entry: WatchProgressEntry) -> OrbitCard {
+        let preview = StageCopy.preview(from: entry)
+        let badge: String? = {
+            if let s = entry.seasonNumber?.intValue, let e = entry.episodeNumber?.intValue { return "S\(s):E\(e)" }
+            return StageCopy.remainingLabel(positionMs: entry.lastPositionMs, durationMs: entry.durationMs)
+        }()
+        let progress: Double? = entry.durationMs > 0
+            ? min(1, max(0, Double(entry.lastPositionMs) / Double(entry.durationMs))) : nil
+        let background: String? = entry.background
+        let thumbnail: String? = entry.episodeThumbnail
+        return OrbitCard(id: "cw:\(entry.videoId)", preview: preview, poster: entry.poster ?? preview.poster,
+                         landscape: background ?? thumbnail ?? InlineTrailerCard.landscapeArtworkURL(preview),
+                         badge: badge, progress: progress, entry: entry)
+    }
+}
+
+/// One row of the page.
+struct OrbitRow: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let cards: [OrbitCard]
+    /// The catalog section (localization warm-up), nil for Continue Watching.
+    var sectionKey: String?
+}
+
+struct OrbitHomeRowView: View {
+    let row: OrbitRow
+    let lead: Int
+    /// The row is the page's current section (its text shows).
+    let isCurrent: Bool
+    /// The page holds focus on this row (the frame's white border).
+    let focused: Bool
+    /// The trailer playing in the frame, if it is this row's lead.
+    let trailerURL: String?
+    let onTrailerFailure: (TrailerFailureReport) -> Void
+    let onTrailerEnded: () -> Void
+
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
+
+    var body: some View {
+        let L = OrbitHomeLayout.self
+        let window = max(0, lead - 2)...max(max(0, lead - 2), min(row.cards.count - 1, lead + 6))
+        ZStack(alignment: .topLeading) {
+            Text(row.title)
+                .font(.system(size: L.headingFont, weight: .bold))
+                .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.55))
+                .lineLimit(1)
+                .frame(height: 40, alignment: .center)
+                .offset(x: L.margin + 4, y: -20)
+                .animation(L.vertical, value: isCurrent)
+
+            // The posters.
+            ZStack(alignment: .topLeading) {
+                if !row.cards.isEmpty {
+                    ForEach(Array(zip(window, row.cards[window])), id: \.1.id) { index, card in
+                        OrbitPosterCard(card: card)
+                            .offset(x: L.cardX(index - lead))
+                            .transition(.identity)
+                    }
+                }
+            }
+            .animation(L.horizontal, value: lead)
+            .offset(y: L.cardsTop)
+
+            // The frame, over them.
+            if row.cards.indices.contains(lead) {
+                OrbitLeadFrame(card: row.cards[lead], meta: metaStore.meta(for: row.cards[lead].preview),
+                               focused: focused, trailerURL: trailerURL,
+                               onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                    .offset(x: L.margin, y: L.cardsTop)
+
+                if isCurrent {
+                    let card = row.cards[lead]
+                    let info = OrbitInfo.make(card.preview, meta: metaStore.meta(for: card.preview))
+                    VStack(alignment: .leading, spacing: 16) {
+                        OrbitMetaLine(info: info)
+                            .frame(height: 36)
+                        Text(info.synopsis)
+                            .font(.system(size: L.synopsisFont, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.92))
+                            .lineSpacing(L.synopsisLineSpacing)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                            .frame(width: L.synopsisWidth, alignment: .topLeading)
+                    }
+                    .frame(width: L.synopsisWidth, alignment: .topLeading)
+                    .id(card.id)
+                    .transition(.opacity)
+                    .offset(x: L.margin + 12, y: L.metaCentre - 18)
+                }
+            }
+        }
+        .animation(L.crossfade, value: row.cards.indices.contains(lead) ? row.cards[lead].id : "-")
+        .frame(width: L.screenWidth, height: L.rowPitch, alignment: .topLeading)
+    }
+}
+
+/// A poster in a row.
+struct OrbitPosterCard: View {
+    let card: OrbitCard
+
+    var body: some View {
+        let L = OrbitHomeLayout.self
+        ZStack(alignment: .bottomLeading) {
+            Color(white: 0.12)
+            CachedAsyncImage(string: card.poster, fallback: card.landscape,
+                             decodeSize: .points(width: L.posterWidth, height: L.cardHeight))
+                .frame(width: L.posterWidth, height: L.cardHeight)
+                .clipped()
+            if let progress = card.progress {
+                OrbitProgressBar(progress: progress)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 12)
+            }
+        }
+        .frame(width: L.posterWidth, height: L.cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: L.posterRadius, style: .continuous))
+    }
+}
+
+struct OrbitProgressBar: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.3))
+                Capsule().fill(Color.white).frame(width: geo.size.width * progress)
+            }
+        }
+        .frame(height: 5)
+    }
+}
+
+/// The focused title's landscape frame: art, logo, badge, the trailer when it plays.
+struct OrbitLeadFrame: View {
+    let card: OrbitCard
+    let meta: OrbitMeta?
+    let focused: Bool
+    let trailerURL: String?
+    let onTrailerFailure: (TrailerFailureReport) -> Void
+    let onTrailerEnded: () -> Void
+
+    var body: some View {
+        let L = OrbitHomeLayout.self
+        let size = CGSize(width: L.frameWidth, height: L.cardHeight)
+        ZStack(alignment: .topLeading) {
+            // Opaque at all times: the row slides under it.
+            Color(white: 0.1)
+            ZStack(alignment: .bottomLeading) {
+                CachedAsyncImage(string: card.landscape ?? meta?.backdrop, fallback: card.poster,
+                                 decodeSize: .points(width: size.width, height: size.height))
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                if let trailerURL {
+                    TrailerHeroPlayer(urlString: trailerURL,
+                                      onFailure: onTrailerFailure,
+                                      zoomKey: TrailerResolutionCache.key(type: card.preview.type, id: card.preview.id),
+                                      loops: false,
+                                      onPlaybackEnded: onTrailerEnded,
+                                      cornerRadius: L.frameRadius)
+                        .frame(width: size.width, height: size.height)
+                        .transition(.opacity)
+                }
+                LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
+                OrbitTitleMark(name: card.preview.name, logo: OrbitInfo.make(card.preview, meta: meta).logo,
+                               maxSize: CGSize(width: 440, height: 130), textSize: 54)
+                    .padding(.leading, 28)
+                    .padding(.bottom, 24)
+                if let badge = card.badge {
+                    Text(badge)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.55)))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .padding(.trailing, 22)
+                        .padding(.bottom, 26)
+                }
+                if let progress = card.progress {
+                    OrbitProgressBar(progress: progress)
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 10)
+                }
+            }
+            .frame(width: size.width, height: size.height)
+            .animation(.easeOut(duration: 0.4), value: trailerURL)
+            .id(card.id)
+            // The new title fades in over the old one, which leaves once covered.
+            .transition(.asymmetric(insertion: .opacity,
+                                    removal: .opacity.animation(.linear(duration: 0.01).delay(0.24))))
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: L.frameRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: L.frameRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(focused ? 1 : 0.2), lineWidth: focused ? L.frameBorder : 1.5)
+        }
+        .animation(.easeOut(duration: 0.2), value: focused)
+    }
+}
+
+/// A title's logo, or its name when it has none.
+struct OrbitTitleMark: View {
+    let name: String
+    let logo: String?
+    let maxSize: CGSize
+    let textSize: CGFloat
+
+    var body: some View {
+        if let logo, !logo.isEmpty {
+            CachedAsyncImage(string: logo, contentMode: .fit,
+                             decodeSize: .points(width: maxSize.width, height: maxSize.height)) {
+                nameText
+            }
+            .frame(maxWidth: maxSize.width, maxHeight: maxSize.height, alignment: .bottomLeading)
+            .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+        } else {
+            nameText
+        }
+    }
+
+    private var nameText: some View {
+        Text(name)
+            .font(.system(size: textSize, weight: .heavy))
+            .foregroundStyle(Color.white)
+            .lineLimit(2)
+            .minimumScaleFactor(0.6)
+            .frame(maxWidth: maxSize.width, alignment: .leading)
+            .shadow(color: .black.opacity(0.6), radius: 8, y: 2)
+    }
+}

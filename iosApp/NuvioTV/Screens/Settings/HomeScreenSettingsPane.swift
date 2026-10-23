@@ -54,6 +54,8 @@ struct HomeScreenSettingsPane: View {
     /// classic layout is the default). Local-only.
     @AppStorage("hero_nuvio_style") private var heroNuvioStyle = false
     @AppStorage(StageTrendingHeroSetting.defaultsKey) private var trendingHeroOn = StageTrendingHeroSetting.defaultValue
+    @AppStorage(OrbitHomeSetting.enabledKey) private var orbitHomeOn = true
+    @AppStorage(OrbitHomeSetting.trailersKey) private var orbitHomeTrailers = true
     @AppStorage(StageTrendingHeroSetting.fullBleedKey) private var trendingHeroFullBleed = false
 
     /// Mirrors HomeView's `home_upcoming_row_enabled` key: the "Upcoming" row of followed shows'
@@ -133,6 +135,25 @@ struct HomeScreenSettingsPane: View {
                     : String(localized: "Year, genres and synopsis at the top of the screen"),
                 isOn: $stageInfoBelow
             )
+
+            // Steven's fork: see `OrbitHomeView.swift`.
+            if isStage {
+                SettingsToggleRow(
+                    title: String(localized: "Orbit Home"),
+                    subtitle: orbitHomeOn
+                        ? String(localized: "Films et Séries : le nouvel accueil Orbit (hero, genres, cadre du titre)")
+                        : String(localized: "Films et Séries : l'accueil Stage")
+                    ,
+                    isOn: $orbitHomeOn
+                )
+                if orbitHomeOn {
+                    SettingsToggleRow(
+                        title: String(localized: "Bandes-annonces dans Orbit Home"),
+                        subtitle: String(localized: "La bande-annonce du titre sélectionné démarre dans son cadre"),
+                        isOn: $orbitHomeTrailers
+                    )
+                }
+            }
 
             // Steven's fork: see `StageTrendingHero.swift` (Stage layout only).
             if isStage {
