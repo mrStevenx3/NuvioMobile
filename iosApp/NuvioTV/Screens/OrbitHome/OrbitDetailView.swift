@@ -153,7 +153,9 @@ struct OrbitDetailView: View {
                             genres: meta?.genres ?? preview.genres)
     }
     private var coverUp: Bool {
-        showStreams || seriesPlay != nil || model.trailerPlayback != nil || showSynopsis
+        // Steven: not the synopsis panel: the trailer carries on behind it, and is still there,
+        // where it was, once the panel closes (it stopped and started again from the beginning).
+        showStreams || seriesPlay != nil || model.trailerPlayback != nil
     }
 
     // MARK: Body
