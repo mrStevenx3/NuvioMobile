@@ -460,7 +460,10 @@ struct MainTabView: View {
                     .railTabRoot(0)
             }
             Tab("Search", systemImage: "magnifyingglass", value: 1) {
-                SearchView()
+                // Steven's fork (2026-10-23): Orbit Search, UIKit's own search screen (no two-step open).
+                Group {
+                    if NavigationChrome.isOrbitBar() { OrbitSearchView() } else { SearchView() }
+                }
                     // Review r2 P3-1: Search's entry row reads the same once-per-tree value.
                     .environment(\.discoverPlacementResolved, discoverPlacement)
                     .tabBarImmersiveHide()

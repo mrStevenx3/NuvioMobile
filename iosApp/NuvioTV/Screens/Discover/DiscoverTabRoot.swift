@@ -30,10 +30,17 @@ struct DiscoverTabRoot: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            DiscoverGridPage(model: model, host: .tab, onBrowse: { catalogKey in
-                rowsModel.show(catalogKey: catalogKey)
-                path.append(DiscoverBrowseRoute(catalogKey: catalogKey))
-            })
+            Group {
+                // Steven's fork (2026-10-23): Orbit Discover, drawn rather than scrolled.
+                if NavigationChrome.isOrbitBar() {
+                    OrbitDiscoverPage(model: model, onOpen: { path.append(TitleRoute(preview: $0)) })
+                } else {
+                    DiscoverGridPage(model: model, host: .tab, onBrowse: { catalogKey in
+                        rowsModel.show(catalogKey: catalogKey)
+                        path.append(DiscoverBrowseRoute(catalogKey: catalogKey))
+                    })
+                }
+            }
             .navigationDestination(for: DiscoverBrowseRoute.self) { _ in
                 DiscoverRowsPage(model: rowsModel, host: .pushed, onOpenGrid: { route in
                     path.append(route)
