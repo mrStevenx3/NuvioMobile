@@ -221,7 +221,7 @@ private struct TitleHoldMenuModifier: ViewModifier {
 
 /// The two menu buttons. Repository state is read in THIS body, i.e. when the menu content is
 /// built, not by the card.
-private struct TitleHoldMenuItems: View {
+struct TitleHoldMenuItems: View {
     let preview: MetaPreview
     /// Only here so a bump from `TitleHoldMenuModifier` changes this view's inputs.
     let revision: Int

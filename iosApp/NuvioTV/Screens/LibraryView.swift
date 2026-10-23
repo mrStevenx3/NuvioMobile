@@ -21,6 +21,8 @@ struct LibraryView: View {
     @Environment(\.posterStyle) private var posterStyle
     @State private var showingCloud = false
     @State private var filePicker: CloudFilePickerRoute?
+    /// Steven's fork (Orbit Library): the stack's path, so the Orbit page can push a title.
+    @State private var path = NavigationPath()
 
     private var columns: [GridItem] {
         [GridItem(
@@ -30,10 +32,18 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 Theme.Palette.background.ignoresSafeArea()
 
+                if NavigationChrome.isOrbitBar() {
+                    // Steven's fork (2026-10-23): the Orbit Library page (`OrbitLibraryPage`).
+                    OrbitLibraryPage(model: model,
+                                     cloudConnected: cloud.hasConnectedProvider,
+                                     showingCloud: $showingCloud,
+                                     onOpen: { path.append(TitleRoute(preview: $0)) },
+                                     cloudContent: { cloudContent })
+                } else {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                         header
@@ -56,6 +66,7 @@ struct LibraryView: View {
                 // FEAT-30 / H9: Menu summons the rail in Rail mode (a second Menu, with focus in
                 // the rail, exits as before). No modifier at all in tabs mode.
                 .railMenuReveal()
+                }
             }
             // Simkl: leaving a status also clears the title's watched history and rating there, so
             // the hold menu's remove asks first (`LibraryRepository.removalNeedsConfirmation`).
