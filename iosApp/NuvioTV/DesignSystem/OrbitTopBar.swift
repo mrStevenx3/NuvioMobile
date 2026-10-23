@@ -6,7 +6,7 @@ import SharedCore
 // rail when Settings › Appearance › Navigation is "Orbit Bar" (the default in this fork). A row of
 // glass pills pinned to the screen's top-left corner, in three groups split by thin vertical rules:
 //
-//     [ 🔍  Films  Séries  📚  🧭 ]  |  [ Plateformes  Studios ]          …          [ ⚙︎ ]
+//                        …          [ 🔍  Films  Séries  📚  🧭  |  Plateformes  Studios ]  [ ⚙︎ ]
 //
 // Films, Séries, Services and Studios are four views of the Home tab (`HomeContentFilter`); the
 // glyphs open Search, Library, Discover and Settings. Mounted once, in `MainTabView`'s overlay,
@@ -134,13 +134,12 @@ struct OrbitTopBar: View {
 
     var body: some View {
         HStack(spacing: OrbitBarMetrics.groupGap) {
-            pill([.search, .films, .series, .library, .discover])
-            rule
-            pill([.services, .studios])
-            // Steven: Settings alone at the far right of the bar (the corner is free now that
-            // Home shows no title logo there).
-            Spacer(minLength: OrbitBarMetrics.groupGap)
-            pill([.settings])
+            // Steven (2026-10-23, like his reference): the bar on the right — one block with the
+            // pages, Plateformes / Studios split off by a rule inside it, and Settings in a block
+            // of its own at the far right.
+            Spacer(minLength: 0)
+            pill([[.search, .films, .series, .library, .discover], [.services, .studios]])
+            pill([[.settings]])
         }
         .padding(.trailing, OrbitBarMetrics.leading)
         // Orbit Home: out of reach while the page is scrolled down (Up is the page's own).
@@ -197,9 +196,13 @@ struct OrbitTopBar: View {
         }
     }
 
-    private func pill(_ items: [OrbitBarItem]) -> some View {
+    private func pill(_ groups: [[OrbitBarItem]]) -> some View {
         HStack(spacing: 4) {
-            ForEach(items, id: \.self) { item in
+            ForEach(Array(groups.enumerated()), id: \.offset) { index, items in
+                if index > 0 {
+                    rule.padding(.horizontal, 10)
+                }
+                ForEach(items, id: \.self) { item in
                 Button { select(item) } label: {
                     OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
                 }
@@ -210,6 +213,7 @@ struct OrbitTopBar: View {
                 .disabled(item == .search && !searchReady)
                 .accessibilityLabel(item.accessibilityName)
                 .accessibilityIdentifier("orbit_bar_\(item)")
+                }
             }
         }
         .padding(OrbitBarMetrics.pillPadding)
