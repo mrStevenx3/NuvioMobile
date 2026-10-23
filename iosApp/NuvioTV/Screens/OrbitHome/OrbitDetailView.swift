@@ -101,6 +101,9 @@ struct OrbitDetailView: View {
     @State private var cinemaHintTask: Task<Void, Never>?
     @FocusState private var cinemaFocused: Bool
     @Namespace private var titleSpace
+    /// Steven's video: most trailers open on black frames, so a cold start went black for a
+    /// moment. The film's art stays over the trailer for its first seconds, then fades away.
+    @State private var holdArt = false
     /// Bumped to put the page back at its top (after the trailer).
     @State private var heroPin = 0
 
@@ -154,6 +157,7 @@ struct OrbitDetailView: View {
                                   zoomKey: model.trailerZoomKey,
                                   dimmed: section != .hero && !cinema,
                                   cinema: cinema,
+                                  holdArt: holdArt,
                                   onTrailerFailure: {
                                       model.trailerFailed()
                                       if cinema { exitCinema() }
@@ -408,6 +412,13 @@ struct OrbitDetailView: View {
     private func startCinema() {
         guard model.trailerVideoURL != nil else { return }
         heroRestTask?.cancel()
+        let coldStart = !heroTrailerOn
+        if coldStart {
+            holdArt = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                withAnimation(.easeInOut(duration: 1.0)) { holdArt = false }
+            }
+        }
         HeroTrailerAudioState.shared.setMuted(value: false)
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) {
             cinema = true
@@ -429,6 +440,7 @@ struct OrbitDetailView: View {
         guard cinema else { return }
         cinemaHintTask?.cancel()
         HeroTrailerAudioState.shared.setMuted(value: true)
+        holdArt = false
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) {
             cinema = false
             heroTrailerOn = false
@@ -764,6 +776,8 @@ private struct OrbitDetailBackground: View {
     let dimmed: Bool
     /// The trailer plays full screen with sound: the art pushes in, the shades lift.
     var cinema: Bool = false
+    /// The art held over a trailer that has just started (its black opening frames).
+    var holdArt: Bool = false
     let onTrailerFailure: () -> Void
     let onTrailerEnded: () -> Void
 
@@ -784,6 +798,10 @@ private struct OrbitDetailBackground: View {
                     .frame(width: size.width, height: size.height)
                     .scaleEffect(cinema ? 1.05 : 1)
                     .transition(.opacity)
+                OrbitSwapImage(url: url, fallback: nil, size: size)
+                    .scaleEffect(cinema ? 1.05 : 1)
+                    .opacity(holdArt ? 1 : 0)
+                    .allowsHitTesting(false)
             }
             // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
             Group {
