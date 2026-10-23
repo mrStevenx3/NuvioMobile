@@ -99,7 +99,8 @@ private enum OrbitBarItem: Hashable, CaseIterable {
 private enum OrbitBarMetrics {
     /// The top-left corner: the tvOS safe-area line, like the rail's Corner position.
     static let leading: CGFloat = 60
-    static let top: CGFloat = 38
+    /// Steven (2026-10-23): a little higher, off Orbit Home's hero (was 38).
+    static let top: CGFloat = 22
     static let pillPadding: CGFloat = 6
     static let itemHeight: CGFloat = 62
     static let textPadding: CGFloat = 24
@@ -217,8 +218,10 @@ struct OrbitTopBar: View {
             }
         }
         .padding(OrbitBarMetrics.pillPadding)
+        // Steven: slightly lighter (a white veil over the glass).
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
     }
 
     private var rule: some View {
@@ -478,7 +481,8 @@ struct CollectionFilterBar: View {
         }
         .padding(OrbitBarMetrics.pillPadding)
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
         // Once: a pop back from Detail keeps its own restore.
