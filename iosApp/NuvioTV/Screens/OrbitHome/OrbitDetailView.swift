@@ -202,7 +202,9 @@ struct OrbitDetailView: View {
             // Steven: coming into a row (from another section) lands on its first card, far left.
             if let old, old.section != new.section, new.section != .hero, new.section != .episodes,
                let first = firstFocus(of: new.section), first != new {
-                focus = first
+                // Not inside the focus engine's own update (a write there is dropped): next turn.
+                enter(new.section)
+                DispatchQueue.main.async { focus = first }
                 return
             }
             enter(new.section)
@@ -335,6 +337,8 @@ struct OrbitDetailView: View {
                     .padding(.top, 36)
             }
             .frame(width: 900, alignment: .bottomLeading)
+            // Left from the synopsis (above the buttons' line) comes back to the buttons.
+            .focusSection()
 
             VStack(alignment: .leading, spacing: 22) {
                 if let overview {
