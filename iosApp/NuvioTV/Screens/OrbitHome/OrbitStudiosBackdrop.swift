@@ -29,6 +29,21 @@ struct OrbitStudiosBackdrop: View {
                     .clipped()
                     .id(shownURL ?? "-")
                     .transition(.opacity)
+                // Steven: the bottom of the art blurred, under the tiles.
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .blur(radius: 36, opaque: true)
+                    .mask {
+                        LinearGradient(stops: [
+                            .init(color: .clear, location: 0.42),
+                            .init(color: .black, location: 0.68),
+                        ], startPoint: .top, endPoint: .bottom)
+                    }
+                    .id("blur-\(shownURL ?? "-")")
+                    .transition(.opacity)
             }
             // The logo (top left) and the tiles (bottom) stay legible on any art.
             LinearGradient(stops: [

@@ -11,7 +11,7 @@ import SwiftUI
 //    inside the line, Down / Up one line with the whole grid gliding on one curve, the selected
 //    line resting on the grid's second line; Up from the first line goes to the pills;
 //  - Menu goes back to the first line, then to the Orbit bar;
-//  - a hold on the selected poster opens its menu (Mark as Watched / Unwatched, Remove);
+//  - a hold opens the selected poster's menu (Mark as Watched / Unwatched, Remove);
 //  - back from a title, the selection is the poster it was opened from.
 // Data, filters, sort, provider lists and the hold actions are the existing `LibraryViewModel`'s.
 
@@ -39,8 +39,6 @@ struct OrbitLibraryPage<Cloud: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var canvasFocused: Bool
     @State private var index = 0
-    /// The entry whose hold menu is up.
-    @State private var held: LibraryGridEntry?
 
     private var entries: [LibraryGridEntry] { model.entries }
     private var line: Int { index / OrbitLibraryLayout.columns }
@@ -90,8 +88,10 @@ struct OrbitLibraryPage<Cloud: View>: View {
                 .focused($canvasFocused)
                 .disabled(entries.isEmpty)
                 .onMoveCommand(perform: move)
-                .onLongPressGesture(minimumDuration: 0.5) {
-                    if entries.indices.contains(index) { held = entries[index] }
+                // Steven: a gesture on the Button never fired (the Button takes the press). The
+                // system hold menu, as on every other card, built for the selected poster.
+                .contextMenu {
+                    if entries.indices.contains(index) { holdMenu(entries[index]) }
                 }
                 .onExitCommand {
                     if line > 0 {
@@ -131,20 +131,20 @@ struct OrbitLibraryPage<Cloud: View>: View {
         .onChange(of: entries.count) { _, count in if index >= count { index = max(0, count - 1) } }
         .onChange(of: canvasFocused) { _, _ in syncLock() }
         .onDisappear { OrbitBarLock.shared.set(false) }
-        .confirmationDialog(held?.item.name ?? "",
-                            isPresented: Binding(get: { held != nil }, set: { if !$0 { held = nil } }),
-                            titleVisibility: .visible,
-                            presenting: held) { entry in
-            TitleHoldMenuItems(preview: entry.item.toMetaPreview(), revision: 0,
-                               includesLibraryAction: false, didAct: {})
-            if model.selectedSectionAllowsRemove {
-                let listKey = model.selectedSectionKey
-                let listTitle = model.selectedSectionTitle
-                Button(LibraryGridPolicy.removeLabel(listTitle: listTitle), role: .destructive) {
-                    model.requestRemove(entry, listKey: listKey, listTitle: listTitle)
-                }
+    }
+
+    @ViewBuilder
+    private func holdMenu(_ entry: LibraryGridEntry) -> some View {
+        TitleHoldMenuItems(preview: entry.item.toMetaPreview(), revision: index,
+                           includesLibraryAction: false, didAct: {})
+        if model.selectedSectionAllowsRemove {
+            let listKey = model.selectedSectionKey
+            let listTitle = model.selectedSectionTitle
+            Button(role: .destructive) {
+                model.requestRemove(entry, listKey: listKey, listTitle: listTitle)
+            } label: {
+                Label(LibraryGridPolicy.removeLabel(listTitle: listTitle), systemImage: "trash")
             }
-            Button(String(localized: "Cancel"), role: .cancel) {}
         }
     }
 
