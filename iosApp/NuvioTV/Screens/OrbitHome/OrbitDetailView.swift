@@ -108,6 +108,8 @@ struct OrbitDetailView: View {
     @State private var holdArt = false
     /// Bumped to put the page back at its top (after the trailer).
     @State private var heroPin = 0
+    /// While one of the page's own scrolls runs (the hold below leaves it alone).
+    @State private var anchoringUntil = Date.distantPast
 
     init(preview: MetaPreview) {
         self.preview = preview
@@ -220,6 +222,16 @@ struct OrbitDetailView: View {
             // replace"); each move inside a section holds it at its place again.
             .onChange(of: anchorTick) { _, _ in anchor(proxy, section, duration: 0.22) }
             .onChange(of: heroPin) { _, _ in if section == .hero { anchor(proxy, .hero, duration: 0.3) } }
+            // Steven: the page still rose a little as it loaded (the system nudges the scroll
+            // when the focus first lands on Lire). On the hero the page stays at its top: any
+            // move the page did not ask for is undone at once.
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
+                guard section == .hero, (focus?.section ?? .hero) == .hero, !cinema,
+                      abs(y) > 0.5, Date() > anchoringUntil else { return }
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { proxy.scrollTo(OrbitDetailSection.hero, anchor: .top) }
+            }
             }
 
             if cinema {
@@ -367,6 +379,7 @@ struct OrbitDetailView: View {
     }
 
     private func anchor(_ proxy: ScrollViewProxy, _ target: OrbitDetailSection, duration: Double) {
+        anchoringUntil = Date().addingTimeInterval(duration + 0.1)
         withAnimation(reduceMotion ? nil : .easeInOut(duration: duration)) {
             if target == .hero {
                 proxy.scrollTo(OrbitDetailSection.hero, anchor: .top)
