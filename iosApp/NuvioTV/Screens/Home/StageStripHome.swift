@@ -116,12 +116,11 @@ struct StageStripHome: View {
                 // Nuvio has.
                 Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255).ignoresSafeArea()
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
-                OrbitCollectionGrid(collections: gridCollections, onFolderFocus: { collection, folder in
-                    stage.report(folder.flatMap { HomeRowPreviews.folder(collection: collection, folder: $0,
-                                                                         showsDetails: catalogDetailsInHeadings) },
-                                 source: collection.id,
-                                 rowHeading: collection.title,
-                                 prefetch: { HomeRowPreviews.collectionArtURLs(collection) })
+                // Steven: the grid no longer puts its tiles on the stage. The stage is hidden under
+                // the slate here anyway, and the last tile's art (Netflix's poster wall) showed through
+                // the cross-fade into Studios.
+                OrbitCollectionGrid(collections: gridCollections, onFolderFocus: { collection, _ in
+                    stage.rowAppeared(collection: collection)
                 }, restoreGeneration: gridRestoreGeneration)
             } else if let studios = singleStudiosCollection {
                 // Steven's fork (Orbit Studios, one row): the row at the bottom of the screen under
