@@ -18,8 +18,8 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     private let onPick: (String) -> Void
     private let onOpen: (MetaPreview) -> Void
 
-    private enum Section: Int { case suggestions, titles }
-    private enum Item: Hashable {
+    nonisolated private enum Section: Int, Sendable { case suggestions, titles }
+    nonisolated private enum Item: Hashable, Sendable {
         case suggestion(String)
         case title(String)
     }
