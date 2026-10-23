@@ -99,6 +99,11 @@ struct StageStripHome: View {
             // this view never re-renders on a swap (#5); switched off, it draws nothing and the
             // page background shows through.
             AmbientWashLayer(feed: stage.swap.washFeed)
+            // Steven: Plateformes → Studios showed the Nuvio page background (his own image) until
+            // the focused studio's art landed. Studios and Plateformes sit on the slate instead.
+            if singleStudiosCollection != nil || showsCollectionGrid {
+                Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255).ignoresSafeArea()
+            }
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
             // Steven: no title logo in the top-right corner on Orbit Home (the title sits under the row).
             StageView(controller: stage, geometry: geo,

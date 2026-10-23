@@ -263,9 +263,9 @@ struct OrbitTopBar: View {
         let spaces: Set<HomeContentFilter> = [.services, .studios]
         let inSpace = selectedTab == 0 && spaces.contains(homeFilter.filter)
         let toSpace = item.homeFilter.map(spaces.contains) ?? false
-        if !reduceMotion, inSpace != toSpace, item != .settings {
-            transitionId = (transitionId ?? 0) + 1
-        }
+        // Steven (2026-10-23): the portal is gone (it cost fluidity for nothing).
+        _ = inSpace
+        _ = toSpace
         if let filter = item.homeFilter {
             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { homeFilter.set(filter) }
             selectedTab = 0
