@@ -77,6 +77,8 @@ struct OrbitDetailView: View {
 
     @FocusState private var focus: OrbitDetailFocus?
     @State private var section: OrbitDetailSection = .hero
+    /// Bumped on every focus move inside a section (the page is held at its place again).
+    @State private var anchorTick = 0
     /// The page is on screen (not under a pushed page).
     @State private var visible = false
 
@@ -172,15 +174,10 @@ struct OrbitDetailView: View {
             .scrollClipDisabled()
             .ignoresSafeArea()
             // The section the focus entered comes to the top on one curve; the hero, to the top.
-            .onChange(of: section) { _, target in
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) {
-                    if target == .hero {
-                        proxy.scrollTo(OrbitDetailSection.hero, anchor: .top)
-                    } else {
-                        proxy.scrollTo(target, anchor: UnitPoint(x: 0, y: OrbitDetailLayout.sectionRest / OrbitHomeLayout.screenHeight))
-                    }
-                }
-            }
+            .onChange(of: section) { _, target in anchor(proxy, target, duration: 0.4) }
+            // Steven: Left / Right inside a section let the system nudge the page ("ça se
+            // replace"); each move inside a section holds it at its place again.
+            .onChange(of: anchorTick) { _, _ in anchor(proxy, section, duration: 0.22) }
             }
 
             if showSynopsis, let overview {
@@ -257,8 +254,18 @@ struct OrbitDetailView: View {
 
     // MARK: Focus / scroll
 
+    private func anchor(_ proxy: ScrollViewProxy, _ target: OrbitDetailSection, duration: Double) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: duration)) {
+            if target == .hero {
+                proxy.scrollTo(OrbitDetailSection.hero, anchor: .top)
+            } else {
+                proxy.scrollTo(target, anchor: UnitPoint(x: 0, y: OrbitDetailLayout.sectionRest / OrbitHomeLayout.screenHeight))
+            }
+        }
+    }
+
     private func enter(_ target: OrbitDetailSection) {
-        guard target != section else { return }
+        guard target != section else { anchorTick &+= 1; return }
         section = target
         if target == .hero { armHeroTrailer() } else { stopHeroTrailer() }
     }
@@ -306,6 +313,9 @@ struct OrbitDetailView: View {
 
             VStack(alignment: .leading, spacing: 22) {
                 if let overview {
+                    // Steven: "Plus" was hard to reach (the teaser sat above the buttons' line,
+                    // so Right from the last button found nothing). Its own focus section
+                    // catches Right from any button.
                     Button {
                         withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = true }
                     } label: {
@@ -317,6 +327,7 @@ struct OrbitDetailView: View {
                 credits
             }
             .frame(maxWidth: .infinity, alignment: .bottomLeading)
+            .focusSection()
         }
         .padding(.horizontal, L.margin)
         .padding(.bottom, 70)
@@ -385,7 +396,7 @@ struct OrbitDetailView: View {
     private var primaryButton: some View {
         if isSeries {
             if let action = model.seriesAction, let meta {
-                OrbitPlayButton(label: model.isPlayEnabled ? action.label : String(localized: "Lecture indisponible"),
+                OrbitPlayButton(label: model.isPlayEnabled ? OrbitDetailFormat.playLabel(action.label) : String(localized: "Lecture indisponible"),
                                 focused: focus == .play) {
                     model.noteSeriesPlayStarted(action)
                     seriesPlay = OrbitSeriesPlayRoute(meta: meta, action: action)
@@ -832,14 +843,14 @@ private struct OrbitCompanyLogo: View {
 
     var body: some View {
         let logo: String? = company.logo
+        // Steven's video: white silhouettes turned logos with their own backdrop (ABC's disc)
+        // into white blobs. The logos in their colours, on a light chip.
         CachedAsyncImage(string: logo, contentMode: .fit, decodeSize: .points(width: 200, height: 70))
-            // White silhouettes: studio logos are mostly dark art on transparency.
-            .brightness(1)
             .frame(width: 170, height: 56)
             .padding(.horizontal, 22)
             .padding(.vertical, 16)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(focused ? 0.18 : 0.06)))
+                .fill(Color.white.opacity(focused ? 1 : 0.88)))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 0.9 : 0), lineWidth: 3))
             .scaleEffect(focused ? 1.06 : 1)
@@ -1128,6 +1139,19 @@ private struct OrbitTrailerCard: View {
 }
 
 extension OrbitDetailFormat {
+    /// The series' Play label from the shared code ("Play S1E1", "Resume S2E4") in French.
+    static func playLabel(_ raw: String) -> String {
+        for (english, french) in [("Play ", "Lire "), ("Resume ", "Reprendre "), ("Continue ", "Continuer "),
+                                  ("Start ", "Commencer "), ("Watch ", "Regarder ")] where raw.hasPrefix(english) {
+            return french + raw.dropFirst(english.count)
+        }
+        switch raw {
+        case "Play": return String(localized: "Lire")
+        case "Resume": return String(localized: "Reprendre")
+        default: return raw
+        }
+    }
+
     static func trailerKind(_ raw: String) -> String? {
         switch raw.lowercased() {
         case "trailer": return String(localized: "Bande-annonce")
