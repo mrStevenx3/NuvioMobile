@@ -134,11 +134,12 @@ struct StageStripHome: View {
                 // Steven: the studio's logo top left, very large.
                 studiosLogo(studios)
                     .padding(.leading, OrbitHomeLayout.margin)
-                    .padding(.top, 140)
+                    .padding(.top, 60)
                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
                 VStack(alignment: .leading, spacing: 0) {
                     Spacer(minLength: 0)
-                    CollectionRowView(collection: studios, onFolderFocusChange: { folder in
+                    CollectionRowView(collection: studios, entryFirstGeneration: studiosEntryGeneration,
+                                      onFolderFocusChange: { folder in
                         if let folder { studiosFocusedFolderId = folder.id }
                         stage.report(folder.flatMap { HomeRowPreviews.folder(collection: studios, folder: $0,
                                                                              showsDetails: catalogDetailsInHeadings) },
@@ -252,6 +253,10 @@ struct StageStripHome: View {
             // until its own first studio swapped in. The stage empties at once on a page change;
             // the new page's first title then lands with no fade-out first.
             stage.swap.receive(nil)
+            if contentFilter.filter == .studios {
+                studiosFocusedFolderId = nil
+                studiosEntryGeneration &+= 1
+            }
             // The new page's strip starts on its first row: the hero, when it has one.
             StageHeroFocus.shared.setOnTop(rowKeys.first == StageTrendingHeroSetting.rowKey)
             DispatchQueue.main.async { showFirstItemOnStage() }
@@ -356,6 +361,8 @@ struct StageStripHome: View {
 
     /// Pass 7: the Studios page's focused folder (its logo above the row).
     @State private var studiosFocusedFolderId: String?
+    /// Steven: Studios always opens on its first (leftmost) studio (`CollectionRowView.entryFirstGeneration`).
+    @State private var studiosEntryGeneration = 0
 
     private func studiosLogo(_ collection: NuvioCollection) -> some View {
         let folder = collection.folders.first { $0.id == studiosFocusedFolderId } ?? collection.folders.first
@@ -370,7 +377,7 @@ struct StageStripHome: View {
                     .transition(.opacity)
             } else if let title = folder?.title {
                 Text(title)
-                    .font(.system(size: 110, weight: .heavy))
+                    .font(.system(size: 64, weight: .heavy))
                     .foregroundStyle(Color.white)
                     .lineLimit(2)
                     .minimumScaleFactor(0.5)
@@ -384,7 +391,7 @@ struct StageStripHome: View {
         .allowsHitTesting(false)
     }
 
-    static let studiosLogoSize = CGSize(width: 1000, height: 340)
+    static let studiosLogoSize = CGSize(width: 520, height: 160)
 
     /// The focused studio's backdrop (the first studio's until a tile takes focus).
     private func studiosBackdropURL(_ collection: NuvioCollection) -> String? {

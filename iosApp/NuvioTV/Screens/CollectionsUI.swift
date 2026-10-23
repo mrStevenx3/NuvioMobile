@@ -55,7 +55,12 @@ struct CollectionRowView: View {
     /// Home can hand the folder's configured backdrop + title logo to the pinned hero exactly
     /// the way a catalog row's `onItemFocusChange` hands it a title — the reporter's actual ask
     /// was the Home page, not the folder page.
+    /// Steven's fork (Orbit Studios): bumped each time the Studios page opens; the first entry of
+    /// focus into the row after a bump lands on the FIRST (leftmost) studio, whichever tile the
+    /// focus engine picked under the bar.
+    var entryFirstGeneration: Int? = nil
     var onFolderFocusChange: ((CollectionFolder?) -> Void)? = nil
+    @State private var usedEntryGeneration: Int?
     @FocusState private var focusedFolderId: String?
     /// BUG-108: read here only for `rowGap`'s doc and `liftedTileZIndex` — the tile's own
     /// treatments read the same keys inside `FolderTile`.
@@ -411,7 +416,15 @@ struct CollectionRowView: View {
         .pinnedRowUpFallbackTarget(rowKey: collection.id,
                                    firstId: collection.folders.first?.id,
                                    focus: $focusedFolderId)
-        .onChange(of: focusedFolderId) { _, id in
+        .onChange(of: focusedFolderId) { old, id in
+            if let generation = entryFirstGeneration, generation != usedEntryGeneration,
+               old == nil, let id, let first = collection.folders.first?.id {
+                usedEntryGeneration = generation
+                if id != first {
+                    focusedFolderId = first
+                    return
+                }
+            }
             // FEAT-33 (Wave 1, agent C; Codex r1): armed BEFORE the callback below. The callback
             // is synchronous, so with the default leg its `reportRowFocus` hero work — and any
             // main-thread stall it causes — would already be over before the display link took
