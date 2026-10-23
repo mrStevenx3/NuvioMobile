@@ -68,7 +68,12 @@ struct OrbitStudiosPage: View {
                                 OrbitStudioTile(folder: folder,
                                                 collectionBackdropUrl: collection.backdropImageUrl,
                                                 focused: lit == folder.id,
-                                                dimmed: lit != nil && lit != folder.id,
+                                                // The studio whose films are below stays marked
+                                                // while the focus is on them (Steven: it snapped
+                                                // back to its plain size going down).
+                                                selected: lit == nil && folder.id == (shownId ?? folders.first?.id),
+                                                dimmed: lit != nil ? lit != folder.id
+                                                    : folder.id != (shownId ?? folders.first?.id),
                                                 tint: tints[folder.id])
                             }
                             .buttonStyle(OrbitPlatformTileStyle())
@@ -95,7 +100,7 @@ struct OrbitStudiosPage: View {
         .onChange(of: focused) { old, id in
             guard let id else {
                 if old != nil { Self.lostTilesAt = ProcessInfo.processInfo.systemUptime }
-                withAnimation(.easeOut(duration: 0.26)) { lit = nil }
+                withAnimation(.easeInOut(duration: 0.35)) { lit = nil }
                 return
             }
             let now = ProcessInfo.processInfo.systemUptime
@@ -107,7 +112,7 @@ struct OrbitStudiosPage: View {
                 focused = first.id
                 return
             }
-            withAnimation(.easeOut(duration: 0.2)) { lit = id }
+            withAnimation(.easeOut(duration: 0.22)) { lit = id }
             Self.lastFocused = id
             shownId = id
             if let folder = folders.first(where: { $0.id == id }) {
@@ -217,6 +222,9 @@ private struct OrbitStudioTile: View {
     let folder: CollectionFolder
     let collectionBackdropUrl: String?
     let focused: Bool
+    /// The studio whose films the row below shows, while the focus is elsewhere (on the films):
+    /// half-way between plain and focused.
+    var selected: Bool = false
     let dimmed: Bool
     /// The studio's colour (from its backdrop): the focused icon's ground takes it.
     var tint: Color? = nil
@@ -225,20 +233,21 @@ private struct OrbitStudioTile: View {
         let size = CGSize(width: OrbitStudiosPage.tileWidth, height: OrbitStudiosPage.tileHeight)
         let radius: CGFloat = 14
         let gif = folder.focusGifUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lift: CGFloat = focused ? 1 : (selected ? 0.7 : 0)
         ZStack {
             Color(white: 0.12)
             if let cover = OrbitPlatformTile.coverURL(folder, collectionBackdropUrl: collectionBackdropUrl) {
                 // Steven (on trial): the focused icon's grey logo goes bright white, its slate a
                 // little deeper (a contrast lift around the middle grey, then a touch of light).
                 CachedAsyncImage(string: cover, decodeSize: .points(width: size.width, height: size.height))
-                    .contrast(focused ? 1.75 : 1)
-                    .brightness(focused ? 0.12 : 0)
+                    .contrast(1 + 0.75 * lift)
+                    .brightness(0.12 * lift)
                 // Steven (on trial): the focused icon's dark ground takes the studio's colour; a
                 // screen blend leaves the white logo white and lifts only the dark towards it.
                 if let tint {
                     tint
                         .blendMode(.screen)
-                        .opacity(focused ? 0.9 : 0)
+                        .opacity(0.9 * lift)
                 }
             } else {
                 Text(folder.title)
@@ -255,14 +264,15 @@ private struct OrbitStudioTile: View {
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 1 : 0.1), lineWidth: focused ? 5 : 1.5)
+                .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.45 : 0.1)),
+                              lineWidth: focused ? 5 : (selected ? 3 : 1.5))
         }
-        .scaleEffect(focused ? 1.14 : (dimmed ? 0.96 : 1))
+        .scaleEffect(focused ? 1.14 : (selected ? 1.06 : (dimmed ? 0.96 : 1)))
         .opacity(dimmed ? 0.72 : 1)
-        .shadow(color: .black.opacity(focused ? 0.65 : 0.3), radius: focused ? 30 : 10, y: focused ? 16 : 6)
-        .zIndex(focused ? 1 : 0)
-        .animation(.easeOut(duration: 0.18), value: focused)
-        .animation(.easeOut(duration: 0.18), value: dimmed)
+        .shadow(color: .black.opacity(0.3 + 0.35 * lift), radius: 10 + 20 * lift, y: 6 + 10 * lift)
+        .zIndex(focused || selected ? 1 : 0)
+        // No animation of its own: the page's explicit transactions time every change (a child
+        // `.animation` here overrode them with a fast curve — the snap Steven saw).
         .accessibilityLabel(folder.title)
     }
 }
