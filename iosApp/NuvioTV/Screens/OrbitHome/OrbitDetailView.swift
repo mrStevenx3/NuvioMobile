@@ -53,7 +53,7 @@ enum OrbitDetailLayout {
     static let margin: CGFloat = OrbitHomeLayout.margin
     /// The hero's height: the first section's heading peeks at the bottom of the first screen.
     /// The first screen exactly (Steven: the "C" of Casting peeked under the hero).
-    static let heroHeight: CGFloat = 1010
+    static let heroHeight: CGFloat = 1060
     static let sectionGap: CGFloat = 70
     /// Where a section's top rests on screen when the focus is in it.
     /// Steven (the page bounced on Left / Right): low enough that the focused card, lifted, sits
@@ -207,7 +207,7 @@ struct OrbitDetailView: View {
             .mask {
                 VStack(spacing: 0) {
                     // Up to just under the buttons: a nudge of the page can no longer show "Casting".
-                    Color.black.frame(height: section == .hero ? 960 : OrbitHomeLayout.screenHeight)
+                    Color.black.frame(height: section == .hero ? 1030 : OrbitHomeLayout.screenHeight)
                     Color.clear
                 }
                 .frame(height: OrbitHomeLayout.screenHeight, alignment: .top)
@@ -506,8 +506,11 @@ struct OrbitDetailView: View {
                 .padding(.top, 16)
             // Steven (Apple TV style): the synopsis on the buttons' line, its arrow opens it in
             // full; Right from the last button lands on the arrow.
+            // The synopsis starts at one place (about under the logo's end), whatever the buttons:
+            // close to them, and still when the focused one opens to say its name.
             HStack(alignment: .center, spacing: 40) {
                 actions
+                    .frame(minWidth: 680, alignment: .leading)
                     .layoutPriority(1)
                 if let overview {
                     HStack(alignment: .center, spacing: 28) {
@@ -523,7 +526,7 @@ struct OrbitDetailView: View {
                         }
                         .focused($focus, equals: .synopsis)
                     }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .padding(.top, 36)
@@ -531,10 +534,10 @@ struct OrbitDetailView: View {
             // The cast and the direction, small, bottom right.
             credits
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.top, 44)
+                .padding(.top, 34)
         }
         .padding(.horizontal, L.margin)
-        .padding(.bottom, 80)
+        .padding(.bottom, 56)
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .focusSection()
     }
@@ -821,12 +824,16 @@ private struct OrbitDetailBackground: View {
             // synopsis and the credits. On the still art only (a live blur over the trailer costs
             // the Apple TV too much): the trailer covers it as it fades in, and it is back when
             // the art returns. Gone in cinema and under the sections.
+            // A little darkened and desaturated, so a bright art (Pixar) melts into the shade
+            // instead of smearing its colours.
             OrbitSwapImage(url: url, fallback: nil, size: size)
                 .blur(radius: 40, opaque: true)
+                .saturation(0.75)
+                .overlay(Color.black.opacity(0.3))
                 .mask(LinearGradient(stops: [
-                    .init(color: .clear, location: 0.48),
-                    .init(color: .black.opacity(0.7), location: 0.7),
-                    .init(color: .black, location: 0.88),
+                    .init(color: .clear, location: 0.6),
+                    .init(color: .black.opacity(0.7), location: 0.8),
+                    .init(color: .black, location: 0.94),
                 ], startPoint: .top, endPoint: .bottom))
                 .opacity(cinema || dimmed ? 0 : 1)
                 .allowsHitTesting(false)
