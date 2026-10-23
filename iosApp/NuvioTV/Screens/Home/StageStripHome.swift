@@ -101,8 +101,11 @@ struct StageStripHome: View {
             AmbientWashLayer(feed: stage.swap.washFeed)
             // Steven: Plateformes → Studios showed the Nuvio page background (his own image) until
             // the focused studio's art landed. Studios and Plateformes sit on the slate instead.
-            if singleStudiosCollection != nil || showsCollectionGrid {
+            if singleStudiosCollection != nil {
                 Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255).ignoresSafeArea()
+            } else if showsCollectionGrid {
+                // Steven (2026-10-23): Plateformes on Orbit's black, like the other pages.
+                OrbitHomeLayout.background.ignoresSafeArea()
             }
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
             // Steven: no title logo in the top-right corner on Orbit Home (the title sits under the row).
@@ -114,7 +117,7 @@ struct StageStripHome: View {
             if showsCollectionGrid {
                 // Pass 8/9 (Steven): Plateformes sits on the Orbit icon's slate, whatever backdrop
                 // Nuvio has. Opaque at once (Steven: the Studios art faded out behind the grid).
-                Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255).ignoresSafeArea()
+                OrbitHomeLayout.background.ignoresSafeArea()
                     .transition(.identity)
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
                 // Steven: the grid no longer puts its tiles on the stage. The stage is hidden under

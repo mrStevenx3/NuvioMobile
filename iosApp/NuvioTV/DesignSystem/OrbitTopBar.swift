@@ -381,37 +381,70 @@ struct OrbitCollectionGrid: View {
         return out
     }
 
-    static let columnMinimum: CGFloat = 400
-    static let spacing: CGFloat = 40
-    static let top: CGFloat = 170
+    // Steven (2026-10-23): the Plateformes page in Orbit's layout — a "Plateformes" heading under
+    // the bar, then four large 16:9 tiles a line across the screen at Orbit's margin, the focus
+    // drawn Orbit's way (white frame, slight lift), on black with a soft halo in the focused
+    // platform's colour.
+    static let columns = 4
+    static let spacing: CGFloat = 36
+    static let headingTop: CGFloat = 112
+    static let top: CGFloat = 214
+    static var tileWidth: CGFloat {
+        floor((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin - CGFloat(columns - 1) * spacing) / CGFloat(columns))
+    }
+    static var tileHeight: CGFloat { floor(tileWidth * 9 / 16) }
+
+    /// The focused platform's colour (the halo), nil for a grey cover.
+    @State private var haloColor: Color?
 
     var body: some View {
         let entries = entries
-        ScrollView(.vertical) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.columnMinimum), spacing: Self.spacing, alignment: .top)],
-                      alignment: .leading, spacing: Self.spacing + 12) {
-                ForEach(entries) { entry in
-                    NavigationLink(value: FolderRoute(collectionId: entry.collection.id, folder: entry.folder)) {
-                        FolderTile(folder: entry.folder,
-                                   collectionBackdropUrl: entry.collection.backdropImageUrl,
-                                   collectionId: entry.collection.id,
-                                   stillFocused: focused == entry.id)
-                    }
-                    .cardFocusButtonStyle()
-                    .posterButtonShape()
-                    .focused($focused, equals: entry.id)
-                    .id(entry.id)
-                }
+        let rows = stride(from: 0, to: entries.count, by: Self.columns).map { Array(entries[$0..<min(entries.count, $0 + Self.columns)]) }
+        ZStack(alignment: .topLeading) {
+            OrbitHomeLayout.background.ignoresSafeArea()
+            // The halo: the focused platform's colour, soft, from the top left.
+            if let haloColor {
+                RadialGradient(colors: [haloColor.opacity(0.42), haloColor.opacity(0.12), .clear],
+                               center: UnitPoint(x: 0.22, y: 0.18), startRadius: 0, endRadius: 1250)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .id(haloColor.description)
+                    .allowsHitTesting(false)
             }
-            .padding(.top, Self.top)
-            .padding(.horizontal, StripGeometry.edgeMargin)
-            .padding(.bottom, 80)
+            Text(String(localized: "Plateformes"))
+                .font(.system(size: 46, weight: .heavy))
+                .foregroundStyle(Color.white)
+                .padding(.leading, OrbitHomeLayout.margin)
+                .padding(.top, Self.headingTop)
+                .allowsHitTesting(false)
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: Self.spacing) {
+                    ForEach(rows.indices, id: \.self) { r in
+                        HStack(spacing: Self.spacing) {
+                            ForEach(rows[r]) { entry in
+                                NavigationLink(value: FolderRoute(collectionId: entry.collection.id, folder: entry.folder)) {
+                                    OrbitPlatformTile(folder: entry.folder,
+                                                      collectionBackdropUrl: entry.collection.backdropImageUrl,
+                                                      focused: focused == entry.id,
+                                                      size: CGSize(width: Self.tileWidth, height: Self.tileHeight))
+                                }
+                                .buttonStyle(OrbitPlatformTileStyle())
+                                .focused($focused, equals: entry.id)
+                                .id(entry.id)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, Self.top)
+                .padding(.horizontal, OrbitHomeLayout.margin)
+                .padding(.bottom, 80)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollClipDisabled()
+            .focusSection()
         }
-        .scrollClipDisabled()
-        .focusSection()
-        // Steven: the Poster Size setting does not apply here — the platform tiles keep the size
-        // they were laid out for (the default style), whatever Small / Large says.
-        .environment(\.posterStyle, .default)
+        .ignoresSafeArea()
+        .animation(.easeInOut(duration: 0.45), value: haloColor?.description)
         // The engine's own entry into the grid after the pop picks the tile too.
         .defaultFocus($focused, restoreTarget, priority: .userInitiated)
         .onChange(of: focused) { _, id in
@@ -421,10 +454,14 @@ struct OrbitCollectionGrid: View {
             }
             Self.lastFocused = id
             onFolderFocus(entry.collection, entry.folder)
+            updateHalo(entry)
         }
         // Only a return from a folder (the grid had focus when it went away), never an arrival
         // from the bar, which keeps focus where the viewer is.
         .onAppear {
+            if haloColor == nil, let first = entries.first(where: { $0.id == Self.lastFocused }) ?? entries.first {
+                updateHalo(first)
+            }
             guard Self.leftWithFocus else { return }
             Self.leftWithFocus = false
             restoreFocus()
@@ -436,6 +473,19 @@ struct OrbitCollectionGrid: View {
             let now = ProcessInfo.processInfo.systemUptime
             Self.leftWithFocus = focused != nil || now - Self.lostAt < 1.0
             if Self.leftWithFocus { Self.notePush() }
+        }
+    }
+
+    private func updateHalo(_ entry: Entry) {
+        let url = OrbitPlatformTile.coverURL(entry.folder, collectionBackdropUrl: entry.collection.backdropImageUrl)
+        if let cached = ArtworkColorStore.shared.cachedColor(for: [url], use: .wash) {
+            haloColor = cached
+            return
+        }
+        let id = entry.id
+        ArtworkColorStore.shared.color(for: [url], use: .wash) { color in
+            guard focused == id || (focused == nil && Self.lastFocused == id) || haloColor == nil else { return }
+            haloColor = color
         }
     }
 
@@ -460,6 +510,60 @@ struct OrbitCollectionGrid: View {
                 Self.pushedFrom = nil
             }
         }
+    }
+}
+
+/// One platform: its cover (the folder's own, else its backdrop, else the collection's), its
+/// focus GIF while focused (revealed only once it shows something, see `StreamingGifView`), the
+/// white frame and a slight lift when focused.
+struct OrbitPlatformTile: View {
+    let folder: CollectionFolder
+    let collectionBackdropUrl: String?
+    let focused: Bool
+    let size: CGSize
+
+    static func coverURL(_ folder: CollectionFolder, collectionBackdropUrl: String?) -> String? {
+        for raw in [folder.coverImageUrl, folder.heroBackdropUrl, collectionBackdropUrl] {
+            if let url = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty { return url }
+        }
+        return nil
+    }
+
+    var body: some View {
+        let radius: CGFloat = 16
+        let gif = folder.focusGifUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
+        ZStack {
+            Color(white: 0.12)
+            if let cover = Self.coverURL(folder, collectionBackdropUrl: collectionBackdropUrl) {
+                CachedAsyncImage(string: cover, decodeSize: .points(width: size.width, height: size.height))
+            } else {
+                Text(folder.title)
+                    .font(.system(size: 34, weight: .heavy))
+                    .foregroundStyle(Color.white)
+                    .multilineTextAlignment(.center)
+                    .padding(20)
+            }
+            if folder.focusGifEnabled, let gif, !gif.isEmpty {
+                AnimatedGifImage(string: gif, fallback: nil, isAnimating: focused, targetSize: size)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(Color.white.opacity(focused ? 1 : 0.08), lineWidth: focused ? 5 : 1.5)
+        }
+        .scaleEffect(focused ? 1.06 : 1)
+        .shadow(color: .black.opacity(focused ? 0.6 : 0.25), radius: focused ? 26 : 10, y: focused ? 14 : 6)
+        .animation(.easeOut(duration: 0.16), value: focused)
+        .accessibilityLabel(folder.title)
+    }
+}
+
+/// The tile draws its own focus; no system platter.
+struct OrbitPlatformTileStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
 

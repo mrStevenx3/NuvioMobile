@@ -1112,6 +1112,32 @@ private struct StreamingGifView: UIViewRepresentable {
         var generation = 0
         var running = false
         var data: Data?
+        /// Steven (Plateformes): most focus GIFs open on black frames (Netflix's "N", Disney+'s
+        /// shine), so the tile went black before the animation showed. The stream stays invisible
+        /// (the cover under it shows) until a frame has real content, then fades in.
+        var revealed = false
+        var startedAt: TimeInterval = 0
+    }
+
+    /// Whether a frame has visible content: at least 3 % of a 16 × 16 sample brighter than dark.
+    static func hasContent(_ image: CGImage) -> Bool {
+        let side = 16
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let drawn: Bool = pixels.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: side, height: side, bitsPerComponent: 8,
+                                          bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.interpolationQuality = .low
+            context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard drawn else { return true }
+        var lit = 0
+        for i in stride(from: 0, to: pixels.count, by: 4) {
+            let luma = 0.299 * Double(pixels[i]) + 0.587 * Double(pixels[i + 1]) + 0.114 * Double(pixels[i + 2])
+            if luma > 40 { lit += 1 }
+        }
+        return lit * 100 >= side * side * 3
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -1133,6 +1159,9 @@ private struct StreamingGifView: UIViewRepresentable {
         }
         if isAnimating, !coordinator.running {
             view.image = nil
+            view.alpha = 0
+            coordinator.revealed = false
+            coordinator.startedAt = ProcessInfo.processInfo.systemUptime
             coordinator.running = true
             coordinator.generation += 1
             let generation = coordinator.generation
@@ -1143,11 +1172,16 @@ private struct StreamingGifView: UIViewRepresentable {
                     stop.pointee = true
                     return
                 }
-                if Thread.isMainThread {
+                let show = { [weak view, weak coordinator] in
+                    guard let view, let coordinator else { return }
                     view.image = UIImage(cgImage: image)
-                } else {
-                    DispatchQueue.main.async { view.image = UIImage(cgImage: image) }
+                    if !coordinator.revealed,
+                       Self.hasContent(image) || ProcessInfo.processInfo.systemUptime - coordinator.startedAt > 1.5 {
+                        coordinator.revealed = true
+                        UIView.animate(withDuration: 0.2) { view.alpha = 1 }
+                    }
                 }
+                if Thread.isMainThread { show() } else { DispatchQueue.main.async(execute: show) }
             }
             if status != noErr {
                 coordinator.running = false
