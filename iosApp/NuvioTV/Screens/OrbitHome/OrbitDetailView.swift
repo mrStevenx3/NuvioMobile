@@ -291,27 +291,28 @@ struct OrbitDetailView: View {
         // Steven: a press ends the return at once (Right was pulled back to the card). The
         // clock was never installed on this page, so the press went unseen.
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
+        // Steven: a press while the focus still sat on the engine's card (the first one) went
+        // from there (Left even left the row). During the return a press puts the card back
+        // first; the next press moves from it.
         .onMoveCommand { _ in
-            if resuming { resuming = false; resumeFocus = nil }
+            guard resuming, let back = resumeFocus, focus != back else { return }
+            DispatchQueue.main.async { focus = back; anchorTick &+= 1 }
         }
         // Menu from a section: back to the hero; from the hero, the page leaves (system default).
         .onExitCommand(perform: section == .hero || showSynopsis ? nil : { backToHero() })
         .onChange(of: focus) { old, new in
             guard let new else { return }
             if resuming {
-                if ViewerInputClock.shared.hasInput(since: resumeStart) {
-                    // Steven moved: the page is his again.
+                if new == resumeFocus {
+                    // Back on the card left from: done, the section stays pinned where it was.
                     resuming = false
                     resumeFocus = nil
-                } else if new == resumeFocus {
-                    // Back on the card left from: the section stays pinned where it was.
                     lastFocus = new
                     enter(new.section)
-                    return
-                } else {
-                    // The engine's own landing (Lire, the top): ignored, the page does not move.
-                    return
                 }
+                // Else the engine's own landing (the row's first card, Lire), or the move of a
+                // press made from it: ignored, the card is put back just after.
+                return
             }
             lastFocus = new
             // Steven: coming into a row (from another section) lands on its first card, far left.
@@ -339,14 +340,16 @@ struct OrbitDetailView: View {
                 // times (as the old page did), until Steven presses something.
                 resuming = true
                 resumeStart = ProcessInfo.processInfo.systemUptime
-                for delay in [0.0, 0.35, 0.8, 1.1] {
+                // The engine lands on the row's first card once the way back has finished (about
+                // half a second): asked often, so the wrong card never holds long.
+                for delay in [0.0, 0.2, 0.4, 0.55, 0.7, 0.85, 1.0, 1.2] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                        guard resuming, !ViewerInputClock.shared.hasInput(since: resumeStart) else { return }
+                        guard resuming else { return }
                         if focus != back { focus = back }
                         anchorTick &+= 1
                     }
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
                     guard resuming else { return }
                     resuming = false
                     resumeFocus = nil
