@@ -22,6 +22,8 @@ struct OrbitStudiosPage: View {
     /// goes down to the films.
     @State private var shownId: String?
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
+    /// Each studio's colour, sampled from its backdrop (the focused icon takes it).
+    @State private var tints: [String: Color] = [:]
 
     @MainActor private static var lastFocused: String?
     @MainActor private static var leftWithFocus = false
@@ -62,7 +64,8 @@ struct OrbitStudiosPage: View {
                                 OrbitStudioTile(folder: folder,
                                                 collectionBackdropUrl: collection.backdropImageUrl,
                                                 focused: focused == folder.id,
-                                                dimmed: focused != nil && focused != folder.id)
+                                                dimmed: focused != nil && focused != folder.id,
+                                                tint: tints[folder.id])
                             }
                             .buttonStyle(OrbitPlatformTileStyle())
                             .focused($focused, equals: folder.id)
@@ -132,6 +135,17 @@ struct OrbitStudiosPage: View {
                                                          height: OrbitHomeLayout.screenHeight),
                                            fill: true, scale: displayScale)
         let urls = folders.compactMap { Self.backdropURL($0) }.compactMap(URL.init(string:))
+        for folder in folders where tints[folder.id] == nil {
+            guard let url = Self.backdropURL(folder) else { continue }
+            let id = folder.id
+            if let cached = ArtworkColorStore.shared.cachedColor(for: [url], use: .wash) {
+                tints[id] = cached
+            } else {
+                ArtworkColorStore.shared.color(for: [url], use: .wash) { color in
+                    if let color { tints[id] = color }
+                }
+            }
+        }
         Task(priority: .utility) {
             for url in urls where ArtworkStore.cached(url, decode: request) == nil {
                 _ = try? await ArtworkStore.fetch(url, decode: request)
@@ -190,6 +204,8 @@ private struct OrbitStudioTile: View {
     let collectionBackdropUrl: String?
     let focused: Bool
     let dimmed: Bool
+    /// The studio's colour (from its backdrop): the focused icon's ground takes it.
+    var tint: Color? = nil
 
     var body: some View {
         let size = CGSize(width: OrbitStudiosPage.tileWidth, height: OrbitStudiosPage.tileHeight)
@@ -203,6 +219,13 @@ private struct OrbitStudioTile: View {
                 CachedAsyncImage(string: cover, decodeSize: .points(width: size.width, height: size.height))
                     .contrast(focused ? 1.75 : 1)
                     .brightness(focused ? 0.12 : 0)
+                // Steven (on trial): the focused icon's dark ground takes the studio's colour; a
+                // screen blend leaves the white logo white and lifts only the dark towards it.
+                if let tint {
+                    tint
+                        .blendMode(.screen)
+                        .opacity(focused ? 0.9 : 0)
+                }
             } else {
                 Text(folder.title)
                     .font(.system(size: 26, weight: .heavy))

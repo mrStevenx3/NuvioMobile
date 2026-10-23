@@ -16,6 +16,7 @@ struct OrbitStudiosBackdrop: View {
     @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
     @State private var shownURL: String?
+    @State private var generation = 0
 
     static let slate = Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255)
 
@@ -24,28 +25,32 @@ struct OrbitStudiosBackdrop: View {
         ZStack {
             Self.slate
             if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-                    .id(shownURL ?? "-")
-                    .transition(.opacity)
-                // Steven: the bottom of the art blurred, under the tiles.
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-                    .blur(radius: 36, opaque: true)
-                    .mask {
-                        LinearGradient(stops: [
-                            .init(color: .clear, location: blurFrom),
-                            .init(color: .black, location: min(1, blurFrom + 0.24)),
-                        ], startPoint: .top, endPoint: .bottom)
-                    }
-                    .id("blur-\(shownURL ?? "-")")
-                    .transition(.opacity)
+                // Steven: no dip to the slate between two studios — the new art fades in OVER the
+                // old one, which leaves only once the new one is fully in.
+                ZStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
+                    // Steven: the bottom of the art blurred, under the tiles.
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
+                        .blur(radius: 36, opaque: true)
+                        .mask {
+                            LinearGradient(stops: [
+                                .init(color: .clear, location: blurFrom),
+                                .init(color: .black, location: min(1, blurFrom + 0.24)),
+                            ], startPoint: .top, endPoint: .bottom)
+                        }
+                }
+                .id(generation)
+                .zIndex(Double(generation))
+                .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.3)),
+                                        removal: .opacity.animation(.linear(duration: 0.01).delay(0.32))))
             }
             // The logo (top left) and the tiles (bottom) stay legible on any art.
             LinearGradient(stops: [
@@ -60,7 +65,6 @@ struct OrbitStudiosBackdrop: View {
         }
         .frame(width: size.width, height: size.height)
         .clipped()
-        .animation(.easeInOut(duration: 0.3), value: shownURL)
         .task(id: url ?? "-") { await load(size: size) }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -75,12 +79,17 @@ struct OrbitStudiosBackdrop: View {
         let request = ArtworkDecodeRequest(size: .points(width: size.width, height: size.height),
                                            fill: true, scale: displayScale)
         if let cached = ArtworkStore.cached(address, decode: request) {
-            image = cached
-            shownURL = url
+            show(cached, url: url)
             return
         }
         guard let fetched = try? await ArtworkStore.fetch(address, decode: request), !Task.isCancelled else { return }
-        image = fetched
+        show(fetched, url: url)
+    }
+
+    private func show(_ next: UIImage, url: String) {
+        guard url != shownURL else { return }
+        generation &+= 1
+        image = next
         shownURL = url
     }
 }
