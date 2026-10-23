@@ -135,10 +135,8 @@ struct OrbitPosterCard: View {
         let L = OrbitHomeLayout.self
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.12)
-            CachedAsyncImage(string: card.poster, fallback: card.landscape,
-                             decodeSize: .points(width: L.posterWidth, height: L.cardHeight))
-                .frame(width: L.posterWidth, height: L.cardHeight)
-                .clipped()
+            OrbitImage(url: card.poster, fallback: card.landscape,
+                       size: CGSize(width: L.posterWidth, height: L.cardHeight))
             if let progress = card.progress {
                 OrbitProgressBar(progress: progress)
                     .padding(.horizontal, 14)
@@ -180,10 +178,7 @@ struct OrbitLeadFrame: View {
             // Opaque at all times: the row slides under it.
             Color(white: 0.1)
             ZStack(alignment: .bottomLeading) {
-                CachedAsyncImage(string: card.landscape ?? meta?.backdrop, fallback: card.poster,
-                                 decodeSize: .points(width: size.width, height: size.height))
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
+                OrbitImage(url: card.landscape ?? meta?.backdrop, fallback: card.poster, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL,
                                       onFailure: onTrailerFailure,
@@ -243,9 +238,8 @@ struct OrbitTitleMark: View {
     var body: some View {
         if let logo, !logo.isEmpty {
             CachedAsyncImage(string: logo, contentMode: .fit,
-                             decodeSize: .points(width: maxSize.width, height: maxSize.height)) {
-                nameText
-            }
+                             decodeSize: .points(width: maxSize.width, height: maxSize.height),
+                             loading: { Color.clear }, failure: { nameText })
             .frame(maxWidth: maxSize.width, maxHeight: maxSize.height, alignment: .bottomLeading)
             .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
         } else {
@@ -261,5 +255,21 @@ struct OrbitTitleMark: View {
             .minimumScaleFactor(0.6)
             .frame(maxWidth: maxSize.width, alignment: .leading)
             .shadow(color: .black.opacity(0.6), radius: 8, y: 2)
+    }
+}
+
+/// An image with no shimmer while it loads and nothing on failure (the frames are opaque already).
+struct OrbitImage: View {
+    let url: String?
+    var fallback: String? = nil
+    var mode: ContentMode = .fill
+    let size: CGSize
+
+    var body: some View {
+        CachedAsyncImage(string: url, fallback: fallback, contentMode: mode,
+                         decodeSize: .points(width: size.width, height: size.height),
+                         loading: { Color.clear }, failure: { Color.clear })
+            .frame(width: size.width, height: size.height)
+            .clipped()
     }
 }

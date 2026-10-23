@@ -24,10 +24,8 @@ struct OrbitHomeHeroView: View {
                 let meta = metaStore.meta(for: item)
                 let info = OrbitInfo.make(item, meta: meta)
                 ZStack(alignment: .bottomLeading) {
-                    CachedAsyncImage(string: item.banner ?? meta?.backdrop, fallback: item.poster,
-                                     decodeSize: .points(width: L.heroWidth, height: L.heroHeight))
-                        .frame(width: L.heroWidth, height: L.heroHeight)
-                        .clipped()
+                    OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster,
+                               size: CGSize(width: L.heroWidth, height: L.heroHeight))
                     if let trailerURL {
                         TrailerHeroPlayer(urlString: trailerURL,
                                           onFailure: onTrailerFailure,

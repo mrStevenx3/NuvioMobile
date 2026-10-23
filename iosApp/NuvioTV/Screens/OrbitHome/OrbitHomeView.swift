@@ -201,7 +201,7 @@ struct OrbitHomeView: View {
             .buttonStyle(OrbitCanvasButtonStyle())
             .focused($canvasFocused)
             .onMoveCommand(perform: move)
-            .onExitCommand(perform: index > 0 ? { goTop() } : nil)
+            .onExitCommand(perform: exitAction(index: index))
             .offset(y: 110)
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
@@ -304,6 +304,12 @@ struct OrbitHomeView: View {
                 actions.push(TitleRoute(preview: card.preview))
             }
         }
+    }
+
+    /// Menu: back to the top from below it; at the top, the system's own (the bar, then out).
+    private func exitAction(index: Int) -> (() -> Void)? {
+        guard index > 0 else { return nil }
+        return { goTop() }
     }
 
     private func goTop() {
