@@ -38,8 +38,8 @@ struct OrbitStudiosBackdrop: View {
                     .blur(radius: 36, opaque: true)
                     .mask {
                         LinearGradient(stops: [
-                            .init(color: .clear, location: 0.42),
-                            .init(color: .black, location: 0.68),
+                            .init(color: .clear, location: 0.6),
+                            .init(color: .black, location: 0.84),
                         ], startPoint: .top, endPoint: .bottom)
                     }
                     .id("blur-\(shownURL ?? "-")")
