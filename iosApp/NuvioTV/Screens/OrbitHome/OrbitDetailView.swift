@@ -100,6 +100,9 @@ struct OrbitDetailView: View {
     @State private var cinemaHint = false
     @State private var cinemaHintTask: Task<Void, Never>?
     @FocusState private var cinemaFocused: Bool
+    @Namespace private var titleSpace
+    /// Bumped to put the page back at its top (after the trailer).
+    @State private var heroPin = 0
 
     init(preview: MetaPreview) {
         self.preview = preview
@@ -197,7 +200,8 @@ struct OrbitDetailView: View {
             // Casting peeked at the bottom. On the hero, nothing below it shows.
             .mask {
                 VStack(spacing: 0) {
-                    Color.black.frame(height: section == .hero ? OrbitDetailLayout.heroHeight - 10 : OrbitHomeLayout.screenHeight)
+                    // Up to just under the buttons: a nudge of the page can no longer show "Casting".
+                    Color.black.frame(height: section == .hero ? 960 : OrbitHomeLayout.screenHeight)
                     Color.clear
                 }
                 .frame(height: OrbitHomeLayout.screenHeight, alignment: .top)
@@ -209,6 +213,7 @@ struct OrbitDetailView: View {
             // Steven: Left / Right inside a section let the system nudge the page ("ça se
             // replace"); each move inside a section holds it at its place again.
             .onChange(of: anchorTick) { _, _ in anchor(proxy, section, duration: 0.22) }
+            .onChange(of: heroPin) { _, _ in if section == .hero { anchor(proxy, .hero, duration: 0.3) } }
             }
 
             if cinema {
@@ -216,19 +221,20 @@ struct OrbitDetailView: View {
                 Button {} label: {
                     ZStack(alignment: .bottomLeading) {
                         Color.clear
-                        if cinemaHint {
-                            VStack(alignment: .leading, spacing: 12) {
-                                OrbitTitleMark(name: title, logo: logoURL,
-                                               maxSize: CGSize(width: 340, height: 120), textSize: 40)
-                                Text(String(localized: "Appuyez sur Retour pour quitter"))
-                                    .font(.system(size: 22, weight: .semibold))
-                                    .foregroundStyle(Color.white.opacity(0.75))
-                            }
-                            .shadow(color: .black.opacity(0.6), radius: 12)
-                            .padding(.leading, OrbitDetailLayout.margin)
-                            .padding(.bottom, 70)
-                            .transition(.opacity.combined(with: .offset(y: 16)))
+                        // Steven: the title glides here from its place in the page (one continuous
+                        // move, `titleMark`), the Back hint under it; both fade after 4 s, the title
+                        // staying in place (invisible) so it glides back on the way out.
+                        VStack(alignment: .leading, spacing: 12) {
+                            titleMark(cinema: true)
+                                .opacity(cinemaHint ? 1 : 0)
+                            Text(String(localized: "Appuyez sur Retour pour quitter"))
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(Color.white.opacity(0.75))
+                                .opacity(cinemaHint ? 1 : 0)
                         }
+                        .shadow(color: .black.opacity(0.6), radius: 12)
+                        .padding(.leading, OrbitDetailLayout.margin)
+                        .padding(.bottom, 70)
                     }
                     .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
                     .contentShape(Rectangle())
@@ -369,6 +375,18 @@ struct OrbitDetailView: View {
         if target == .hero { armHeroTrailer() } else { stopHeroTrailer() }
     }
 
+    static let heroTitleSize = CGSize(width: 720, height: 240)
+    static let cinemaTitleSize = CGSize(width: 340, height: 120)
+
+    /// The title (logo or name), in the hero or in the cinema corner: ONE matched view, so going
+    /// into the trailer and back it glides and resizes between the two places.
+    private func titleMark(cinema corner: Bool) -> some View {
+        let size = corner ? Self.cinemaTitleSize : Self.heroTitleSize
+        return OrbitTitleMark(name: title, logo: logoURL, maxSize: size, textSize: corner ? 40 : 76)
+            .frame(width: size.width, height: size.height, alignment: .bottomLeading)
+            .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
+    }
+
     private func backToHero() {
         focus = .play
         enter(.hero)
@@ -391,7 +409,7 @@ struct OrbitDetailView: View {
         guard model.trailerVideoURL != nil else { return }
         heroRestTask?.cancel()
         HeroTrailerAudioState.shared.setMuted(value: false)
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) {
             cinema = true
             heroTrailerOn = true
             cinemaHint = true
@@ -411,12 +429,15 @@ struct OrbitDetailView: View {
         guard cinema else { return }
         cinemaHintTask?.cancel()
         HeroTrailerAudioState.shared.setMuted(value: true)
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.5)) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) {
             cinema = false
             heroTrailerOn = false
             cinemaHint = false
         }
         DispatchQueue.main.async { focus = .trailer }
+        // The focus coming back can nudge the page: back at its top once it has settled.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { heroPin &+= 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { heroPin &+= 1 }
     }
 
     private func stopHeroTrailer() {
@@ -436,8 +457,14 @@ struct OrbitDetailView: View {
         let L = OrbitDetailLayout.self
         return HStack(alignment: .bottom, spacing: 60) {
             VStack(alignment: .leading, spacing: 0) {
-                OrbitTitleMark(name: title, logo: logoURL,
-                               maxSize: CGSize(width: 720, height: 240), textSize: 76)
+                Group {
+                    if cinema {
+                        Color.clear
+                    } else {
+                        titleMark(cinema: false)
+                    }
+                }
+                .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
                 OrbitDetailMetaLine(meta: meta, preview: preview)
                     .padding(.top, 34)
                 actions
