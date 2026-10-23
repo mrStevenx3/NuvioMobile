@@ -195,8 +195,28 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
         guard let next = context.nextFocusedItem, contains(next), !contains(context.previouslyFocusedItem),
               (searchBar?.text ?? "").isEmpty else { return }
         if let results, let view = next as? UIView, view.isDescendant(of: results.view) { return }
-        guard let key = letterA(near: next), key !== next else { return }
-        DispatchQueue.main.async { [weak self] in self?.move(to: key) }
+        landOnA(near: next, attempt: 0)
+    }
+
+    /// The first time the keyboard is reached its keys can still be settling (the move was
+    /// ignored and the focus stayed on "m"): asked again a few times until "a" holds it.
+    private func landOnA(near key: UIFocusItem, attempt: Int) {
+        let delay = attempt == 0 ? 0 : 0.12
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            let focused = self.view.window?.windowScene?.focusSystem?.focusedItem
+            let current = focused ?? key
+            // Only while the focus still sits on the key it first landed on (it got there, or
+            // Steven has moved on).
+            if attempt > 0, current !== key { return }
+            guard self.contains(current), let a = self.letterA(near: current) else {
+                if attempt < 5 { self.landOnA(near: key, attempt: attempt + 1) }
+                return
+            }
+            if a === current { return }
+            self.move(to: a)
+            if attempt < 5 { self.landOnA(near: key, attempt: attempt + 1) }
+        }
     }
 
     private func contains(_ item: UIFocusEnvironment?) -> Bool {

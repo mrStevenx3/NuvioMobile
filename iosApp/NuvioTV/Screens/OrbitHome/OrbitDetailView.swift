@@ -53,7 +53,7 @@ enum OrbitDetailLayout {
     static let margin: CGFloat = OrbitHomeLayout.margin
     /// The hero's height: the first section's heading peeks at the bottom of the first screen.
     /// The first screen exactly (Steven: the "C" of Casting peeked under the hero).
-    static let heroHeight: CGFloat = 1060
+    static let heroHeight: CGFloat = 1080
     static let sectionGap: CGFloat = 70
     /// Where a section's top rests on screen when the focus is in it.
     /// Steven (the page bounced on Left / Right): low enough that the focused card, lifted, sits
@@ -207,7 +207,7 @@ struct OrbitDetailView: View {
             .mask {
                 VStack(spacing: 0) {
                     // Up to just under the buttons: a nudge of the page can no longer show "Casting".
-                    Color.black.frame(height: section == .hero ? 1030 : OrbitHomeLayout.screenHeight)
+                    Color.black.frame(height: section == .hero ? 1050 : OrbitHomeLayout.screenHeight)
                     Color.clear
                 }
                 .frame(height: OrbitHomeLayout.screenHeight, alignment: .top)
@@ -498,7 +498,10 @@ struct OrbitDetailView: View {
                 }
             }
             .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
+            // A fixed height: the age box (taller than the text) arrives with the details and
+            // made the line, so the whole block, move.
             OrbitDetailMetaLine(meta: meta, preview: preview)
+                .frame(height: 44, alignment: .leading)
                 .padding(.top, 34)
             // On their own line under it (beside it, they cut the genres short).
             OrbitQualityBadges(quality: quality.found)
@@ -521,6 +524,8 @@ struct OrbitDetailView: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: 760, alignment: .leading)
+                            // Steven: a touch lower, level with the buttons.
+                            .offset(y: 8)
                         OrbitSynopsisArrow(focused: focus == .synopsis) {
                             withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = true }
                         }
@@ -536,10 +541,10 @@ struct OrbitDetailView: View {
             // the page): else the whole block rose once they came in.
             credits
                 .frame(maxWidth: .infinity, minHeight: 62, maxHeight: 62, alignment: .bottomTrailing)
-                .padding(.top, 34)
+                .padding(.top, 74)
         }
         .padding(.horizontal, L.margin)
-        .padding(.bottom, 56)
+        .padding(.bottom, 36)
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .focusSection()
     }
@@ -833,9 +838,9 @@ private struct OrbitDetailBackground: View {
                 .saturation(0.75)
                 .overlay(Color.black.opacity(0.3))
                 .mask(LinearGradient(stops: [
-                    .init(color: .clear, location: 0.6),
-                    .init(color: .black.opacity(0.7), location: 0.8),
-                    .init(color: .black, location: 0.94),
+                    .init(color: .clear, location: 0.7),
+                    .init(color: .black.opacity(0.7), location: 0.86),
+                    .init(color: .black, location: 0.97),
                 ], startPoint: .top, endPoint: .bottom))
                 .opacity(cinema || dimmed ? 0 : 1)
                 .allowsHitTesting(false)
