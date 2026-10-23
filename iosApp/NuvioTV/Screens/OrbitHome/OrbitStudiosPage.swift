@@ -198,7 +198,11 @@ private struct OrbitStudioTile: View {
         ZStack {
             Color(white: 0.12)
             if let cover = OrbitPlatformTile.coverURL(folder, collectionBackdropUrl: collectionBackdropUrl) {
+                // Steven (on trial): the focused icon's grey logo goes bright white, its slate a
+                // little deeper (a contrast lift around the middle grey, then a touch of light).
                 CachedAsyncImage(string: cover, decodeSize: .points(width: size.width, height: size.height))
+                    .contrast(focused ? 1.75 : 1)
+                    .brightness(focused ? 0.12 : 0)
             } else {
                 Text(folder.title)
                     .font(.system(size: 26, weight: .heavy))
