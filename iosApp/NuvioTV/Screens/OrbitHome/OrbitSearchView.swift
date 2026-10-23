@@ -57,7 +57,6 @@ private struct OrbitSearchContainer: UIViewControllerRepresentable {
         let search = UISearchController(searchResultsController: results)
         search.searchResultsUpdater = coordinator
         search.obscuresBackgroundDuringPresentation = false
-        search.showsSearchResultsController = true
         search.searchBar.placeholder = String(localized: "Films, séries…")
         coordinator.search = search
         bridge.setQuery = { [weak coordinator] in coordinator?.setQuery($0) }
