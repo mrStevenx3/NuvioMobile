@@ -17,6 +17,10 @@ struct OrbitStudiosPage: View {
     let collection: NuvioCollection
 
     @FocusState private var focused: String?
+    /// The icon drawn as focused: `focused`, followed in an explicit animation (Steven: going
+    /// down to the films, the icon snapped back to its size — the focus engine's own update
+    /// carried no animation).
+    @State private var lit: String?
     @Environment(\.displayScale) private var displayScale
     /// The studio the page shows (backdrop, logo, films): the focused one, kept when the focus
     /// goes down to the films.
@@ -63,8 +67,8 @@ struct OrbitStudiosPage: View {
                             NavigationLink(value: FolderRoute(collectionId: collection.id, folder: folder)) {
                                 OrbitStudioTile(folder: folder,
                                                 collectionBackdropUrl: collection.backdropImageUrl,
-                                                focused: focused == folder.id,
-                                                dimmed: focused != nil && focused != folder.id,
+                                                focused: lit == folder.id,
+                                                dimmed: lit != nil && lit != folder.id,
                                                 tint: tints[folder.id])
                             }
                             .buttonStyle(OrbitPlatformTileStyle())
@@ -91,6 +95,7 @@ struct OrbitStudiosPage: View {
         .onChange(of: focused) { old, id in
             guard let id else {
                 if old != nil { Self.lostTilesAt = ProcessInfo.processInfo.systemUptime }
+                withAnimation(.easeOut(duration: 0.26)) { lit = nil }
                 return
             }
             let now = ProcessInfo.processInfo.systemUptime
@@ -102,6 +107,7 @@ struct OrbitStudiosPage: View {
                 focused = first.id
                 return
             }
+            withAnimation(.easeOut(duration: 0.2)) { lit = id }
             Self.lastFocused = id
             shownId = id
             if let folder = folders.first(where: { $0.id == id }) {
