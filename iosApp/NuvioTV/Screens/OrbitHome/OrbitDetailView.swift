@@ -114,6 +114,8 @@ struct OrbitDetailView: View {
     @State private var resumeFocus: OrbitDetailFocus?
     @State private var resuming = false
     @State private var resumeStart: TimeInterval = 0
+    /// Each row's scroll, kept across a push (a reference: writes never redraw the page).
+    @State private var rowOffsets = OrbitRowOffsets()
     /// While one of the page's own scrolls runs (the hold below leaves it alone).
     @State private var anchoringUntil = Date.distantPast
 
@@ -726,6 +728,7 @@ struct OrbitDetailView: View {
                     .padding(.vertical, 16)
                 }
                 .scrollClipDisabled()
+                .modifier(OrbitRowMemory(key: "cast", store: rowOffsets))
             }
             .focusSection()
             .id(OrbitDetailSection.cast)
@@ -754,6 +757,7 @@ struct OrbitDetailView: View {
                     .padding(.vertical, 20)
                 }
                 .scrollClipDisabled()
+                .modifier(OrbitRowMemory(key: "saga", store: rowOffsets))
             }
             .focusSection()
             .id(OrbitDetailSection.saga)
@@ -807,6 +811,7 @@ struct OrbitDetailView: View {
                     .padding(.vertical, 20)
                 }
                 .scrollClipDisabled()
+                .modifier(OrbitRowMemory(key: "similar", store: rowOffsets))
             }
             .focusSection()
             .id(OrbitDetailSection.similar)
@@ -1229,6 +1234,38 @@ private struct OrbitActionButton: View {
 struct OrbitPlainStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+// MARK: - Row memory
+
+/// Where each row was scrolled, by row (a reference box: written on every scroll frame, never a
+/// page update).
+final class OrbitRowOffsets {
+    var x: [String: CGFloat] = [:]
+}
+
+/// Steven: back from an actor's page the row came back scrolled to its start, so the focus first
+/// landed on the first card (and stayed there on a quick press). The row now returns where it was
+/// at once, its card already under the focus.
+private struct OrbitRowMemory: ViewModifier {
+    let key: String
+    let store: OrbitRowOffsets
+    @State private var position = ScrollPosition(edge: .leading)
+
+    func body(content: Content) -> some View {
+        content
+            .scrollPosition($position)
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
+                store.x[key] = x
+            }
+            .onAppear {
+                if let x = store.x[key], x > 1 {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { position.scrollTo(x: x) }
+                }
+            }
     }
 }
 
