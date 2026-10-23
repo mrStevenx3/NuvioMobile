@@ -21,6 +21,15 @@ nonisolated struct OrbitQuality: OptionSet, Sendable, Equatable {
     static let hd = OrbitQuality(rawValue: 1 << 6)
     static let sd = OrbitQuality(rawValue: 1 << 7)
 
+    /// The one quality a badge rule's name stands for ("Dolby Vision", "DV", "4K", "Atmos"…).
+    static func single(_ name: String) -> OrbitQuality? {
+        let read = read(name)
+        for flag in [OrbitQuality.dolbyVision, .hdr10Plus, .atmos, .uhd, .fullHD, .hd, .sd, .hdr] where read.contains(flag) {
+            return flag
+        }
+        return nil
+    }
+
     /// Tags read in one stream's text.
     static func read(_ text: String) -> OrbitQuality {
         let t = " " + text.lowercased()
@@ -47,6 +56,9 @@ nonisolated struct OrbitQuality: OptionSet, Sendable, Equatable {
 @MainActor
 final class OrbitQualityModel: ObservableObject {
     @Published private(set) var found: OrbitQuality = []
+    /// Steven: the logos his badge rules (regex import) already give the streams — the image of
+    /// each quality, by its flag's raw value.
+    @Published private(set) var logos: [Int: String] = [:]
     private var watcher: FlowWatcher?
     private var requested: String?
     private var pending: Task<Void, Never>?
@@ -79,6 +91,12 @@ final class OrbitQualityModel: ObservableObject {
                         let text = [stream.name, stream.title, stream.description_, stream.streamLabel]
                             .compactMap { $0 }.joined(separator: " ")
                         seen.formUnion(OrbitQuality.read(text))
+                        for badge in stream.badges where !badge.imageURL.isEmpty {
+                            let flag = OrbitQuality.single(badge.name)
+                            if let flag, self.logos[flag.rawValue] == nil {
+                                self.logos[flag.rawValue] = badge.imageURL
+                            }
+                        }
                     }
                     self.readCount[group.addonId] = streams.count
                 }
@@ -107,35 +125,44 @@ final class OrbitQualityModel: ObservableObject {
 /// The badges, Apple TV style: outlined, small, after the meta line.
 struct OrbitQualityBadges: View {
     let quality: OrbitQuality
+    /// The badge rules' own images, by flag (see `OrbitQualityModel.logos`).
+    var logos: [Int: String] = [:]
 
     var body: some View {
         HStack(spacing: 10) {
             // Always the best definition the sources have, one badge.
             if quality.contains(.uhd) {
-                badge("4K", asset: "orbit-badge-4k")
+                badge("4K", asset: "orbit-badge-4k", flag: .uhd)
             } else if quality.contains(.fullHD) {
-                badge("Full HD", asset: "orbit-badge-fullhd")
+                badge("Full HD", asset: "orbit-badge-fullhd", flag: .fullHD)
             } else if quality.contains(.hd) {
-                badge("HD", asset: "orbit-badge-hd")
+                badge("HD", asset: "orbit-badge-hd", flag: .hd)
             } else if quality.contains(.sd) {
-                badge("SD", asset: "orbit-badge-sd")
+                badge("SD", asset: "orbit-badge-sd", flag: .sd)
             }
             if quality.contains(.dolbyVision) {
-                badge("Dolby Vision", asset: "orbit-badge-dolby-vision")
+                badge("Dolby Vision", asset: "orbit-badge-dolby-vision", flag: .dolbyVision)
             } else if quality.contains(.hdr10Plus) {
-                badge("HDR10+", asset: "orbit-badge-hdr10plus")
+                badge("HDR10+", asset: "orbit-badge-hdr10plus", flag: .hdr10Plus)
             } else if quality.contains(.hdr) {
-                badge("HDR", asset: "orbit-badge-hdr")
+                badge("HDR", asset: "orbit-badge-hdr", flag: .hdr)
             }
-            if quality.contains(.atmos) { badge("Dolby Atmos", asset: "orbit-badge-dolby-atmos") }
+            if quality.contains(.atmos) { badge("Dolby Atmos", asset: "orbit-badge-dolby-atmos", flag: .atmos) }
         }
     }
 
     /// Steven's official logo when its image is in the asset catalog (`asset`, drawn white),
     /// else the text badge.
     @ViewBuilder
-    private func badge(_ text: String, asset: String) -> some View {
-        if UIImage(named: asset) != nil {
+    private func badge(_ text: String, asset: String, flag: OrbitQuality) -> some View {
+        if let url = logos[flag.rawValue] {
+            // The logo the viewer's badge rules use in the source list.
+            CachedAsyncImage(string: url, contentMode: .fit, decodeSize: .points(width: 180, height: 44))
+                .frame(height: 32)
+                .frame(maxWidth: 160)
+                .accessibilityLabel(text)
+                .transition(.opacity)
+        } else if UIImage(named: asset) != nil {
             Image(asset)
                 .renderingMode(.template)
                 .resizable()

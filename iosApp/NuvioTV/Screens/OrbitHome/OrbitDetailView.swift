@@ -501,7 +501,7 @@ struct OrbitDetailView: View {
                 .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
                 HStack(spacing: 18) {
                     OrbitDetailMetaLine(meta: meta, preview: preview)
-                    OrbitQualityBadges(quality: quality.found)
+                    OrbitQualityBadges(quality: quality.found, logos: quality.logos)
                 }
                 .padding(.top, 34)
                 actions
