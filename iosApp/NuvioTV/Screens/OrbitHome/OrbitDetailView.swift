@@ -529,14 +529,16 @@ struct OrbitDetailView: View {
                     .frame(minWidth: 680, alignment: .leading)
                     .layoutPriority(1)
                 if let overview {
-                    HStack(alignment: .center, spacing: 28) {
+                    // Steven: the arrow at the right margin, on the credits' edge; the text runs
+                    // up to it.
+                    HStack(alignment: .center, spacing: 24) {
                         Text(overview)
                             .font(.system(size: 25, weight: .medium))
                             .foregroundStyle(Color.white.opacity(focus == .synopsis ? 1 : 0.9))
                             .lineSpacing(4)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                            .frame(maxWidth: 760, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             // Steven: a touch lower, level with the buttons.
                             .offset(y: 8)
                         OrbitSynopsisArrow(focused: focus == .synopsis) {
