@@ -3829,7 +3829,7 @@ nonisolated enum DetailScrim {
 
     /// beta.19-rc1 verdict (D2, BUG-140): no `scrolling:` input — scrolling never changes glass.
     static func panelUsesFlatFill(trailerActive: Bool, glassDisabled: Bool) -> Bool {
-        DetailView.panelUsesFlatFill(trailerActive: trailerActive, glassDisabled: glassDisabled)
+        LegacyDetailView.panelUsesFlatFill(trailerActive: trailerActive, glassDisabled: glassDisabled)
     }
 
     // MARK: FEAT-35 Cinematic scrim

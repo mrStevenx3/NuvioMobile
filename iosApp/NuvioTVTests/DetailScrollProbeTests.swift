@@ -3,7 +3,7 @@ import XCTest
 
 /// BUG-41 (beta.18, Wave W6): unit coverage for the two pure pieces behind the Detail page's scroll
 /// diagnostics and chip glass — `ScrollingLatch` (the debounce arithmetic behind
-/// `ScrollDimModel.isScrolling`, `DetailView.swift`) and `DetailView.chipGlassFlat(...)` (the truth
+/// `ScrollDimModel.isScrolling`, `DetailView.swift`) and `LegacyDetailView.chipGlassFlat(...)` (the truth
 /// table deciding whether `metaChip`/parental-guide chips render flat material instead of
 /// `.glassEffect`).
 ///
@@ -71,7 +71,7 @@ final class DetailScrollProbeTests: XCTestCase {
         XCTAssertEqual(ScrollingLatch.defaultIdle, 0.15, accuracy: 0.0001)
     }
 
-    // MARK: - DetailView.chipGlassFlat truth table
+    // MARK: - LegacyDetailView.chipGlassFlat truth table
 
     /// All 4 combinations of the two inputs — `chipGlassFlat` is a plain OR, but this pins the exact
     /// truth table down (not just "at least one true → true") so a future edit that accidentally
@@ -90,7 +90,7 @@ final class DetailScrollProbeTests: XCTestCase {
             (true,  true,  true),
         ]
         for testCase in cases {
-            let actual = DetailView.chipGlassFlat(
+            let actual = LegacyDetailView.chipGlassFlat(
                 trailerActive: testCase.trailerActive,
                 glassDisabled: testCase.glassDisabled
             )
@@ -103,11 +103,11 @@ final class DetailScrollProbeTests: XCTestCase {
 
     /// The rest state this whole rule cares about: nothing active, glass stays glass.
     func testRestStateKeepsGlass() {
-        XCTAssertFalse(DetailView.chipGlassFlat(trailerActive: false, glassDisabled: false))
+        XCTAssertFalse(LegacyDetailView.chipGlassFlat(trailerActive: false, glassDisabled: false))
     }
 
     /// A live background trailer is the one steady state that flattens the chips (BUG-41 item 4).
     func testBackgroundTrailerFlattensChips() {
-        XCTAssertTrue(DetailView.chipGlassFlat(trailerActive: true, glassDisabled: false))
+        XCTAssertTrue(LegacyDetailView.chipGlassFlat(trailerActive: true, glassDisabled: false))
     }
 }

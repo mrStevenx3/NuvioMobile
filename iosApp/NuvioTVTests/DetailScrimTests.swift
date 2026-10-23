@@ -34,7 +34,7 @@ final class DetailScrimTests: XCTestCase {
                     expected, "trailer=\(trailer) glassDisabled=\(glassOff)")
                 XCTAssertEqual(
                     DetailScrim.panelUsesFlatFill(trailerActive: trailer, glassDisabled: glassOff),
-                    DetailView.chipGlassFlat(trailerActive: trailer, glassDisabled: glassOff),
+                    LegacyDetailView.chipGlassFlat(trailerActive: trailer, glassDisabled: glassOff),
                     "panel and chips must follow one rule: trailer=\(trailer) glassDisabled=\(glassOff)")
             }
         }

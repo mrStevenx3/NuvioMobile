@@ -106,8 +106,14 @@ struct OrbitStudiosPage: View {
             let now = ProcessInfo.processInfo.systemUptime
             // Down from the bar: the first studio, not the one under the bar's button. Not on a
             // return from a studio, nor coming back up from the films.
-            if old == nil, now > Self.restoringUntil,
-               now - OrbitStudioFilmsRow.lostAt > 0.6,
+            // Steven: up from the films, back on the studio whose films they are (the engine picked
+            // the tile above the film).
+            let fromFilms = OrbitStudioFilmsRow.hasFocus || now - OrbitStudioFilmsRow.lostAt < 0.6
+            if old == nil, fromFilms, let selected = shownId ?? folders.first?.id, id != selected {
+                focused = selected
+                return
+            }
+            if old == nil, now > Self.restoringUntil, !fromFilms,
                let first = folders.first, id != first.id {
                 focused = first.id
                 return
@@ -402,6 +408,8 @@ struct OrbitStudioFilmsRow: View {
     @ObservedObject private var model = OrbitStudioFilmsModel.shared
     @FocusState private var focused: String?
     @MainActor static var lostAt: TimeInterval = 0
+    /// A film holds the focus (read by the studios' line when the focus comes up).
+    @MainActor static var hasFocus = false
 
     static let posterWidth: CGFloat = 160
     static var posterHeight: CGFloat { 240 }
@@ -434,6 +442,7 @@ struct OrbitStudioFilmsRow: View {
         }
         .focusSection()
         .onChange(of: focused) { old, id in
+            Self.hasFocus = id != nil
             guard let id else { Self.lostAt = ProcessInfo.processInfo.systemUptime; return }
             if old == nil, let first = model.items.first, id != first.id { focused = first.id }
         }

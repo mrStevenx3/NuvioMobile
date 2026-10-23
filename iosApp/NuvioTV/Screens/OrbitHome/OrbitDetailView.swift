@@ -29,6 +29,8 @@ enum OrbitDetailFocus: Hashable {
     case similar(String)
     case company(Int)
     case about
+    case season(Int)
+    case episode(String)
 
     var section: OrbitDetailSection {
         switch self {
@@ -38,6 +40,7 @@ enum OrbitDetailFocus: Hashable {
         case .trailerClip: return .trailers
         case .similar: return .similar
         case .company, .about: return .about
+        case .season, .episode: return .episodes
         }
     }
 }
@@ -146,11 +149,14 @@ struct OrbitDetailView: View {
                         .frame(height: L.heroHeight, alignment: .bottomLeading)
                         .id(OrbitDetailSection.hero)
                     if isSeries, let meta {
-                        EpisodesSection(meta: meta,
-                                        episodeRatings: model.episodeRatings,
-                                        episodeRatingsVisibility: model.episodeRatingsVisibility,
-                                        watchedEpisodeKeys: model.watchedEpisodeKeys,
-                                        onPostPlayTitle: { postPlayRoute = TitleRoute(preview: $0) })
+                        OrbitEpisodesSection(meta: meta,
+                                             episodeRatings: model.episodeRatings,
+                                             watchedEpisodeKeys: model.watchedEpisodeKeys,
+                                             startSeason: model.seriesAction?.seasonNumber?.value,
+                                             focus: $focus,
+                                             onPlay: { episode in
+                                                 seriesPlay = OrbitSeriesPlayRoute(meta: meta, episode: episode)
+                                             })
                             .focusSection()
                             .id(OrbitDetailSection.episodes)
                     }
@@ -195,12 +201,6 @@ struct OrbitDetailView: View {
         .onChange(of: focus) { old, new in
             if let new {
                 enter(new.section)
-            } else if isSeries, let old, old.section == .hero || old.section == .cast {
-                // The Episodes section owns its focus: a loss from the hero or the cast while the
-                // page is on screen (no push, no cover) is the focus going into it.
-                DispatchQueue.main.async {
-                    if focus == nil, visible, !coverUp { enter(.episodes) }
-                }
             }
         }
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }
@@ -229,10 +229,10 @@ struct OrbitDetailView: View {
                              onOpenTitle: { postPlayPending = $0 })
         }
         .fullScreenCover(item: $seriesPlay, onDismiss: openPostPlayPick) { route in
-            StreamPickerView(type: route.meta.type, videoId: route.action.videoId, title: route.pickerTitle,
+            StreamPickerView(type: route.meta.type, videoId: route.videoId, title: route.pickerTitle,
                              parentMetaId: route.meta.id,
-                             season: route.action.seasonNumber?.value,
-                             episode: route.action.episodeNumber?.value,
+                             season: route.season,
+                             episode: route.episode,
                              episodes: route.meta.videos,
                              poster: route.meta.poster,
                              episodeStill: route.episodeStill,
@@ -1146,36 +1146,52 @@ extension OrbitDetailFormat {
 /// A series episode to play: the picker's inputs (as the legacy page's route).
 struct OrbitSeriesPlayRoute: Identifiable {
     let meta: MetaDetails
-    let action: SeriesPrimaryAction
+    let videoId: String
+    let season: Int?
+    let episode: Int?
+    let pickerTitle: String
+    let episodeStill: String?
+    let synopsis: String?
     var startFromBeginning: Bool = false
-    var id: String { action.videoId }
+    var id: String { videoId }
 
-    private var episode: MetaVideo? {
-        guard let s = action.seasonNumber?.value, let e = action.episodeNumber?.value else { return nil }
-        return meta.videos.first { $0.season?.value == s && $0.episode?.value == e }
-    }
-
-    var episodeStill: String? {
-        let still: String? = action.episodeThumbnail
-        if let still, !still.isEmpty { return still }
-        let epStill: String? = episode?.thumbnail
-        return (epStill ?? "").isEmpty ? nil : epStill
-    }
-
-    var synopsis: String? {
-        let overview: String? = episode?.overview
-        if let overview, !overview.isEmpty { return overview }
-        let d: String? = meta.description_
-        return d
-    }
-
-    var pickerTitle: String {
-        if let s = action.seasonNumber?.value, let e = action.episodeNumber?.value {
-            let name: String? = action.episodeTitle
-            if let name, !name.isEmpty { return "S\(s)E\(e) \u{00B7} \(name)" }
-            return "S\(s)E\(e)"
+    /// The hero's Play: the series' next episode (or the resumed one).
+    init(meta: MetaDetails, action: SeriesPrimaryAction) {
+        self.meta = meta
+        videoId = action.videoId
+        season = action.seasonNumber?.value
+        episode = action.episodeNumber?.value
+        let video = meta.videos.first { $0.season?.value == action.seasonNumber?.value && $0.episode?.value == action.episodeNumber?.value }
+        let name: String? = action.episodeTitle
+        if let s = season, let e = episode {
+            pickerTitle = (name ?? "").isEmpty ? "S\(s)E\(e)" : "S\(s)E\(e) \u{00B7} \(name!)"
+        } else {
+            pickerTitle = action.label
         }
-        return action.label
+        let still: String? = action.episodeThumbnail
+        let videoStill: String? = video?.thumbnail
+        episodeStill = !(still ?? "").isEmpty ? still : ((videoStill ?? "").isEmpty ? nil : videoStill)
+        let overview: String? = video?.overview
+        let description: String? = meta.description_
+        synopsis = !(overview ?? "").isEmpty ? overview : description
+    }
+
+    /// An episode picked in the Episodes section.
+    init(meta: MetaDetails, episode video: MetaVideo) {
+        self.meta = meta
+        season = video.season?.value
+        episode = video.episode?.value
+        if let s = season, let e = episode {
+            videoId = "\(meta.id):\(s):\(e)"
+            pickerTitle = "S\(s)E\(e) \u{00B7} \(video.title)"
+        } else {
+            videoId = video.id
+            pickerTitle = video.title
+        }
+        let still: String? = video.thumbnail
+        episodeStill = (still ?? "").isEmpty ? nil : still
+        let overview: String? = video.overview
+        let description: String? = meta.description_
+        synopsis = !(overview ?? "").isEmpty ? overview : description
     }
 }
-
