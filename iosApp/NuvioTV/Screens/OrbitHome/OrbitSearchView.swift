@@ -128,7 +128,6 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
     weak var searchBar: UISearchBar?
     weak var results: OrbitSearchResultsController?
     private var focusTarget: UIFocusEnvironment?
-    private var landingUntil: Date?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -187,55 +186,6 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
     /// Up from the keyboard: the Orbit bar (the system sent it to the hidden tab bar: no way up).
     @objc private func upPressed() {
         NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
-    }
-
-    /// Steven: Down from the Orbit bar into the keyboard (field empty) lands on "a", not on
-    /// whichever key sat under the bar's item.
-    override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
-        super.didUpdateFocus(in: context, with: coordinator)
-        guard let next = context.nextFocusedItem, contains(next) else { return }
-        if let results, let view = next as? UIView, view.isDescendant(of: results.view) { landingUntil = nil; return }
-        // Coming in from the Orbit bar (field empty): for a moment, wherever the system puts the
-        // focus in the keyboard (the first time it hops through the field, then to "m"), it is
-        // taken to "a". Once "a" has it, the window closes.
-        if !contains(context.previouslyFocusedItem), (searchBar?.text ?? "").isEmpty {
-            landingUntil = Date().addingTimeInterval(1.0)
-        }
-        guard let until = landingUntil, Date() < until else { landingUntil = nil; return }
-        guard let a = letterA(near: next) else { return }
-        if a === next { landingUntil = nil; return }
-        DispatchQueue.main.async { [weak self] in self?.move(to: a) }
-        // The first time the keys can still be settling and the move is ignored: once more.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            guard let self, let until = self.landingUntil, Date() < until else { return }
-            let focused = self.view.window?.windowScene?.focusSystem?.focusedItem
-            if let focused, focused !== a, self.contains(focused) { self.move(to: a) }
-        }
-    }
-
-    private func contains(_ item: UIFocusEnvironment?) -> Bool {
-        var env = item
-        while let current = env {
-            if current === self { return true }
-            env = current.parentFocusEnvironment
-        }
-        return false
-    }
-
-    /// The keyboard's "a": by its name, else the third key of the focused key's row (after
-    /// "123" and the space bar).
-    private func letterA(near key: UIFocusItem) -> UIFocusItem? {
-        guard let container = key.parentFocusEnvironment?.focusItemContainer else { return nil }
-        let everything = CGRect(x: -20_000, y: -20_000, width: 40_000, height: 40_000)
-        let items = container.focusItems(in: everything).filter { $0.canBecomeFocused }
-        if let named = items.first(where: {
-            (($0 as? NSObject)?.accessibilityLabel ?? "").lowercased() == "a"
-        }) { return named }
-        let keyFrame = key.frame
-        let row = items
-            .filter { abs($0.frame.midY - keyFrame.midY) < 24 }
-            .sorted { $0.frame.minX < $1.frame.minX }
-        return row.count > 2 ? row[2] : nil
     }
 
     private func move(to target: UIFocusEnvironment) {

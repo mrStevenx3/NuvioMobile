@@ -108,6 +108,11 @@ struct OrbitDetailView: View {
     @State private var holdArt = false
     /// Bumped to put the page back at its top (after the trailer).
     @State private var heroPin = 0
+    /// Steven: back from an actor's page the page went to its top. The card left from, and the
+    /// focus held off the hero (the system's default, Lire) until it is back on it.
+    @State private var lastFocus: OrbitDetailFocus?
+    @State private var resumeFocus: OrbitDetailFocus?
+    @State private var resuming = false
     /// While one of the page's own scrolls runs (the hold below leaves it alone).
     @State private var anchoringUntil = Date.distantPast
 
@@ -281,6 +286,13 @@ struct OrbitDetailView: View {
         .onExitCommand(perform: section == .hero || showSynopsis ? nil : { backToHero() })
         .onChange(of: focus) { old, new in
             guard let new else { return }
+            if resuming {
+                // Back from a pushed page: only the card left from counts.
+                guard new == resumeFocus else { return }
+                resuming = false
+                resumeFocus = nil
+            }
+            lastFocus = new
             // Steven: coming into a row (from another section) lands on its first card, far left.
             // `section`, not `old`: the engine can report a nil in between, which hid the change.
             // Steven: back up into the hero lands on Lire (it took the button above the card).
@@ -301,6 +313,14 @@ struct OrbitDetailView: View {
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
         .onAppear {
+            if let back = resumeFocus {
+                resuming = true
+                DispatchQueue.main.async { focus = back }
+                // Never held for long (a card that is gone): the page carries on normally.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    if resuming { resuming = false; resumeFocus = nil }
+                }
+            }
             visible = true
             // The trailer behind the hero is muted; only the cinema mode has sound.
             HeroTrailerAudioState.shared.setMuted(value: true)
@@ -310,6 +330,8 @@ struct OrbitDetailView: View {
         }
         .onChange(of: qualityRequest, initial: true) { _, _ in requestQuality() }
         .onDisappear {
+            // Leaving for an actor, a saga, a similar title…: where to come back.
+            resumeFocus = section != .hero ? lastFocus : nil
             quality.stop()
             visible = false
             if cinema {
