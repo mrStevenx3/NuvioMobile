@@ -111,6 +111,10 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         dataSource.apply(snapshot, animatingDifferences: false)
     }
 
+    func scrollToTop() {
+        collectionView?.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: true)
+    }
+
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         guard let item = dataSource.itemIdentifier(for: indexPath) else { return }
         switch item {

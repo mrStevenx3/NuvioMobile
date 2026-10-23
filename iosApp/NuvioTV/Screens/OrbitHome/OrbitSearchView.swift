@@ -63,6 +63,8 @@ private struct OrbitSearchContainer: UIViewControllerRepresentable {
 
         let container = UISearchContainerViewController(searchController: search)
         let host = OrbitSearchHostController()
+        host.searchBar = search.searchBar
+        host.results = results
         host.addChild(container)
         container.view.translatesAutoresizingMaskIntoConstraints = false
         host.view.addSubview(container.view)
@@ -112,10 +114,38 @@ final class OrbitSearchBridge {
     var setQuery: ((String) -> Void)?
 }
 
+/// Steven (device pass): Menu sent the cursor to the hidden system tab bar (it vanished, and the
+/// next Down misbehaved). Menu is the page's own here: from the results it goes back up to the
+/// keyboard (results scrolled to their top); from the keyboard it goes to the Orbit bar.
 private final class OrbitSearchHostController: UIViewController {
+    weak var searchBar: UISearchBar?
+    weak var results: OrbitSearchResultsController?
+    private var focusTarget: UIFocusEnvironment?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        let menu = UITapGestureRecognizer(target: self, action: #selector(menuPressed))
+        menu.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
+        view.addGestureRecognizer(menu)
+    }
+
+    override var preferredFocusEnvironments: [UIFocusEnvironment] {
+        if let focusTarget { return [focusTarget] }
+        return super.preferredFocusEnvironments
+    }
+
+    @objc private func menuPressed() {
+        let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+        if let results, let focused, focused.isDescendant(of: results.view), let searchBar {
+            results.scrollToTop()
+            focusTarget = searchBar
+            setNeedsFocusUpdate()
+            updateFocusIfNeeded()
+            focusTarget = nil
+        } else {
+            NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
+        }
     }
 }
 
