@@ -172,11 +172,18 @@ struct OrbitQualityBadges: View {
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(Color.white.opacity(0.92))
                 .frame(width: height * aspect, height: height)
+                // Steven: the definitions (4K, HD, SD) in a thin rounded frame, the age box's own
+                // stroke; the Full HD mark is a box already, the Dolby and HDR marks stay free.
+                .modifier(OrbitBadgeFrame(on: Self.framed(flag)))
                 .accessibilityLabel(text)
                 .transition(.opacity)
         } else {
             textBadge(text)
         }
+    }
+
+    static func framed(_ flag: OrbitQuality) -> Bool {
+        flag == .uhd || flag == .hd || flag == .sd
     }
 
     /// Each logo's height, so they read at one size side by side: the two-line Dolby marks and
@@ -185,9 +192,9 @@ struct OrbitQualityBadges: View {
         switch asset {
         case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 28
         case "orbit-badge-fullhd": return 28
-        case "orbit-badge-4k": return 14
+        case "orbit-badge-4k": return 13
         case "orbit-badge-hdr10plus": return 15
-        case "orbit-badge-sd", "orbit-badge-hd": return 20
+        case "orbit-badge-sd", "orbit-badge-hd": return 13
         default: return 20
         }
     }
@@ -201,5 +208,22 @@ struct OrbitQualityBadges: View {
             .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.7), lineWidth: 1.8))
             .transition(.opacity)
+    }
+}
+
+/// The definition badge's frame: the meta line's age box stroke, a little air around the mark,
+/// as tall as the Dolby marks beside it.
+private struct OrbitBadgeFrame: ViewModifier {
+    let on: Bool
+
+    func body(content: Content) -> some View {
+        if on {
+            content
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.8), lineWidth: 2))
+        } else {
+            content
+        }
     }
 }
