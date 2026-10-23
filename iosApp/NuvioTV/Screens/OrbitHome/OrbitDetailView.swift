@@ -52,7 +52,8 @@ enum OrbitDetailSection: Hashable {
 enum OrbitDetailLayout {
     static let margin: CGFloat = OrbitHomeLayout.margin
     /// The hero's height: the first section's heading peeks at the bottom of the first screen.
-    static let heroHeight: CGFloat = 990
+    /// The first screen exactly (Steven: the "C" of Casting peeked under the hero).
+    static let heroHeight: CGFloat = 1010
     static let sectionGap: CGFloat = 70
     /// Where a section's top rests on screen when the focus is in it.
     /// Steven (the page bounced on Left / Right): low enough that the focused card, lifted, sits
@@ -200,7 +201,8 @@ struct OrbitDetailView: View {
         .onChange(of: focus) { old, new in
             guard let new else { return }
             // Steven: coming into a row (from another section) lands on its first card, far left.
-            if let old, old.section != new.section, new.section != .hero, new.section != .episodes,
+            // `section`, not `old`: the engine can report a nil in between, which hid the change.
+            if new.section != section, new.section != .hero, new.section != .episodes,
                let first = firstFocus(of: new.section), first != new {
                 // Not inside the focus engine's own update (a write there is dropped): next turn.
                 enter(new.section)
@@ -292,7 +294,8 @@ struct OrbitDetailView: View {
     }
 
     private func enter(_ target: OrbitDetailSection) {
-        guard target != section else { anchorTick &+= 1; return }
+        // Moves inside the hero are left alone (re-pinning it bounced the buttons).
+        guard target != section else { if target != .hero { anchorTick &+= 1 }; return }
         section = target
         if target == .hero { armHeroTrailer() } else { stopHeroTrailer() }
     }
@@ -359,7 +362,7 @@ struct OrbitDetailView: View {
             .focusSection()
         }
         .padding(.horizontal, L.margin)
-        .padding(.bottom, 70)
+        .padding(.bottom, 110)
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
         .focusSection()
     }
