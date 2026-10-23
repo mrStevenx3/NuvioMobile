@@ -385,8 +385,11 @@ struct OrbitCollectionGrid: View {
     // the bar, then four large 16:9 tiles a line across the screen at Orbit's margin, the focus
     // drawn Orbit's way (white frame, slight lift), on black with a soft halo in the focused
     // platform's colour.
-    static let columns = 4
-    static let spacing: CGFloat = 36
+    // Steven (trending row): the platforms on ONE line (Down from a platform goes straight to its
+    // trending row; on two lines Down from Netflix landed on HBO Max and the row switched to it).
+    // Six fit across the screen; more scroll sideways.
+    static let columns = 6
+    static let spacing: CGFloat = 28
     static let headingTop: CGFloat = 112
     static let top: CGFloat = 214
     static var tileWidth: CGFloat {
@@ -399,7 +402,6 @@ struct OrbitCollectionGrid: View {
 
     var body: some View {
         let entries = entries
-        let rows = stride(from: 0, to: entries.count, by: Self.columns).map { Array(entries[$0..<min(entries.count, $0 + Self.columns)]) }
         ZStack(alignment: .topLeading) {
             OrbitHomeLayout.background.ignoresSafeArea()
             // The halo: the focused platform's colour, soft, from the top left.
@@ -419,9 +421,9 @@ struct OrbitCollectionGrid: View {
                 .allowsHitTesting(false)
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: Self.spacing) {
-                    ForEach(rows.indices, id: \.self) { r in
+                    ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Self.spacing) {
-                            ForEach(rows[r]) { entry in
+                            ForEach(entries) { entry in
                                 NavigationLink(value: FolderRoute(collectionId: entry.collection.id, folder: entry.folder)) {
                                     OrbitPlatformTile(folder: entry.folder,
                                                       collectionBackdropUrl: entry.collection.backdropImageUrl,
@@ -433,7 +435,12 @@ struct OrbitCollectionGrid: View {
                                 .id(entry.id)
                             }
                         }
+                        .padding(.vertical, 16)
+                        .padding(.trailing, OrbitHomeLayout.margin)
                     }
+                    .scrollClipDisabled()
+                    .padding(.vertical, -16)
+                    .focusSection()
                     // Steven (on trial): what is popular on the focused platform.
                     OrbitPlatformTrendingRow()
                         .padding(.top, 14)
@@ -450,9 +457,18 @@ struct OrbitCollectionGrid: View {
         .animation(.easeInOut(duration: 0.45), value: haloColor?.description)
         // The engine's own entry into the grid after the pop picks the tile too.
         .defaultFocus($focused, restoreTarget, priority: .userInitiated)
-        .onChange(of: focused) { _, id in
+        .onChange(of: focused) { old, id in
             guard let id, let entry = entries.first(where: { $0.id == id }) else {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
+                return
+            }
+            // Steven: coming down from the bar, the focus goes to the first platform (far left),
+            // not the one under the bar's button. Not on a return from a folder, nor coming back
+            // up from the trending row.
+            if old == nil, restoreTarget == nil,
+               ProcessInfo.processInfo.systemUptime - OrbitPlatformTrendingRow.lostAt > 0.6,
+               let first = entries.first, id != first.id {
+                focused = first.id
                 return
             }
             Self.lastFocused = id

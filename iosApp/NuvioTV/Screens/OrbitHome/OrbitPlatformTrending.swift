@@ -129,10 +129,12 @@ final class OrbitPlatformTrendingModel: ObservableObject {
 struct OrbitPlatformTrendingRow: View {
     @ObservedObject var model = OrbitPlatformTrendingModel.shared
     @FocusState private var focused: String?
+    /// When the focus last left the row (the grid keeps its own landing when coming back up).
+    @MainActor static var lostAt: TimeInterval = 0
 
-    static let posterWidth: CGFloat = 150
-    static let posterHeight: CGFloat = 225
-    static let spacing: CGFloat = 20
+    static let posterWidth: CGFloat = 200
+    static let posterHeight: CGFloat = 300
+    static let spacing: CGFloat = 24
 
     var body: some View {
         let count = Int((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin + Self.spacing) / (Self.posterWidth + Self.spacing))
@@ -158,6 +160,9 @@ struct OrbitPlatformTrendingRow: View {
         }
         .frame(height: Self.posterHeight + 60, alignment: .topLeading)
         .focusSection()
+        .onChange(of: focused) { _, id in
+            if id == nil { Self.lostAt = ProcessInfo.processInfo.systemUptime }
+        }
     }
 }
 
