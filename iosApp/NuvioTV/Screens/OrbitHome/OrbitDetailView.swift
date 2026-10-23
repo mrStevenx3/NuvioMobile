@@ -113,6 +113,7 @@ struct OrbitDetailView: View {
     @State private var lastFocus: OrbitDetailFocus?
     @State private var resumeFocus: OrbitDetailFocus?
     @State private var resuming = false
+    @State private var resumeStart: TimeInterval = 0
     /// While one of the page's own scrolls runs (the hold below leaves it alone).
     @State private var anchoringUntil = Date.distantPast
 
@@ -289,10 +290,19 @@ struct OrbitDetailView: View {
         .onChange(of: focus) { old, new in
             guard let new else { return }
             if resuming {
-                // Back from a pushed page: only the card left from counts.
-                guard new == resumeFocus else { return }
-                resuming = false
-                resumeFocus = nil
+                if ViewerInputClock.shared.hasInput(since: resumeStart) {
+                    // Steven moved: the page is his again.
+                    resuming = false
+                    resumeFocus = nil
+                } else if new == resumeFocus {
+                    // Back on the card left from: the section stays pinned where it was.
+                    lastFocus = new
+                    enter(new.section)
+                    return
+                } else {
+                    // The engine's own landing (Lire, the top): ignored, the page does not move.
+                    return
+                }
             }
             lastFocus = new
             // Steven: coming into a row (from another section) lands on its first card, far left.
@@ -316,11 +326,21 @@ struct OrbitDetailView: View {
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
         .onAppear {
             if let back = resumeFocus {
+                // The engine restores late and more than once: the card is asked again a few
+                // times (as the old page did), until Steven presses something.
                 resuming = true
-                DispatchQueue.main.async { focus = back }
-                // Never held for long (a card that is gone): the page carries on normally.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    if resuming { resuming = false; resumeFocus = nil }
+                resumeStart = ProcessInfo.processInfo.systemUptime
+                for delay in [0.0, 0.35, 0.8, 1.1] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        guard resuming, !ViewerInputClock.shared.hasInput(since: resumeStart) else { return }
+                        if focus != back { focus = back }
+                        anchorTick &+= 1
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+                    guard resuming else { return }
+                    resuming = false
+                    resumeFocus = nil
                 }
             }
             visible = true
