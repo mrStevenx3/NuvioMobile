@@ -113,8 +113,9 @@ struct StageStripHome: View {
                           && !showsCollectionGrid)
             if showsCollectionGrid {
                 // Pass 8/9 (Steven): Plateformes sits on the Orbit icon's slate, whatever backdrop
-                // Nuvio has.
+                // Nuvio has. Opaque at once (Steven: the Studios art faded out behind the grid).
                 Color(red: 31 / 255, green: 38 / 255, blue: 48 / 255).ignoresSafeArea()
+                    .transition(.identity)
                 // Steven's fork (Orbit bar): Services / Studios as a grid of folders.
                 // Steven: the grid no longer puts its tiles on the stage. The stage is hidden under
                 // the slate here anyway, and the last tile's art (Netflix's poster wall) showed through
@@ -125,12 +126,18 @@ struct StageStripHome: View {
             } else if let studios = singleStudiosCollection {
                 // Steven's fork (Orbit Studios, one row): the row at the bottom of the screen under
                 // a large title, so the stage art shows above it.
+                // Steven (2026-10-23): the page's own backdrop (the focused studio's, at once), not
+                // the stage's, which lagged and kept the last studio's art.
+                OrbitStudiosBackdrop(url: studiosBackdropURL(studios))
+                    .ignoresSafeArea()
+                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+                // Steven: the studio's logo top left, very large.
+                studiosLogo(studios)
+                    .padding(.leading, OrbitHomeLayout.margin)
+                    .padding(.top, 140)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
                 VStack(alignment: .leading, spacing: 0) {
                     Spacer(minLength: 0)
-                    // Pass 7: the focused studio's title image, large, in place of the heading.
-                    studiosLogo(studios)
-                        .padding(.leading, StripGeometry.edgeMargin)
-                        .padding(.bottom, 10)
                     CollectionRowView(collection: studios, onFolderFocusChange: { folder in
                         if let folder { studiosFocusedFolderId = folder.id }
                         stage.report(folder.flatMap { HomeRowPreviews.folder(collection: studios, folder: $0,
@@ -353,27 +360,38 @@ struct StageStripHome: View {
     private func studiosLogo(_ collection: NuvioCollection) -> some View {
         let folder = collection.folders.first { $0.id == studiosFocusedFolderId } ?? collection.folders.first
         let url = folder?.titleLogoUrl
-        return ZStack(alignment: .bottomLeading) {
+        return ZStack(alignment: .topLeading) {
             if let url, !url.isEmpty {
                 CachedAsyncImage(string: url, contentMode: .fit,
                                  decodeSize: .points(width: Self.studiosLogoSize.width, height: Self.studiosLogoSize.height))
-                    .frame(maxWidth: Self.studiosLogoSize.width, maxHeight: Self.studiosLogoSize.height, alignment: .bottomLeading)
+                    .frame(maxWidth: Self.studiosLogoSize.width, maxHeight: Self.studiosLogoSize.height, alignment: .topLeading)
+                    .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                     .id(url)
                     .transition(.opacity)
             } else if let title = folder?.title {
                 Text(title)
-                    .font(.system(size: 64, weight: .bold))
+                    .font(.system(size: 110, weight: .heavy))
                     .foregroundStyle(Color.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.5)
+                    .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                     .id(title)
                     .transition(.opacity)
             }
         }
-        .frame(width: Self.studiosLogoSize.width, height: Self.studiosLogoSize.height, alignment: .bottomLeading)
+        .frame(width: Self.studiosLogoSize.width, height: Self.studiosLogoSize.height, alignment: .topLeading)
         .animation(.easeInOut(duration: 0.3), value: folder?.id)
         .allowsHitTesting(false)
     }
 
-    static let studiosLogoSize = CGSize(width: 640, height: 170)
+    static let studiosLogoSize = CGSize(width: 1000, height: 340)
+
+    /// The focused studio's backdrop (the first studio's until a tile takes focus).
+    private func studiosBackdropURL(_ collection: NuvioCollection) -> String? {
+        let folder = collection.folders.first { $0.id == studiosFocusedFolderId } ?? collection.folders.first
+        let url = folder?.heroBackdropUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (url?.isEmpty ?? true) ? nil : url
+    }
 
     /// Steven's fork (Orbit Studios): the page's only row, when it is a collection.
     private var singleStudiosCollection: NuvioCollection? {
