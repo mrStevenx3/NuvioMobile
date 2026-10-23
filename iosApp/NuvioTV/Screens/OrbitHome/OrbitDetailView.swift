@@ -176,6 +176,17 @@ struct OrbitDetailView: View {
             }
             .scrollClipDisabled()
             .ignoresSafeArea()
+            // Steven: on some titles the system nudged the hero up a little and the "C" of
+            // Casting peeked at the bottom. On the hero, nothing below it shows.
+            .mask {
+                VStack(spacing: 0) {
+                    Color.black.frame(height: section == .hero ? OrbitDetailLayout.heroHeight - 10 : OrbitHomeLayout.screenHeight)
+                    Color.clear
+                }
+                .frame(height: OrbitHomeLayout.screenHeight, alignment: .top)
+                .animation(.easeInOut(duration: 0.3), value: section)
+                .ignoresSafeArea()
+            }
             // The section the focus entered comes to the top on one curve; the hero, to the top.
             .onChange(of: section) { _, target in anchor(proxy, target, duration: 0.4) }
             // Steven: Left / Right inside a section let the system nudge the page ("ça se
@@ -202,6 +213,12 @@ struct OrbitDetailView: View {
             guard let new else { return }
             // Steven: coming into a row (from another section) lands on its first card, far left.
             // `section`, not `old`: the engine can report a nil in between, which hid the change.
+            // Steven: back up into the hero lands on Lire (it took the button above the card).
+            if new.section == .hero, section != .hero, new != .play, !showSynopsis {
+                enter(.hero)
+                DispatchQueue.main.async { focus = .play }
+                return
+            }
             if new.section != section, new.section != .hero, new.section != .episodes,
                let first = firstFocus(of: new.section), first != new {
                 // Not inside the focus engine's own update (a write there is dropped): next turn.
