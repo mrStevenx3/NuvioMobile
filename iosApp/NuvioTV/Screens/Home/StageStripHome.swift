@@ -239,6 +239,10 @@ struct StageStripHome: View {
         // Steven's fork (Orbit bar): a new page (Films, Séries, Services, Studios) shows its FIRST
         // title on the stage at once, while focus is still on the bar.
         .onChange(of: contentFilter.filter) { _, _ in
+            // Steven: Studios kept showing the last Plateformes tile's art (Netflix's poster wall)
+            // until its own first studio swapped in. The stage empties at once on a page change;
+            // the new page's first title then lands with no fade-out first.
+            stage.swap.receive(nil)
             // The new page's strip starts on its first row: the hero, when it has one.
             StageHeroFocus.shared.setOnTop(rowKeys.first == StageTrendingHeroSetting.rowKey)
             DispatchQueue.main.async { showFirstItemOnStage() }
