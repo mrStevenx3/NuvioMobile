@@ -503,7 +503,7 @@ struct OrbitDetailView: View {
                     .padding(.top, 34)
                 // On their own line under it (beside it, they cut the genres short).
                 OrbitQualityBadges(quality: quality.found)
-                    .frame(height: 34, alignment: .leading)
+                    .frame(height: 42, alignment: .leading)
                     .padding(.top, 16)
                 actions
                     .padding(.top, 36)

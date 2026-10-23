@@ -129,7 +129,7 @@ struct OrbitQualityBadges: View {
     var logos: [Int: String] = [:]
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .center, spacing: 26) {
             // Always the best definition the sources have, one badge.
             if quality.contains(.uhd) {
                 badge("4K", asset: "orbit-badge-4k", flag: .uhd)
@@ -162,12 +162,23 @@ struct OrbitQualityBadges: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(Color.white.opacity(0.92))
-                .frame(height: 30)
+                .frame(height: Self.logoHeight(asset))
                 .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel(text)
                 .transition(.opacity)
         } else {
             textBadge(text)
+        }
+    }
+
+    /// Each logo's height, so they read at one size side by side: the two-line Dolby marks and
+    /// the boxed 1080p taller, the wide HDR10+ lower.
+    static func logoHeight(_ asset: String) -> CGFloat {
+        switch asset {
+        case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 40
+        case "orbit-badge-fullhd": return 38
+        case "orbit-badge-hdr10plus": return 24
+        default: return 28
         }
     }
 

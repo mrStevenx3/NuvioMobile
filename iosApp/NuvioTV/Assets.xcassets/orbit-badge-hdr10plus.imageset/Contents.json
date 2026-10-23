@@ -1,0 +1,7 @@
+{
+  "images" : [
+    { "filename" : "orbit-badge-hdr10plus.png", "idiom" : "universal" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 },
+  "properties" : { "template-rendering-intent" : "template" }
+}
