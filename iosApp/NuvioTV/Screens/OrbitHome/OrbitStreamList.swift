@@ -33,6 +33,14 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
     /// The file's name (the description line that ends in .mkv / .mp4…), and its release group.
     var fileName: String?
     var group: String?
+    /// The debrid service the source goes through ("AllDebrid"), or "Lien direct".
+    var service: String?
+
+    static let services: [String: String] = [
+        "AD": "AllDebrid", "RD": "Real-Debrid", "PM": "Premiumize", "TB": "TorBox",
+        "DL": "Debrid-Link", "ED": "EasyDebrid", "OC": "Offcloud", "PKP": "PikPak",
+        "EN": "Easynews", "SD": "Seedr",
+    ]
 
     /// Source rank: Remux 3, BluRay 2, WEB-DL / WEBRip / WEB 1, other 0.
     var sourceRank: Int {
@@ -158,6 +166,19 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
         }
 
         let status = stream.debridCacheStatus
+        // The service: the add-on's "[AD⚡]" / "[RD+]" tag in the name, else the app's own debrid
+        // check, else a direct link.
+        if let regex = try? NSRegularExpression(pattern: #"\[([A-Za-z]{2,3})\s*[⚡+⏳☁️✓]*\s*\]"#),
+           let name, let match = regex.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)),
+           let codeRange = Range(match.range(at: 1), in: name),
+           let full = services[name[codeRange].uppercased()] {
+            tags.service = full
+        } else if let status {
+            let provider = status.providerName.trimmingCharacters(in: .whitespaces)
+            tags.service = provider.isEmpty ? nil : provider
+        } else if stream.playableDirectUrl != nil, stream.infoHash == nil {
+            tags.service = String(localized: "Lien direct")
+        }
         if status?.state == .cached || raw.contains("⚡") || has(" instant ", "cached") {
             tags.instant = true
         } else if status?.state == .notCached || raw.contains("⏳") {
@@ -439,6 +460,20 @@ struct OrbitStreamCard: View {
                             .font(.system(size: 30, weight: .bold))
                             .foregroundStyle(Color.white)
                             .monospacedDigit()
+                    }
+                    if let service = tags.service {
+                        // Steven: which account the source goes through, always shown (the
+                        // yellow bolt: already in its cache).
+                        HStack(spacing: 8) {
+                            if tags.instant {
+                                Image(systemName: "bolt.fill")
+                                    .foregroundStyle(Color(red: 1, green: 0.84, blue: 0.3))
+                            }
+                            Text(service)
+                                .foregroundStyle(Color.white.opacity(0.75))
+                        }
+                        .font(.system(size: 21, weight: .semibold))
+                        .lineLimit(1)
                     }
                     if tags.instant && showsInstant {
                         Label(String(localized: "Instantané"), systemImage: "bolt.fill")
