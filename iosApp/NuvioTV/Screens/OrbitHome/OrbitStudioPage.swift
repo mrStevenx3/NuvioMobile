@@ -69,7 +69,8 @@ enum OrbitStudioLayout {
     static let rowLine: CGFloat = 150
     static let cardsTop: CGFloat = 44
     /// From a heading to the next one: cards, the info (meta line + 2 lines), the gap.
-    static let pitch: CGFloat = cardsTop + cardSize.height + 190
+    /// Steven: the next heading sat right under the synopsis; room for the info and air after.
+    static let pitch: CGFloat = cardsTop + cardSize.height + 250
     static let horizontal = Animation.easeOut(duration: 0.24)
     static let vertical = Animation.easeInOut(duration: 0.36)
 }
