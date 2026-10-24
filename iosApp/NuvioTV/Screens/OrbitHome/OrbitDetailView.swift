@@ -383,7 +383,7 @@ struct OrbitDetailView: View {
         }) {
             StreamPickerView(type: preview.type, videoId: streamVideoId, title: title,
                              poster: posterURL, synopsis: overview, meta: playbackMeta,
-                             logoUrl: logoURL, forceManual: false,
+                             logoUrl: logoURL, backdrop: backdropURL, forceManual: false,
                              startFromBeginning: movieRestart,
                              onOpenTitle: { postPlayPending = $0 })
         }
@@ -398,6 +398,7 @@ struct OrbitDetailView: View {
                              synopsis: route.synopsis,
                              meta: playbackMeta,
                              logoUrl: logoURL,
+                             backdrop: backdropURL,
                              forceManual: false,
                              startFromBeginning: route.startFromBeginning,
                              onOpenTitle: { postPlayPending = $0 })

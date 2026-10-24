@@ -57,6 +57,8 @@ struct StreamPickerView: View {
     /// the plain text heading when it loads — mobile parity for the stream picker screen. `nil`
     /// on launch paths with no meta at hand (Home continue-watching, Top Shelf).
     let logoUrl: String?
+    /// Orbit Sources: the title's backdrop, blurred behind the list (nil: the plain background).
+    let backdrop: String?
     /// Never auto-start, whatever the auto-play setting says ("Choose Source…", "Play Manually").
     let forceManual: Bool
     /// "Start Over": every playback this picker starts ignores saved progress.
@@ -133,12 +135,10 @@ struct StreamPickerView: View {
     /// Transient failure message (debrid resolve errors), auto-dismissed after a few seconds.
     @State private var toast: String?
     @FocusState private var focusedRow: String?
-    /// Addon ids whose group is currently expanded. Collapsed (absent) by default; see
-    /// `body`'s auto-expand-single-group handling and `toggleExpansion(_:)`.
-    @State private var expandedGroups: Set<String> = []
-    /// Guards the one-time auto-expand check so a second addon streaming in later never
-    /// collapses/re-expands anything under the user (no layout shifts under focus).
-    @State private var didAutoExpand = false
+    /// Orbit Sources: the filter picked above the list.
+    @State private var filter: OrbitStreamFilter = .all
+    /// Each source's tags, read once (the list redraws on every focus move).
+    @State private var tagCache = OrbitStreamTagCache()
     /// External players installed on this Apple TV (FEAT-5). Probed once per appearance via the
     /// shared `ExternalPlayerPlatform` — `canOpenURL` only returns true for schemes declared in
     /// Info.plist's `LSApplicationQueriesSchemes` (Infuse, VLC, Outplayer, VidHub as of FEAT-21,
@@ -179,6 +179,7 @@ struct StreamPickerView: View {
         synopsis: String? = nil,
         meta: PlaybackMeta? = nil,
         logoUrl: String? = nil,
+        backdrop: String? = nil,
         forceManual: Bool = false,
         startFromBeginning: Bool = false,
         notice: String? = nil,
@@ -187,6 +188,7 @@ struct StreamPickerView: View {
         self.onOpenTitle = onOpenTitle
         self.meta = meta
         self.logoUrl = logoUrl
+        self.backdrop = backdrop
         self.forceManual = forceManual
         self.startFromBeginning = startFromBeginning
         self.notice = notice
@@ -277,110 +279,18 @@ struct StreamPickerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                // Lazy so collapsed groups' rows (the overwhelming majority while addons are
-                // still streaming in) are never built at all — this was the lag source (BUG-5):
-                // a non-lazy VStack built every row of every addon up front.
-                LazyVStack(alignment: .leading, spacing: Theme.Spacing.xl - Theme.Spacing.xs) {
-                    // FEAT-42: one heading — the title's logo when it loads, else the plain text
-                    // title (mobile shows the series/movie logo on its stream-list screen too).
-                    // beta.19-rc1 verdict (I1, BUG-134): the TMDB `original` logo, decoded for the header's slot.
-                    TitleLogoHeader(title: title, logoUrl: logoUrl,
-                                    decodeSize: .points(width: 600, height: 120), upgrade: .logo)
-
-                    // BUG-21 follow-up: the active debrid credential failed auth on a recent
-                    // call — without this banner the only symptom is every resolve failing
-                    // while Settings still says "Connected". Not focusable; purely advisory.
-                    if let warning = model.credentialWarning {
-                        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.yellow)
-                            Text(warning)
-                                .font(Theme.Font.caption)
-                                .foregroundStyle(Theme.Palette.textPrimary)
-                        }
-                        .padding(Theme.Spacing.md)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(.yellow.opacity(0.12))
-                        )
-                        .frame(maxWidth: 1100, alignment: .leading)
-                    }
-
-                    if model.isLoading {
-                        HStack(spacing: Theme.Spacing.md) {
-                            ProgressView()
-                            Text("Finding streams\u{2026}").foregroundStyle(Theme.Palette.textSecondary)
-                        }
-                    }
-
-                    ForEach(model.groups) { group in
-                        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                            groupHeader(group)
-                            // Collapsed groups render nothing at all (not just off-screen —
-                            // absent from the hierarchy), which is what actually kills the lag:
-                            // the old always-expanded list built every row of every addon.
-                            if expandedGroups.contains(group.id) {
-                                LazyVStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                                    ForEach(Array(zip(group.rowKeys, group.streams)), id: \.0) { key, stream in
-                                        streamRow(stream, key: key)
-                                    }
-                                }
-                                .padding(.top, Theme.Spacing.xs)
-                            }
-                        }
-                        // Each addon group is its own focus section: D-pad up/down navigates
-                        // between group headers and (when expanded) that group's rows without
-                        // leaking focus into a sibling group's rows.
-                        .focusSection()
-                    }
-
-                    if let reason = model.emptyReason {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            // Primary reason renders at full text-primary weight — prominent,
-                            // not the muted secondary tone the plain "nothing found" empty
-                            // states get elsewhere on tvOS — since the debrid/filtered case is
-                            // actionable rather than a dead end.
-                            Text(reason)
-                                .font(Theme.Font.body)
-                                .foregroundStyle(Theme.Palette.textPrimary)
-                            if let hint = model.emptyReasonHint {
-                                Text(hint)
-                                    .font(Theme.Font.caption)
-                                    .foregroundStyle(Theme.Palette.textSecondary)
-                            }
-                        }
-                        .padding(.top, Theme.Spacing.xs)
-                    }
-
-                    // Dev/diagnostics affordance — only when there is nothing real to play, so it
-                    // can never steal initial focus from the stream list (the old always-visible
-                    // button was the only focusable view while loading → focus started at the
-                    // bottom of the screen).
-                    if model.groups.isEmpty && !model.isLoading {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                            Text("Test")
-                                .font(Theme.Font.sectionTitle)
-                                .foregroundStyle(Theme.Palette.textPrimary)
-                            Button {
-                                selected = context(url: testStreamURL, stream: nil)
-                            } label: {
-                                Label("Play test stream (Apple HLS sample)", systemImage: "play.circle")
-                                    .padding(.vertical, Theme.Spacing.xs)
-                            }
-                            .buttonStyle(.glass)
-                            .focused($focusedRow, equals: Self.testRowKey)
-                        }
-                        .padding(.top, Theme.Spacing.lg)
-                    }
-                }
-                .padding(Theme.Spacing.screen)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // Under the loading cover nothing in the list may take focus or a Select.
-                .disabled(loadingCoverVisible)
+            ScrollView(.vertical, showsIndicators: false) {
+                sourcesList
+                    .padding(.horizontal, OrbitHomeLayout.margin)
+                    .padding(.top, 70)
+                    .padding(.bottom, 120)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Under the loading cover nothing in the list may take focus or a Select.
+                    .disabled(loadingCoverVisible)
             }
+            .scrollClipDisabled()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.Palette.background.ignoresSafeArea())
+            .background(OrbitStreamBackground(url: backdrop ?? episodeStill ?? poster))
             .overlay(alignment: .bottom) {
                 if let toast {
                     Text(toast)
@@ -435,29 +345,12 @@ struct StreamPickerView: View {
             } message: { alert in
                 Text(alert.reason)
             }
-            .onChange(of: model.groups.map(\.id)) { _, ids in
-                guard !ids.isEmpty else { return }
-                // Auto-expand exactly once, only when the very first batch of groups turns out
-                // to be a single addon. Never re-evaluated afterward, so a second addon
-                // streaming in later doesn't retroactively collapse or expand anything.
-                if !didAutoExpand {
-                    didAutoExpand = true
-                    if ids.count == 1 { expandedGroups = [ids[0]] }
-                }
-
-                // Move initial focus once groups (first) arrive: to the first stream row when
-                // there's a single, auto-expanded group (unchanged from before collapsing was
-                // added), otherwise to the first group's header. Never steals focus after the
-                // user has moved it to a real row/header: only fires while focus is nowhere or
-                // on the (now hidden) test button. Never while the auto-play overlay holds focus
-                // (the list is disabled under it); `focusListAfterAutoPlay()` runs when it lifts.
-                guard !loadingCoverVisible else { return }
+            // The first (best) source takes the focus once the list arrives, never after the
+            // viewer has moved it, never under the auto-play cover (`focusListAfterAutoPlay`).
+            .onChange(of: sourceRows.first?.key) { _, first in
+                guard let first, !loadingCoverVisible else { return }
                 guard focusedRow == nil || focusedRow == Self.testRowKey else { return }
-                if ids.count == 1, let firstKey = model.firstRowKey {
-                    DispatchQueue.main.async { focusedRow = firstKey }
-                } else if let firstId = ids.first {
-                    DispatchQueue.main.async { focusedRow = Self.headerKey(groupId: firstId) }
-                }
+                DispatchQueue.main.async { focusedRow = first }
             }
             .onAppear {
                 pickerOnScreen = true
@@ -533,6 +426,7 @@ struct StreamPickerView: View {
                 synopsis: target.context.synopsis,
                 meta: target.context.meta,
                 logoUrl: logoUrl,
+                backdrop: backdrop,
                 forceManual: target.forceManual,
                 startFromBeginning: false,
                 notice: String(localized: "The next episode\u{2019}s source failed. Choose one below.")
@@ -601,142 +495,121 @@ struct StreamPickerView: View {
     /// Menu on the cover cancels auto mode only while auto mode is working; a held cover swallows it.
     private var loadingCoverCancels: Bool { loadingCoverMessage != nil }
 
-    // MARK: - Group headers
+    // MARK: - Orbit Sources (the list)
 
-    private static func headerKey(groupId: String) -> String { "header:\(groupId)" }
-
-    /// Collapsed by default: a focusable header row per addon (name, stream count, chevron, and
-    /// a per-addon spinner while that addon is still loading — the shared `AddonStreamGroup`
-    /// carries `isLoading` per addon already, so this reflects real per-addon state rather than
-    /// the global "any addon still loading" flag). Deliberately a plain `Button`, not
-    /// `DisclosureGroup` — tvOS focus/highlight on `DisclosureGroup` is poor and inconsistent
-    /// with the rest of this screen's rows.
-    private func groupHeader(_ group: StreamsViewModel.Group) -> some View {
-        let key = Self.headerKey(groupId: group.id)
-        let isExpanded = expandedGroups.contains(group.id)
-
-        return Button {
-            toggleExpansion(group)
-        } label: {
-            HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(Theme.Font.body)
-                    .rowTextColor(secondary: true)
-                    .frame(width: 20, alignment: .center)
-                Text(group.addonName)
-                    .font(Theme.Font.sectionTitle)
-                    .rowTextColor()
-                Text(group.streams.count == 1 ? String(localized: "1 stream") : String(localized: "\(group.streams.count) streams"))
-                    .font(Theme.Font.caption)
-                    .rowTextColor(secondary: true)
-                if group.isLoading {
-                    ProgressView().scaleEffect(0.7)
-                }
-                Spacer()
+    /// Every source, best first (see `OrbitStreamRow.sorted`).
+    private var sourceRows: [OrbitStreamRow] {
+        var rows: [OrbitStreamRow] = []
+        var order = 0
+        for group in model.groups {
+            for (key, stream) in zip(group.rowKeys, group.streams) {
+                rows.append(OrbitStreamRow(key: key, stream: stream, tags: tagCache.tags(key, stream), order: order))
+                order += 1
             }
-            .padding(.vertical, Theme.Spacing.xs + 2)
-            .padding(.horizontal, Theme.Spacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.settingsRow)
-        .focused($focusedRow, equals: key)
+        return OrbitStreamRow.sorted(rows)
     }
 
-    private func toggleExpansion(_ group: StreamsViewModel.Group) {
-        if expandedGroups.contains(group.id) {
-            // Collapsing a group that currently holds focus would otherwise leave focus on a
-            // row that's about to disappear from the hierarchy — retarget to the header first.
-            if let focusedRow, focusedRow.hasPrefix("\(group.id)#") {
-                self.focusedRow = Self.headerKey(groupId: group.id)
-            }
-            expandedGroups.remove(group.id)
-        } else {
-            expandedGroups.insert(group.id)
-            // Expanding keeps focus on the header (SwiftUI doesn't move it on select), matching
-            // the requirement that expand never steals focus.
+    private static func filterKey(_ filter: OrbitStreamFilter) -> String { "filter:\(filter.rawValue)" }
+
+    @ViewBuilder
+    private var sourcesList: some View {
+        let all = sourceRows
+        let shown = all.filter { filter.matches($0.tags) }
+        let filters = OrbitStreamFilter.allCases.filter { f in
+            f == .all || all.contains { f.matches($0.tags) }
         }
-    }
+        VStack(alignment: .leading, spacing: 34) {
+            OrbitStreamHeader(title: title, logoUrl: logoUrl,
+                              episodeLine: PlayerLoadingOverlay.episodeLine(
+                                season: season, episode: episode,
+                                episodes: episodes.isEmpty ? fetchedEpisodes : episodes),
+                              count: all.count,
+                              loading: model.isLoading)
 
-    // MARK: - Rows
+            if let warning = model.credentialWarning {
+                // The debrid account failed its sign-in on a recent call (every resolve fails
+                // while Settings still says "Connected").
+                Label(warning, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 23, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 14)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(Color.yellow.opacity(0.18)))
+            }
 
-    private func streamRow(_ stream: StreamItem, key: String) -> some View {
-        // Kotlin nullable Strings surface as non-optional Swift String, so widen explicitly.
-        let desc: String? = stream.description_
-        let badges: [StreamBadge] = stream.badges
-        let sizeBytes: Int64? = stream.behaviorHints.videoSize?.int64Value
-        let showSize = model.showFileSizeBadges && sizeBytes != nil
-        let hasBadgeRow = !badges.isEmpty || showSize
-
-        return Button {
-            manualFailoverList = model.groups.flatMap(\.streams)
-            play(stream, rowKey: key)
-        } label: {
-            HStack(alignment: .center, spacing: Theme.Spacing.lg) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    if hasBadgeRow && model.badgesOnTop {
-                        badgeRow(badges: badges, sizeBytes: showSize ? sizeBytes : nil)
-                    }
-                    HStack(spacing: Theme.Spacing.sm) {
-                        Text(rowTitle(stream))
-                            .font(Theme.Font.body)
-                            .rowTextColor()
-                            .lineLimit(2)
-                        if resolvingKey == key {
-                            ProgressView().scaleEffect(0.7)
+            if filters.count > 1 {
+                HStack(spacing: 16) {
+                    ForEach(filters) { f in
+                        let key = Self.filterKey(f)
+                        OrbitStreamFilterChip(label: f.label,
+                                              count: all.filter { f.matches($0.tags) }.count,
+                                              selected: filter == f,
+                                              focused: focusedRow == key) {
+                            withAnimation(.easeInOut(duration: 0.2)) { filter = f }
                         }
-                    }
-                    if let desc, !desc.isEmpty {
-                        // BUG-16 (final form): 3 lines while browsing, unlimited on the FOCUSED
-                        // row. Release names are dot/underscore-separated with no break points,
-                        // so no fixed cap fits all of them ("works for some links but not all"
-                        // — the reporter, on the 3-line beta.7 fix); expanding the row under
-                        // focus guarantees the name you're actually reading is never truncated,
-                        // without a marquee and without inflating every row in the list.
-                        Text(desc)
-                            .font(Theme.Font.caption)
-                            .rowTextColor(secondary: true)
-                            .lineLimit(focusedRow == key ? nil : 3)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if hasBadgeRow && !model.badgesOnTop {
-                        badgeRow(badges: badges, sizeBytes: showSize ? sizeBytes : nil)
-                    }
-                    // Batch D U2: the add-on gave only a YouTube video id — the row plays after an
-                    // on-device resolve (the spinner above), so say where the video comes from.
-                    if Self.isYouTubeResolved(stream) {
-                        Text(verbatim: "YouTube")
-                            .font(Theme.Font.caption)
-                            .rowTextColor(secondary: true)
-                    }
-                    // Orivio batch item 2: this link failed recently for this title, so the
-                    // automatic pickers skip it. Still selectable by hand.
-                    if !rejectedKeys.isEmpty, rejectedKeys.contains(stream.playbackStreamKey) {
-                        Text("Failed recently")
-                            .font(Theme.Font.caption)
-                            .rowTextColor(secondary: true)
+                        .focused($focusedRow, equals: key)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .focusSection()
+            }
 
-                if model.showAddonLogo {
-                    addonLogoColumn(stream)
+            LazyVStack(alignment: .leading, spacing: 18) {
+                ForEach(shown) { row in
+                    sourceCard(row, list: shown)
+                }
+                if all.isEmpty, model.isLoading {
+                    ForEach(0..<4, id: \.self) { _ in OrbitStreamPlaceholder() }
                 }
             }
-            .padding(.vertical, Theme.Spacing.xs + 2)
-            .padding(.horizontal, Theme.Spacing.sm)
+            .focusSection()
+
+            if let reason = model.emptyReason {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(reason)
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                    if let hint = model.emptyReasonHint {
+                        Text(hint)
+                            .font(.system(size: 23, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                }
+            }
+
+            // Dev / diagnostics: only when there is nothing real to play.
+            if model.groups.isEmpty && !model.isLoading {
+                Button {
+                    selected = context(url: testStreamURL, stream: nil)
+                } label: {
+                    Label(String(localized: "Flux de test (Apple HLS)"), systemImage: "play.circle")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(focusedRow == Self.testRowKey ? Color.black : Color.white)
+                        .padding(.horizontal, 26)
+                        .frame(height: 60)
+                        .background(Capsule().fill(focusedRow == Self.testRowKey ? Color.white : Color.white.opacity(0.14)))
+                }
+                .buttonStyle(OrbitPlainStyle())
+                .focused($focusedRow, equals: Self.testRowKey)
+            }
         }
-        // `.settingsRow` (platter-free, soft white highlight + accent ring) replaces the system
-        // `.glass` style: Liquid Glass's focus platter goes near-white, which made this row's
-        // title text (statically `textPrimary`, near-white) unreadable on focus.
-        // Steven's fork: Liquid Glass row (light text on clear glass), see `GlassRowButtonStyle`.
-        .buttonStyle(.glassRow)
+    }
+
+    private func sourceCard(_ row: OrbitStreamRow, list: [OrbitStreamRow]) -> some View {
+        let key = row.key
+        let stream = row.stream
+        return OrbitStreamCard(stream: stream, tags: row.tags,
+                               focused: focusedRow == key,
+                               resolving: resolvingKey == key,
+                               failedRecently: !rejectedKeys.isEmpty && rejectedKeys.contains(stream.playbackStreamKey),
+                               fromYouTube: Self.isYouTubeResolved(stream)) {
+            // "Try Next Source" walks the list in the order shown.
+            manualFailoverList = list.map(\.stream)
+            play(stream, rowKey: key)
+        }
         .focused($focusedRow, equals: key)
-        // FEAT-5: long-press → the OTHER player(s). With the built-in default, the menu offers
-        // the installed external players; with an external default (plain Select already hands
-        // off) it inverts to offer "Play in NuvioTV Player" plus any non-default externals. The
-        // modifier is skipped entirely when no external player is installed, so the long-press
-        // stays inert rather than opening an empty menu.
+        // FEAT-5: long-press → the OTHER player(s) (Infuse, VLC…, or the built-in one when an
+        // external player is the default). Skipped when none is installed.
         .modifier(ExternalPlayMenu(
             players: externalPlayers,
             defaultPlayerId: activeDefaultExternalPlayer?.id,
@@ -744,106 +617,10 @@ struct StreamPickerView: View {
                 externalPlay(stream, rowKey: key, playerId: player.id)
             },
             onBuiltIn: {
-                manualFailoverList = model.groups.flatMap(\.streams)
+                manualFailoverList = list.map(\.stream)
                 internalPlay(stream, rowKey: key)
             }
         ))
-    }
-
-    @ViewBuilder
-    private func badgeRow(badges: [StreamBadge], sizeBytes: Int64?) -> some View {
-        // BUG-16: this used to be one plain HStack with up to 8 badge chips (each up to
-        // `StreamBadgeMetrics.maxImageWidth` = 180pt for image-based community badge packs) plus
-        // the size chip — none of them width-flexible. An HStack whose children are all
-        // non-shrinking ignores the width it's offered and reports the full sum of its children
-        // back to its parent instead. That inflated "ideal" width bubbled up through the
-        // title/description VStack and the row's outer HStack, widening the *whole row* — and
-        // since every row shares one LazyVStack, effectively the whole list — past the screen.
-        // The addon-logo column and the tail end of the badges/size chip then rendered off the
-        // trailing edge, which is what testers saw as "no space left" for title/size/seeders.
-        //
-        // Fix: hand `ViewThatFits` a ladder of candidates from "every badge" down to "just an
-        // overflow count", widest first. It measures each against the width actually left over
-        // once title/description and the addon-logo column have claimed theirs, and renders the
-        // first one that fits — so this row can never again demand more width than it's given.
-        // The size chip is pinned first in every candidate since it's core metadata (like
-        // seeders), not decoration, and every candidate shares the same fixed container height,
-        // so switching between them never changes the row's height class.
-        let displayBadges = Array(badges.prefix(8))
-        let hiddenBeyondCap = max(0, badges.count - 8)
-        ViewThatFits(in: .horizontal) {
-            ForEach(Array(stride(from: displayBadges.count, through: 0, by: -1)), id: \.self) { visible in
-                badgeRowVariant(
-                    displayBadges: displayBadges,
-                    visibleCount: visible,
-                    hiddenCount: (displayBadges.count - visible) + hiddenBeyondCap,
-                    sizeBytes: sizeBytes
-                )
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// One `ViewThatFits` candidate for `badgeRow`: the size chip (if any) + the first
-    /// `visibleCount` badges + a non-focusable "+N" overflow chip for everything else.
-    /// `hiddenCount` folds in both badges dropped by this candidate and any beyond the 8-badge
-    /// display cap, so the count the user sees is always accurate.
-    private func badgeRowVariant(
-        displayBadges: [StreamBadge],
-        visibleCount: Int,
-        hiddenCount: Int,
-        sizeBytes: Int64?
-    ) -> some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            if let sizeBytes {
-                StreamFileSizeChip(bytes: sizeBytes)
-            }
-            ForEach(Array(displayBadges.prefix(visibleCount).enumerated()), id: \.offset) { _, badge in
-                StreamBadgeChipView(badge: badge)
-            }
-            if hiddenCount > 0 {
-                BadgeOverflowChip(count: hiddenCount)
-            }
-        }
-    }
-
-    private func addonLogoColumn(_ stream: StreamItem) -> some View {
-        VStack(spacing: Theme.Spacing.xxs) {
-            let logo: String? = stream.addonLogo
-            if let logo, !logo.isEmpty, let url = URL(string: logo) {
-                // Cached + downsampled: the same logo repeats on every row of a group, and the
-                // uncached `AsyncImage` refetched and re-decoded it as each row was realized.
-                // Clear while loading and on failure, like the old AsyncImage: add-on logos often
-                // 404, and a shimmer or grey film tile on every row of the group is noise.
-                CachedAsyncImage(url: url, contentMode: .fit, decodeSize: .points(width: 44, height: 44),
-                                 loading: { Color.clear }, failure: { Color.clear })
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            Text(stream.addonName)
-                .font(Theme.Font.caption)
-                .rowTextColor(secondary: true)
-                .lineLimit(1)
-        }
-        .frame(width: 150)
-    }
-
-    /// Row title with the mobile "- <Provider> Instant" suffix on debrid-cached torrent rows
-    /// (`StreamCard.kt:instantServiceLabel`), shown only while debrid resolution is enabled and
-    /// no custom stream-name template is active.
-    private func rowTitle(_ stream: StreamItem) -> String {
-        let base = stream.streamLabel
-        guard model.instantSuffixEnabled,
-              let status = stream.debridCacheStatus,
-              status.state == .cached else { return base }
-        var provider = DebridProviders.shared.shortName(id: status.providerId)
-        if provider.trimmingCharacters(in: .whitespaces).isEmpty {
-            provider = status.providerName.trimmingCharacters(in: .whitespaces)
-        }
-        if provider.isEmpty {
-            provider = DebridProviders.shared.displayName(id: status.providerId)
-        }
-        return provider.isEmpty ? base : String(localized: "\(base) - \(provider) Instant")
     }
 
     // MARK: - Playback / debrid resolve
@@ -1340,12 +1117,7 @@ struct StreamPickerView: View {
     private func focusListAfterAutoPlay() {
         DispatchQueue.main.async {
             guard focusedRow == nil || focusedRow == Self.testRowKey else { return }
-            let ids = model.groups.map(\.id)
-            if ids.count == 1, expandedGroups.contains(ids[0]), let firstKey = model.firstRowKey {
-                focusedRow = firstKey
-            } else if let firstId = ids.first {
-                focusedRow = Self.headerKey(groupId: firstId)
-            }
+            if let first = sourceRows.first?.key { focusedRow = first }
         }
     }
 
