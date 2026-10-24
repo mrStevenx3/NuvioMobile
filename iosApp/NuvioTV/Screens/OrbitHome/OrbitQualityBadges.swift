@@ -133,7 +133,7 @@ struct OrbitQualityBadges: View {
     var logos: [Int: String] = [:]
 
     var body: some View {
-        HStack(alignment: .center, spacing: 20) {
+        HStack(alignment: .center, spacing: 12) {
             // Always the best definition the sources have, one badge.
             if quality.contains(.uhd) {
                 badge("4K", asset: "orbit-badge-4k", flag: .uhd)
@@ -147,15 +147,8 @@ struct OrbitQualityBadges: View {
             if quality.contains(.dolbyVision) {
                 badge("Dolby Vision", asset: "orbit-badge-dolby-vision", flag: .dolbyVision)
             } else if quality.contains(.hdr10Plus) {
-                // Steven: the HDR10+ logo, small in its frame, read "HDRo" (its "10+" too thin).
-                // Plain bold letters in the same frame, as tall as the 4K's.
-                Text(verbatim: "HDR10+")
-                    .font(.system(size: 15, weight: .heavy))
-                    .foregroundStyle(Color.white.opacity(0.92))
-                    .frame(height: 13)
-                    .modifier(OrbitBadgeFrame(on: true))
-                    .accessibilityLabel("HDR10+")
-                    .transition(.opacity)
+                // Steven: the HDR10 boxed mark with a "+" (orbit-badge-hdr10plus, built from it).
+                badge("HDR10+", asset: "orbit-badge-hdr10plus", flag: .hdr10Plus)
             } else if quality.contains(.hdr10) {
                 badge("HDR10", asset: "orbit-badge-hdr10", flag: .hdr10)
             } else if quality.contains(.hdr) {
@@ -192,7 +185,7 @@ struct OrbitQualityBadges: View {
 
     static func framed(_ flag: OrbitQuality) -> Bool {
         // Everything but the Dolby marks, and the Full HD and HDR10 marks (boxes already).
-        flag == .uhd || flag == .hd || flag == .sd || flag == .hdr10Plus || flag == .hdr
+        flag == .uhd || flag == .hd || flag == .sd || flag == .hdr
     }
 
     /// Each logo's height, so they read at one size side by side: the two-line Dolby marks and
@@ -202,7 +195,7 @@ struct OrbitQualityBadges: View {
         case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 28
         case "orbit-badge-fullhd": return 28
         case "orbit-badge-4k": return 13
-        case "orbit-badge-hdr10plus": return 12
+        case "orbit-badge-hdr10plus", "orbit-badge-hdr10": return 24
         case "orbit-badge-hdr": return 13
         case "orbit-badge-sd", "orbit-badge-hd": return 13
         default: return 20
