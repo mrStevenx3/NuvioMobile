@@ -89,6 +89,24 @@ final class DetailViewModel: ObservableObject {
     @Published var trailerPlayback: TrailerPlaybackItem?
     /// Trailer currently resolving (spinner on its row card).
     @Published private(set) var resolvingTrailerId: String?
+    /// Steven (Orbit): a clip YouTube would not hand over (an age-restricted trailer…), said
+    /// for a few seconds instead of a spinner that just stops.
+    @Published private(set) var trailerNotice: String?
+    private var trailerNoticeTask: Task<Void, Never>?
+
+    /// How many ranked trailers the hero tries before keeping the still art (was 3: a title whose
+    /// first three are blocked never got to a playable teaser behind them).
+    static let heroTrailerAttempts = 10
+
+    private func showTrailerNotice() {
+        trailerNotice = String(localized: "Vidéo indisponible sur YouTube")
+        trailerNoticeTask?.cancel()
+        trailerNoticeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            guard !Task.isCancelled else { return }
+            self?.trailerNotice = nil
+        }
+    }
 
     /// Ownership of the shared (unkeyed) `MetaDetailsRepository`. Nested pushes (Detail → More Like
     /// This → Detail) overlap start/stop: the destination may `load()` before the source's
@@ -360,10 +378,10 @@ final class DetailViewModel: ObservableObject {
     /// away from (a `stop()`/`start()` reuse of this same view model instance mid-flight) can
     /// never apply.
     private func attemptTrailerResolution(generation: Int) {
-        guard trailerCandidateIndex < trailerCandidates.count, trailerCandidateIndex < 3 else { return }
+        guard trailerCandidateIndex < trailerCandidates.count, trailerCandidateIndex < Self.heroTrailerAttempts else { return }
         let trailer = trailerCandidates[trailerCandidateIndex]
         let attemptIndex = trailerCandidateIndex
-        let totalCandidates = min(trailerCandidates.count, 3)
+        let totalCandidates = min(trailerCandidates.count, Self.heroTrailerAttempts)
 
         var youtubeUrl = trailer.youtubePlaybackUrl()
         // Sim/device verification knob for the SABR repackaging path: force every Detail hero
@@ -424,7 +442,7 @@ final class DetailViewModel: ObservableObject {
         trailerVideoId = nil
         guard !trailerRetriedAfterPlaybackFailure,
               trailerCandidateIndex + 1 < trailerCandidates.count,
-              trailerCandidateIndex + 1 < 3 else { return }
+              trailerCandidateIndex + 1 < Self.heroTrailerAttempts else { return }
         trailerRetriedAfterPlaybackFailure = true
         trailerCandidateIndex += 1
         attemptTrailerResolution(generation: trailerResolveGeneration)
@@ -450,12 +468,13 @@ final class DetailViewModel: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, let source else {
                     self?.resolvingTrailerId = nil
+                    self?.showTrailerNotice()
                     return
                 }
                 TrailerLocalHLS.shared.playbackURL(for: source) { [weak self] url in
                     guard let self else { return }
                     self.resolvingTrailerId = nil
-                    guard let url else { return }
+                    guard let url else { self.showTrailerNotice(); return }
                     // C3 (2026-08-30 investigation): a per-clip zoom key, NOT `trailerZoomKey` — see
                     // `TrailerPlaybackItem.zoomKey`'s doc comment. The hero trailer and every row
                     // clip used to share one title-keyed `TrailerZoomCache` entry, so whichever

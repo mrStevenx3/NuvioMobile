@@ -274,6 +274,21 @@ struct OrbitDetailView: View {
                 .zIndex(5)
             }
 
+            // A clip YouTube would not hand over: said, not a spinner that just stops.
+            if let notice = model.trailerNotice {
+                Label(notice, systemImage: "exclamationmark.circle.fill")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 30)
+                    .padding(.vertical, 16)
+                    .background(Capsule().fill(Color.black.opacity(0.75)))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 60)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+                    .zIndex(8)
+            }
+
             if showSynopsis, let overview {
                 OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview) {
                     withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = false }
@@ -333,6 +348,7 @@ struct OrbitDetailView: View {
             enter(new.section)
         }
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }
+        .animation(.easeInOut(duration: 0.3), value: model.trailerNotice)
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
         .onAppear {
             if let back = resumeFocus {
