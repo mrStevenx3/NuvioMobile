@@ -30,7 +30,12 @@ struct OrbitEpisodesSection: View {
     @State private var shownSeason: Int?
 
     static let stillSize = CGSize(width: 384, height: 216)
-    static let seasonSize = CGSize(width: 128, height: 192)
+    /// Steven (2026-10-24): larger season posters.
+    static let seasonSize = CGSize(width: 168, height: 252)
+    /// The episode row's height (card, title, the row's padding): fixed, so a season change —
+    /// the old row fading out while the new one fades in — never stacks two rows (the page
+    /// bounced).
+    static var episodeRowHeight: CGFloat { stillSize.height + 12 + 30 + 2 * 18 }
 
     private var seasons: [Int] {
         let all = Set(meta.videos.compactMap { $0.season?.value })
@@ -91,6 +96,8 @@ struct OrbitEpisodesSection: View {
                 .focusSection()
             }
 
+            // A ZStack: the old season's row and the new one overlap while they cross-fade.
+            ZStack(alignment: .topLeading) {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 28) {
@@ -116,14 +123,22 @@ struct OrbitEpisodesSection: View {
                     if let nextUp { DispatchQueue.main.async { proxy.scrollTo(nextUp.id, anchor: .leading) } }
                 }
             }
+            }
+            .frame(height: Self.episodeRowHeight, alignment: .topLeading)
             .focusSection()
             .animation(.easeInOut(duration: 0.25), value: season)
 
-            OrbitEpisodeDetails(episode: shown,
-                                rating: shown.flatMap { rating(for: $0) },
-                                hidesSynopsis: shown.map { EpisodeSpoilerRules.hidesSpoilers(settingOn: hideSpoilers,
-                                                                                             isWatched: isWatched($0)) } ?? false)
-                .padding(.leading, OrbitDetailLayout.margin)
+            // Fixed and overlapping: the old episode's text fades out under the new one, in place
+            // (it hung over the cast row and pushed the page while both took room).
+            ZStack(alignment: .topLeading) {
+                OrbitEpisodeDetails(episode: shown,
+                                    rating: shown.flatMap { rating(for: $0) },
+                                    hidesSynopsis: shown.map { EpisodeSpoilerRules.hidesSpoilers(settingOn: hideSpoilers,
+                                                                                                 isWatched: isWatched($0)) } ?? false)
+            }
+            .frame(width: 1300, height: 110, alignment: .topLeading)
+            .clipped()
+            .padding(.leading, OrbitDetailLayout.margin)
         }
         // Entering from above (the hero, or a season row being skipped): the next episode.
         .onChange(of: focus.wrappedValue) { old, new in
@@ -255,7 +270,7 @@ private struct OrbitEpisodeDetails: View {
         }
         .frame(width: 1300, height: 110, alignment: .topLeading)
         .id(episode?.id ?? "-")
-        .transition(.opacity)
+        .transition(.asymmetric(insertion: .opacity, removal: .opacity.animation(.easeOut(duration: 0.1))))
         .animation(.easeOut(duration: 0.15), value: episode?.id)
     }
 }

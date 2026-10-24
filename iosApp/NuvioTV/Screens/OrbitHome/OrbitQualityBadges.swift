@@ -138,7 +138,7 @@ struct OrbitQualityBadges: View {
             if quality.contains(.uhd) {
                 badge("4K", asset: "orbit-badge-4k", flag: .uhd)
             } else if quality.contains(.fullHD) {
-                badge("Full HD", asset: "orbit-badge-fullhd", flag: .fullHD)
+                fullHDBadge
             } else if quality.contains(.hd) {
                 badge("HD", asset: "orbit-badge-hd", flag: .hd)
             } else if quality.contains(.sd) {
@@ -180,6 +180,32 @@ struct OrbitQualityBadges: View {
                 .transition(.opacity)
         } else {
             textBadge(text)
+        }
+    }
+
+    /// Steven (2026-10-24): "FULL" in a heavy italic beside the HD mark, in the same thin frame
+    /// as 4K and HD (the Full HD logo file looked wrong).
+    @ViewBuilder
+    private var fullHDBadge: some View {
+        if UIImage(named: "orbit-badge-hd") != nil {
+            HStack(spacing: 5) {
+                Text("FULL")
+                    .font(.system(size: 14, weight: .black))
+                    .italic()
+                    .kerning(0.5)
+                Image("orbit-badge-hd")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 13)
+            }
+            .foregroundStyle(Color.white.opacity(0.92))
+            .frame(height: 16)
+            .modifier(OrbitBadgeFrame(on: true))
+            .accessibilityLabel("Full HD")
+            .transition(.opacity)
+        } else {
+            textBadge("Full HD")
         }
     }
 

@@ -397,6 +397,7 @@ struct OrbitStudioIntro: View {
     @State private var veil: Double = 1
     @State private var sweep: CGFloat = -1
     @State private var work: [DispatchWorkItem] = []
+    @State private var started = false
 
     private enum Phase { case black, splash, corner }
 
@@ -435,7 +436,18 @@ struct OrbitStudioIntro: View {
         .frame(width: W, height: H, alignment: .topLeading)
         .ignoresSafeArea()
         .allowsHitTesting(false)
-        .onAppear(perform: play)
+        .onAppear {
+            // Steven (opened from a film's page): the logo is not known yet — the screen stays
+            // black until it is (its name only if it never comes).
+            if let logoUrl, !logoUrl.isEmpty {
+                play()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { play() }
+            }
+        }
+        .onChange(of: logoUrl) { _, url in
+            if let url, !url.isEmpty { play() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
             // A press skips the opening.
             guard phase != .corner || veil > 0 else { return }
@@ -460,7 +472,8 @@ struct OrbitStudioIntro: View {
     }
 
     private func play() {
-        guard phase == .black, veil == 1 else { return }
+        guard !started, phase == .black, veil == 1 else { return }
+        started = true
         if reduceMotion { onDone(); return }
         func at(_ delay: Double, _ body: @escaping () -> Void) {
             let item = DispatchWorkItem(block: body)
@@ -877,6 +890,15 @@ final class OrbitStudioModel: ObservableObject {
             guard let ids, !ids.isEmpty else {
                 self?.loading = false
                 return
+            }
+            // The logo first, on its own (the opening waits for it; the rows take longer).
+            if route.logo == nil, self?.logo == nil {
+                let firstId = ids.split(whereSeparator: { $0 == "|" || $0 == "," }).first.map(String.init) ?? ids
+                let entity: EntityResponse? = await Self.decode(
+                    "https://api.themoviedb.org/3/\(route.isNetwork ? "network" : "company")/\(firstId)?api_key=\(key)")
+                if let path = entity?.logo_path, self?.logo == nil {
+                    self?.logo = "https://image.tmdb.org/t/p/w500\(path)"
+                }
             }
             let found = await Self.load(ids: ids, network: route.isNetwork, apiKey: key, language: language)
             guard let self else { return }
