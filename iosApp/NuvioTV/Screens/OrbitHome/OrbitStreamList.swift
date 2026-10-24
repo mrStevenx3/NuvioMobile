@@ -30,6 +30,30 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
     var sizeBytes: Int64?
     var instant = false
     var notCached = false
+    /// The file's name (the description line that ends in .mkv / .mp4…), and its release group.
+    var fileName: String?
+    var group: String?
+
+    /// Source rank: Remux 3, BluRay 2, WEB-DL / WEBRip / WEB 1, other 0.
+    var sourceRank: Int {
+        switch source {
+        case "Remux": return 3
+        case "BluRay": return 2
+        case "WEB-DL", "WEBRip", "WEB": return 1
+        default: return 0
+        }
+    }
+
+    /// The card's heading: what the file is ("Remux · HYPERION"), not the add-on's name.
+    func heading(fallback: String) -> String {
+        let kind = source
+        switch (kind, group) {
+        case let (k?, g?): return "\(k) · \(g)"
+        case let (k?, nil): return k
+        case let (nil, g?): return g
+        default: return fallback
+        }
+    }
 
     /// Definition rank: 4K 4, 1080p 3, 720p 2, SD 1, unknown 0.
     var definitionRank: Int {
@@ -82,7 +106,7 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
 
         // The best sound named (Atmos is a badge of its own, on the left).
         if has("dts:x", "dts-x", "dtsx", "dts x ") { tags.audio = "DTS:X" }
-        else if has("truehd", "true hd") { tags.audio = "TrueHD" }
+        else if has("truehd", "true hd", "truhd") { tags.audio = "TrueHD" }
         else if has("dts-hd", "dts hd", "dtshd") { tags.audio = "DTS-HD MA" }
         else if has("ddp", "dd+", "e-ac3", "eac3", "e ac3") { tags.audio = "Dolby Digital+" }
         else if has(" dts ") { tags.audio = "DTS" }
@@ -105,6 +129,32 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
             tags.sizeBytes = bytes
         } else {
             tags.sizeBytes = readSize(raw)
+        }
+
+        // The file's name and its group ("…HEVC-HYPERION.mkv" → HYPERION).
+        let lines = raw.components(separatedBy: "\n")
+        if let line = lines.first(where: { l in
+            let low = l.lowercased()
+            return [".mkv", ".mp4", ".avi", ".m2ts", ".ts", ".mov", ".webm"].contains { low.contains($0) }
+        }) {
+            var file = line.trimmingCharacters(in: .whitespaces)
+            // Drop a leading emoji / symbol ("📁 Get.Out…").
+            while let first = file.unicodeScalars.first, !(CharacterSet.alphanumerics.contains(first)) {
+                file.removeFirst()
+            }
+            file = file.trimmingCharacters(in: .whitespaces)
+            if !file.isEmpty {
+                tags.fileName = file
+                let stem = (file as NSString).deletingPathExtension
+                if let dash = stem.range(of: "-", options: .backwards) {
+                    let after = stem[dash.upperBound...].trimmingCharacters(in: .whitespaces)
+                    let token = after.split(separator: " ").first.map(String.init) ?? ""
+                    if !token.isEmpty, token.count <= 20, token.rangeOfCharacter(from: .letters) != nil,
+                       !["dl", "rip", "hd", "ma", "x"].contains(token.lowercased()) {
+                        tags.group = token
+                    }
+                }
+            }
         }
 
         let status = stream.debridCacheStatus
@@ -130,7 +180,7 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
                   let unitRange = Range(match.range(at: 2), in: text),
                   let value = Double(text[numberRange].replacingOccurrences(of: ",", with: ".")) else { continue }
             let unit = text[unitRange].lowercased()
-            let factor: Double = unit.hasPrefix("t") ? 1_099_511_627_776 : unit.hasPrefix("g") ? 1_073_741_824 : 1_048_576
+            let factor: Double = unit.hasPrefix("t") ? 1e12 : unit.hasPrefix("g") ? 1e9 : 1e6
             let bytes = Int64(value * factor)
             best = max(best ?? 0, bytes)
         }
@@ -162,17 +212,27 @@ struct OrbitStreamRow: Identifiable {
     let order: Int
     var id: String { key }
 
-    /// Best first: instant, then the picture (definition, then range), then the size; the
-    /// add-on's own order breaks the ties.
+    /// Best first: instant, then the definition, then the source (a Remux before a light
+    /// re-encode: Steven's 75" shows it), then the range (Dolby Vision, HDR10+, HDR10), then the
+    /// size; the add-on's own order breaks the ties.
     static func sorted(_ rows: [OrbitStreamRow]) -> [OrbitStreamRow] {
         rows.sorted { a, b in
             if a.tags.instant != b.tags.instant { return a.tags.instant }
             if a.tags.definitionRank != b.tags.definitionRank { return a.tags.definitionRank > b.tags.definitionRank }
+            if a.tags.sourceRank != b.tags.sourceRank { return a.tags.sourceRank > b.tags.sourceRank }
             if a.tags.rangeRank != b.tags.rangeRank { return a.tags.rangeRank > b.tags.rangeRank }
             let sa = a.tags.sizeBytes ?? 0, sb = b.tags.sizeBytes ?? 0
             if sa != sb { return sa > sb }
             return a.order < b.order
         }
+    }
+
+    /// The same order for a plain list of streams (the auto-play candidates).
+    static func best(_ streams: [StreamItem]) -> [StreamItem] {
+        let rows = streams.enumerated().map { index, stream in
+            OrbitStreamRow(key: "auto#\(index)", stream: stream, tags: OrbitStreamTags.read(stream), order: index)
+        }
+        return sorted(rows).map(\.stream)
     }
 }
 
@@ -206,11 +266,12 @@ enum OrbitStreamFilter: String, CaseIterable, Identifiable {
 
 enum OrbitStreamFormat {
     static func size(_ bytes: Int64) -> String {
-        let gb = Double(bytes) / 1_073_741_824
+        // Steven: 1 Go = 1000 Mo, as his add-on counts (75,5 read against its 81,1).
+        let gb = Double(bytes) / 1e9
         if gb >= 1 {
             return gb >= 100 ? String(format: "%.0f Go", gb) : String(format: "%.1f Go", gb).replacingOccurrences(of: ".", with: ",")
         }
-        return String(format: "%.0f Mo", Double(bytes) / 1_048_576)
+        return String(format: "%.0f Mo", Double(bytes) / 1e6)
     }
 }
 
@@ -321,6 +382,8 @@ struct OrbitStreamCard: View {
     let resolving: Bool
     let failedRecently: Bool
     let fromYouTube: Bool
+    /// "Instantané" only means something when some sources are not.
+    let showsInstant: Bool
     let action: () -> Void
 
     var body: some View {
@@ -339,22 +402,32 @@ struct OrbitStreamCard: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
-                        Text(stream.streamLabel)
-                            .font(.system(size: 28, weight: .bold))
+                        Text(tags.heading(fallback: stream.streamLabel))
+                            .font(.system(size: 30, weight: .bold))
                             .foregroundStyle(Color.white)
                             .lineLimit(1)
                         if resolving { ProgressView().scaleEffect(0.7) }
                     }
-                    let desc: String? = stream.description_
-                    if let desc, !desc.isEmpty {
-                        Text(desc)
+                    if let file = tags.fileName {
+                        // The file's name: what the badges and tags cannot say.
+                        Text(file)
                             .font(.system(size: 22, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.62))
-                            .lineSpacing(3)
-                            // The whole release name on the focused card only.
-                            .lineLimit(focused ? 6 : 2)
+                            .foregroundStyle(Color.white.opacity(0.6))
+                            .lineLimit(focused ? 3 : 1)
+                            .truncationMode(.middle)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        let desc: String? = stream.description_
+                        if let desc, !desc.isEmpty {
+                            Text(desc)
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(Color.white.opacity(0.6))
+                                .lineSpacing(3)
+                                .lineLimit(focused ? 6 : 2)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     tagLine
                 }
@@ -367,7 +440,7 @@ struct OrbitStreamCard: View {
                             .foregroundStyle(Color.white)
                             .monospacedDigit()
                     }
-                    if tags.instant {
+                    if tags.instant && showsInstant {
                         Label(String(localized: "Instantané"), systemImage: "bolt.fill")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(Color(red: 1, green: 0.84, blue: 0.3))

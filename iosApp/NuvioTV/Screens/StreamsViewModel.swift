@@ -250,11 +250,15 @@ final class StreamsViewModel: ObservableObject {
         // Never the overlay flag (`showDirectAutoPlayOverlay`): the tmdb→IMDb remap briefly
         // publishes a state with it off mid-flow. The controller reads the flow fields instead.
         let token: String? = state.requestToken
-        let autoStream: StreamItem? = state.autoPlayStream
+        let repoStream: StreamItem? = state.autoPlayStream
+        // Steven (Orbit Sources): auto-play takes the list's own order, so it starts the source
+        // shown first (instant, definition, source, range, size), not the add-on's first.
+        let candidates = OrbitStreamRow.best(state.autoPlayCandidates)
+        let autoStream: StreamItem? = repoStream == nil ? nil : (candidates.first ?? repoStream)
         let feed = FirstPlayAutoPlayFeed(
             requestToken: token,
             autoPlayStream: autoStream,
-            autoPlayCandidates: state.autoPlayCandidates,
+            autoPlayCandidates: candidates,
             isDirectAutoPlayFlow: state.isDirectAutoPlayFlow,
             isAnyLoading: state.isAnyLoading,
             hasOutcome: !state.groups.isEmpty || state.emptyStateReason != nil

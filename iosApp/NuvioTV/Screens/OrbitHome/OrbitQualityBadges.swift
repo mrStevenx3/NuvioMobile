@@ -147,7 +147,15 @@ struct OrbitQualityBadges: View {
             if quality.contains(.dolbyVision) {
                 badge("Dolby Vision", asset: "orbit-badge-dolby-vision", flag: .dolbyVision)
             } else if quality.contains(.hdr10Plus) {
-                badge("HDR10+", asset: "orbit-badge-hdr10plus", flag: .hdr10Plus)
+                // Steven: the HDR10+ logo, small in its frame, read "HDRo" (its "10+" too thin).
+                // Plain bold letters in the same frame, as tall as the 4K's.
+                Text(verbatim: "HDR10+")
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundStyle(Color.white.opacity(0.92))
+                    .frame(height: 13)
+                    .modifier(OrbitBadgeFrame(on: true))
+                    .accessibilityLabel("HDR10+")
+                    .transition(.opacity)
             } else if quality.contains(.hdr10) {
                 badge("HDR10", asset: "orbit-badge-hdr10", flag: .hdr10)
             } else if quality.contains(.hdr) {

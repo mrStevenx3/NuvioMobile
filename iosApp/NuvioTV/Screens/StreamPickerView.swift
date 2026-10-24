@@ -516,9 +516,13 @@ struct StreamPickerView: View {
     private var sourcesList: some View {
         let all = sourceRows
         let shown = all.filter { filter.matches($0.tags) }
+        // A filter shows only when it filters something (not "Instantané 10" of 10).
         let filters = OrbitStreamFilter.allCases.filter { f in
-            f == .all || all.contains { f.matches($0.tags) }
+            if f == .all { return true }
+            let n = all.filter { f.matches($0.tags) }.count
+            return n > 0 && n < all.count
         }
+        let showsInstant = all.contains { !$0.tags.instant }
         VStack(alignment: .leading, spacing: 34) {
             OrbitStreamHeader(title: title, logoUrl: logoUrl,
                               episodeLine: PlayerLoadingOverlay.episodeLine(
@@ -556,7 +560,7 @@ struct StreamPickerView: View {
 
             LazyVStack(alignment: .leading, spacing: 18) {
                 ForEach(shown) { row in
-                    sourceCard(row, list: shown)
+                    sourceCard(row, list: shown, showsInstant: showsInstant)
                 }
                 if all.isEmpty, model.isLoading {
                     ForEach(0..<4, id: \.self) { _ in OrbitStreamPlaceholder() }
@@ -595,14 +599,15 @@ struct StreamPickerView: View {
         }
     }
 
-    private func sourceCard(_ row: OrbitStreamRow, list: [OrbitStreamRow]) -> some View {
+    private func sourceCard(_ row: OrbitStreamRow, list: [OrbitStreamRow], showsInstant: Bool) -> some View {
         let key = row.key
         let stream = row.stream
         return OrbitStreamCard(stream: stream, tags: row.tags,
                                focused: focusedRow == key,
                                resolving: resolvingKey == key,
                                failedRecently: !rejectedKeys.isEmpty && rejectedKeys.contains(stream.playbackStreamKey),
-                               fromYouTube: Self.isYouTubeResolved(stream)) {
+                               fromYouTube: Self.isYouTubeResolved(stream),
+                               showsInstant: showsInstant) {
             // "Try Next Source" walks the list in the order shown.
             manualFailoverList = list.map(\.stream)
             play(stream, rowKey: key)
