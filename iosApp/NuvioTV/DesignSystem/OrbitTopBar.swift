@@ -390,8 +390,8 @@ struct OrbitCollectionGrid: View {
     // Six fit across the screen; more scroll sideways.
     static let columns = 6
     static let spacing: CGFloat = 28
-    static let headingTop: CGFloat = 112
-    static let top: CGFloat = 214
+    /// The tiles, under the bar (the page's title is gone).
+    static let top: CGFloat = 150
     static var tileWidth: CGFloat {
         floor((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin - CGFloat(columns - 1) * spacing) / CGFloat(columns))
     }
@@ -413,12 +413,8 @@ struct OrbitCollectionGrid: View {
                     .id(haloColor.description)
                     .allowsHitTesting(false)
             }
-            Text(String(localized: "Plateformes"))
-                .font(.system(size: 46, weight: .heavy))
-                .foregroundStyle(Color.white)
-                .padding(.leading, OrbitHomeLayout.margin)
-                .padding(.top, Self.headingTop)
-                .allowsHitTesting(false)
+            // Steven (2026-10-24): no "Plateformes" title — the bar already says it, and the
+            // Studios page has none.
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: Self.spacing) {
                     ScrollView(.horizontal, showsIndicators: false) {
