@@ -222,18 +222,19 @@ private val CLIENTS = listOf(
     // parent of a6fb2aed which replaced this with visionos) — see PREFERRED_SEPARATE_CLIENTS
     // above for why both clients are kept.
     YouTubeClient(
+        // 2026-10-24: yt-dlp's current android_vr (master 2026-10-23).
         key = "android_vr",
         id = "28",
-        version = "1.56.21",
-        userAgent = "com.google.android.apps.youtube.vr.oculus/1.56.21 " +
-            "(Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1) gzip",
+        version = "1.65.10",
+        userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 " +
+            "(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
         context = jsonObjectOf(
             "clientName" to "ANDROID_VR",
-            "clientVersion" to "1.56.21",
+            "clientVersion" to "1.65.10",
             "deviceMake" to "Oculus",
             "deviceModel" to "Quest 3",
             "osName" to "Android",
-            "osVersion" to "12",
+            "osVersion" to "12L",
             "platform" to "MOBILE",
             "androidSdkVersion" to 32,
             "hl" to "en",
@@ -262,15 +263,15 @@ private val CLIENTS = listOf(
     YouTubeClient(
         key = "android",
         id = "3",
-        version = "20.10.35",
-        userAgent = "com.google.android.youtube/20.10.35 (Linux; U; Android 14; en_US) gzip",
+        version = "21.26.364",
+        userAgent = "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
         context = jsonObjectOf(
             "clientName" to "ANDROID",
-            "clientVersion" to "20.10.35",
+            "clientVersion" to "21.26.364",
             "osName" to "Android",
-            "osVersion" to "14",
+            "osVersion" to "11",
             "platform" to "MOBILE",
-            "androidSdkVersion" to 34,
+            "androidSdkVersion" to 30,
             "hl" to "en",
             "gl" to "US",
         ),
@@ -279,14 +280,15 @@ private val CLIENTS = listOf(
     YouTubeClient(
         key = "ios",
         id = "5",
-        version = "20.10.1",
-        userAgent = "com.google.ios.youtube/20.10.1 (iPhone16,2; U; CPU iOS 17_4 like Mac OS X)",
+        version = "21.26.4",
+        userAgent = "com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
         context = jsonObjectOf(
             "clientName" to "IOS",
-            "clientVersion" to "20.10.1",
+            "clientVersion" to "21.26.4",
+            "deviceMake" to "Apple",
             "deviceModel" to "iPhone16,2",
             "osName" to "iPhone",
-            "osVersion" to "17.4.0.21E219",
+            "osVersion" to "18.3.2.22D82",
             "platform" to "MOBILE",
             "hl" to "en",
             "gl" to "US",
@@ -354,21 +356,28 @@ class InAppYouTubeExtractor {
     ): TrailerPlaybackSource? {
         val videoId = extractYouTubeVideoId(youtubeUrl) ?: return null
 
+        // Steven (2026-10-24, every trailer "unavailable"): the watch page is only a source of
+        // the visitor id now. In the EU it can answer with the consent wall (no INNERTUBE_API_KEY
+        // in it), which used to abort every extraction. The consent cookie is sent (as yt-dlp
+        // does: SOCS=CAI), and a page that fails or carries no key no longer stops anything: the
+        // player API answers without a key (`prettyPrint=false` only, as yt-dlp calls it).
         val watchUrl = "https://www.youtube.com/watch?v=$videoId&hl=en"
-        val watchResponse = TrailerExtractionPlatform.performRequest(
-            url = watchUrl,
-            method = "GET",
-            headers = TrailerExtractionPlatform.defaultHeaders,
-            body = null,
-            timeoutMillis = TRAILER_REQUEST_TIMEOUT_MS,
+        val watchResponse = runCatching {
+            TrailerExtractionPlatform.performRequest(
+                url = watchUrl,
+                method = "GET",
+                headers = TrailerExtractionPlatform.defaultHeaders + ("cookie" to "SOCS=CAI; CONSENT=YES+"),
+                body = null,
+                timeoutMillis = TRAILER_REQUEST_TIMEOUT_MS,
+            )
+        }.getOrNull()
+        val watchConfig = if (watchResponse?.ok == true) getWatchConfig(watchResponse.body)
+            else WatchConfig(apiKey = null, visitorData = null)
+        trailerDebugLog(
+            "watch page status=${watchResponse?.status} key=${watchConfig.apiKey != null} " +
+                "visitor=${watchConfig.visitorData != null}"
         )
-        if (!watchResponse.ok) {
-            throw IllegalStateException("Failed to fetch watch page (${watchResponse.status})")
-        }
-
-        val watchConfig = getWatchConfig(watchResponse.body)
         val apiKey = watchConfig.apiKey
-            ?: throw IllegalStateException("Unable to extract INNERTUBE_API_KEY")
 
         val progressive = mutableListOf<StreamCandidate>()
         val adaptiveVideo = mutableListOf<StreamCandidate>()
@@ -651,12 +660,13 @@ class InAppYouTubeExtractor {
         bestManifest?.manifestUrl?.takeIf { it.isNotBlank() }
 
     private suspend fun fetchPlayerResponse(
-        apiKey: String,
+        apiKey: String?,
         videoId: String,
         client: YouTubeClient,
         visitorData: String?,
     ): JsonObject {
-        val endpoint = "https://www.youtube.com/youtubei/v1/player?key=${encodeUrlComponent(apiKey)}"
+        val endpoint = if (apiKey.isNullOrBlank()) "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
+            else "https://www.youtube.com/youtubei/v1/player?key=${encodeUrlComponent(apiKey)}&prettyPrint=false"
 
         val headers = buildMap {
             putAll(TrailerExtractionPlatform.defaultHeaders)
@@ -665,6 +675,7 @@ class InAppYouTubeExtractor {
             put("x-youtube-client-name", client.id)
             put("x-youtube-client-version", client.version)
             put("user-agent", client.userAgent)
+            put("cookie", "SOCS=CAI; CONSENT=YES+")
             if (!visitorData.isNullOrBlank()) put("x-goog-visitor-id", visitorData)
         }
 
