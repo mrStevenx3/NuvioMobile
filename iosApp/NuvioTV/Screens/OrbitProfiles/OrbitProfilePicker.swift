@@ -27,79 +27,106 @@ struct OrbitProfilePicker: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            // The focused profile's colour, soft, from the middle.
-            if let profile = focusedProfile {
-                RadialGradient(colors: [OrbitProfileColor.of(profile).opacity(0.38),
-                                        OrbitProfileColor.of(profile).opacity(0.1), .clear],
-                               center: UnitPoint(x: 0.5, y: 0.45), startRadius: 0, endRadius: 1100)
-                    .ignoresSafeArea()
-                    .id(profile.profileIndex)
-                    .transition(.opacity)
-                    .allowsHitTesting(false)
-            }
-
+            halo
             VStack(spacing: 70) {
-                Text(managing ? String(localized: "Gérer les profils") : String(localized: "Qui regarde ?"))
-                    .font(.system(size: 58, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .contentTransition(.opacity)
-
-                HStack(alignment: .top, spacing: 56) {
-                    ForEach(model.profiles, id: \.profileIndex) { profile in
-                        Button {
-                            choose(profile)
-                        } label: {
-                            OrbitProfileTile(profile: profile, avatars: model.avatars, managing: managing)
-                        }
-                        .buttonStyle(OrbitProfileTileStyle())
-                        .focused($focused, equals: profile.profileIndex)
-                    }
-                    if model.profiles.count < model.maxProfiles {
-                        Button {
-                            editing = OrbitProfileEditTarget(profile: nil)
-                        } label: {
-                            OrbitAddProfileTile()
-                        }
-                        .buttonStyle(OrbitProfileTileStyle())
-                        .focused($focused, equals: Self.addKey)
-                    }
-                }
-                .focusSection()
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { managing.toggle() }
-                } label: {
-                    Label(managing ? String(localized: "Terminé") : String(localized: "Gérer les profils"),
-                          systemImage: managing ? "checkmark" : "pencil")
-                }
-                .buttonStyle(OrbitPillStyle())
-                .focusSection()
+                title
+                tiles
+                manageButton
             }
         }
         .animation(.easeInOut(duration: 0.45), value: focused)
-        .onAppear { model.start() }
+        .onAppear {
+            model.start()
+            placeFocus(model.profiles.map(\.profileIndex))
+        }
         .onChange(of: model.profiles.map(\.profileIndex)) { _, indexes in placeFocus(indexes) }
-        .onAppear { placeFocus(model.profiles.map(\.profileIndex)) }
-        // Menu while managing: back to choosing.
-        .onExitCommand(perform: managing ? stopManaging : nil)
+        // Menu while managing: back to choosing (else the system's own Menu).
+        .onExitCommand(perform: exitAction)
         .fullScreenCover(item: $editing) { target in
             OrbitProfileEditor(model: model, target: target)
         }
         .fullScreenCover(item: $pinPrompt) { prompt in
-            OrbitPinPad(title: String(localized: "Code de \(prompt.profile.name)"),
-                        subtitle: prompt.edit ? String(localized: "Ce profil est protégé.") : nil,
-                        onCancel: { pinPrompt = nil },
-                        onSubmit: { pin, done in
-                            model.verifyPin(prompt.profile, pin: pin) { result in
-                                if result?.unlocked == true {
-                                    pinPrompt = nil
-                                    perform(prompt.profile, edit: prompt.edit)
-                                } else {
-                                    done(orbitPinError(result))
-                                }
-                            }
-                        })
+            pinPad(prompt)
         }
+    }
+
+    /// The focused profile's colour, soft, from the middle.
+    @ViewBuilder
+    private var halo: some View {
+        if let profile = focusedProfile {
+            let color = OrbitProfileColor.of(profile)
+            RadialGradient(colors: [color.opacity(0.38), color.opacity(0.1), Color.clear],
+                           center: UnitPoint(x: 0.5, y: 0.45), startRadius: 0, endRadius: 1100)
+                .ignoresSafeArea()
+                .id(profile.profileIndex)
+                .transition(.opacity)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var title: some View {
+        let text: String = managing ? String(localized: "Gérer les profils") : String(localized: "Qui regarde ?")
+        return Text(text)
+            .font(.system(size: 58, weight: .bold))
+            .foregroundStyle(Color.white)
+    }
+
+    private var tiles: some View {
+        HStack(alignment: .top, spacing: 56) {
+            ForEach(model.profiles, id: \.profileIndex) { (profile: NuvioProfile) in
+                Button {
+                    choose(profile)
+                } label: {
+                    OrbitProfileTile(profile: profile, avatars: model.avatars, managing: managing)
+                }
+                .buttonStyle(OrbitProfileTileStyle())
+                .focused($focused, equals: profile.profileIndex)
+            }
+            if model.profiles.count < model.maxProfiles {
+                Button {
+                    editing = OrbitProfileEditTarget(profile: nil)
+                } label: {
+                    OrbitAddProfileTile()
+                }
+                .buttonStyle(OrbitProfileTileStyle())
+                .focused($focused, equals: Self.addKey)
+            }
+        }
+        .focusSection()
+    }
+
+    private var manageButton: some View {
+        let label: String = managing ? String(localized: "Terminé") : String(localized: "Gérer les profils")
+        let icon: String = managing ? "checkmark" : "pencil"
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) { managing.toggle() }
+        } label: {
+            Label(label, systemImage: icon)
+        }
+        .buttonStyle(OrbitPillStyle())
+        .focusSection()
+    }
+
+    private var exitAction: (() -> Void)? {
+        guard managing else { return nil }
+        return { stopManaging() }
+    }
+
+    private func pinPad(_ prompt: OrbitPinPrompt) -> some View {
+        let subtitle: String? = prompt.edit ? String(localized: "Ce profil est protégé.") : nil
+        return OrbitPinPad(title: String(localized: "Code de \(prompt.profile.name)"),
+                           subtitle: subtitle,
+                           onCancel: { pinPrompt = nil },
+                           onSubmit: { (pin: String, done: @escaping (String?) -> Void) in
+                               model.verifyPin(prompt.profile, pin: pin) { (result: PinVerifyResult?) in
+                                   if result?.unlocked == true {
+                                       pinPrompt = nil
+                                       perform(prompt.profile, edit: prompt.edit)
+                                   } else {
+                                       done(orbitPinError(result))
+                                   }
+                               }
+                           })
     }
 
     private func stopManaging() {

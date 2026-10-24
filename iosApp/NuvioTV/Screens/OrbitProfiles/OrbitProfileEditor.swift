@@ -64,107 +64,12 @@ struct OrbitProfileEditor: View {
                             .font(.system(size: 52, weight: .bold))
                             .foregroundStyle(Color.white)
 
-                        section(String(localized: "Nom")) {
-                            TextField(String(localized: "Nom du profil"), text: $name)
-                                .font(.system(size: 30, weight: .semibold))
-                                .focused($nameFocused)
-                                .frame(width: 900)
-                        }
-
-                        section(String(localized: "Avatars Orbit")) {
-                            LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
-                                      alignment: .leading, spacing: 26) {
-                                ForEach(OrbitAvatarCatalog.all) { avatar in
-                                    Button {
-                                        avatarId = nil
-                                        avatarUrl = avatar.url
-                                    } label: {
-                                        CachedAsyncImage(string: avatar.url, decodeSize: .points(width: 130, height: 130))
-                                            .frame(width: 112, height: 112)
-                                            .clipShape(Circle())
-                                    }
-                                    .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == avatar.url))
-                                    .accessibilityLabel(avatar.name)
-                                }
-                            }
-                        }
-
-                        if !model.avatars.isEmpty {
-                            section(String(localized: "Avatars Nuvio")) {
-                                LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
-                                          alignment: .leading, spacing: 26) {
-                                    // A plain colour (no avatar).
-                                    Button { avatarId = nil; avatarUrl = nil } label: {
-                                        ZStack {
-                                            Circle().fill(color)
-                                            Text(OrbitProfileColor.initial(name))
-                                                .font(.system(size: 46, weight: .bold))
-                                                .foregroundStyle(Color.white)
-                                        }
-                                        .frame(width: 112, height: 112)
-                                    }
-                                    .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == nil))
-                                    .accessibilityLabel(String(localized: "Couleur unie"))
-
-                                    ForEach(model.avatars, id: \.id) { item in
-                                        Button { avatarId = item.id; avatarUrl = nil } label: {
-                                            CachedAsyncImage(string: ProfileModelsKt.avatarStorageUrl(storagePath: item.storagePath),
-                                                             decodeSize: .points(width: 130, height: 130))
-                                                .frame(width: 112, height: 112)
-                                                .clipShape(Circle())
-                                        }
-                                        .buttonStyle(OrbitSwatchStyle(selected: avatarId == item.id))
-                                        .accessibilityLabel(item.displayName.isEmpty ? String(localized: "Avatar") : item.displayName)
-                                    }
-                                }
-                            }
-                        }
-
-                        section(String(localized: "Couleur")) {
-                            HStack(spacing: 26) {
-                                ForEach(OrbitProfileColor.palette, id: \.self) { hex in
-                                    Button {
-                                        colorHex = hex
-                                        avatarId = nil
-                                        avatarUrl = nil
-                                    } label: {
-                                        Circle()
-                                            .fill(Color(hexString: hex) ?? .gray)
-                                            .frame(width: 76, height: 76)
-                                    }
-                                    .buttonStyle(OrbitSwatchStyle(selected: hex == colorHex && avatarId == nil && avatarUrl == nil))
-                                }
-                            }
-                        }
-
-                        HStack(spacing: 24) {
-                            Button { save() } label: {
-                                HStack(spacing: 12) {
-                                    if model.isBusy { ProgressView() }
-                                    Text("Enregistrer")
-                                }
-                            }
-                            .buttonStyle(OrbitPillStyle())
-                            Button(String(localized: "Annuler")) { dismiss() }
-                                .buttonStyle(OrbitPillStyle())
-                        }
-
-                        if let profile = target.profile, model.profiles.count > 1 {
-                            Button {
-                                confirmingDelete = true
-                            } label: {
-                                Label(String(localized: "Supprimer le profil"), systemImage: "trash")
-                            }
-                            .buttonStyle(OrbitPillStyle(destructive: true))
-                            .alert(String(localized: "Supprimer « \(profile.name) » ?"), isPresented: $confirmingDelete) {
-                                Button(String(localized: "Supprimer"), role: .destructive) {
-                                    model.deleteProfile(profile) { dismiss() }
-                                }
-                                Button(String(localized: "Annuler"), role: .cancel) {}
-                            } message: {
-                                Text("Sa bibliothèque, sa progression et ses réglages seront effacés.")
-                            }
-                        }
+                        nameSection
+                        orbitAvatarsSection
+                        nuvioAvatarsSection
+                        colorSection
+                        actionButtons
+                        deleteSection
                     }
                     .padding(.vertical, 70)
                     .padding(.trailing, 60)
@@ -175,6 +80,126 @@ struct OrbitProfileEditor: View {
         }
         .onExitCommand { dismiss() }
         .onAppear { if target.profile == nil { DispatchQueue.main.async { nameFocused = true } } }
+    }
+
+    @ViewBuilder
+    private var nameSection: some View {
+            section(String(localized: "Nom")) {
+                TextField(String(localized: "Nom du profil"), text: $name)
+                    .font(.system(size: 30, weight: .semibold))
+                    .focused($nameFocused)
+                    .frame(width: 900)
+            }
+    }
+
+    @ViewBuilder
+    private var orbitAvatarsSection: some View {
+            section(String(localized: "Avatars Orbit")) {
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
+                          alignment: .leading, spacing: 26) {
+                    ForEach(OrbitAvatarCatalog.all) { avatar in
+                        Button {
+                            avatarId = nil
+                            avatarUrl = avatar.url
+                        } label: {
+                            CachedAsyncImage(string: avatar.url, decodeSize: .points(width: 130, height: 130))
+                                .frame(width: 112, height: 112)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == avatar.url))
+                        .accessibilityLabel(avatar.name)
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var nuvioAvatarsSection: some View {
+            if !model.avatars.isEmpty {
+                section(String(localized: "Avatars Nuvio")) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
+                              alignment: .leading, spacing: 26) {
+                        // A plain colour (no avatar).
+                        Button { avatarId = nil; avatarUrl = nil } label: {
+                            ZStack {
+                                Circle().fill(color)
+                                Text(OrbitProfileColor.initial(name))
+                                    .font(.system(size: 46, weight: .bold))
+                                    .foregroundStyle(Color.white)
+                            }
+                            .frame(width: 112, height: 112)
+                        }
+                        .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == nil))
+                        .accessibilityLabel(String(localized: "Couleur unie"))
+
+                        ForEach(model.avatars, id: \.id) { item in
+                            Button { avatarId = item.id; avatarUrl = nil } label: {
+                                CachedAsyncImage(string: ProfileModelsKt.avatarStorageUrl(storagePath: item.storagePath),
+                                                 decodeSize: .points(width: 130, height: 130))
+                                    .frame(width: 112, height: 112)
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(OrbitSwatchStyle(selected: avatarId == item.id))
+                            .accessibilityLabel(item.displayName.isEmpty ? String(localized: "Avatar") : item.displayName)
+                        }
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var colorSection: some View {
+            section(String(localized: "Couleur")) {
+                HStack(spacing: 26) {
+                    ForEach(OrbitProfileColor.palette, id: \.self) { hex in
+                        Button {
+                            colorHex = hex
+                            avatarId = nil
+                            avatarUrl = nil
+                        } label: {
+                            Circle()
+                                .fill(Color(hexString: hex) ?? .gray)
+                                .frame(width: 76, height: 76)
+                        }
+                        .buttonStyle(OrbitSwatchStyle(selected: hex == colorHex && avatarId == nil && avatarUrl == nil))
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+            HStack(spacing: 24) {
+                Button { save() } label: {
+                    HStack(spacing: 12) {
+                        if model.isBusy { ProgressView() }
+                        Text("Enregistrer")
+                    }
+                }
+                .buttonStyle(OrbitPillStyle())
+                Button(String(localized: "Annuler")) { dismiss() }
+                    .buttonStyle(OrbitPillStyle())
+            }
+    }
+
+    @ViewBuilder
+    private var deleteSection: some View {
+            if let profile = target.profile, model.profiles.count > 1 {
+                Button {
+                    confirmingDelete = true
+                } label: {
+                    Label(String(localized: "Supprimer le profil"), systemImage: "trash")
+                }
+                .buttonStyle(OrbitPillStyle(destructive: true))
+                .alert(String(localized: "Supprimer « \(profile.name) » ?"), isPresented: $confirmingDelete) {
+                    Button(String(localized: "Supprimer"), role: .destructive) {
+                        model.deleteProfile(profile) { dismiss() }
+                    }
+                    Button(String(localized: "Annuler"), role: .cancel) {}
+                } message: {
+                    Text("Sa bibliothèque, sa progression et ses réglages seront effacés.")
+                }
+            }
     }
 
     private var preview: some View {

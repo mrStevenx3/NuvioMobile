@@ -51,38 +51,7 @@ struct OrbitProfilePage: View {
                 }
                 .frame(width: 520)
 
-                // The actions.
-                VStack(alignment: .leading, spacing: 40) {
-                    OrbitSettingsGroup(title: String(localized: "Profil")) {
-                        OrbitSettingsAction(title: String(localized: "Changer de profil"),
-                                            subtitle: String(localized: "Retour à « Qui regarde ? »."),
-                                            icon: "person.2", action: onSwitchProfile)
-                        if let profile {
-                            OrbitSettingsAction(title: String(localized: "Modifier le profil"),
-                                                subtitle: String(localized: "Nom, avatar et couleur."),
-                                                icon: "pencil") { edit(profile) }
-                        }
-                    }
-                    if let profile {
-                        OrbitSettingsGroup(title: String(localized: "Code PIN"),
-                                           note: pinMessage ?? (model.isCloudAccount ? nil
-                                               : String(localized: "Le code PIN demande un compte Nuvio."))) {
-                            if model.isCloudAccount {
-                                if profile.pinEnabled {
-                                    OrbitSettingsAction(title: String(localized: "Changer le code"),
-                                                        subtitle: String(localized: "Le profil demande son code à l'ouverture."),
-                                                        icon: "lock.rotation") { pinFlow = .current(remove: false) }
-                                    OrbitSettingsAction(title: String(localized: "Retirer le code"),
-                                                        icon: "lock.open", destructive: true) { pinFlow = .current(remove: true) }
-                                } else {
-                                    OrbitSettingsAction(title: String(localized: "Ajouter un code PIN"),
-                                                        subtitle: String(localized: "4 chiffres, demandés à l'ouverture du profil."),
-                                                        icon: "lock") { pinFlow = .new(current: nil) }
-                                }
-                            }
-                        }
-                    }
-                }
+                actions(profile)
                 .focusSection()
             }
             .padding(.leading, 120)
@@ -98,6 +67,43 @@ struct OrbitProfilePage: View {
         .fullScreenCover(item: $pinFlow) { flow in
             pinPad(flow)
         }
+    }
+
+    @ViewBuilder
+    private func actions(_ profile: NuvioProfile?) -> some View {
+        // The actions.
+        VStack(alignment: .leading, spacing: 40) {
+            OrbitSettingsGroup(title: String(localized: "Profil")) {
+                OrbitSettingsAction(title: String(localized: "Changer de profil"),
+                                    subtitle: String(localized: "Retour à « Qui regarde ? »."),
+                                    icon: "person.2", action: onSwitchProfile)
+                if let profile {
+                    OrbitSettingsAction(title: String(localized: "Modifier le profil"),
+                                        subtitle: String(localized: "Nom, avatar et couleur."),
+                                        icon: "pencil") { edit(profile) }
+                }
+            }
+            if let profile {
+                OrbitSettingsGroup(title: String(localized: "Code PIN"),
+                                   note: pinMessage ?? (model.isCloudAccount ? nil
+                                       : String(localized: "Le code PIN demande un compte Nuvio."))) {
+                    if model.isCloudAccount {
+                        if profile.pinEnabled {
+                            OrbitSettingsAction(title: String(localized: "Changer le code"),
+                                                subtitle: String(localized: "Le profil demande son code à l'ouverture."),
+                                                icon: "lock.rotation") { pinFlow = .current(remove: false) }
+                            OrbitSettingsAction(title: String(localized: "Retirer le code"),
+                                                icon: "lock.open", destructive: true) { pinFlow = .current(remove: true) }
+                        } else {
+                            OrbitSettingsAction(title: String(localized: "Ajouter un code PIN"),
+                                                subtitle: String(localized: "4 chiffres, demandés à l'ouverture du profil."),
+                                                icon: "lock") { pinFlow = .new(current: nil) }
+                        }
+                    }
+                }
+            }
+        }
+
     }
 
     private func edit(_ profile: NuvioProfile) {
