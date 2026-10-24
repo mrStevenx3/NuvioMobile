@@ -43,9 +43,6 @@ struct OrbitAvatar: View {
     }
 }
 
-/// The rail of Chris's old navigation still draws a profile's picture under this name.
-typealias ProfileAvatar = OrbitAvatar
-
 enum OrbitProfileColor {
     static func of(_ profile: NuvioProfile) -> Color {
         Color(hexString: profile.avatarColorHex) ?? Color(red: 0.12, green: 0.53, blue: 0.9)

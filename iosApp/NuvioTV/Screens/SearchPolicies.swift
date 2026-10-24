@@ -246,37 +246,3 @@ struct SearchRowsHold {
     }
 }
 
-/// S1 W1 (2026-10-04): when a query joins Recent Searches.
-///
-/// The system search field's inline keyboard has no Search/Done key, so `.onSubmit(of: .search)`
-/// never fires from the remote (spike 2026-10-04: nothing saved). A query is saved when something
-/// is OPENED from it (a push onto Search's stack while the field holds it: a result, See All, a
-/// person), once per query, matching VortX and the revamp board's "saved on intent". The iPhone
-/// keyboard's return key still submits.
-struct SearchHistoryOnOpen {
-    /// `SearchHistoryRepository` ignores anything shorter.
-    static let minimumLength = 2
-
-    private(set) var recordedQuery: String?
-
-    /// The query to record for a navigation-path change, or nil.
-    mutating func pathChanged(from oldCount: Int, to newCount: Int, query: String) -> String? {
-        guard newCount > oldCount else { return nil }
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= Self.minimumLength, trimmed != recordedQuery else { return nil }
-        recordedQuery = trimmed
-        return trimmed
-    }
-
-    /// The field's text changed. "Once per query" means once per TYPING of it: after the text
-    /// moves away (including a clear, the only way to reach the Recent chips and remove one), the
-    /// same query records again (review r1 P3-2).
-    mutating func queryChanged(to query: String) {
-        if query.trimmingCharacters(in: .whitespacesAndNewlines) != recordedQuery { recordedQuery = nil }
-    }
-
-    /// The iPhone keyboard's return key submitted `query` (recorded by the caller).
-    mutating func submitted(_ query: String) {
-        recordedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-}

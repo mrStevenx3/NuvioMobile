@@ -142,15 +142,3 @@ final class WatchedBadgeIndex {
     }
 }
 
-/// FEAT-64: the leaf that reads the index for ONE card and hands its badge to the card builder, so
-/// a watched change re-renders these leaves and not the row (`CatalogRowView.card(for:)`). With no
-/// index in the environment (a preview, a test host) it hands nil.
-struct WatchedBadgeReader<Content: View>: View {
-    let item: MetaPreview
-    @ViewBuilder let content: (PosterWatchBadge?) -> Content
-    @Environment(WatchedBadgeIndex.self) private var index: WatchedBadgeIndex?
-
-    var body: some View {
-        content(index?.badge(for: item))
-    }
-}

@@ -49,7 +49,23 @@ final class OrbitHomeMotion: RowRestSignal {
     var secondsSinceMotion: TimeInterval { ProcessInfo.processInfo.systemUptime - last }
 }
 
-/// Chooses Orbit Home for Films / Séries with the Orbit bar, the Stage strip otherwise.
+/// What Home's pages can ask Home's navigation to do.
+struct StageHomeActions {
+    /// Continue Watching: open the stream picker (`HomeView.resume`).
+    let resume: (ResumeTarget) -> Void
+    /// Push onto Home's stack (`HomeView.homePath`).
+    let push: (TitleRoute) -> Void
+}
+
+/// What covers Home from `HomeView`'s own presentation machinery.
+nonisolated struct StageCover: Equatable {
+    /// Something is pushed over Home (`!homePath.isEmpty`).
+    var pushed: Bool
+    /// The Continue Watching stream picker is up.
+    var resume: Bool
+}
+
+/// Films / Séries: Orbit Home. Plateformes / Studios: their Orbit pages.
 struct OrbitHomeSwitch: View {
     @ObservedObject var model: HomeViewModel
     let actions: StageHomeActions
@@ -58,18 +74,19 @@ struct OrbitHomeSwitch: View {
     @Binding var isScrolledDown: Bool
 
     @ObservedObject private var contentFilter = HomeContentFilterModel.shared
-    @AppStorage(OrbitHomeSetting.enabledKey) private var enabled = true
 
     var body: some View {
         let filter = contentFilter.filter
-        if enabled, filter == .movies || filter == .series {
+        if filter == .services || filter == .studios {
+            OrbitSpacesPage(model: model, studios: filter == .studios, cover: cover)
+                .id(filter)
+                .transition(.opacity)
+                .onAppear { OrbitBarLock.shared.set(false) }
+        } else {
             OrbitHomeView(model: model, series: filter == .series, actions: actions, pushGenre: pushGenre,
                           isScrolledDown: $isScrolledDown)
                 .id(filter)
                 .transition(.opacity)
-        } else {
-            StageStripHome(model: model, actions: actions, cover: cover, isScrolledDown: $isScrolledDown)
-                .onAppear { OrbitBarLock.shared.set(false) }
         }
     }
 }

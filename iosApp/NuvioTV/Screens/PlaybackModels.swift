@@ -435,13 +435,6 @@ struct PlayerTrack: Identifiable, Equatable {
     let isSelected: Bool
 }
 
-/// A skippable segment (intro/recap/outro) resolved from `SkipIntroRepository`.
-struct SkipSegment {
-    let start: Double
-    let end: Double
-    let type: String
-}
-
 /// The currently-offered skip action (shown while playback is inside a `SkipSegment`).
 struct SkipPrompt: Equatable {
     let label: String      // e.g. "Skip Intro"

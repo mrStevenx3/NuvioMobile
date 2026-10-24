@@ -23,18 +23,6 @@ nonisolated enum DetailSettingsKeys {
     static let hideEpisodeSpoilers = "detail_hide_episode_spoilers"
 }
 
-/// D2: Cinematic is the default; Classic keeps today's page for one or two betas, then goes.
-nonisolated enum DetailLayout: String, CaseIterable {
-    case cinematic
-    case classic
-
-    /// Anything that is not a known raw value (an empty string, a typo from a launch argument)
-    /// resolves to the default rather than to a blank page.
-    static func resolve(_ raw: String) -> DetailLayout {
-        DetailLayout(rawValue: raw) ?? .cinematic
-    }
-}
-
 /// Steven's fork: the "Apple TV style" variant of the Cinematic Detail page (Settings → Detail
 /// Page, on by default). Four changes, all Cinematic-only:
 ///  - the synopsis sits beside the action row, two lines, with a chevron that opens the full text;

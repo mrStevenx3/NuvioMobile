@@ -121,27 +121,6 @@ enum TrailerTuning {
     nonisolated static var ladder: Int { values.ladder }
 }
 
-/// BUG-55: the two inline-trailer gates (`inline_trailers_enabled` + tvOS Auto-Play Video
-/// Previews) both default OFF, and a fresh sideload container silently resets the first — a
-/// session where trailers "just don't play" needs its gate state in the log. Deliberately NOT
-/// behind `TrailerProbe.enabled`, unlike everything else in this file: it emits only when the
-/// combined state *changes* (≤ a couple of lines per session), and it is precisely the line that
-/// must be present in a log pull nobody thought to arm the probe knob for.
-@MainActor
-enum InlineTrailerGateProbe {
-    private static var lastReported: (enabled: Bool, autoplay: Bool)?
-
-    static func report(enabled: Bool, autoplay: Bool) {
-        // BUG-59: touching the lazy static logs "smokeVideoId present=… honored=…" once per session
-        // whether or not the probe knob is on — the one line that names a stray persisted knob.
-        _ = TrailerProbe.smokeVideoId
-        guard lastReported?.enabled != enabled || lastReported?.autoplay != autoplay else { return }
-        lastReported = (enabled, autoplay)
-        NSLog("[TrailerPipeline] gates inlineTrailersEnabled=%@ systemAutoplay=%@",
-              enabled ? "YES" : "NO", autoplay ? "YES" : "NO")
-    }
-}
-
 /// One entry in the failure ring: cause tag + timestamp. Phase 0 only records these — nothing
 /// consumes the ring yet; it exists so a later phase's error-storm breaker (≥3 failures inside
 /// 60s) has data to read without re-plumbing anything.

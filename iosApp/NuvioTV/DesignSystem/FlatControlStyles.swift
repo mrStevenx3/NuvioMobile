@@ -257,44 +257,6 @@ extension ButtonStyle where Self == ChipButtonStyle {
     static func chip(selected: Bool) -> ChipButtonStyle { .init(selected: selected) }
 }
 
-/// Subtitle/meta text inside a `.chip`-styled button (e.g. a catalog chip's addon-name line,
-/// BUG-33 defect 3). A bare `.foregroundStyle(Theme.Palette.textSecondary)` on that text ignores
-/// both the chip's fill and its focus state — `Color.secondary` resolves as a flat mid-grey once
-/// `ChipButtonStyle` forces the `colorScheme` to `.light` on focus, measured at 1.52:1 against the
-/// near-white focused platter (worse than the 2.23:1 it measured unfocused, where it can also sit
-/// on a near-white "White"-theme accent fill). Anchor to the SAME tokens `ChipButtonStyle`'s own
-/// `labelColor` already resolves correctly (`onPlatter` focused, `accentText` on a selected
-/// accent fill, `textPrimary` otherwise) and only dim opacity for hierarchy when unfocused —
-/// focused always gets the full-contrast token, undimmed, so the chip reads at 10 feet.
-struct ChipMetaText: ViewModifier {
-    var selected = false
-    @Environment(\.isFocused) private var isFocused
-    @Environment(\.settingsRowIsFocused) private var rowFocused
-
-    // BUG-65: `\.isFocused` alone can die inside a custom ButtonStyle's label on device —
-    // OR in the style-published value (see SettingsRowIsFocusedKey).
-    private var effectiveFocus: Bool { isFocused || rowFocused }
-
-    private var color: Color {
-        if effectiveFocus { return FocusLook.onPlatter }
-        if selected { return Theme.Palette.accentText }
-        return Theme.Palette.textPrimary
-    }
-
-    func body(content: Content) -> some View {
-        content.foregroundStyle(color.opacity(effectiveFocus ? 1 : 0.7))
-    }
-}
-
-extension View {
-    /// Focus- and selection-aware subtitle/meta text inside a `.chip`-styled button. Use instead
-    /// of a bare `.foregroundStyle(Theme.Palette.textSecondary)`/`.secondary`, which does not
-    /// survive the chip's focus platter or a light accent fill (BUG-33).
-    func chipMetaText(selected: Bool = false) -> some View {
-        modifier(ChipMetaText(selected: selected))
-    }
-}
-
 /// Label color for accent-tinted `.borderedProminent` buttons. tvOS swaps the prominent platter to
 /// a near-white "lifted" fill on focus regardless of tint, so no fixed label color works: focused
 /// needs dark text, unfocused needs the accent's contrast color (`Theme.Palette.accentText`). An

@@ -432,13 +432,6 @@ struct MainTabView: View {
     /// `@StateObject` here would silently restore the every-tab-switch toolbar re-resolution.
     @State private var tabBarVisibility = TabBarVisibility()
 
-    /// H9: the navigation rail's shared state, provided to every tab root alongside
-    /// `tabBarVisibility` below. `@State` on a reference type for the SAME load-bearing reason as
-    /// the property above (T3 / BUG-66) — see `NavigationChromeModel`'s own doc comment: observing
-    /// it here would put every scroll crossing on every tab back into the shell's invalidation path,
-    /// which is precisely what re-resolved `.toolbarVisibility` mid-transition. Only
-    /// `NavigationRail` observes it.
-    @State private var navigationChrome = NavigationChromeModel()
     /// A6: resolved once per tree identity (`@State`'s initial value), never re-read while this
     /// shell lives, so the set of tabs is constant for the tree's lifetime (T3). The rail's item
     /// list is fed from this same value.
@@ -480,10 +473,6 @@ struct MainTabView: View {
                 LibraryView()
                     .tabBarImmersiveHide()
             }
-            Tab("Add-ons", systemImage: "puzzlepiece.extension", value: 3) {
-                AddonsView()
-                    .tabBarImmersiveHide()
-            }
             // T4: Settings and Profile don't scroll meaningfully, so they were left with no
             // tab-bar declaration at all — but that's not neutral. Without one, the resolved
             // `.toolbarVisibility` preference CHANGES on entering/leaving these two tabs (nothing
@@ -503,7 +492,6 @@ struct MainTabView: View {
             }
         }
         .environment(\.tabBarVisibility, tabBarVisibility)
-        .environment(\.navigationChrome, navigationChrome)
         // BUG-66 evidence probe (2026-09-10): arms `TabBarStateProbe`'s on-device tab-bar geometry
         // sampler once this view lands in a window. Hosted here (rather than inside a `Tab`
         // closure, or in `HomeView.swift`, which this task may not edit) because `MainTabView`'s

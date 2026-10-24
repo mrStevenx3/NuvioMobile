@@ -49,28 +49,6 @@ enum RowsMotionClock {
     #endif
 }
 
-private struct RowsMotionStampModifier: ViewModifier {
-    let axis: Axis
-
-    func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: Int.self, of: { [axis] geo in
-            RowsMotionClock.bucket(axis == .vertical ? geo.contentOffset.y : geo.contentOffset.x)
-        }, action: { _, _ in
-            RowsMotionClock.stamp()
-        })
-    }
-}
-
-extension View {
-    /// beta.19-rc1 verdict (M3): stamps `RowsMotionClock` whenever this scroll view's offset on
-    /// `axis` moves by half a point or more (see `RowsMotionClock.bucket`). Attach to a ScrollView.
-    /// Content-size growth (an inline trailer morph widening a row) does not move the offset, so it
-    /// does not stamp.
-    func rowsMotionStamp(_ axis: Axis) -> some View {
-        modifier(RowsMotionStampModifier(axis: axis))
-    }
-}
-
 // MARK: - Rest source
 
 /// What a host publishes so a dwelling trailer knows when the rows are at rest.
@@ -111,8 +89,8 @@ nonisolated enum RowRestSource: Equatable, Sendable {
         case .motionClock:
             return TrailerStartGate.isAtRest(sinceMotion: RowsMotionClock.secondsSinceMotion(), restPending: false)
         case .pinnedHome:
-            let since = min(PinnedRowSettle.secondsSinceMotion(), RowsMotionClock.secondsSinceMotion())
-            return TrailerStartGate.isAtRest(sinceMotion: since, restPending: PinnedRowSettle.isRestPending)
+            let since = RowsMotionClock.secondsSinceMotion()
+            return TrailerStartGate.isAtRest(sinceMotion: since, restPending: false)
         case .custom(let signal):
             return TrailerStartGate.isAtRest(sinceMotion: signal.secondsSinceMotion, restPending: signal.restPending)
         }
@@ -282,138 +260,6 @@ nonisolated struct RowHScrollSample: Equatable, Sendable {
     var paddedVisibleMinX: CGFloat { offsetX + insetLeading }
     /// The whole scrollable extent in padded-content space.
     var paddedContentWidth: CGFloat { insetLeading + contentWidth + insetTrailing }
-}
-
-/// `CatalogRowView`'s per-row scroll box. Written from the row's `onScrollGeometryChange` ACTION on
-/// every horizontal scroll frame, read by the morph-scroll pass; a reference type held in `@State`
-/// so a write never invalidates the row (the `SettleWorkBox` / `TitleTrackingCache` pattern).
-final class RowHScrollBox {
-    private(set) var sample: RowHScrollSample?
-    /// beta.19-rc1 verdict (review r1, A-4): the item whose inline tile is WIDE in this row right now
-    /// (the last `onExpansionChange(true)` not yet followed by its `false`), or nil. The morph-scroll
-    /// verification pass reads it so it never scrolls for a tile width that is gone (an abort, a
-    /// collapse). A plain reference-box field: setting it never re-renders the row.
-    var wideItemId: String?
-    /// Offset at the last `RowsMotionClock` stamp, so the stamp follows cumulative travel (≥ 0.5 pt)
-    /// rather than per-frame deltas, and content-width growth during a morph never stamps.
-    private var lastStampedOffsetX: CGFloat?
-
-    func record(_ new: RowHScrollSample) {
-        sample = new
-        if let last = lastStampedOffsetX {
-            if abs(new.offsetX - last) > 0.5 {
-                lastStampedOffsetX = new.offsetX
-                RowsMotionClock.stamp()
-            }
-        } else {
-            // First reading after mount: a baseline, not motion.
-            lastStampedOffsetX = new.offsetX
-        }
-    }
-}
-
-/// beta.19-rc1 verdict (M3, BUG-133): the morph's row scroll is horizontal-only and is dropped when
-/// the expanding tile already fits. The old `proxy.scrollTo(itemId)` pair aimed at the card's
-/// `.id` Group, whose frame carries the 88 pt pinned top reach, so a "minimal" scroll could spill
-/// into the enclosing vertical rows `ScrollView` and re-arm the settle corrector mid-morph. A
-/// horizontal `ScrollPosition` cannot move the rows vertically.
-nonisolated enum RowMorphScroll {
-    /// Launch-latched escape hatch for the §1.6.4 fallback, read once (all builds, like
-    /// `debug.rowStepAB`, so it can also be tried on a device sideload):
-    ///
-    ///     -debug.trailerMorphScrollProxy YES
-    ///
-    /// YES = no `.scrollPosition` on the row at all; one `proxy.scrollTo(itemId, anchor: nil)` at
-    /// morph end, only when the plan reports a real viewport overflow (`Plan.overflowsViewport`;
-    /// review r1: the trailing inset cannot be honoured by an item-anchored scroll, so the row holds
-    /// its trailing fade instead), preceded by
-    /// `PinnedRowSettle.noteExternalScroll(reason: "trailer-morph")` in pinned Home. Take it if the
-    /// Gate 1 checks fail: `.scrollPosition($rowPosition)` writing the binding per frame during
-    /// focus-driven scrolling (a temporary `_printChanges()` in `CatalogRowView.body`), or
-    /// `scrollTo(x:)` landing short.
-    static let useProxyFallback = UserDefaults.standard.bool(forKey: "debug.trailerMorphScrollProxy")
-
-    /// Offset (padded-content space: x = 0 is the scroll view's leading edge at rest) that brings an
-    /// expanding card's tile fully inside the row viewport, or nil when it already fits. Card i's
-    /// leading edge is `insetLeading + i × (restingWidth + gap)`.
-    ///
-    /// - Parameters:
-    ///   - visibleMinX: the viewport's leading edge in the same space.
-    ///   - contentWidth: the row's scrollable extent in the same space.
-    ///   - contentAlreadyGrown: whether `contentWidth` already includes the tile's growth.
-    ///   - trailingInset: how far inside the viewport's trailing edge the tile must end (see
-    ///     `plan`). 0 = the viewport edge itself, the pre-review behaviour.
-    static func target(index: Int, restingWidth: CGFloat, expandedWidth: CGFloat, gap: CGFloat,
-                       visibleMinX: CGFloat, viewportWidth: CGFloat, contentWidth: CGFloat,
-                       insetLeading: CGFloat, contentAlreadyGrown: Bool,
-                       trailingInset: CGFloat = 0) -> CGFloat? {
-        plan(index: index, restingWidth: restingWidth, expandedWidth: expandedWidth, gap: gap,
-             visibleMinX: visibleMinX, viewportWidth: viewportWidth, contentWidth: contentWidth,
-             insetLeading: insetLeading, contentAlreadyGrown: contentAlreadyGrown,
-             trailingInset: trailingInset).offset
-    }
-
-    /// The morph scroll's whole answer (`target` is its `offset`).
-    nonisolated struct Plan: Equatable, Sendable {
-        /// Where to scroll (padded-content space), or nil when the tile already ends clear of the
-        /// trailing inset.
-        var offset: CGFloat?
-        /// True when the tile's trailing edge still lands inside the trailing inset AFTER `offset`:
-        /// the scroll is clamped at the row's end (the last card with no See All after it) or the row
-        /// cannot scroll at all. The host must then lift its trailing fade itself while the tile is
-        /// wide (`CatalogRowView`'s trailing-fade hold).
-        var endsInsideInset: Bool
-        /// The tile runs past the viewport's trailing edge itself (the pre-review "needs a scroll"
-        /// test, inset ignored). The `-debug.trailerMorphScrollProxy` fallback scrolls only then.
-        var overflowsViewport: Bool = false
-    }
-
-    /// The inset actually used: never negative, and never so large that a tile ending at
-    /// `viewportWidth − inset` would start before the viewport's leading edge.
-    static func effectiveTrailingInset(_ trailingInset: CGFloat, viewportWidth: CGFloat,
-                                       expandedWidth: CGFloat) -> CGFloat {
-        min(max(trailingInset, 0), max(0, viewportWidth - expandedWidth))
-    }
-
-    /// beta.19-rc1 verdict (review r1, B P2-2): the morph scroll used to put the expanded tile's
-    /// trailing edge EXACTLY on the viewport's trailing edge, and the Soft row fade (the default
-    /// until the F.5 gate made it Off) ramps from 110 pt inside that edge, so a playing trailer's right side faded to 0.61
-    /// alpha (the ring with it). The tile now has to end `trailingInset` inside the edge — the
-    /// trailing ramp's inner extent, read by the host from the same environment the fade draws
-    /// with (`RowEdgeFade.trailingTileInset`) — which covers both a tile that overflows and one that
-    /// "fits" but ends inside the ramp. When the row cannot scroll that far (clamped at its end),
-    /// `endsInsideInset` says so and the host holds the fade off instead.
-    static func plan(index: Int, restingWidth: CGFloat, expandedWidth: CGFloat, gap: CGFloat,
-                     visibleMinX: CGFloat, viewportWidth: CGFloat, contentWidth: CGFloat,
-                     insetLeading: CGFloat, contentAlreadyGrown: Bool,
-                     trailingInset: CGFloat = 0) -> Plan {
-        guard expandedWidth > restingWidth else { return Plan(offset: nil, endsInsideInset: false) }
-        let inset = effectiveTrailingInset(trailingInset, viewportWidth: viewportWidth, expandedWidth: expandedWidth)
-        // The furthest the tile's trailing edge may reach, in viewport-local x.
-        let limit = viewportWidth - inset
-        let leading = insetLeading + CGFloat(index) * (restingWidth + gap)
-        let trailing = leading + expandedWidth
-        guard trailing > visibleMinX + limit + 0.5 else { return Plan(offset: nil, endsInsideInset: false) }
-        let grownContent = contentWidth + (contentAlreadyGrown ? 0 : expandedWidth - restingWidth)
-        let maxOffset = max(0, grownContent - viewportWidth)
-        let offset = min(max(trailing - limit, 0), maxOffset)
-        return Plan(offset: offset, endsInsideInset: trailing - offset > limit + 0.5,
-                    overflowsViewport: trailing > visibleMinX + viewportWidth + 0.5)
-    }
-}
-
-/// Attaches `.scrollPosition` to a row's horizontal `ScrollView` unless the proxy fallback is armed.
-/// The branch reads a launch-latched constant, so it can never re-identify the row mid-session.
-struct RowMorphScrollPositionModifier: ViewModifier {
-    @Binding var position: ScrollPosition
-
-    func body(content: Content) -> some View {
-        if RowMorphScroll.useProxyFallback {
-            content
-        } else {
-            content.scrollPosition($position)
-        }
-    }
 }
 
 // MARK: - DEBUG trailer event log

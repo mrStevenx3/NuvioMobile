@@ -45,15 +45,4 @@ final class HomeBodyCounter: ObservableObject {
     }
 }
 
-/// Invisible, harness-readable `debug_bodycounts` (see `HomeBodyCounter`).
-struct HomeBodyCountLabel: View {
-    @ObservedObject private var counter = HomeBodyCounter.shared
-
-    var body: some View {
-        Text(verbatim: "debug_bodycounts \(counter.snapshot)")
-            .font(.system(size: 8))
-            .opacity(0.011)
-            .accessibilityIdentifier("debug_bodycounts")
-    }
-}
 #endif
