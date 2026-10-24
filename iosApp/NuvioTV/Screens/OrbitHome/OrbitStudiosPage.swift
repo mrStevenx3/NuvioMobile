@@ -76,15 +76,16 @@ struct OrbitStudiosPage: View {
             .ignoresSafeArea()
             .animation(.easeInOut(duration: 0.4), value: shown?.id)
 
-            OrbitStudioFrame(url: Self.backdropURL(shown))
-                .offset(x: L.screenWidth - L.margin - Self.frameSize.width, y: Self.heroTop)
+            // Steven: the photo on the left (it fills the space), the studio's name on the right.
+            OrbitStudioFrame(url: Self.backdropURL(shown), forward: forward)
+                .offset(x: L.margin, y: Self.heroTop)
 
             // Everything on one screen (no page scroll: it slid the studio's name under the bar).
             VStack(alignment: .leading, spacing: 0) {
                     hero(shown)
-                        .frame(width: L.screenWidth - 2 * L.margin - Self.frameSize.width - 50,
-                               height: Self.frameSize.height, alignment: .leading)
-                        .padding(.leading, L.margin)
+                        .frame(width: L.screenWidth - 2 * L.margin - Self.frameSize.width - 60,
+                               height: Self.frameSize.height, alignment: .topLeading)
+                        .padding(.leading, L.margin + Self.frameSize.width + 60)
                         .padding(.top, Self.heroTop)
 
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -232,6 +233,8 @@ struct OrbitStudiosPage: View {
                 .animation(.easeIn(duration: 0.12)))
     }
 
+    /// Fixed places (Steven: from Disney to Pixar the logo moved, the block was centred and its
+    /// height changed): the logos sit on one line, the figures and the latest films under it.
     private func hero(_ folder: CollectionFolder?) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             ZStack(alignment: .bottomLeading) {
@@ -261,23 +264,32 @@ struct OrbitStudiosPage: View {
                 .frame(height: 34, alignment: .leading)
                 .id(films.statsLine ?? "-")
                 .transition(slide)
-            if let latest = films.latestLine {
-                Text(latest)
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.7))
-                    .lineLimit(2)
-                    .id(latest)
-                    .transition(slide)
+            ZStack(alignment: .topLeading) {
+                if let latest = films.latestLine {
+                    Text(latest)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                        .lineLimit(2)
+                        .id(latest)
+                        .transition(slide)
+                }
             }
+            .frame(height: 64, alignment: .topLeading)
         }
+        .padding(.top, 60)
         .allowsHitTesting(false)
     }
 }
 
-/// The studio's backdrop in a frame: whole, rounded, a soft shadow; a new studio's image fades in
-/// over the old one.
+/// The studio's backdrop in a frame: whole, rounded, a soft shadow. A new studio's image comes in
+/// over the old one with a short glide the way the focus went and a slight zoom settling (the
+/// logo on the right glides the same way).
 private struct OrbitStudioFrame: View {
     let url: String?
+    let forward: Bool
+
+    @State private var zoom: CGFloat = 1
+    @State private var shift: CGFloat = 0
 
     var body: some View {
         let size = OrbitStudiosPage.frameSize
@@ -285,6 +297,8 @@ private struct OrbitStudioFrame: View {
         ZStack {
             Color(white: 0.1)
             OrbitSwapImage(url: url, fallback: nil, size: size)
+                .scaleEffect(zoom)
+                .offset(x: shift)
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
@@ -293,6 +307,18 @@ private struct OrbitStudioFrame: View {
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1.5)
         }
         .shadow(color: .black.opacity(0.5), radius: 30, y: 16)
+        .onChange(of: url) { _, _ in
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) {
+                zoom = 1.07
+                shift = forward ? -24 : 24
+            }
+            withAnimation(.easeOut(duration: 0.7)) {
+                zoom = 1
+                shift = 0
+            }
+        }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
