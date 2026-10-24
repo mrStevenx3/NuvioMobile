@@ -76,7 +76,10 @@ struct OrbitHomeRowView: View {
         ZStack(alignment: .topLeading) {
             Text(row.title)
                 .font(.system(size: L.headingFont, weight: .bold))
-                .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.55))
+                // The whole title dimmed (not its colour): an emoji in a catalogue's name dims
+                // with the text instead of staying bright.
+                .foregroundStyle(Color.white)
+                .opacity(isCurrent ? 1 : 0.55)
                 .lineLimit(1)
                 .frame(height: 40, alignment: .center)
                 .offset(x: L.margin + 4, y: -20)

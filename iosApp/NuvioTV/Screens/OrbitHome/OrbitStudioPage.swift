@@ -681,7 +681,8 @@ private struct OrbitStudioRowView: View {
         ZStack(alignment: .topLeading) {
             Text(row.title)
                 .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.55))
+                .foregroundStyle(Color.white)
+                .opacity(isCurrent ? 1 : 0.55)
                 .lineLimit(1)
                 .frame(height: 40)
                 .offset(x: L.margin + 4, y: -20)

@@ -122,7 +122,8 @@ final class OrbitMetaStore: ObservableObject {
         let minutes = d.runtime ?? d.episode_run_time?.first
         let runtime = minutes.flatMap { m -> String? in
             guard m > 0 else { return nil }
-            return m >= 60 ? (m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m") : "\(m)m"
+            // French, as on the film's page: "2 h 20", "2 h", "43 min".
+            return m >= 60 ? (m % 60 == 0 ? "\(m / 60) h" : String(format: "%d h %02d", m / 60, m % 60)) : "\(m) min"
         }
         let overview = d.overview.flatMap { $0.isEmpty ? nil : $0 }
         var english: String?
