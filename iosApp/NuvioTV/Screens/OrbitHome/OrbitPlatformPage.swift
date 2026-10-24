@@ -110,10 +110,26 @@ struct OrbitPlatformPage: View {
             return OrbitPlatformRow(id: row.id, title: row.heading, items: unique,
                                     shape: unique.first?.posterShape ?? .poster, transparent: top10)
         }
-        let more = (series ? extras.seriesRows : extras.movieRows).map { extra in
-            OrbitPlatformRow(id: extra.id, title: extra.title, items: extra.items, shape: .poster, transparent: false)
+        // Steven: a title already in a row above is left out of the rows this page adds (his own
+        // rows are never touched); a row left with fewer than 8 titles is dropped.
+        var shown = Set(catalogs.flatMap { $0.items.map { Self.identity($0) } })
+        var more: [OrbitPlatformRow] = []
+        for extra in series ? extras.seriesRows : extras.movieRows {
+            let fresh = extra.items.filter { !shown.contains(Self.identity($0)) }
+            guard fresh.count >= 8 else { continue }
+            let kept = Array(fresh.prefix(20))
+            kept.forEach { shown.insert(Self.identity($0)) }
+            more.append(OrbitPlatformRow(id: extra.id, title: extra.title, items: kept, shape: .poster, transparent: false))
         }
         return catalogs + more
+    }
+
+    /// The same title across sources: its TMDB id when the add-on gives one ("tmdb:123"), else its
+    /// name and year.
+    private static func identity(_ item: MetaPreview) -> String {
+        if item.id.hasPrefix("tmdb:") { return item.id }
+        let year: String = item.releaseInfo.map { String($0.prefix(4)) } ?? ""
+        return item.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) + "|" + year
     }
 
     private func lead(of row: OrbitPlatformRow) -> Int {
@@ -717,8 +733,11 @@ final class OrbitPlatformExtrasModel: ObservableObject {
                 group.addTask {
                     let address = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(lang)"
                         + "&watch_region=\(region)&with_watch_providers=\(provider)"
-                        + "&with_watch_monetization_types=flatrate&sort_by=popularity.desc&page=1" + spec.query
-                    return (index, await fetch(address, tv: tv))
+                        + "&with_watch_monetization_types=flatrate&sort_by=popularity.desc" + spec.query
+                    // Two pages: room for the titles the rows above already show to be left out.
+                    async let first = fetch(address + "&page=1", tv: tv)
+                    async let second = fetch(address + "&page=2", tv: tv)
+                    return (index, await first + second)
                 }
             }
             var out: [Int: [MetaPreview]] = [:]
@@ -759,13 +778,15 @@ final class OrbitPlatformExtrasModel: ObservableObject {
               let (data, _) = try? await URLSession.shared.data(from: url),
               let decoded = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
         return (decoded.results ?? []).compactMap { r -> MetaPreview? in
-            guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path else { return nil }
+            // Steven: the rows this page adds keep only titles with a synopsis in his language.
+            guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path,
+                  let overview = r.overview, !overview.isEmpty else { return nil }
             let date = r.release_date ?? r.first_air_date
             return MetaPreview(id: "tmdb:\(r.id)", type: tv ? "series" : "movie", name: name,
                                poster: "https://image.tmdb.org/t/p/w500\(poster)",
                                banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                                logo: nil, posterShape: .poster,
-                               description: r.overview, releaseInfo: date.map { String($0.prefix(4)) },
+                               description: overview, releaseInfo: date.map { String($0.prefix(4)) },
                                rawReleaseDate: date, popularity: nil, voteCount: nil,
                                imdbRating: r.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
                                genres: [], rawPosterUrl: nil, landscapePoster: nil,

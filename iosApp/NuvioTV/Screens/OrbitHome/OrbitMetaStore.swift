@@ -17,6 +17,9 @@ nonisolated struct OrbitMeta: Equatable, Sendable {
     var overview: String?
     var logo: String?
     var backdrop: String?
+    /// Steven: the English synopsis, only when there is none in his language (a title too new to
+    /// be translated) — better than an empty space under the title.
+    var overviewEnglish: String? = nil
 }
 
 @MainActor
@@ -121,15 +124,24 @@ final class OrbitMetaStore: ObservableObject {
             guard m > 0 else { return nil }
             return m >= 60 ? (m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m") : "\(m)m"
         }
+        let overview = d.overview.flatMap { $0.isEmpty ? nil : $0 }
+        var english: String?
+        if overview == nil, short != "en",
+           let enURL = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)?api_key=\(apiKey)&language=en-US"),
+           let enResponse = try? await URLSession.shared.data(from: enURL),
+           let en = try? JSONDecoder().decode(Details.self, from: enResponse.0) {
+            english = en.overview.flatMap { $0.isEmpty ? nil : $0 }
+        }
         let logos = d.images?.logos ?? []
         let logo = (logos.first { $0.iso_639_1 == short } ?? logos.first { $0.iso_639_1 == "en" } ?? logos.first)?.file_path
         return OrbitMeta(percent: d.vote_average.flatMap { $0 > 0 ? Int(($0 * 10).rounded()) : nil },
                          year: (d.release_date ?? d.first_air_date).map { String($0.prefix(4)) }.flatMap { $0.isEmpty ? nil : $0 },
                          genre: d.genres?.first?.name,
                          runtime: runtime,
-                         overview: d.overview.flatMap { $0.isEmpty ? nil : $0 },
+                         overview: overview,
                          logo: logo.map { "https://image.tmdb.org/t/p/w500\($0)" },
-                         backdrop: d.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" })
+                         backdrop: d.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
+                         overviewEnglish: english)
     }
 }
 
@@ -151,7 +163,7 @@ nonisolated struct OrbitInfo: Equatable {
         let own: String? = item.description_
         let logo: String? = item.logo
         return OrbitInfo(percent: rating, parts: parts,
-                         synopsis: meta?.overview ?? own ?? "",
+                         synopsis: meta?.overview ?? (own?.isEmpty == false ? own : nil) ?? meta?.overviewEnglish ?? "",
                          logo: meta?.logo ?? ((logo?.isEmpty ?? true) ? nil : logo))
     }
 }
