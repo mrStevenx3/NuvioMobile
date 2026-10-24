@@ -122,6 +122,7 @@ struct OrbitPlaybackSection: View {
                                 isOn: Binding(get: { previews }, set: { on in
                                     previews = on
                                     UserDefaults.standard.set(on, forKey: "detail_trailer_background")
+                                    UserDefaults.standard.set(on, forKey: "inline_trailers_enabled")
                                 }))
             OrbitSettingsToggle(title: String(localized: "Masquer les spoilers"),
                                 subtitle: String(localized: "Floute les images et cache le résumé des épisodes pas encore vus."),

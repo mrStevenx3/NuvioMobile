@@ -48,6 +48,10 @@ enum OrbitSettingsPins {
         defaults.set(NavigationChrome.Style.orbit.rawValue, forKey: NavigationChrome.styleKey)
         defaults.set(HomeLayout.stage.rawValue, forKey: HomeLayout.defaultsKey)
         defaults.set(true, forKey: OrbitHomeSetting.enabledKey)
+        // One switch for every trailer ("Lecture automatique des aperçus"): the older pages'
+        // trailer gate follows it (the reset had turned it off — default off).
+        let previews = defaults.object(forKey: OrbitHomeSetting.trailersKey) as? Bool ?? true
+        defaults.set(previews, forKey: "inline_trailers_enabled")
 
         guard !defaults.bool(forKey: onceKey) else { return }
         for key in defaults.dictionaryRepresentation().keys
