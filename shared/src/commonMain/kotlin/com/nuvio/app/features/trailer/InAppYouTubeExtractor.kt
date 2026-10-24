@@ -32,11 +32,10 @@ internal const val TRAILER_EXTRACTOR_TIMEOUT_MS = 30_000L
 // separate-A/V source, so [pickBestForClient] walks this list in order — the first client
 // that contributed ANY candidates wins outright — before falling back to pooling across all
 // clients. Costs one extra innertube POST when the first client fails or is empty.
-// 2026-10-24 (Steven: every trailer played a second, went black and restarted in a lower
-// quality): android_vr's streams now need a proof-of-origin token — YouTube serves the first
-// second, then refuses — and the playback failure fell back to a poorer source. visionos needs
-// none (yt-dlp's only token-free default, master 2026-10-23), so it leads; android_vr follows.
-private val PREFERRED_SEPARATE_CLIENTS = listOf("visionos", "android_vr")
+// 2026-10-24: the order stays android_vr first. Chris's build plays trailers in full quality, in
+// one go, on Steven's Apple TV with this very order: the double start and the poorer picture seen
+// tonight were the simulator's, not YouTube's.
+private val PREFERRED_SEPARATE_CLIENTS = listOf("android_vr", "visionos")
 
 // Per-request bounds for the concurrent innertube/manifest batches (Codex 2026-08-29 P1):
 // awaitAll() completes when the SLOWEST request does, and each HTTP call otherwise allows 20s
@@ -226,10 +225,7 @@ private val CLIENTS = listOf(
     // parent of a6fb2aed which replaced this with visionos) — see PREFERRED_SEPARATE_CLIENTS
     // above for why both clients are kept.
     YouTubeClient(
-        // 2026-10-24: kept at 1.56.21. The newer 1.65.10 (yt-dlp's) gets streams that need a
-        // proof-of-origin token: they stopped after a second and the trailer restarted on a
-        // lower-quality fallback (Steven). Tonight's outage was the watch page (visionos, never
-        // changed, failed too), not this version.
+        // 2026-10-24: kept at 1.56.21, the version Chris's working build uses.
         key = "android_vr",
         id = "28",
         version = "1.56.21",
@@ -247,7 +243,7 @@ private val CLIENTS = listOf(
             "hl" to "en",
             "gl" to "US",
         ),
-        priority = 1,
+        priority = 0,
     ),
     YouTubeClient(
         key = "visionos",
@@ -265,20 +261,20 @@ private val CLIENTS = listOf(
             "hl" to "en",
             "gl" to "US",
         ),
-        priority = 0,
+        priority = 1,
     ),
     YouTubeClient(
         key = "android",
         id = "3",
-        version = "21.26.364",
-        userAgent = "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
+        version = "20.10.35",
+        userAgent = "com.google.android.youtube/20.10.35 (Linux; U; Android 14; en_US) gzip",
         context = jsonObjectOf(
             "clientName" to "ANDROID",
-            "clientVersion" to "21.26.364",
+            "clientVersion" to "20.10.35",
             "osName" to "Android",
-            "osVersion" to "11",
+            "osVersion" to "14",
             "platform" to "MOBILE",
-            "androidSdkVersion" to 30,
+            "androidSdkVersion" to 34,
             "hl" to "en",
             "gl" to "US",
         ),
@@ -287,15 +283,14 @@ private val CLIENTS = listOf(
     YouTubeClient(
         key = "ios",
         id = "5",
-        version = "21.26.4",
-        userAgent = "com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+        version = "20.10.1",
+        userAgent = "com.google.ios.youtube/20.10.1 (iPhone16,2; U; CPU iOS 17_4 like Mac OS X)",
         context = jsonObjectOf(
             "clientName" to "IOS",
-            "clientVersion" to "21.26.4",
-            "deviceMake" to "Apple",
+            "clientVersion" to "20.10.1",
             "deviceModel" to "iPhone16,2",
             "osName" to "iPhone",
-            "osVersion" to "18.3.2.22D82",
+            "osVersion" to "17.4.0.21E219",
             "platform" to "MOBILE",
             "hl" to "en",
             "gl" to "US",
