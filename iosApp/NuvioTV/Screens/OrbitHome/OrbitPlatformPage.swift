@@ -105,8 +105,14 @@ struct OrbitPlatformPage: View {
 
     /// The folder's catalogs of the current type (loaded ones), then the TMDB extras.
     private var rows: [OrbitPlatformRow] {
+        let extraRows = series ? extras.seriesRows : extras.movieRows
+        // Steven: where this page builds its own rows (a platform TMDB knows), his catalogs that
+        // repeat them are not drawn — only his Nouveautés and Top 10 (the « Tous » catalogs stay,
+        // unseen, for the search). Elsewhere every catalog shows.
+        let ownRowsOnly = !extraRows.isEmpty
         let catalogs: [OrbitPlatformRow] = CollectionTypeFilter.rows(model.stripRows, filter: typeFilter).compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
+            guard !ownRowsOnly || OrbitCatalogFilter.isKept(row.heading) else { return nil }
             var seen = Set<String>()
             let unique = items.filter { seen.insert("\($0.type):\($0.id)").inserted }
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
@@ -118,7 +124,7 @@ struct OrbitPlatformPage: View {
         // rows are never touched); a row left with fewer than 8 titles is dropped.
         var shown = Set(catalogs.flatMap { $0.items.map { Self.identity($0) } })
         var more: [OrbitPlatformRow] = []
-        for extra in series ? extras.seriesRows : extras.movieRows {
+        for extra in extraRows {
             let fresh = extra.items.filter { !shown.contains(Self.identity($0)) }
             guard fresh.count >= 8 else { continue }
             let kept = Array(fresh.prefix(20))
@@ -571,6 +577,17 @@ private struct OrbitPlatformCard: View {
 
 private extension MetaPreview {
     var shape: PosterShape { posterShape }
+}
+
+// MARK: - Catalog filter
+
+/// Steven: which of his catalogs show where Orbit builds its own rows (platforms, studios): his
+/// Nouveautés and Top 10 only. The genre, popular, saga and « Tous » catalogs repeat Orbit's rows.
+enum OrbitCatalogFilter {
+    static func isKept(_ heading: String) -> Bool {
+        let h = heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        return h.contains("top 10") || h.contains("top10") || h.contains("nouveau") || h.contains("nouvelle")
+    }
 }
 
 // MARK: - Brand

@@ -3,17 +3,18 @@ import SharedCore
 import SwiftUI
 
 // Orbit Studio (Steven, 2026-10-24): a studio's page, rebuilt from scratch — a showcase of its
-// films rather than an app to open (the platforms are that):
+// films, with a rhythm (Steven: "des trucs en avant en grand, d'autres moins en avant en petit"):
 //
-//  - A header: the studio's logo on its colour, "Studio · 28 films · depuis 1986".
-//  - Rows made for a filmography, in large landscape cards (each film's art and logo): the
-//    folder's own catalogs when it comes from the Studios tab, then "Les incontournables" (best
-//    rated), "Les plus populaires", "Les sagas" (one card per saga, it opens its first film),
-//    "Prochainement", and a row per decade.
-//  - Under the current row, the focused film's meta line and synopsis; its trailer plays in its
-//    card after a rest.
-//  - Orbit's canvas: one focusable stop, the page moves (Down / Up row to row, Left / Right along
-//    one), the header leaves with the first row.
+//  - A wide banner first: the studio's featured films one at a time (Left / Right), their trailer
+//    in large behind the logo, the meta line and the synopsis; the studio's logo and figures in
+//    the banner's corner.
+//  - "Les incontournables" in large landscape cards (the trailer plays in the focused one).
+//  - "Les sagas" in medium landscape cards (the saga's name; it opens its first film).
+//  - Every other row in small portrait posters, seven to eight a screen: the folder's Nouveautés
+//    and Top 10 (Steven's transparent Top 10 images drawn as they are), "Les plus populaires",
+//    "Prochainement", a row per decade. The focused film's meta line and synopsis under the row.
+//  - Orbit's canvas: one focusable stop, the page moves (Down / Up section to section,
+//    Left / Right along one).
 //
 // One page for both ways in: a studio of the Studios tab (its folder) and a studio or a channel
 // from a film's "À propos" (TMDB's company / network id). The data is TMDB's (discover by company
@@ -44,33 +45,57 @@ struct OrbitStudioRoute: Hashable {
     }
 }
 
+/// How a row is drawn.
+enum OrbitStudioRowKind: Equatable {
+    /// Large landscape cards, the trailer in the focused one.
+    case featured
+    /// Medium landscape cards with the saga's name.
+    case sagas
+    /// Small portrait posters (transparent ones drawn as they are).
+    case posters(transparent: Bool)
+}
+
 /// One row of the studio page.
 struct OrbitStudioRow: Identifiable, Equatable {
     let id: String
     let title: String
     let items: [MetaPreview]
-    /// "Les sagas": each card is a saga (its name, not its first film's logo).
-    var sagas: Bool { id == "sagas" }
+    var kind: OrbitStudioRowKind = .posters(transparent: false)
 
     static func == (a: OrbitStudioRow, b: OrbitStudioRow) -> Bool {
-        a.id == b.id && a.title == b.title && a.items.map(\.id) == b.items.map(\.id)
+        a.id == b.id && a.title == b.title && a.kind == b.kind && a.items.map(\.id) == b.items.map(\.id)
+    }
+
+    var cardSize: CGSize {
+        switch kind {
+        case .featured: return CGSize(width: 448, height: 252)
+        case .sagas: return CGSize(width: 380, height: 214)
+        case .posters: return CGSize(width: 196, height: 294)
+        }
+    }
+
+    var gap: CGFloat {
+        if case .posters = kind { return 22 }
+        return 26
+    }
+
+    /// The focused film's info shows under the row (not for the sagas: their name is the card).
+    var showsInfo: Bool { kind != .sagas }
+
+    /// From this row's heading to the next one's.
+    var pitch: CGFloat {
+        OrbitStudioLayout.cardsTop + cardSize.height + (showsInfo ? 230 : 80)
     }
 }
 
 enum OrbitStudioLayout {
     static let margin: CGFloat = OrbitHomeLayout.margin
-    static let cardSize = CGSize(width: 448, height: 252)
-    static let gap: CGFloat = 26
     static let radius: CGFloat = 14
-    /// The header block's top, and the first row's heading line while the header shows.
-    static let headerTop: CGFloat = 90
-    static let firstRowLine: CGFloat = 400
-    /// The current row's heading line once the header has left.
+    /// The banner.
+    static let heroHeight: CGFloat = 700
+    /// The first row's heading under the banner, and the current row's line once it has left.
     static let rowLine: CGFloat = 150
     static let cardsTop: CGFloat = 44
-    /// From a heading to the next one: cards, the info (meta line + 2 lines), the gap.
-    /// Steven: the next heading sat right under the synopsis; room for the info and air after.
-    static let pitch: CGFloat = cardsTop + cardSize.height + 250
     static let horizontal = Animation.easeOut(duration: 0.24)
     static let vertical = Animation.easeInOut(duration: 0.36)
 }
@@ -85,7 +110,9 @@ struct OrbitStudioPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
 
+    /// 0: the banner; 1…: the rows.
     @State private var current = 0
+    @State private var heroIndex = 0
     @State private var leads: [String: Int] = [:]
     @FocusState private var canvasFocused: Bool
     @State private var motion = OrbitHomeMotion()
@@ -101,55 +128,101 @@ struct OrbitStudioPage: View {
     // MARK: Data
 
     private var rows: [OrbitStudioRow] { model.rows }
+    private var heroItems: [MetaPreview] { model.heroItems }
+    /// Sections: the banner (when it has films), then the rows.
+    private var hasHero: Bool { !heroItems.isEmpty }
+    private var sectionCount: Int { (hasHero ? 1 : 0) + rows.count }
+
+    /// The row of section `s` (nil for the banner).
+    private func row(at section: Int) -> OrbitStudioRow? {
+        let i = section - (hasHero ? 1 : 0)
+        return rows.indices.contains(i) ? rows[i] : nil
+    }
 
     private func lead(of row: OrbitStudioRow) -> Int {
         min(leads[row.id] ?? 0, max(0, row.items.count - 1))
     }
 
-    private func focusedItem(_ rows: [OrbitStudioRow]) -> MetaPreview? {
-        guard rows.indices.contains(current) else { return nil }
-        let row = rows[current]
-        return row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil
+    private var heroItem: MetaPreview? {
+        heroItems.isEmpty ? nil : heroItems[heroIndex % heroItems.count]
+    }
+
+    private func focusedItem() -> MetaPreview? {
+        let section = min(current, max(0, sectionCount - 1))
+        if hasHero, section == 0 { return heroItem }
+        guard let row = row(at: section), row.items.indices.contains(lead(of: row)) else { return nil }
+        return row.items[lead(of: row)]
     }
 
     private var brand: Color {
         tint ?? OrbitPlatformBrand.color(title: model.name)
     }
 
+    /// Each section's top in the page's column (banner at 0, each row's heading line after it).
+    private func anchors() -> [CGFloat] {
+        var out: [CGFloat] = []
+        var y: CGFloat = 0
+        if hasHero { out.append(0); y = OrbitStudioLayout.heroHeight }
+        else { y = 360 }
+        for row in rows { out.append(y); y += row.pitch }
+        return out
+    }
+
     // MARK: Body
 
     var body: some View {
-        let rows = rows
-        let index = min(current, max(0, rows.count - 1))
         let L = OrbitStudioLayout.self
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
-        // The header shows over the first row only; below, the current row sits higher.
-        let line = index == 0 ? L.firstRowLine : L.rowLine
+        let count = sectionCount
+        let index = min(current, max(0, count - 1))
+        let anchors = anchors()
+        let onHero = hasHero && index == 0
+        // The banner stays at the top; a row brought up sits at the row line.
+        let scroll: CGFloat = count == 0 || onHero || (!hasHero && index == 0) ? 0 : L.rowLine - anchors[index]
 
         ZStack(alignment: .topLeading) {
             OrbitStudioBackground(brand: brand)
 
-            OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: model.statsLine)
-                .offset(x: L.margin, y: L.headerTop)
-                .opacity(index == 0 ? 1 : 0)
-                .offset(y: index == 0 ? 0 : -80)
-
             ZStack(alignment: .topLeading) {
-                if !rows.isEmpty {
-                    let window = index...max(index, min(rows.count - 1, index + 2))
-                    ForEach(Array(zip(window, rows[window])), id: \.1.id) { i, row in
-                        OrbitStudioRowView(row: row, lead: lead(of: row), isCurrent: i == index,
-                                           focused: i == index && canvasFocused,
-                                           trailerURL: i == index ? trailerURL(for: row) : nil,
-                                           onTrailerFailure: { trailer.playbackFailed($0) },
-                                           onTrailerEnded: { trailer.playbackFinished() })
-                            .offset(y: line + CGFloat(i - index) * L.pitch)
-                            .transition(.identity)
+                if hasHero {
+                    OrbitStudioHero(item: heroItem, meta: heroItem.flatMap { metaStore.meta(for: $0) },
+                                    studioName: model.name, studioLogo: model.logo ?? route.logo,
+                                    statsLine: model.statsLine, focused: onHero && canvasFocused,
+                                    count: heroItems.count, index: heroIndex % max(1, heroItems.count),
+                                    trailerURL: onHero ? trailerURL(for: heroItem) : nil,
+                                    onTrailerFailure: { trailer.playbackFailed($0) },
+                                    onTrailerEnded: { trailer.playbackFinished() })
+                        .opacity(onHero ? 1 : 0)
+                } else {
+                    OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: model.statsLine)
+                        .offset(x: L.margin, y: 90)
+                        .opacity(index == 0 ? 1 : 0)
+                }
+                if count > 0 {
+                    let first = max(hasHero ? 1 : 0, index)
+                    let last = min(count - 1, index + 2)
+                    if first <= last {
+                        ForEach(first...last, id: \.self) { s in
+                            if let sectionRow = row(at: s) {
+                                let row = sectionRow
+                                OrbitStudioRowView(row: row, lead: lead(of: row), isCurrent: s == index,
+                                                   focused: s == index && canvasFocused,
+                                                   trailerURL: s == index && row.kind == .featured
+                                                       ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil)
+                                                       : nil,
+                                                   onTrailerFailure: { trailer.playbackFailed($0) },
+                                                   onTrailerEnded: { trailer.playbackFinished() })
+                                    .offset(y: anchors[s])
+                                    .id(row.id)
+                                    .transition(.identity)
+                            }
+                        }
                     }
                 }
             }
+            .offset(y: scroll)
 
-            if rows.isEmpty {
+            if count == 0 {
                 Group {
                     if model.loading {
                         ProgressView()
@@ -192,17 +265,15 @@ struct OrbitStudioPage: View {
             trailer.reset(abortStages: true)
         }
         .onChange(of: canvasFocused) { _, _ in refreshAfterMove() }
-        .onChange(of: rows.map(\.id)) { _, ids in
-            if current >= ids.count { current = max(0, ids.count - 1) }
+        .onChange(of: rows.map(\.id) + heroItems.map(\.id)) { _, _ in
+            if current >= sectionCount { current = max(0, sectionCount - 1) }
             refreshAfterMove()
         }
         .onChange(of: model.logo ?? route.logo ?? "-", initial: true) { _, raw in sampleTint(raw) }
     }
 
-    private func trailerURL(for row: OrbitStudioRow) -> String? {
-        guard row.items.indices.contains(lead(of: row)) else { return nil }
-        let item = row.items[lead(of: row)]
-        guard trailerKey == "\(item.type):\(item.id)" else { return nil }
+    private func trailerURL(for item: MetaPreview?) -> String? {
+        guard let item, trailerKey == "\(item.type):\(item.id)" else { return nil }
         return trailer.playingURL
     }
 
@@ -221,21 +292,28 @@ struct OrbitStudioPage: View {
     // MARK: Input
 
     private func move(_ direction: MoveCommandDirection) {
-        let rows = rows
-        guard !rows.isEmpty else { return }
-        let index = min(current, rows.count - 1)
+        let count = sectionCount
+        guard count > 0 else { return }
+        let index = min(current, count - 1)
         switch direction {
         case .down:
-            guard index + 1 < rows.count else { return }
+            guard index + 1 < count else { return }
             withAnimation(reduceMotion ? nil : OrbitStudioLayout.vertical) { current = index + 1 }
         case .up:
             guard index > 0 else { return }
             withAnimation(reduceMotion ? nil : OrbitStudioLayout.vertical) { current = index - 1 }
         case .left, .right:
-            let row = rows[index]
-            let next = lead(of: row) + (direction == .right ? 1 : -1)
-            guard row.items.indices.contains(next) else { return }
-            withAnimation(OrbitStudioLayout.horizontal) { leads[row.id] = next }
+            let delta = direction == .right ? 1 : -1
+            if hasHero, index == 0 {
+                let n = heroItems.count
+                guard n > 1 else { return }
+                withAnimation(OrbitStudioLayout.horizontal) { heroIndex = (heroIndex + delta + n) % n }
+            } else if let sectionRow = row(at: index) {
+                let row = sectionRow
+                let next = lead(of: row) + delta
+                guard row.items.indices.contains(next) else { return }
+                withAnimation(OrbitStudioLayout.horizontal) { leads[row.id] = next }
+            }
         @unknown default:
             return
         }
@@ -243,11 +321,11 @@ struct OrbitStudioPage: View {
     }
 
     private func select() {
-        guard let item = focusedItem(rows) else { return }
+        guard let item = focusedItem() else { return }
         opening = TitleRoute(preview: item)
     }
 
-    /// Menu: back to the first row from below it; at the top, the page closes.
+    /// Menu: back to the top from below it; at the top, the page closes.
     private func exitAction(index: Int) -> (() -> Void)? {
         guard index > 0 else { return nil }
         return {
@@ -256,31 +334,28 @@ struct OrbitStudioPage: View {
         }
     }
 
-    /// After any move: the look-ahead (meta, art) and the focused film's trailer.
+    /// After any move: the look-ahead (meta, art) and the trailer (the banner's or the featured
+    /// row's focused film; the poster rows have none).
     private func refreshAfterMove() {
-        let rows = rows
-        let index = min(current, max(0, rows.count - 1))
+        let count = sectionCount
+        let index = min(current, max(0, count - 1))
         motion.stamp()
         var metaItems: [MetaPreview] = []
-        let request = ArtworkDecodeRequest(size: .points(width: OrbitStudioLayout.cardSize.width,
-                                                         height: OrbitStudioLayout.cardSize.height),
-                                           fill: true, scale: UIScreen.main.scale)
-        for i in index...max(index, min(rows.count - 1, index + 1)) where rows.indices.contains(i) {
-            let row = rows[i]
-            let lead = lead(of: row)
-            let around = row.items.indices.filter { $0 >= lead - 1 && $0 <= lead + 4 }
-            metaItems.append(contentsOf: around.map { row.items[$0] })
-            ArtworkStore.prefetch(around.compactMap { j in
-                let banner: String? = row.items[j].banner
-                return banner.flatMap(URL.init(string:)).map { ArtworkPrefetchItem(url: $0, decode: request) }
-            })
+        if !heroItems.isEmpty {
+            metaItems.append(contentsOf: (0..<min(3, heroItems.count)).map { heroItems[(heroIndex + $0) % heroItems.count] })
+        }
+        for s in index...max(index, min(count - 1, index + 1)) {
+            guard let sectionRow = row(at: s) else { continue }
+            let at = lead(of: sectionRow)
+            metaItems.append(contentsOf: sectionRow.items.indices.filter { $0 >= at - 1 && $0 <= at + 5 }.map { sectionRow.items[$0] })
         }
         OrbitMetaStore.shared.request(metaItems)
 
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, canvasFocused, UIAccessibility.isVideoAutoplayEnabled,
-              let item = focusedItem(rows) else { return }
+        guard trailersOn, canvasFocused, UIAccessibility.isVideoAutoplayEnabled, let item = focusedItem() else { return }
+        let playsHere = (hasHero && index == 0) || row(at: index)?.kind == .featured
+        guard playsHere else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
         trailerKey = "\(item.type):\(item.id)"
@@ -294,9 +369,9 @@ private struct OrbitStudioCanvasStyle: ButtonStyle {
     }
 }
 
-// MARK: - Background, header
+// MARK: - Background, banner, header
 
-/// A calm page: Orbit's black with the studio's colour rising from the top-left, where its logo is.
+/// A calm page: Orbit's black with the studio's colour rising from the top-left.
 private struct OrbitStudioBackground: View {
     let brand: Color
 
@@ -314,6 +389,124 @@ private struct OrbitStudioBackground: View {
     }
 }
 
+/// The banner: a featured film across the screen's width — its backdrop, then its trailer after
+/// a rest; the studio's logo and figures in the corner; the film's logo, meta line and synopsis;
+/// the dots of the featured films.
+private struct OrbitStudioHero: View {
+    let item: MetaPreview?
+    let meta: OrbitMeta?
+    let studioName: String
+    let studioLogo: String?
+    let statsLine: String?
+    let focused: Bool
+    let count: Int
+    let index: Int
+    let trailerURL: String?
+    let onTrailerFailure: (TrailerFailureReport) -> Void
+    let onTrailerEnded: () -> Void
+
+    var body: some View {
+        let L = OrbitStudioLayout.self
+        let size = CGSize(width: OrbitHomeLayout.screenWidth, height: L.heroHeight)
+        let banner: String? = item?.banner
+        ZStack(alignment: .topLeading) {
+            OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+            if let trailerURL, let item {
+                TrailerHeroPlayer(urlString: trailerURL,
+                                  onFailure: onTrailerFailure,
+                                  zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                  loops: false,
+                                  onPlaybackEnded: onTrailerEnded,
+                                  cornerRadius: 0)
+                    .frame(width: size.width, height: size.height)
+                    .transition(.opacity.animation(.easeOut(duration: 0.6)))
+            }
+            LinearGradient(stops: [
+                .init(color: .black.opacity(0.85), location: 0),
+                .init(color: .black.opacity(0.4), location: 0.45),
+                .init(color: .clear, location: 0.72),
+            ], startPoint: .leading, endPoint: .trailing)
+            // Melts into the page below.
+            LinearGradient(stops: [
+                .init(color: .clear, location: 0.55),
+                .init(color: OrbitHomeLayout.background, location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+
+            // The studio, in the corner.
+            HStack(alignment: .center, spacing: 22) {
+                Group {
+                    if let studioLogo, !studioLogo.isEmpty {
+                        CachedAsyncImage(string: studioLogo, contentMode: .fit,
+                                         decodeSize: .points(width: 260, height: 80),
+                                         loading: { Color.clear }, failure: { studioText })
+                    } else {
+                        studioText
+                    }
+                }
+                .frame(maxWidth: 260, maxHeight: 80, alignment: .leading)
+                if let statsLine, !statsLine.isEmpty {
+                    Rectangle().fill(Color.white.opacity(0.35)).frame(width: 2, height: 40)
+                    Text(statsLine)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.8))
+                }
+            }
+            .offset(x: L.margin, y: 60)
+
+            if let item {
+                let info = OrbitInfo.make(item, meta: meta)
+                VStack(alignment: .leading, spacing: 0) {
+                    OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 600, height: 180), textSize: 62)
+                        .frame(width: 600, height: 180, alignment: .bottomLeading)
+                    OrbitMetaLine(info: info, size: 27)
+                        .frame(height: 36)
+                        .padding(.top, 24)
+                    Text(info.synopsis)
+                        .font(.system(size: 25, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.92))
+                        .lineSpacing(4)
+                        .lineLimit(3)
+                        .frame(width: 880, alignment: .leading)
+                        .padding(.top, 18)
+                    HStack(spacing: 18) {
+                        Text("Voir la fiche")
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(focused ? Color.black : Color.white)
+                            .padding(.horizontal, 40)
+                            .frame(height: 70)
+                            .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.22)))
+                        if count > 1 {
+                            HStack(spacing: 10) {
+                                ForEach(0..<count, id: \.self) { i in
+                                    Capsule()
+                                        .fill(Color.white.opacity(i == index ? 0.95 : 0.35))
+                                        .frame(width: i == index ? 26 : 10, height: 10)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 26)
+                }
+                .id("\(item.type):\(item.id)")
+                .transition(.opacity.animation(.easeInOut(duration: 0.25)))
+                .offset(x: L.margin, y: 170)
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .clipped()
+        .allowsHitTesting(false)
+    }
+
+    private var studioText: some View {
+        Text(studioName)
+            .font(.system(size: 40, weight: .heavy))
+            .foregroundStyle(Color.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+    }
+}
+
+/// The header when there is no banner (no featured film yet).
 private struct OrbitStudioHeader: View {
     let name: String
     let logo: String?
@@ -331,7 +524,6 @@ private struct OrbitStudioHeader: View {
                 }
             }
             .frame(width: 520, height: 150, alignment: .bottomLeading)
-            .shadow(color: .black.opacity(0.4), radius: 10, y: 3)
             if let line, !line.isEmpty {
                 Text(line)
                     .font(.system(size: 28, weight: .semibold))
@@ -365,8 +557,8 @@ private struct OrbitStudioRowView: View {
 
     var body: some View {
         let L = OrbitStudioLayout.self
-        let size = L.cardSize
-        let window = max(0, lead - 1)...max(max(0, lead - 1), min(row.items.count - 1, lead + 5))
+        let size = row.cardSize
+        let window = max(0, lead - 1)...max(max(0, lead - 1), min(row.items.count - 1, lead + 9))
         ZStack(alignment: .topLeading) {
             Text(row.title)
                 .font(.system(size: 30, weight: .bold))
@@ -378,11 +570,8 @@ private struct OrbitStudioRowView: View {
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
                     ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        OrbitStudioCard(item: item, meta: metaStore.meta(for: item), saga: row.sagas,
-                                        focused: focused && index == lead,
-                                        trailerURL: index == lead ? trailerURL : nil,
-                                        onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
-                            .offset(x: L.margin + CGFloat(index - lead) * (size.width + L.gap))
+                        card(item, focused: focused && index == lead, trailer: index == lead ? trailerURL : nil, size: size)
+                            .offset(x: L.margin + CGFloat(index - lead) * (size.width + row.gap))
                             .opacity(index < lead ? 0 : 1)
                             .transition(.identity)
                     }
@@ -390,8 +579,7 @@ private struct OrbitStudioRowView: View {
             }
             .offset(y: L.cardsTop)
 
-            // The focused film's meta line and two lines of synopsis, under the row.
-            if isCurrent, row.items.indices.contains(lead) {
+            if isCurrent, row.showsInfo, row.items.indices.contains(lead) {
                 let item = row.items[lead]
                 let info = OrbitInfo.make(item, meta: metaStore.meta(for: item))
                 VStack(alignment: .leading, spacing: 12) {
@@ -410,19 +598,34 @@ private struct OrbitStudioRowView: View {
                 }
                 .id("\(item.type):\(item.id)")
                 .transition(.opacity.animation(.easeInOut(duration: 0.2)))
-                .offset(x: L.margin + 4, y: L.cardsTop + size.height + 26)
+                .offset(x: L.margin + 4, y: L.cardsTop + size.height + 30)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
         .allowsHitTesting(false)
     }
+
+    @ViewBuilder
+    private func card(_ item: MetaPreview, focused: Bool, trailer: String?, size: CGSize) -> some View {
+        switch row.kind {
+        case .featured:
+            OrbitStudioCard(item: item, meta: metaStore.meta(for: item), size: size, focused: focused,
+                            trailerURL: trailer, onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+        case .sagas:
+            OrbitStudioCard(item: item, meta: metaStore.meta(for: item), size: size, saga: true, focused: focused,
+                            trailerURL: nil, onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+        case .posters(let transparent):
+            OrbitStudioPoster(item: item, size: size, transparent: transparent, focused: focused)
+        }
+    }
 }
 
-/// A film in large landscape: its art, its logo bottom-left; white frame and a lift when focused;
-/// its trailer in place after a rest.
+/// A film (or a saga) in landscape: its art, its logo (a saga: its name) bottom-left; white frame
+/// and a lift when focused; the trailer in place after a rest.
 private struct OrbitStudioCard: View {
     let item: MetaPreview
     let meta: OrbitMeta?
+    let size: CGSize
     var saga = false
     let focused: Bool
     let trailerURL: String?
@@ -431,7 +634,6 @@ private struct OrbitStudioCard: View {
 
     var body: some View {
         let L = OrbitStudioLayout.self
-        let size = L.cardSize
         let banner: String? = item.banner
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .bottomLeading) {
@@ -447,11 +649,21 @@ private struct OrbitStudioCard: View {
                     .frame(width: size.width, height: size.height)
                     .transition(.opacity.animation(.easeOut(duration: 0.5)))
             }
-            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .center, endPoint: .bottom)
-            OrbitTitleMark(name: item.name, logo: saga ? nil : info.logo,
-                           maxSize: CGSize(width: 260, height: 80), textSize: 30)
-                .padding(.leading, 20)
-                .padding(.bottom, 16)
+            LinearGradient(colors: [.clear, .black.opacity(saga ? 0.75 : 0.6)], startPoint: .center, endPoint: .bottom)
+            if saga {
+                Text(item.name)
+                    .font(.system(size: 30, weight: .heavy))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .shadow(color: .black.opacity(0.6), radius: 6)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+            } else {
+                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: size.width * 0.6, height: 80), textSize: 30)
+                    .padding(.leading, 20)
+                    .padding(.bottom, 16)
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
@@ -468,12 +680,49 @@ private struct OrbitStudioCard: View {
     }
 }
 
+/// A small portrait poster; Steven's transparent Top 10 images drawn as they are.
+private struct OrbitStudioPoster: View {
+    let item: MetaPreview
+    let size: CGSize
+    let transparent: Bool
+    let focused: Bool
+
+    var body: some View {
+        Group {
+            if transparent {
+                OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
+                    .frame(width: size.width, height: size.height)
+                    .animation(.easeOut(duration: 0.18)) { view in
+                        view.shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 20 : 8, y: 8)
+                    }
+            } else {
+                OrbitImage(url: item.poster, fallback: item.rawPosterUrl, size: size)
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .animation(.easeOut(duration: 0.18)) { view in
+                        view
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 4)
+                            }
+                            .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: 14, y: 8)
+                    }
+            }
+        }
+        .animation(.easeOut(duration: 0.18)) { view in
+            view.scaleEffect(focused ? 1.07 : 1, anchor: .leading)
+        }
+    }
+}
+
 // MARK: - Data
 
 /// The studio's TMDB data: its logo and figures, then the rows (the folder's catalogs first).
 @MainActor
 final class OrbitStudioModel: ObservableObject {
     @Published private(set) var rows: [OrbitStudioRow] = []
+    /// The banner's featured films.
+    @Published private(set) var heroItems: [MetaPreview] = []
     @Published private(set) var logo: String?
     @Published private(set) var statsLine: String?
     @Published private(set) var loading = true
@@ -520,7 +769,11 @@ final class OrbitStudioModel: ObservableObject {
             guard let self else { return }
             if self.logo == nil { self.logo = route.logo ?? found.logo }
             self.statsLine = Self.statsLine(network: route.isNetwork, count: found.count, since: found.since)
-            self.tmdbRows = found.rows.map { OrbitStudioRow(id: $0.id, title: $0.title, items: $0.items) }
+            self.tmdbRows = found.rows.map { raw in
+                let kind: OrbitStudioRowKind = raw.id == "best" ? .featured : raw.id == "sagas" ? .sagas
+                    : .posters(transparent: false)
+                return OrbitStudioRow(id: raw.id, title: raw.title, items: raw.items, kind: kind)
+            }
             self.loading = false
             self.publish()
         }
@@ -529,14 +782,32 @@ final class OrbitStudioModel: ObservableObject {
     private func applyFolder(_ strip: [FolderStripRow]) {
         folderRows = strip.compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
-            return OrbitStudioRow(id: "folder-\(row.id)", title: row.heading, items: items)
+            let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            let top10 = heading.contains("top 10") || heading.contains("top10")
+            return OrbitStudioRow(id: "folder-\(row.id)", title: row.heading, items: items,
+                                  kind: .posters(transparent: top10))
         }
         publish()
     }
 
+    /// The order: his Nouveautés and Top 10, then "Les incontournables", "Les sagas", and the rest
+    /// of the page's rows. Where the page has its own rows, his other catalogs are not drawn (they
+    /// repeat them); without them (TMDB unknown), every catalog shows.
     private func publish() {
-        let next = folderRows + tmdbRows
+        let own = !tmdbRows.isEmpty
+        let mine = own ? folderRows.filter { OrbitCatalogFilter.isKept($0.title) } : folderRows
+        let next = mine + tmdbRows
         if next != rows { rows = next }
+        // The banner: the newest films with art (his Nouveautés first), else the most popular.
+        let source = (mine.first { !$0.title.lowercased().contains("top") }?.items ?? [])
+            + (tmdbRows.first { $0.id == "popular" }?.items ?? [])
+        var seen = Set<String>()
+        let featured = source.filter { item in
+            let banner: String? = item.banner
+            return !(banner ?? "").isEmpty && seen.insert(item.name).inserted
+        }
+        let hero = Array(featured.prefix(5))
+        if hero.map(\.id) != heroItems.map(\.id) { heroItems = hero }
     }
 
     private static func statsLine(network: Bool, count: Int, since: String?) -> String {
@@ -544,7 +815,7 @@ final class OrbitStudioModel: ObservableObject {
         if count > 0 {
             parts.append(network ? String(localized: "\(count) séries") : String(localized: "\(count) films"))
         }
-        if let since { parts.append(String(localized: "depuis \(since)")) }
+        // No "depuis YYYY": TMDB's oldest dated film is often wrong (Disney showed 1983).
         return parts.joined(separator: " · ")
     }
 
