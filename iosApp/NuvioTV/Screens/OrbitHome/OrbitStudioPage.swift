@@ -322,7 +322,8 @@ struct OrbitStudioPage: View {
 
     private func select() {
         guard let item = focusedItem() else { return }
-        opening = TitleRoute(preview: item)
+        // A saga opens its first film, as that film (its own name and art, not the saga's).
+        opening = TitleRoute(preview: model.sagaFilms[item.id] ?? item)
     }
 
     /// Menu: back to the top from below it; at the top, the page closes.
@@ -597,8 +598,9 @@ private struct OrbitStudioRowView: View {
                         .frame(width: 1100, alignment: .leading)
                 }
                 .id("\(item.type):\(item.id)")
-                .transition(.opacity.animation(.easeInOut(duration: 0.2)))
-                .offset(x: L.margin + 4, y: L.cardsTop + size.height + 30)
+                // Fades in; leaves at once (it hung over the next row while the page moved).
+                .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.2)), removal: .identity))
+                .offset(x: L.margin + 4, y: L.cardsTop + size.height + (row.kind == .featured ? 30 : 46))
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
@@ -721,6 +723,8 @@ private struct OrbitStudioPoster: View {
 @MainActor
 final class OrbitStudioModel: ObservableObject {
     @Published private(set) var rows: [OrbitStudioRow] = []
+    /// A saga card's film (its first one), by the card's id.
+    @Published private(set) var sagaFilms: [String: MetaPreview] = [:]
     /// The banner's featured films.
     @Published private(set) var heroItems: [MetaPreview] = []
     @Published private(set) var logo: String?
@@ -769,6 +773,7 @@ final class OrbitStudioModel: ObservableObject {
             guard let self else { return }
             if self.logo == nil { self.logo = route.logo ?? found.logo }
             self.statsLine = Self.statsLine(network: route.isNetwork, count: found.count, since: found.since)
+            self.sagaFilms = found.sagaFilms
             self.tmdbRows = found.rows.map { raw in
                 let kind: OrbitStudioRowKind = raw.id == "best" ? .featured : raw.id == "sagas" ? .sagas
                     : .posters(transparent: false)
@@ -796,7 +801,18 @@ final class OrbitStudioModel: ObservableObject {
     private func publish() {
         let own = !tmdbRows.isEmpty
         let mine = own ? folderRows.filter { OrbitCatalogFilter.isKept($0.title) } : folderRows
-        let next = mine + tmdbRows
+        // "Les plus populaires" without the films of his Top 10 (it was the same row twice).
+        let topNames = Set(mine.filter { row in
+            if case .posters(transparent: true) = row.kind { return true }
+            return false
+        }.flatMap { $0.items.map { $0.name.lowercased() } })
+        let shown = tmdbRows.compactMap { row -> OrbitStudioRow? in
+            guard row.id == "popular", !topNames.isEmpty else { return row }
+            let trimmed = OrbitStudioRow(id: row.id, title: row.title,
+                                     items: row.items.filter { !topNames.contains($0.name.lowercased()) }, kind: row.kind)
+            return trimmed.items.count >= 5 ? trimmed : nil
+        }
+        let next = mine + shown
         if next != rows { rows = next }
         // The banner: the newest films with art (his Nouveautés first), else the most popular.
         let source = (mine.first { !$0.title.lowercased().contains("top") }?.items ?? [])
@@ -824,6 +840,19 @@ final class OrbitStudioModel: ObservableObject {
     nonisolated private struct SearchResponse: Decodable {
         nonisolated struct Hit: Decodable { let id: Int }
         let results: [Hit]?
+    }
+
+    nonisolated private struct CollectionResponse: Decodable {
+        nonisolated struct Part: Decodable {
+            let id: Int
+            let title: String?
+            let overview: String?
+            let release_date: String?
+            let poster_path: String?
+            let backdrop_path: String?
+            let vote_average: Double?
+        }
+        let parts: [Part]?
     }
 
     nonisolated private struct EntityResponse: Decodable {
@@ -868,7 +897,8 @@ final class OrbitStudioModel: ObservableObject {
     }
 
     nonisolated private static func load(ids: String, network: Bool, apiKey: String, language: String) async
-        -> (logo: String?, count: Int, since: String?, rows: [(id: String, title: String, items: [MetaPreview])]) {
+        -> (logo: String?, count: Int, since: String?, rows: [(id: String, title: String, items: [MetaPreview])],
+            sagaFilms: [String: MetaPreview]) {
         let lang = language.isEmpty ? "fr-FR" : language
         let media = network ? "tv" : "movie"
         let dateField = network ? "first_air_date" : "primary_release_date"
@@ -883,7 +913,7 @@ final class OrbitStudioModel: ObservableObject {
         let firstId = ids.split(whereSeparator: { $0 == "|" || $0 == "," }).first.map(String.init) ?? ids
         async let entity: EntityResponse? = decode("https://api.themoviedb.org/3/\(network ? "network" : "company")/\(firstId)?api_key=\(apiKey)")
         async let oldest = discover(base + "&sort_by=\(dateField).asc&\(dateField).lte=\(today)&vote_count.gte=5", tv: network)
-        async let best = discover(base + "&sort_by=vote_average.desc&vote_count.gte=300", tv: network)
+        async let best = discover(base + "&sort_by=vote_average.desc&vote_count.gte=300&with_runtime.gte=60", tv: network)
         async let popular = discover(base + "&sort_by=popularity.desc", tv: network)
         async let popular2 = discover(base + "&sort_by=popularity.desc&page=2", tv: network)
         async let upcoming = discover(base + "&sort_by=\(dateField).asc&\(dateField).gte=\(today)", tv: network)
@@ -892,6 +922,7 @@ final class OrbitStudioModel: ObservableObject {
             await (entity, oldest, best, popular, popular2, upcoming)
 
         var rows: [(id: String, title: String, items: [MetaPreview])] = []
+        var sagaFilms: [String: MetaPreview] = [:]
         if bestValue.items.count >= 5 { rows.append(("best", String(localized: "Les incontournables"), bestValue.items)) }
         let popularItems = popularValue.items + popular2Value.items
         if popularItems.count >= 5 { rows.append(("popular", String(localized: "Les plus populaires"), popularItems)) }
@@ -926,7 +957,46 @@ final class OrbitStudioModel: ObservableObject {
             }
             var sagaSeen = Set<String>()
             let unique = sagas.filter { sagaSeen.insert($0.rawPosterUrl ?? $0.name).inserted }
-            if unique.count >= 2 { rows.append(("sagas", String(localized: "Les sagas"), unique)) }
+            // Each saga's first film (the earliest released part): the card opens it.
+            let firsts = await withTaskGroup(of: (Int, MetaPreview?).self) { group in
+                for (index, card) in unique.enumerated() {
+                    group.addTask {
+                        let sagaId = (card.rawPosterUrl ?? "").replacingOccurrences(of: "saga:", with: "")
+                        guard let collection: CollectionResponse = await decode("https://api.themoviedb.org/3/collection/\(sagaId)?api_key=\(apiKey)&language=\(lang)") else {
+                            return (index, nil)
+                        }
+                        let released = (collection.parts ?? []).filter { !($0.release_date ?? "").isEmpty && ($0.release_date ?? "") <= today }
+                        guard let part = released.min(by: { ($0.release_date ?? "") < ($1.release_date ?? "") }),
+                              let title = part.title, !title.isEmpty else { return (index, nil) }
+                        let date = part.release_date
+                        return (index, MetaPreview(id: "tmdb:\(part.id)", type: "movie", name: title,
+                                                   poster: part.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                                                   banner: part.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
+                                                   logo: nil, posterShape: .poster,
+                                                   description: part.overview, releaseInfo: date.map { String($0.prefix(4)) },
+                                                   rawReleaseDate: date, popularity: nil, voteCount: nil,
+                                                   imdbRating: part.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
+                                                   genres: [], rawPosterUrl: nil, landscapePoster: nil,
+                                                   rawLandscapePosterUrl: nil, customPosterApplied: false))
+                    }
+                }
+                var out: [Int: MetaPreview] = [:]
+                for await (index, film) in group { if let film { out[index] = film } }
+                return out
+            }
+            var cards: [MetaPreview] = []
+            for (index, card) in unique.enumerated() {
+                guard let film = firsts[index] else { cards.append(card); continue }
+                // The card takes the first film's id (its meta, its logo); the saga's name and art stay.
+                cards.append(MetaPreview(id: film.id, type: "movie", name: card.name, poster: card.poster,
+                                         banner: card.banner, logo: nil, posterShape: .landscape,
+                                         description: film.description_, releaseInfo: film.releaseInfo,
+                                         rawReleaseDate: nil, popularity: nil, voteCount: nil, imdbRating: nil,
+                                         genres: [], rawPosterUrl: card.rawPosterUrl, landscapePoster: nil,
+                                         rawLandscapePosterUrl: nil, customPosterApplied: false))
+                sagaFilms[film.id] = film
+            }
+            if cards.count >= 2 { rows.append(("sagas", String(localized: "Les sagas"), cards)) }
         }
 
         if upcomingValue.items.count >= 3 { rows.append(("upcoming", String(localized: "Prochainement"), upcomingValue.items)) }
@@ -956,7 +1026,7 @@ final class OrbitStudioModel: ObservableObject {
 
         let since = oldestValue.items.first?.rawReleaseDate.map { String($0.prefix(4)) }
         return (entityValue?.logo_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
-                popularValue.total, since, rows)
+                popularValue.total, since, rows, sagaFilms)
     }
 
     nonisolated private static func decode<T: Decodable>(_ address: String) async -> T? {
