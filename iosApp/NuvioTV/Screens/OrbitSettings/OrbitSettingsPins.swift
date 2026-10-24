@@ -31,7 +31,7 @@ enum OrbitSettingsPins {
         "inline_trailers_enabled", "hero_nuvio_style",
         StageTrendingHeroSetting.defaultsKey, StageTrendingHeroSetting.fullBleedKey,
         "home_upcoming_row_enabled", FocusLeadsRow.defaultsKey, StageInfoBelow.defaultsKey,
-        "hero_trailer_autoplay", "trailer_playback_location", TrailerStartDelay.storageKey,
+        "hero_trailer_autoplay", "trailer_playback_location",
         // Detail page
         DetailSettingsKeys.layout, "detail_action_icons_only", DetailAppleStyle.defaultsKey,
         "detail_poster_backdrop", "detail_trailer_autoplay", "detail_trailer_duration", "trailer_audio_default_on",

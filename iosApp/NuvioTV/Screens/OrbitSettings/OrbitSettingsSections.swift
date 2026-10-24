@@ -96,6 +96,7 @@ struct OrbitPlaybackSection: View {
     @ObservedObject var model: SettingsViewModel
     @AppStorage(OrbitHomeSetting.trailersKey) private var previews = true
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
+    @AppStorage(TrailerStartDelay.storageKey) private var previewDelay = TrailerStartDelay.automatic.rawValue
 
     var body: some View {
         OrbitSettingsGroup(title: String(localized: "En regardant")) {
@@ -124,6 +125,21 @@ struct OrbitPlaybackSection: View {
                                     UserDefaults.standard.set(on, forKey: "detail_trailer_background")
                                     UserDefaults.standard.set(on, forKey: "inline_trailers_enabled")
                                 }))
+            if previews {
+                // Steven: when a trailer starts once the cursor stops on a title.
+                OrbitSettingsChoice(title: String(localized: "Délai avant la lecture"),
+                                    subtitle: String(localized: "Automatique : une seconde après l'arrêt du défilement."),
+                                    selection: $previewDelay,
+                                    options: TrailerStartDelay.allCases.map(\.rawValue),
+                                    label: { raw in
+                                        switch TrailerStartDelay(rawValue: raw) ?? .automatic {
+                                        case .automatic: return String(localized: "Automatique")
+                                        case .oneSecond: return "1 s"
+                                        case .twoSeconds: return "2 s"
+                                        case .threeSeconds: return "3 s"
+                                        }
+                                    })
+            }
             OrbitSettingsToggle(title: String(localized: "Masquer les spoilers"),
                                 subtitle: String(localized: "Floute les images et cache le résumé des épisodes pas encore vus."),
                                 isOn: $hideSpoilers)
