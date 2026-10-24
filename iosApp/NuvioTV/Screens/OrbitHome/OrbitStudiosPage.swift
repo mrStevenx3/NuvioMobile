@@ -27,6 +27,8 @@ struct OrbitStudiosPage: View {
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
     /// Each studio's colour, sampled from its backdrop (a known brand colour first).
     @State private var tints: [String: Color] = [:]
+    /// The way the focus went along the tiles (right: true): the studio's name slides that way.
+    @State private var forward = true
 
     @MainActor private static var lastFocused: String?
     @MainActor private static var leftWithFocus = false
@@ -130,6 +132,10 @@ struct OrbitStudiosPage: View {
             }
             withAnimation(.easeOut(duration: 0.2)) { lit = id }
             Self.lastFocused = id
+            if let from = folders.firstIndex(where: { $0.id == shownId }),
+               let to = folders.firstIndex(where: { $0.id == id }), from != to {
+                forward = to > from
+            }
             shownId = id
             if let folder = folders.first(where: { $0.id == id }) {
                 films.focus(title: folder.title)
@@ -206,6 +212,15 @@ struct OrbitStudiosPage: View {
     }
 
     /// The hero: the studio's logo, then its figures.
+    /// Steven (2026-10-24): the name slides out the way the focus went and the next one slides in
+    /// from the other side (right on the tiles: out to the left, in from the right).
+    private var slide: AnyTransition {
+        let distance: CGFloat = 90
+        return .asymmetric(
+            insertion: .offset(x: forward ? distance : -distance).combined(with: .opacity),
+            removal: .offset(x: forward ? -distance : distance).combined(with: .opacity))
+    }
+
     private func hero(_ folder: CollectionFolder?) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             ZStack(alignment: .bottomLeading) {
@@ -215,7 +230,7 @@ struct OrbitStudiosPage: View {
                         .frame(maxWidth: Self.logoSize.width, maxHeight: Self.logoSize.height, alignment: .bottomLeading)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)
-                        .transition(.opacity)
+                        .transition(slide)
                 } else if let title = folder?.title {
                     Text(title)
                         .font(.system(size: 64, weight: .heavy))
@@ -224,7 +239,7 @@ struct OrbitStudiosPage: View {
                         .minimumScaleFactor(0.5)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(title)
-                        .transition(.opacity)
+                        .transition(slide)
                 }
             }
             .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .bottomLeading)
@@ -235,7 +250,7 @@ struct OrbitStudiosPage: View {
                 .shadow(color: .black.opacity(0.5), radius: 8)
                 .frame(height: 34, alignment: .leading)
                 .id(films.statsLine ?? "-")
-                .transition(.opacity)
+                .transition(slide)
         }
         .allowsHitTesting(false)
     }
