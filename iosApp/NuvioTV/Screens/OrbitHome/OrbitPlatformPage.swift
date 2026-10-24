@@ -124,10 +124,8 @@ struct OrbitPlatformPage: View {
         return catalogs + more
     }
 
-    /// The same title across sources: its TMDB id when the add-on gives one ("tmdb:123"), else its
-    /// name and year.
+    /// The same title across sources (an add-on's "tt…" id, TMDB's "tmdb:…"): its name and year.
     private static func identity(_ item: MetaPreview) -> String {
-        if item.id.hasPrefix("tmdb:") { return item.id }
         let year: String = item.releaseInfo.map { String($0.prefix(4)) } ?? ""
         return item.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) + "|" + year
     }
