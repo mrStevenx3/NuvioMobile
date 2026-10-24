@@ -118,37 +118,3 @@ struct FilterChip: View {
     }
 }
 
-/// A shared header count line: the count text in `Theme.Font.meta` plus an optional stroked source
-/// badge (e.g. "TRAKT"). Renders nothing when both are empty. Place it in a
-/// `.firstTextBaseline` `HStack` beside the screen title.
-struct CountLine: View {
-    let text: String?
-    let badge: String?
-    var badgeAccessibilityLabel: String? = nil
-
-    var body: some View {
-        let countText = (text?.isEmpty == false) ? text : nil
-        if countText != nil || badge != nil {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.md) {
-                if let countText {
-                    Text(countText)
-                        .font(Theme.Font.meta)
-                        .foregroundStyle(Theme.Palette.textSecondary)
-                }
-                if let badge {
-                    Text(badge)
-                        .font(Theme.Font.caption)
-                        .tracking(2)
-                        .foregroundStyle(Theme.Palette.textSecondary)
-                        .padding(.horizontal, Theme.Spacing.xs)
-                        .padding(.vertical, Theme.Spacing.xxs)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: Theme.Radius.chip)
-                                .stroke(Theme.Palette.textSecondary, lineWidth: 1)
-                        }
-                        .accessibilityLabel(Text(badgeAccessibilityLabel ?? badge))
-                }
-            }
-        }
-    }
-}

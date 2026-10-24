@@ -60,19 +60,6 @@ struct ContentView: View {
     /// files belong to another wave, so `SettingsView`'s signature is deliberately untouched here.
     /// Not persisted: a cold launch must never steal focus into Appearance.
     @State private var pendingAppearanceRowFocus: String?
-    /// H9 (FEAT-45, replacing FEAT-30's Sidebar): the navigation chrome mode (`"tabs"` default /
-    /// `"rail"`; FEAT-30's stored `"sidebar"` reads as Rail and migrates once at launch). Read here
-    /// for ONE purpose — it is part of the rebuild key below. `NavigationChrome.isRail()` is what
-    /// the shell's own call sites read.
-    @AppStorage(NavigationChrome.styleKey) private var navigationStyle = "tabs"
-    /// H9: the rail's visibility (`"always"` default / `"browsing"` / FEAT-62's `"hidden"`), also a rebuild-key input only.
-    /// It changes the `Tab` closures structurally (Always Visible's inset), so it may only switch
-    /// across a remount (T3 / BUG-66, the same reasoning as the style).
-    @AppStorage(NavigationChrome.railVisibilityKey) private var railVisibility = "always"
-    /// FEAT-80 (Batch N): the rail's position, a rebuild-key input for the same reason as the
-    /// visibility: Corner reserves no leading width, Centre's Always Visible does. Joined RESOLVED
-    /// (rc8's stored "top" and "corner" are the same key), so no remount when nothing changed.
-    @AppStorage(NavigationChrome.railPositionKey) private var railPosition = NavigationChrome.RailPosition.centre.rawValue
     /// FEAT-31: the UI font family (`"system"` default / `"openSans"`). Also purely a rebuild-key
     /// input — `Theme.Font` resolves the family itself, and its tokens are static reads that only
     /// re-evaluate when the tree is re-identified, exactly like `Theme.Palette.accent`.
@@ -209,7 +196,7 @@ struct ContentView: View {
         //    `Palette.accent` uses, so it needs the same re-identification to take effect.
         // Selected tab, Settings path and the two focus hints above are all held ABOVE this
         // boundary, so a mode or font change costs the user nothing but the rebuild.
-        .id("\(appTheme.paletteKey)|\(navigationStyle)|\(railVisibility)|\(NavigationChrome.railPosition(raw: railPosition).rawValue)|\(uiFont)|\(discoverPlacementRaw)|\(discoverPlacementRevision)")
+        .id("\(appTheme.paletteKey)|\(uiFont)|\(discoverPlacementRaw)|\(discoverPlacementRevision)")
         .onAppear {
             auth.start()
             posterStyle.start()
@@ -346,11 +333,6 @@ struct ContentView: View {
                 break
             }
         }
-        #if DEBUG
-        // `debug.mpvSmokeURL`: present the real player over the root for sim validation of the
-        // libmpv path (see MPVSmokeTest.swift).
-        .modifier(MPVSmokeModifier())
-        #endif
     }
 
     /// Shared by `.onOpenURL` (a real Top Shelf launch) and, in DEBUG builds, the
@@ -492,15 +474,6 @@ struct MainTabView: View {
             }
         }
         .environment(\.tabBarVisibility, tabBarVisibility)
-        // BUG-66 evidence probe (2026-09-10): arms `TabBarStateProbe`'s on-device tab-bar geometry
-        // sampler once this view lands in a window. Hosted here (rather than inside a `Tab`
-        // closure, or in `HomeView.swift`, which this task may not edit) because `MainTabView`'s
-        // `TabView` is reachable from every tab and mounted exactly once for the whole shell —
-        // zero-sized and a no-op when the probe's toggle is off. Mounted in EVERY build, not just
-        // DEBUG: `TabBarStateProbe.enabled` is a launch-latched read of `debug.tabBarStateProbe`
-        // (TabBarStateProbe.swift) which the About pane's toggle writes in Release too, so a
-        // DEBUG-only armer meant every rc sample logged `NOT-FOUND state=unknown`.
-        .background(TabBarProbeArmer())
         // Steven's fork: the Orbit top bar, mounted outside every `Tab` closure.
         .overlay(alignment: .topLeading) {
             OrbitTopBar(selectedTab: $selectedTab,
@@ -531,10 +504,6 @@ struct MainTabView: View {
         }
         .onChange(of: selectedTab) { _, tab in
             tabBarVisibility.setHomeTabSelected(tab == 0)
-            // beta.18 verdict (BUG-66): `r=tab` now and `r=tab2` 0.6 s later in the Tab Bar
-            // Geometry pane — what the bar tracks after a switch is the half of BUG-66 the cold
-            // launch never showed. No-op unless that probe is armed.
-            TabBarStateProbe.noteTabSelected(tab)
         }
     }
 }

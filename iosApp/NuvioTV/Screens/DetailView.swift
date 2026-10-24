@@ -25,21 +25,3 @@ enum DetailBackdropURL {
     }
 }
 
-/// Batch M Wave 0 (BUG-153 regressed in rc9): launch-latched A/B knobs, one per rc7 → rc9 suspect,
-/// set per run with launch arguments (`-debug.detailImmediateTrailerMount YES`, …) and compared
-/// under `debug.detailScrollProbe`.
-enum DetailBug153Knobs {
-    /// Restores rc7's immediate trailer mount (Batch K deferred it until the scroll settles).
-    static let immediateTrailerMount = UserDefaults.standard.bool(forKey: "debug.detailImmediateTrailerMount")
-    /// Skips the FEAT-60 compact logo overlay (Batch C).
-    static let noCompactLogo = UserDefaults.standard.bool(forKey: "debug.detailNoCompactLogo")
-    /// Puts Trailers, Episodes and Season tiles back on `TileFocusLift` (BUG-177's ring path off).
-    static let noTileRing = UserDefaults.standard.bool(forKey: "debug.detailNoTileRing")
-    /// Batch M Wave 1: keeps the tile ring but drops the focused tile's black platter + 22 pt
-    /// shadow (`CardArtworkFocusLift.focusShadow`), the main suspect under the SwiftUI scale.
-    static let ringNoShadow = UserDefaults.standard.bool(forKey: "debug.detailTileRingNoShadow")
-    /// Batch M Wave 1: keeps the tile ring but snaps it: no animation on the ring branch's lift,
-    /// ring and band (`DetailTileFocusLift`), nor on the tile's own `value: isFocused` animation.
-    static let ringNoAnim = UserDefaults.standard.bool(forKey: "debug.detailTileRingNoAnim")
-}
-

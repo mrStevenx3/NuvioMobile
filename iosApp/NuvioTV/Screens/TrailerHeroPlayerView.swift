@@ -1124,9 +1124,6 @@ final class TrailerLetterboxProbe {
     /// container is ~2.55:1, and 2.55 / (16/9) = 1.435. (The 2.39:1 scope trailers UX-9 was filed
     /// over land at 1.344.) Anything past this is a measurement gone wrong, not a real bar.
     nonisolated static let maxZoom: CGFloat = 1.45
-    /// Every trailer surface is 16:9: the inline tile by construction (UX-4a sizes it
-    /// `posterHeight * 16/9`), the Detail hero and full-screen surfaces because they are the screen.
-    private static let cardAspect: Double = 16.0 / 9.0
 
     private static let sampleTarget = 5
     /// BUG-59: sample from the first quarter second (was 1.0 s — see the type doc). Black opening

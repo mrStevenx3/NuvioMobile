@@ -84,6 +84,22 @@ struct HomeView: View {
     }
 }
 
+extension HomeView {
+    /// The one-line description under a focused collection folder: the folder's own name (its
+    /// wordmark may be an image) and how many sources feed it.
+    nonisolated static func folderHeroDescription(collection: NuvioCollection, folder: CollectionFolder) -> String {
+        let name = folder.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sources = folder.resolvedSources.count
+        let count: String
+        switch sources {
+        case 0: count = String(localized: "Collection folder")
+        case 1: count = String(localized: "1 source")
+        default: count = String(localized: "\(sources) sources")
+        }
+        return name.isEmpty ? count : "\(name) \u{00B7} \(count)"
+    }
+}
+
 extension RowRestSource {
     /// beta.19-rc1 verdict (review r1, A P2): the rows have not moved for
     /// `TrailerStartGate.restQuiet`, whatever the settle corrector's pending flag says: `isAtRest()`

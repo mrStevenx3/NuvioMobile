@@ -69,9 +69,6 @@ final class TabBarVisibility: ObservableObject {
                 // Review r2 (P3-7): the probes record the pop only when it is published, so a
                 // dropped 1 → 0 → 1 crossing never logs a phantom `r=pop`.
                 TabBarProbe.recordPop(depthAfter: 0)
-                // beta.18 verdict (BUG-66): `r=pop` — what the bar tracks once the last immersive
-                // screen is gone (hardware checklist step 3). No-op unless the probe is armed.
-                TabBarStateProbe.notePop()
             }
         } else {
             TabBarProbe.recordPop(depthAfter: detailDepth)

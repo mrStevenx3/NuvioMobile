@@ -86,15 +86,6 @@ struct NuvioTVApp: App {
         // `row_edge_fade` is never overwritten. Before any row reads the setting.
         RowEdgeFadeSetting.migrateLegacy(UserDefaults.standard)
 
-        // Home Stage & Strip (H9, P4 R6): FEAT-30's stored `sidebar_style = "sidebar"` becomes
-        // `"rail"`, once and device-local. Reads the persistent domain only, so a `-sidebar_style
-        // sidebar` launch argument is never written to disk. Before the shell reads the mode.
-        NavigationChrome.migrateLegacy(UserDefaults.standard, domain: Bundle.main.bundleIdentifier ?? "")
-
-        // beta.19-rc1 verdict (F): `-debug.frameSamplerSteadyS N` opens a frame-timing window every
-        // N s for the Soft-vs-Off frame-time gate. Inert unless that knob is set.
-        CollectionFocusFrameSampler.shared.startSteadyWindowsIfConfigured()
-
         // FEAT-11: seed the shared hero-trailer audio state from the user's configured default
         // (PlaybackSettingsPane's "Trailer Sound by Default" toggle, same `trailer_audio_default_on`
         // key) so the very first trailer of a launch already respects it — DetailView otherwise
@@ -129,10 +120,6 @@ struct NuvioTVApp: App {
         // shielded via a registry.
         RemuxCacheJanitor.sweepAtLaunch()
 
-        #if DEBUG
-        // Phase 2 headless remux/HLS-server validation, gated on the `debug.remuxSmokeURL` default.
-        RemuxSmokeTest.runIfRequested()
-        #endif
 
         // BUG-59 (reveal gate): `debug.resetTrailerZoomStore` wipes the persisted per-title zoom
         // store at launch — the cold-store precondition the reveal-gate soak profile
