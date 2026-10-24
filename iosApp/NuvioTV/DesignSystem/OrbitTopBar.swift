@@ -52,7 +52,7 @@ final class HomeContentFilterModel: ObservableObject {
 // MARK: - Items
 
 private enum OrbitBarItem: Hashable, CaseIterable {
-    case search, films, series, library, discover, services, studios, settings
+    case search, films, series, library, discover, services, studios, settings, profile
 
     var title: String? {
         switch self {
@@ -80,6 +80,7 @@ private enum OrbitBarItem: Hashable, CaseIterable {
         case .library: return String(localized: "Library")
         case .discover: return String(localized: "Discover")
         case .settings: return String(localized: "Settings")
+        case .profile: return String(localized: "Profil")
         default: return title ?? ""
         }
     }
@@ -120,6 +121,8 @@ struct OrbitTopBar: View {
     let tabBarVisibility: TabBarVisibility
     /// Discover on its own tab (selection 6); otherwise the compass opens Search, which hosts it.
     let showsDiscover: Bool
+    /// Steven (2026-10-24): the profile's avatar at the end of the bar opens its page.
+    var activeProfile: NuvioProfile? = nil
 
     @ObservedObject private var homeFilter = HomeContentFilterModel.shared
     @ObservedObject private var barLock = OrbitBarLock.shared
@@ -141,7 +144,7 @@ struct OrbitTopBar: View {
             // of its own at the far right.
             Spacer(minLength: 0)
             pill([[.search, .films, .series, .library, .discover], [.services, .studios]])
-            pill([[.settings]])
+            pill([[.settings, .profile]])
         }
         .padding(.trailing, OrbitBarMetrics.leading)
         // Orbit Home: out of reach while the page is scrolled down (Up is the page's own).
@@ -220,7 +223,8 @@ struct OrbitTopBar: View {
                 }
                 ForEach(items, id: \.self) { item in
                 Button { select(item) } label: {
-                    OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
+                    OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item,
+                                      profile: activeProfile)
                 }
                 .buttonStyle(OrbitBarButtonStyle())
                 .focused($focused, equals: item)
@@ -257,6 +261,7 @@ struct OrbitTopBar: View {
         case .library: return selectedTab == 2
         case .discover: return selectedTab == 6
         case .settings: return selectedTab == 4
+        case .profile: return selectedTab == 5
         default: return false
         }
     }
@@ -280,6 +285,7 @@ struct OrbitTopBar: View {
         case .library: selectedTab = 2
         case .discover: selectedTab = showsDiscover ? 6 : 1
         case .settings: selectedTab = 4
+        case .profile: selectedTab = 5
         default: break
         }
     }
@@ -292,9 +298,37 @@ private struct OrbitBarItemLabel: View {
     let item: OrbitBarItem
     let selected: Bool
     let focused: Bool
+    var profile: NuvioProfile? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        if item == .profile {
+            avatar
+        } else {
+            plain
+        }
+    }
+
+    /// The profile: its avatar in a ring (white when focused, light when its page is open).
+    private var avatar: some View {
+        Group {
+            if let profile {
+                OrbitAvatar(profile: profile, size: OrbitBarMetrics.itemHeight - 10)
+            } else {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: OrbitBarMetrics.glyphSize, weight: .medium))
+                    .foregroundStyle(Color.white)
+                    .frame(width: OrbitBarMetrics.itemHeight - 10, height: OrbitBarMetrics.itemHeight - 10)
+            }
+        }
+        .padding(5)
+        .overlay(Circle().strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.5 : 0)), lineWidth: 3))
+        .frame(width: OrbitBarMetrics.itemHeight, height: OrbitBarMetrics.itemHeight)
+        .scaleEffect(focused && !reduceMotion ? OrbitBarMetrics.focusScale : 1)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: focused)
+    }
+
+    private var plain: some View {
         content
             .foregroundStyle(focused ? Color.black : Color.white)
             .frame(minWidth: OrbitBarMetrics.itemHeight, minHeight: OrbitBarMetrics.itemHeight)

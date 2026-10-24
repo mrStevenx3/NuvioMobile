@@ -161,6 +161,8 @@ struct ContentView: View {
                         rootCoverActive: deepLink != nil
                     )
                     .environmentObject(auth)
+                    // The profile page (Orbit) edits profiles through the app's one model.
+                    .environmentObject(profiles)
                     // FEAT-64: once a profile is entered, like Library/Detail's own
                     // `WatchedRepository.ensureLoaded()` (never before the profile is known).
                     .onAppear { WatchedBadgeIndex.shared.start() }
@@ -169,7 +171,8 @@ struct ContentView: View {
                     // applied while only this picker is mounted, or MainTabView mounts under the
                     // boot-time theme and the async watcher delivery remounts the whole shell
                     // ~70ms later (see AppThemeModel.reseedNow).
-                    ProfileSelectionView(model: profiles, onSelected: { appTheme.reseedNow(); entered = true })
+                    // Steven (2026-10-24): Orbit's own "Qui regarde ?".
+                    OrbitProfilePicker(model: profiles, onSelected: { appTheme.reseedNow(); entered = true })
                 }
             }
         }
@@ -506,7 +509,7 @@ struct MainTabView: View {
                     .railTabRoot(4)
             }
             Tab("Profile", systemImage: "person.crop.circle", value: 5) {
-                ProfileTabView(activeProfile: activeProfile, onSwitchProfile: onSwitchProfile)
+                OrbitProfilePage(activeProfile: activeProfile, onSwitchProfile: onSwitchProfile)
                     .tabBarImmersiveHide()
                     .railTabRoot(5)
             }
@@ -557,7 +560,8 @@ struct MainTabView: View {
             if NavigationChrome.isOrbitBar() {
                 OrbitTopBar(selectedTab: $selectedTab,
                             tabBarVisibility: tabBarVisibility,
-                            showsDiscover: showsDiscoverTab)
+                            showsDiscover: showsDiscoverTab,
+                            activeProfile: activeProfile)
             }
         }
         .overlay(alignment: .topLeading) {
@@ -606,38 +610,6 @@ struct MainTabView: View {
 
 /// The Profile tab: shows the active profile's avatar and name with a button to return to the
 /// "Who's watching?" picker. Replaces the old Home-header avatar shortcut.
-struct ProfileTabView: View {
-    let activeProfile: NuvioProfile?
-    let onSwitchProfile: () -> Void
-
-    var body: some View {
-        ZStack {
-            Theme.Palette.background.ignoresSafeArea()
-
-            VStack(spacing: Theme.Spacing.xl) {
-                if let profile = activeProfile {
-                    ProfileAvatar(profile: profile, size: 220)
-                    Text(profile.name)
-                        .font(Theme.Font.screenTitle)
-                        .foregroundStyle(Theme.Palette.textPrimary)
-                }
-
-                Button(action: onSwitchProfile) {
-                    Label("Switch Profile", systemImage: "arrow.left.arrow.right")
-                        .font(Theme.Font.body)
-                        .padding(.horizontal, Theme.Spacing.xl)
-                        .padding(.vertical, Theme.Spacing.md)
-                }
-                .buttonStyle(.chip)
-            }
-            .padding(Theme.Spacing.screen)
-        }
-        // FEAT-30 (Codex r2) / H9: Profile is a tab root too; with the system bar hidden in Rail
-        // mode a Menu press here needs the same route to the rail the other roots have.
-        .railMenuReveal()
-    }
-}
-
 /// FEAT-30 / H9: `.focusScope` over the tab shell, structurally absent in tabs mode.
 private struct ShellFocusScopeModifier: ViewModifier {
     let scope: Namespace.ID
