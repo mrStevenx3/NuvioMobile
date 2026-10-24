@@ -246,8 +246,7 @@ struct OrbitStudiosPage: View {
             ZStack(alignment: .bottomLeading) {
                 if let url = Self.logoURL(folder) {
                     OrbitBalancedLogo(url: url, area: 38_000, maxSize: Self.logoSize,
-                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading,
-                                      bolden: OrbitBalancedLogo.isThin(folder?.title ?? ""))
+                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)
                         .transition(slide)
@@ -341,13 +340,6 @@ struct OrbitBalancedLogo: View {
     let maxSize: CGSize
     var whiten = false
     var alignment: Alignment = .center
-    /// Thicken a thin logo (Pixar's lettering).
-    var bolden = false
-
-    static func isThin(_ raw: String) -> Bool {
-        raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).contains("pixar")
-    }
-
     @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
 
@@ -364,19 +356,7 @@ struct OrbitBalancedLogo: View {
                 let picture = Image(uiImage: image).resizable().aspectRatio(contentMode: .fit)
                 Group {
                     if whiten {
-                        let white = picture.colorMultiply(.black).colorInvert()
-                        if bolden {
-                            // A thin logo (Pixar) thickened: drawn a few times around itself.
-                            ZStack {
-                                ForEach(0..<8, id: \.self) { i in
-                                    let angle = Double(i) * .pi / 4
-                                    white.offset(x: cos(angle) * 1.4, y: sin(angle) * 1.4)
-                                }
-                                white
-                            }
-                        } else {
-                            white
-                        }
+                        picture.colorMultiply(.black).colorInvert()
                     } else {
                         picture
                     }
@@ -425,8 +405,7 @@ private struct OrbitStudioTile: View {
             if let logo = OrbitStudiosPage.logoURL(folder) {
                 OrbitBalancedLogo(url: logo, area: 7_600,
                                   maxSize: CGSize(width: size.width - 50, height: size.height - 40),
-                                  whiten: OrbitBalancedLogo.isGrey(folder.title), alignment: .center,
-                                  bolden: OrbitBalancedLogo.isThin(folder.title))
+                                  whiten: OrbitBalancedLogo.isGrey(folder.title), alignment: .center)
                     // The logos are white or light: kept white on the colour.
                     .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
             } else {
