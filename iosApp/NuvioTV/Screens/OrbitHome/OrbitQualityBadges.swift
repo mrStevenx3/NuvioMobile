@@ -165,12 +165,12 @@ struct OrbitQualityBadges: View {
         // Steven's own logo files first (the regex logos looked poor: small, padded, uneven).
         if let image = UIImage(named: asset), image.size.height > 0 {
             // Each logo at its height, but never wider than 80 pt (the wide marks come down).
-            let aspect = image.size.width / image.size.height
+            // Steven: the 4K mark looked stretched — drawn narrower than its file (`squeeze`).
+            let aspect = image.size.width / image.size.height * Self.squeeze(asset)
             let height = min(Self.logoHeight(asset), 80 / aspect)
             Image(asset)
                 .renderingMode(.template)
                 .resizable()
-                .aspectRatio(contentMode: .fit)
                 .foregroundStyle(Color.white.opacity(0.92))
                 .frame(width: height * aspect, height: height)
                 // Steven: every technical badge in a thin rounded frame, the age box's own stroke;
@@ -194,12 +194,17 @@ struct OrbitQualityBadges: View {
         switch asset {
         case "orbit-badge-dolby-vision", "orbit-badge-dolby-atmos": return 28
         case "orbit-badge-fullhd": return 28
-        case "orbit-badge-4k": return 13
+        case "orbit-badge-4k": return 16
         case "orbit-badge-hdr10plus", "orbit-badge-hdr10": return 24
         case "orbit-badge-hdr": return 13
         case "orbit-badge-sd", "orbit-badge-hd": return 13
         default: return 20
         }
+    }
+
+    /// How much narrower than its file a mark is drawn (1: as it is).
+    static func squeeze(_ asset: String) -> CGFloat {
+        asset == "orbit-badge-4k" ? 0.7 : 1
     }
 
     private func textBadge(_ text: String) -> some View {
