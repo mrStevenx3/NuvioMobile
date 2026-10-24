@@ -171,6 +171,7 @@ struct EntityBrowseView: View {
     @FocusState private var posterFocus: String?
     /// Back from a title opened here: the poster the engine gives back is kept (no redirect).
     @State private var returning = false
+    @State private var lastPoster: String?
 
     init(route: EntityRoute) {
         self.route = route
@@ -212,7 +213,8 @@ struct EntityBrowseView: View {
         }
         .onChange(of: posterFocus) { old, new in
             guard let new else { return }
-            if returning { returning = false; return }
+            if returning { returning = false; lastPoster = new; return }
+            lastPoster = new
             let rail = new.components(separatedBy: "#").first ?? ""
             let oldRail = old?.components(separatedBy: "#").first
             guard oldRail != rail,
@@ -227,7 +229,8 @@ struct EntityBrowseView: View {
         }
         .onDisappear {
             tabBarVisibility.popImmersive()
-            returning = posterFocus != nil
+            // (The focus is usually gone by now: the last poster focused tells it.)
+            returning = lastPoster != nil
         }
     }
 
