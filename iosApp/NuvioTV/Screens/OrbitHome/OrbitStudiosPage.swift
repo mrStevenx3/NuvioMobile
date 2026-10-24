@@ -2,14 +2,13 @@ import Combine
 import SharedCore
 import SwiftUI
 
-// Orbit Studios (Steven, 2026-10-24, second version): the Studios page in Orbit's own language —
-//  - the focused studio's backdrop over the whole screen, its logo and its figures
-//    ("Studio · 432 films") on the left as a hero;
-//  - the studios as landscape tiles, six to seven a screen, each its logo in white on its own
-//    colour (dimmed when another is focused, full when focused, with the white frame and a lift);
-//  - two rows of the focused studio's films in small portrait posters, in fixed places on the
-//    screen: "Nouveautés" (its real recent releases, no shorts) and "Les incontournables" (its
-//    best rated) — "Les plus populaires" takes a missing one's place (Ghibli: no recent film).
+// Orbit Studios (Steven, 2026-10-24, third version): the Studios page in Orbit's own language —
+//  - the page on the focused studio's colour; its backdrop whole in a large frame top right
+//    (rounded, a shadow, as on the platforms); on the left its logo, "Studio · 432 films" and its
+//    latest films;
+//  - the studios as landscape tiles, each its logo in white on its own colour;
+//  - one row of the studio's films in portrait posters: "Nouveautés" (its real recent releases,
+//    no shorts), or "Les incontournables" when it released few.
 // Down from the bar lands on the first studio (far left); entering a row lands on its first film;
 // up from the films, back on the studio whose films they are; back from a studio, the focus is
 // the studio it was opened from.
@@ -38,7 +37,9 @@ struct OrbitStudiosPage: View {
     static let tileSize = CGSize(width: 236, height: 133)
     static let tileSpacing: CGFloat = 24
     static let heroTop: CGFloat = 112
-    static let logoSize = CGSize(width: 380, height: 100)
+    static let logoSize = CGSize(width: 520, height: 150)
+    /// The framed backdrop, top right.
+    static let frameSize = CGSize(width: 820, height: 461)
 
     private var folders: [CollectionFolder] {
         var seen = Set<String>()
@@ -59,41 +60,29 @@ struct OrbitStudiosPage: View {
         let shown = shownFolder
         let selectedId = shownId ?? folders.first?.id
         ZStack(alignment: .topLeading) {
-            // Steven (2026-10-24, option B): the studio's colour over the page, its backdrop only
-            // at the top (behind the name and the tiles) as a banner melting into that colour —
-            // the posters sit on a calm ground (the Minions and Mario behind them were too busy).
+            // Steven (2026-10-24): the page on the studio's colour; its backdrop in a large frame
+            // top right (whole, no blur, a shadow as on the platforms) — the image no longer runs
+            // under the tiles and the posters.
             let ground = shown.map(tint) ?? OrbitPlatformBrand.color(title: "")
             ZStack {
                 OrbitHomeLayout.background
                 LinearGradient(stops: [
-                    .init(color: ground.opacity(0.75), location: 0),
-                    .init(color: ground.opacity(0.4), location: 0.55),
-                    .init(color: ground.opacity(0.18), location: 1),
+                    .init(color: ground.opacity(0.8), location: 0),
+                    .init(color: ground.opacity(0.42), location: 0.5),
+                    .init(color: ground.opacity(0.15), location: 1),
                 ], startPoint: .topLeading, endPoint: .bottomTrailing)
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: 0.4), value: shown?.id)
-            OrbitStudiosBackdrop(url: Self.backdropURL(shown), blurFrom: 1)
-                .mask {
-                    LinearGradient(stops: [
-                        .init(color: .black, location: 0),
-                        .init(color: .black.opacity(0.85), location: 0.3),
-                        .init(color: .clear, location: 0.52),
-                    ], startPoint: .top, endPoint: .bottom)
-                }
-                .ignoresSafeArea()
-            // The studio's name and figures read over any backdrop (a light veil, the backdrop
-            // has its own).
-            LinearGradient(stops: [
-                .init(color: .black.opacity(0.35), location: 0),
-                .init(color: .clear, location: 0.45),
-            ], startPoint: .leading, endPoint: .trailing)
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
+
+            OrbitStudioFrame(url: Self.backdropURL(shown))
+                .offset(x: L.screenWidth - L.margin - Self.frameSize.width, y: Self.heroTop)
 
             // Everything on one screen (no page scroll: it slid the studio's name under the bar).
             VStack(alignment: .leading, spacing: 0) {
                     hero(shown)
+                        .frame(width: L.screenWidth - 2 * L.margin - Self.frameSize.width - 50,
+                               height: Self.frameSize.height, alignment: .leading)
                         .padding(.leading, L.margin)
                         .padding(.top, Self.heroTop)
 
@@ -115,14 +104,12 @@ struct OrbitStudiosPage: View {
                     }
                     .scrollClipDisabled()
                     .padding(.vertical, -30)
-                    .padding(.top, 30)
+                    .padding(.top, 40)
                     .focusSection()
 
-                    // Two fixed slots: they never move, only their content changes.
+                    // One row (Steven): the studio's new films, or its essentials when it has few.
                     OrbitStudioFilmsRow(slot: 0)
-                        .padding(.top, 40)
-                    OrbitStudioFilmsRow(slot: 1)
-                        .padding(.top, 30)
+                        .padding(.top, 36)
             }
             .frame(width: L.screenWidth, alignment: .leading)
         }
@@ -180,8 +167,8 @@ struct OrbitStudiosPage: View {
 
     /// Every studio's backdrop fetched as the page opens (a change is instant), then its colour.
     private func prefetchBackdrops() {
-        let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.screenWidth,
-                                                         height: OrbitHomeLayout.screenHeight),
+        let request = ArtworkDecodeRequest(size: .points(width: Self.frameSize.width,
+                                                         height: Self.frameSize.height),
                                            fill: true, scale: displayScale)
         let jobs: [(id: String, raw: String, url: URL)] = folders.compactMap { folder in
             guard let raw = Self.backdropURL(folder), let url = URL(string: raw) else { return nil }
@@ -271,8 +258,40 @@ struct OrbitStudiosPage: View {
                 .frame(height: 34, alignment: .leading)
                 .id(films.statsLine ?? "-")
                 .transition(slide)
+            if let latest = films.latestLine {
+                Text(latest)
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.7))
+                    .lineLimit(2)
+                    .id(latest)
+                    .transition(slide)
+            }
         }
         .allowsHitTesting(false)
+    }
+}
+
+/// The studio's backdrop in a frame: whole, rounded, a soft shadow; a new studio's image fades in
+/// over the old one.
+private struct OrbitStudioFrame: View {
+    let url: String?
+
+    var body: some View {
+        let size = OrbitStudiosPage.frameSize
+        let radius: CGFloat = 22
+        ZStack {
+            Color(white: 0.1)
+            OrbitSwapImage(url: url, fallback: nil, size: size)
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1.5)
+        }
+        .shadow(color: .black.opacity(0.5), radius: 30, y: 16)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -340,6 +359,8 @@ final class OrbitStudioFilmsModel: ObservableObject {
     @Published private(set) var rows: [(title: String, items: [MetaPreview])] = []
     /// "Studio · 432 films".
     @Published private(set) var statsLine: String?
+    /// "Derniers films : Thunderbolts*, Les 4 Fantastiques".
+    @Published private(set) var latestLine: String?
 
     private struct Found {
         var recent: [MetaPreview]
@@ -383,7 +404,7 @@ final class OrbitStudioFilmsModel: ObservableObject {
         guard let companies = Self.companies(forTitle: folderTitle) else {
             pending?.cancel()
             current = nil
-            withAnimation(.easeInOut(duration: 0.25)) { title = nil; rows = []; statsLine = nil }
+            withAnimation(.easeInOut(duration: 0.25)) { title = nil; rows = []; statsLine = nil; latestLine = nil }
             return
         }
         guard companies != current else { return }
@@ -414,7 +435,10 @@ final class OrbitStudioFilmsModel: ObservableObject {
         let bestIds = Set(found.best.prefix(20).map(\.id))
         let popular = found.popular.filter { !bestIds.contains($0.id) }
         if popular.count >= 3 { list.append((String(localized: "Les plus populaires"), popular)) }
-        rows = Array(list.prefix(2))
+        // One row: the new films when there are enough, else the essentials.
+        rows = Array((found.recent.count >= 6 ? list : list.filter { $0.title != String(localized: "Nouveautés") }).prefix(1))
+        let latest = found.recent.prefix(2).map(\.name)
+        latestLine = latest.isEmpty ? nil : String(localized: "Derniers films : \(latest.joined(separator: ", "))")
         statsLine = found.count > 0 ? String(localized: "Studio · \(found.count) films") : String(localized: "Studio")
     }
 
