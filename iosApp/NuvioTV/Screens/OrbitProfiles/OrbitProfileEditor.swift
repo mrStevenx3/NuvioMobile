@@ -13,11 +13,11 @@ struct OrbitProfileEditor: View {
     @State private var name: String
     @State private var colorHex: String
     @State private var avatarId: String?
+    /// The picture's address: an Orbit avatar, or a custom one set elsewhere (the phone app).
+    @State private var avatarUrl: String?
     @State private var confirmingDelete = false
     @FocusState private var nameFocused: Bool
 
-    /// A custom avatar set elsewhere (the phone app): kept unless an avatar or a colour is picked.
-    private let originalCustomAvatarUrl: String?
 
     init(model: ProfilesViewModel, target: OrbitProfileEditTarget) {
         self.model = model
@@ -25,7 +25,7 @@ struct OrbitProfileEditor: View {
         _name = State(initialValue: target.profile?.name ?? "")
         _colorHex = State(initialValue: target.profile?.avatarColorHex ?? OrbitProfileColor.palette[1])
         _avatarId = State(initialValue: target.profile?.avatarId)
-        originalCustomAvatarUrl = target.profile?.avatarId == nil ? target.profile?.avatarUrl : nil
+        _avatarUrl = State(initialValue: target.profile?.avatarId == nil ? target.profile?.avatarUrl : nil)
     }
 
     private var catalogItem: AvatarCatalogItem? {
@@ -71,12 +71,30 @@ struct OrbitProfileEditor: View {
                                 .frame(width: 900)
                         }
 
+                        section(String(localized: "Avatars Orbit")) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
+                                      alignment: .leading, spacing: 26) {
+                                ForEach(OrbitAvatarCatalog.all) { avatar in
+                                    Button {
+                                        avatarId = nil
+                                        avatarUrl = avatar.url
+                                    } label: {
+                                        CachedAsyncImage(string: avatar.url, decodeSize: .points(width: 130, height: 130))
+                                            .frame(width: 112, height: 112)
+                                            .clipShape(Circle())
+                                    }
+                                    .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == avatar.url))
+                                    .accessibilityLabel(avatar.name)
+                                }
+                            }
+                        }
+
                         if !model.avatars.isEmpty {
-                            section(String(localized: "Avatar")) {
+                            section(String(localized: "Avatars Nuvio")) {
                                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
                                           alignment: .leading, spacing: 26) {
                                     // A plain colour (no avatar).
-                                    Button { avatarId = nil } label: {
+                                    Button { avatarId = nil; avatarUrl = nil } label: {
                                         ZStack {
                                             Circle().fill(color)
                                             Text(OrbitProfileColor.initial(name))
@@ -85,11 +103,11 @@ struct OrbitProfileEditor: View {
                                         }
                                         .frame(width: 112, height: 112)
                                     }
-                                    .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && originalCustomAvatarUrl == nil))
+                                    .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == nil))
                                     .accessibilityLabel(String(localized: "Couleur unie"))
 
                                     ForEach(model.avatars, id: \.id) { item in
-                                        Button { avatarId = item.id } label: {
+                                        Button { avatarId = item.id; avatarUrl = nil } label: {
                                             CachedAsyncImage(string: ProfileModelsKt.avatarStorageUrl(storagePath: item.storagePath),
                                                              decodeSize: .points(width: 130, height: 130))
                                                 .frame(width: 112, height: 112)
@@ -108,12 +126,13 @@ struct OrbitProfileEditor: View {
                                     Button {
                                         colorHex = hex
                                         avatarId = nil
+                                        avatarUrl = nil
                                     } label: {
                                         Circle()
                                             .fill(Color(hexString: hex) ?? .gray)
                                             .frame(width: 76, height: 76)
                                     }
-                                    .buttonStyle(OrbitSwatchStyle(selected: hex == colorHex && avatarId == nil))
+                                    .buttonStyle(OrbitSwatchStyle(selected: hex == colorHex && avatarId == nil && avatarUrl == nil))
                                 }
                             }
                         }
@@ -166,7 +185,7 @@ struct OrbitProfileEditor: View {
                 CachedAsyncImage(string: ProfileModelsKt.avatarStorageUrl(storagePath: item.storagePath),
                                  decodeSize: .points(width: size * 1.2, height: size * 1.2))
                     .clipShape(Circle())
-            } else if let url = originalCustomAvatarUrl, avatarId == nil {
+            } else if let url = avatarUrl, avatarId == nil {
                 CachedAsyncImage(string: url, decodeSize: .points(width: size * 1.2, height: size * 1.2))
                     .clipShape(Circle())
             } else {
@@ -193,10 +212,10 @@ struct OrbitProfileEditor: View {
         guard !model.isBusy else { return }
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         let finalName = trimmed.isEmpty ? String(localized: "Profil") : trimmed
-        // An avatar: its id and its address (shown on other devices without the catalogue). A
-        // colour: neither. An untouched custom avatar: kept.
+        // A Nuvio avatar: its id and its address (shown on other devices without the catalogue).
+        // An Orbit or custom avatar: its address. A colour: neither.
         let finalAvatarUrl: String? = catalogItem.map { ProfileModelsKt.avatarStorageUrl(storagePath: $0.storagePath) }
-            ?? originalCustomAvatarUrl
+            ?? avatarUrl
         if let profile = target.profile {
             model.updateProfile(profile, name: finalName, colorHex: colorHex,
                                 avatarId: avatarId, avatarUrl: finalAvatarUrl) { dismiss() }
