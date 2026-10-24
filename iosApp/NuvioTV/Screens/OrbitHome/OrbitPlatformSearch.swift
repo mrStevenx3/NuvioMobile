@@ -20,16 +20,36 @@ final class OrbitPlatformSearchModel: ObservableObject {
     @Published private(set) var titles: [MetaPreview] = []
     @Published private(set) var queryIsEmpty = true
     @Published private(set) var searching = false
+    /// Recent searches on this platform (shown while the field is empty, like the general Search).
+    @Published private(set) var history: [String] = []
+    /// The platform's art is landscape: the results are landscape tiles.
+    let landscape: Bool
 
     private let tabs: [FolderTab]
+    private let historyKey: String
     private var task: Task<Void, Never>?
+    private(set) var query = ""
 
-    init(tabs: [FolderTab]) {
+    init(tabs: [FolderTab], platformKey: String, landscape: Bool) {
         self.tabs = tabs
+        self.landscape = landscape
+        historyKey = "orbit_platform_search_history.\(platformKey)"
+        history = UserDefaults.standard.stringArray(forKey: historyKey) ?? []
+    }
+
+    /// A title opened from the results: its search goes to the top of the recent ones.
+    func recordSearch() {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count >= 2 else { return }
+        var list = history.filter { $0.lowercased() != text.lowercased() }
+        list.insert(text, at: 0)
+        history = Array(list.prefix(10))
+        UserDefaults.standard.set(history, forKey: historyKey)
     }
 
     func queryChanged(_ raw: String) {
         let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.query = query
         task?.cancel()
         queryIsEmpty = query.isEmpty
         guard query.count >= 2 else {
@@ -57,13 +77,18 @@ final class OrbitPlatformSearchModel: ObservableObject {
 
     var feed: OrbitSearchFeed {
         OrbitSearchFeed(
-            changes: Publishers.Merge(
+            changes: Publishers.Merge3(
                 $titles.map { _ in () }.eraseToAnyPublisher(),
-                $queryIsEmpty.map { _ in () }.eraseToAnyPublisher()
+                $queryIsEmpty.map { _ in () }.eraseToAnyPublisher(),
+                $history.map { _ in () }.eraseToAnyPublisher()
             ).eraseToAnyPublisher(),
             read: { [weak self] in
-                OrbitSearchFeed.Snapshot(queryIsEmpty: self?.queryIsEmpty ?? true, chips: [],
-                                         titles: self?.titles ?? [])
+                guard let self else { return OrbitSearchFeed.Snapshot(queryIsEmpty: true, chips: [], titles: []) }
+                // As on the general Search: the recent searches while the field is empty, else
+                // the names of what was found.
+                let chips = self.queryIsEmpty ? self.history
+                    : SearchGridResults.entries(suggestions: [], items: self.titles, limit: 10)
+                return OrbitSearchFeed.Snapshot(queryIsEmpty: self.queryIsEmpty, chips: chips, titles: self.titles)
             }
         )
     }
@@ -80,7 +105,11 @@ struct OrbitPlatformSearchLayer: View {
         ZStack(alignment: .topLeading) {
             Color.black.opacity(0.94).ignoresSafeArea()
             OrbitPlatformSearchContainer(model: model, placeholder: String(localized: "Rechercher sur \(platform)"),
-                                         onOpen: onOpen, onClose: onClose)
+                                         onOpen: { item in
+                                             model.recordSearch()
+                                             onOpen(item)
+                                         },
+                                         onClose: onClose)
                 .ignoresSafeArea()
             if !model.queryIsEmpty, !model.searching, model.titles.isEmpty {
                 Text(String(localized: "Aucun titre sur \(platform) ne correspond."))
@@ -103,8 +132,11 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
     func makeUIViewController(context: Context) -> UIViewController {
-        let results = OrbitSearchResultsController(feed: model.feed, onPick: { _ in }, onOpen: onOpen)
+        let coordinator = context.coordinator
+        let results = OrbitSearchResultsController(feed: model.feed, landscape: model.landscape,
+                                                   onPick: { coordinator.setQuery($0) }, onOpen: onOpen)
         let search = UISearchController(searchResultsController: results)
+        coordinator.search = search
         search.searchResultsUpdater = context.coordinator
         search.obscuresBackgroundDuringPresentation = false
         search.searchBar.placeholder = placeholder
@@ -132,7 +164,15 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
     @MainActor
     final class Coordinator: NSObject, UISearchResultsUpdating {
         let model: OrbitPlatformSearchModel
+        weak var search: UISearchController?
         private var last = ""
+
+        /// A suggestion or a recent search picked from the line.
+        func setQuery(_ text: String) {
+            search?.searchBar.text = text
+            last = text
+            model.queryChanged(text)
+        }
 
         init(model: OrbitPlatformSearchModel) {
             self.model = model

@@ -50,6 +50,9 @@ struct OrbitSearchFeed {
 @MainActor
 final class OrbitSearchResultsController: UIViewController, UICollectionViewDelegate {
     private let feed: OrbitSearchFeed
+    /// Orbit Plateformes: a platform whose art is landscape (Prime Video, Paramount+ in Steven's
+    /// add-ons) shows its results as landscape tiles, four to a line.
+    private let landscape: Bool
     private let onPick: (String) -> Void
     private let onOpen: (MetaPreview) -> Void
 
@@ -65,6 +68,7 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     private var cancellables = Set<AnyCancellable>()
 
     static let columns = 7
+    static let landscapeColumns = 4
     static let margin: CGFloat = OrbitHomeLayout.margin
     static let spacing: CGFloat = 30
 
@@ -72,8 +76,10 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         self.init(feed: .search(model), onPick: onPick, onOpen: onOpen)
     }
 
-    init(feed: OrbitSearchFeed, onPick: @escaping (String) -> Void, onOpen: @escaping (MetaPreview) -> Void) {
+    init(feed: OrbitSearchFeed, landscape: Bool = false,
+         onPick: @escaping (String) -> Void, onOpen: @escaping (MetaPreview) -> Void) {
         self.feed = feed
+        self.landscape = landscape
         self.onPick = onPick
         self.onOpen = onOpen
         super.init(nibName: nil, bundle: nil)
@@ -84,7 +90,7 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: Self.layout())
+        collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: Self.layout(landscape: landscape))
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.backgroundColor = .clear
         // The page picks the focused cell itself on Menu (`focusFirstLine`).
@@ -134,10 +140,13 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     private var posterLoaded: [String: Bool] = [:]
     private var reapplyScheduled = false
 
+    private var columns: Int { landscape ? Self.landscapeColumns : Self.columns }
+
     private var posterRequest: ArtworkDecodeRequest {
         let width = (view.bounds.width > 0 ? view.bounds.width : OrbitHomeLayout.screenWidth) - 2 * Self.margin
-        let posterWidth = floor((width - CGFloat(Self.columns - 1) * Self.spacing) / CGFloat(Self.columns))
-        return ArtworkDecodeRequest(size: .points(width: posterWidth, height: floor(posterWidth * 1.5)),
+        let posterWidth = floor((width - CGFloat(columns - 1) * Self.spacing) / CGFloat(columns))
+        let ratio: CGFloat = landscape ? 9.0 / 16.0 : 1.5
+        return ArtworkDecodeRequest(size: .points(width: posterWidth, height: floor(posterWidth * ratio)),
                                     fill: true, scale: traitCollection.displayScale)
     }
 
@@ -191,7 +200,7 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         while let v = view, !(v is UICollectionViewCell) { view = v.superview }
         guard let cell = view as? UICollectionViewCell, let path = collectionView.indexPath(for: cell) else { return nil }
         if path.section == Section.suggestions.rawValue { return (true, 0, 0) }
-        return (false, path.item / Self.columns, path.item % Self.columns)
+        return (false, path.item / columns, path.item % columns)
     }
 
     /// Scrolls back to the top and names the first line's cell in `column` as the focus target.
@@ -238,7 +247,7 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
 
     var restoredCell: UIView? { lastOpened.flatMap { collectionView.cellForItem(at: $0) } }
 
-    private static func layout() -> UICollectionViewCompositionalLayout {
+    private static func layout(landscape: Bool) -> UICollectionViewCompositionalLayout {
         UICollectionViewCompositionalLayout { index, environment in
             if index == Section.suggestions.rawValue {
                 let item = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .estimated(220), heightDimension: .absolute(64)))
@@ -251,13 +260,15 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
                 section.contentInsets = .init(top: 0, leading: margin, bottom: 34, trailing: margin)
                 return section
             }
+            let count = landscape ? landscapeColumns : columns
             let width = environment.container.effectiveContentSize.width - 2 * margin
-            let posterWidth = floor((width - CGFloat(columns - 1) * spacing) / CGFloat(columns))
+            let posterWidth = floor((width - CGFloat(count - 1) * spacing) / CGFloat(count))
+            let height = floor(posterWidth * (landscape ? 9.0 / 16.0 : 1.5))
             let item = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .absolute(posterWidth),
-                                                                heightDimension: .absolute(floor(posterWidth * 1.5))))
+                                                                heightDimension: .absolute(height)))
             let group = NSCollectionLayoutGroup.horizontal(layoutSize: .init(widthDimension: .fractionalWidth(1),
-                                                                             heightDimension: .absolute(floor(posterWidth * 1.5))),
-                                                           repeatingSubitem: item, count: columns)
+                                                                             heightDimension: .absolute(height)),
+                                                           repeatingSubitem: item, count: count)
             group.interItemSpacing = .fixed(spacing)
             let section = NSCollectionLayoutSection(group: group)
             section.interGroupSpacing = spacing + 12

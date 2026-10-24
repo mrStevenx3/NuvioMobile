@@ -70,6 +70,8 @@ enum CollectionRemoteSearch {
             let description: String?
             let releaseInfo: String?
             let imdbRating: String?
+            /// Steven's landscape platforms (Prime Video, Paramount+) declare "landscape".
+            let posterShape: String?
         }
         let metas: [Meta]?
     }
@@ -109,7 +111,8 @@ enum CollectionRemoteSearch {
                     return (decoded.metas ?? []).map { meta in
                         MetaPreview(id: meta.id, type: meta.type ?? target.type, name: meta.name ?? "",
                                     poster: meta.poster, banner: meta.background, logo: nil,
-                                    posterShape: .poster,
+                                    posterShape: meta.posterShape?.lowercased() == "landscape" ? .landscape
+                                        : (meta.posterShape?.lowercased() == "square" ? .square : .poster),
                                     description: meta.description, releaseInfo: meta.releaseInfo, rawReleaseDate: nil,
                                     popularity: nil, voteCount: nil, imdbRating: meta.imdbRating,
                                     genres: [],
