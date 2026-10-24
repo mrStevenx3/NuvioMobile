@@ -2,42 +2,41 @@ import Combine
 import SharedCore
 import SwiftUI
 
-// Orbit Studios (Steven, 2026-10-23): the Studios page, from top to bottom —
-//  - the focused studio's backdrop over the whole screen (its bottom blurred under the content),
-//    the studio's logo top left on the Orbit bar's line;
-//  - Steven's own studio icons (vertical, a cinema poster's shape) on one line, the focused one
-//    clearly larger with the white frame and a shadow, its neighbours a little back;
-//  - "Nouveaux films <studio>": the studio's films of the last year on TMDB (most popular first,
-//    topped up with its popular films when it released few), following the focused studio,
-//    scrolling sideways.
-// Down from the bar lands on the first studio (far left); entering the films row lands on its
-// first film; back from a studio, the focus is the studio it was opened from.
+// Orbit Studios (Steven, 2026-10-24, second version): the Studios page in Orbit's own language —
+//  - the focused studio's backdrop over the whole screen, its logo and its figures
+//    ("Studio · 432 films") on the left as a hero;
+//  - the studios as landscape tiles, six to seven a screen, each its logo in white on its own
+//    colour (dimmed when another is focused, full when focused, with the white frame and a lift);
+//  - two rows of the focused studio's films in small portrait posters: "Nouveautés" (its real
+//    recent releases, no shorts) and "Les incontournables" (its best rated); the second shows at
+//    the bottom of the screen and the page rises to it.
+// Down from the bar lands on the first studio (far left); entering a row lands on its first film;
+// up from the films, back on the studio whose films they are; back from a studio, the focus is
+// the studio it was opened from.
 
 struct OrbitStudiosPage: View {
     let collection: NuvioCollection
 
     @FocusState private var focused: String?
-    /// The icon drawn as focused: `focused`, followed in an explicit animation (Steven: going
-    /// down to the films, the icon snapped back to its size — the focus engine's own update
-    /// carried no animation).
+    /// The tile drawn as focused: `focused`, followed in an explicit animation.
     @State private var lit: String?
     @Environment(\.displayScale) private var displayScale
     /// The studio the page shows (backdrop, logo, films): the focused one, kept when the focus
     /// goes down to the films.
     @State private var shownId: String?
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
-    /// Each studio's colour, sampled from its backdrop (the focused icon takes it).
+    /// Each studio's colour, sampled from its backdrop (a known brand colour first).
     @State private var tints: [String: Color] = [:]
 
     @MainActor private static var lastFocused: String?
     @MainActor private static var leftWithFocus = false
     @MainActor private static var restoringUntil: TimeInterval = 0
+    @MainActor private static var lostTilesAt: TimeInterval = 0
 
-    static let tileWidth: CGFloat = 190
-    static var tileHeight: CGFloat { floor(tileWidth * 1.5) }
-    static let tileSpacing: CGFloat = 30
-    static let tilesTop: CGFloat = 268
-    static let logoSize = CGSize(width: 400, height: 120)
+    static let tileSize = CGSize(width: 252, height: 142)
+    static let tileSpacing: CGFloat = 26
+    static let heroTop: CGFloat = 150
+    static let logoSize = CGSize(width: 420, height: 120)
 
     private var folders: [CollectionFolder] {
         var seen = Set<String>()
@@ -48,49 +47,63 @@ struct OrbitStudiosPage: View {
         folders.first { $0.id == shownId } ?? folders.first
     }
 
+    private func tint(_ folder: CollectionFolder) -> Color {
+        OrbitPlatformBrand.known(title: folder.title) ?? tints[folder.id] ?? OrbitPlatformBrand.color(title: folder.title)
+    }
+
     var body: some View {
         let L = OrbitHomeLayout.self
         let folders = folders
         let shown = shownFolder
+        let selectedId = shownId ?? folders.first?.id
         ZStack(alignment: .topLeading) {
             OrbitStudiosBackdrop(url: Self.backdropURL(shown), blurFrom: 0.3)
                 .ignoresSafeArea()
+            // The left reads over any backdrop.
+            LinearGradient(stops: [
+                .init(color: .black.opacity(0.7), location: 0),
+                .init(color: .black.opacity(0.25), location: 0.5),
+                .init(color: .clear, location: 0.8),
+            ], startPoint: .leading, endPoint: .trailing)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
 
-            logo(shown)
-                .padding(.leading, L.margin)
-                .padding(.top, 28)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    hero(shown)
+                        .padding(.leading, L.margin)
+                        .padding(.top, Self.heroTop)
 
-            VStack(alignment: .leading, spacing: 44) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Self.tileSpacing) {
-                        ForEach(folders, id: \.id) { folder in
-                            NavigationLink(value: OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)) {
-                                OrbitStudioTile(folder: folder,
-                                                collectionBackdropUrl: collection.backdropImageUrl,
-                                                focused: lit == folder.id,
-                                                // The studio whose films are below stays marked
-                                                // while the focus is on them (Steven: it snapped
-                                                // back to its plain size going down).
-                                                selected: lit == nil && folder.id == (shownId ?? folders.first?.id),
-                                                dimmed: lit != nil ? lit != folder.id
-                                                    : folder.id != (shownId ?? folders.first?.id),
-                                                tint: tints[folder.id])
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Self.tileSpacing) {
+                            ForEach(folders, id: \.id) { folder in
+                                NavigationLink(value: OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)) {
+                                    OrbitStudioTile(folder: folder,
+                                                    focused: lit == folder.id,
+                                                    selected: lit == nil && folder.id == selectedId,
+                                                    tint: tint(folder))
+                                }
+                                .buttonStyle(OrbitPlatformTileStyle())
+                                .focused($focused, equals: folder.id)
                             }
-                            .buttonStyle(OrbitPlatformTileStyle())
-                            .focused($focused, equals: folder.id)
                         }
+                        .padding(.vertical, 30)
+                        .padding(.horizontal, L.margin)
                     }
-                    .padding(.vertical, 30)
-                    .padding(.horizontal, L.margin)
-                }
-                .scrollClipDisabled()
-                .padding(.vertical, -30)
-                .focusSection()
+                    .scrollClipDisabled()
+                    .padding(.vertical, -30)
+                    .padding(.top, 40)
+                    .focusSection()
 
-                OrbitStudioFilmsRow()
-                    .padding(.leading, L.margin)
+                    OrbitStudioFilmsRow(kind: .recent)
+                        .padding(.top, 54)
+                    OrbitStudioFilmsRow(kind: .best)
+                        .padding(.top, 46)
+                        .padding(.bottom, 120)
+                }
+                .frame(width: L.screenWidth, alignment: .leading)
             }
-            .padding(.top, Self.tilesTop)
+            .scrollClipDisabled()
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .ignoresSafeArea()
@@ -100,25 +113,23 @@ struct OrbitStudiosPage: View {
         .onChange(of: focused) { old, id in
             guard let id else {
                 if old != nil { Self.lostTilesAt = ProcessInfo.processInfo.systemUptime }
-                withAnimation(.easeInOut(duration: 0.35)) { lit = nil }
+                withAnimation(.easeInOut(duration: 0.3)) { lit = nil }
                 return
             }
             let now = ProcessInfo.processInfo.systemUptime
-            // Down from the bar: the first studio, not the one under the bar's button. Not on a
-            // return from a studio, nor coming back up from the films.
-            // Steven: up from the films, back on the studio whose films they are (the engine picked
-            // the tile above the film).
+            // Up from the films: back on the studio whose films they are.
             let fromFilms = OrbitStudioFilmsRow.hasFocus || now - OrbitStudioFilmsRow.lostAt < 0.6
             if old == nil, fromFilms, let selected = shownId ?? folders.first?.id, id != selected {
                 focused = selected
                 return
             }
+            // Down from the bar: the first studio, not the one under the bar's button.
             if old == nil, now > Self.restoringUntil, !fromFilms,
                let first = folders.first, id != first.id {
                 focused = first.id
                 return
             }
-            withAnimation(.easeOut(duration: 0.22)) { lit = id }
+            withAnimation(.easeOut(duration: 0.2)) { lit = id }
             Self.lastFocused = id
             shownId = id
             if let folder = folders.first(where: { $0.id == id }) {
@@ -131,7 +142,6 @@ struct OrbitStudiosPage: View {
                 shownId = last
                 restore(last)
             } else {
-                // A new visit opens on the first studio.
                 shownId = folders.first?.id
             }
             if let folder = shownFolder { films.focus(title: folder.title) }
@@ -143,16 +153,11 @@ struct OrbitStudiosPage: View {
         }
     }
 
-    @MainActor private static var lostTilesAt: TimeInterval = 0
-
-    /// Steven (Illumination stayed on the slate a moment): every studio's backdrop is fetched
-    /// as the page opens, decoded exactly as `OrbitStudiosBackdrop` asks, so a change is instant.
+    /// Every studio's backdrop fetched as the page opens (a change is instant), then its colour.
     private func prefetchBackdrops() {
         let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.screenWidth,
                                                          height: OrbitHomeLayout.screenHeight),
                                            fill: true, scale: displayScale)
-        // Each backdrop fetched, then its colour sampled (the colour store samples only art that
-        // is already in memory: asked before the fetch, it answered nothing — Steven saw no tint).
         let jobs: [(id: String, raw: String, url: URL)] = folders.compactMap { folder in
             guard let raw = Self.backdropURL(folder), let url = URL(string: raw) else { return nil }
             return (folder.id, raw, url)
@@ -196,103 +201,118 @@ struct OrbitStudiosPage: View {
         return (url?.isEmpty ?? true) ? nil : url
     }
 
-    private func logo(_ folder: CollectionFolder?) -> some View {
+    static func logoURL(_ folder: CollectionFolder?) -> String? {
         let url = folder?.titleLogoUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return ZStack(alignment: .topLeading) {
-            if let url, !url.isEmpty {
-                CachedAsyncImage(string: url, contentMode: .fit,
-                                 decodeSize: .points(width: Self.logoSize.width, height: Self.logoSize.height))
-                    .frame(maxWidth: Self.logoSize.width, maxHeight: Self.logoSize.height, alignment: .topLeading)
-                    .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
-                    .id(url)
-                    .transition(.opacity)
-            } else if let title = folder?.title {
-                Text(title)
-                    .font(.system(size: 52, weight: .heavy))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.5)
-                    .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
-                    .id(title)
-                    .transition(.opacity)
+        return (url?.isEmpty ?? true) ? nil : url
+    }
+
+    /// The hero: the studio's logo, then its figures.
+    private func hero(_ folder: CollectionFolder?) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            ZStack(alignment: .bottomLeading) {
+                if let url = Self.logoURL(folder) {
+                    CachedAsyncImage(string: url, contentMode: .fit,
+                                     decodeSize: .points(width: Self.logoSize.width, height: Self.logoSize.height))
+                        .frame(maxWidth: Self.logoSize.width, maxHeight: Self.logoSize.height, alignment: .bottomLeading)
+                        .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
+                        .id(url)
+                        .transition(.opacity)
+                } else if let title = folder?.title {
+                    Text(title)
+                        .font(.system(size: 64, weight: .heavy))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
+                        .id(title)
+                        .transition(.opacity)
+                }
             }
+            .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .bottomLeading)
+
+            Text(films.statsLine ?? " ")
+                .font(.system(size: 27, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.85))
+                .shadow(color: .black.opacity(0.5), radius: 8)
+                .frame(height: 34, alignment: .leading)
+                .id(films.statsLine ?? "-")
+                .transition(.opacity)
         }
-        .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .topLeading)
         .allowsHitTesting(false)
     }
 }
 
-/// One studio icon (Steven's own, vertical): its cover, its focus GIF while focused, larger when
-/// focused, a little back when another studio is.
+/// One studio tile, landscape: its logo in white on its own colour; dimmed while another studio
+/// is focused, full with the white frame and a lift when focused (half-way while the focus is on
+/// its films below).
 private struct OrbitStudioTile: View {
     let folder: CollectionFolder
-    let collectionBackdropUrl: String?
     let focused: Bool
-    /// The studio whose films the row below shows, while the focus is elsewhere (on the films):
-    /// half-way between plain and focused.
     var selected: Bool = false
-    let dimmed: Bool
-    /// The studio's colour (from its backdrop): the focused icon's ground takes it.
-    var tint: Color? = nil
+    let tint: Color
 
     var body: some View {
-        let size = CGSize(width: OrbitStudiosPage.tileWidth, height: OrbitStudiosPage.tileHeight)
+        let size = OrbitStudiosPage.tileSize
         let radius: CGFloat = 14
-        let gif = folder.focusGifUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lift: CGFloat = focused ? 1 : (selected ? 0.7 : 0)
+        let lift: CGFloat = focused ? 1 : (selected ? 0.6 : 0)
         ZStack {
-            Color(white: 0.12)
-            if let cover = OrbitPlatformTile.coverURL(folder, collectionBackdropUrl: collectionBackdropUrl) {
-                // Steven (on trial): the focused icon's grey logo goes bright white, its slate a
-                // little deeper (a contrast lift around the middle grey, then a touch of light).
-                CachedAsyncImage(string: cover, decodeSize: .points(width: size.width, height: size.height))
-                    .contrast(1 + 0.75 * lift)
-                    .brightness(0.12 * lift)
-                // Steven (on trial): the focused icon's dark ground takes the studio's colour; a
-                // screen blend leaves the white logo white and lifts only the dark towards it.
-                if let tint {
-                    tint
-                        .blendMode(.screen)
-                        .opacity(0.9 * lift)
-                }
+            Color(white: 0.08)
+            LinearGradient(colors: [tint, tint.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .opacity(0.55 + 0.45 * lift)
+            if let logo = OrbitStudiosPage.logoURL(folder) {
+                CachedAsyncImage(string: logo, contentMode: .fit,
+                                 decodeSize: .points(width: size.width - 56, height: size.height - 50),
+                                 loading: { Color.clear }, failure: { name })
+                    .frame(maxWidth: size.width - 56, maxHeight: size.height - 50)
+                    // The logos are white or light: kept white on the colour.
+                    .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
             } else {
-                Text(folder.title)
-                    .font(.system(size: 26, weight: .heavy))
-                    .foregroundStyle(Color.white)
-                    .multilineTextAlignment(.center)
-                    .padding(14)
-            }
-            if folder.focusGifEnabled, let gif, !gif.isEmpty {
-                AnimatedGifImage(string: gif, fallback: nil, contentMode: .fit, isAnimating: focused, targetSize: size)
+                name
             }
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.45 : 0.1)),
-                              lineWidth: focused ? 5 : (selected ? 3 : 1.5))
+                .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.5 : 0.12)),
+                              lineWidth: focused ? 4 : (selected ? 3 : 1.5))
         }
-        .scaleEffect(focused ? 1.14 : (selected ? 1.06 : (dimmed ? 0.96 : 1)))
-        .opacity(dimmed ? 0.72 : 1)
-        .shadow(color: .black.opacity(0.3 + 0.35 * lift), radius: 10 + 20 * lift, y: 6 + 10 * lift)
+        .scaleEffect(focused ? 1.1 : (selected ? 1.05 : 1))
+        .shadow(color: .black.opacity(0.3 + 0.3 * lift), radius: 10 + 16 * lift, y: 6 + 8 * lift)
         .zIndex(focused || selected ? 1 : 0)
-        // No animation of its own: the page's explicit transactions time every change (a child
-        // `.animation` here overrode them with a fast curve — the snap Steven saw).
         .accessibilityLabel(folder.title)
+    }
+
+    private var name: some View {
+        Text(folder.title)
+            .font(.system(size: 26, weight: .heavy))
+            .foregroundStyle(Color.white)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.6)
+            .padding(16)
     }
 }
 
-// MARK: - The studio's new films
+// MARK: - The studio's films
 
 @MainActor
 final class OrbitStudioFilmsModel: ObservableObject {
     static let shared = OrbitStudioFilmsModel()
 
     @Published private(set) var title: String?
-    @Published private(set) var items: [MetaPreview] = []
+    @Published private(set) var recent: [MetaPreview] = []
+    @Published private(set) var best: [MetaPreview] = []
+    /// "Studio · 432 films".
+    @Published private(set) var statsLine: String?
 
-    private var cache: [String: [MetaPreview]] = [:]
+    private struct Found {
+        var recent: [MetaPreview]
+        var best: [MetaPreview]
+        var count: Int
+    }
+
+    private var cache: [String: Found] = [:]
     private var pending: Task<Void, Never>?
     private var current: String?
 
@@ -327,29 +347,34 @@ final class OrbitStudioFilmsModel: ObservableObject {
         guard let companies = Self.companies(forTitle: folderTitle) else {
             pending?.cancel()
             current = nil
-            withAnimation(.easeInOut(duration: 0.25)) { title = nil; items = [] }
+            withAnimation(.easeInOut(duration: 0.25)) { title = nil; recent = []; best = []; statsLine = nil }
             return
         }
         guard companies != current else { return }
         current = companies
         pending?.cancel()
         if let cached = cache[companies] {
-            withAnimation(.easeInOut(duration: 0.25)) { title = folderTitle; items = cached }
+            withAnimation(.easeInOut(duration: 0.25)) { show(cached, title: folderTitle) }
             return
         }
         let key = TmdbSettingsRepository.shared.effectiveApiKey()
         let language = TmdbSettingsRepository.shared.snapshot().language
         pending = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
-            let found = await Self.fetch(companies: companies, apiKey: key, language: language)
+            let lists = await Self.fetch(companies: companies, apiKey: key, language: language)
             guard !Task.isCancelled, let self, self.current == companies else { return }
+            let found = Found(recent: lists.recent, best: lists.best, count: lists.count)
             self.cache[companies] = found
-            withAnimation(.easeInOut(duration: 0.25)) {
-                self.title = found.isEmpty ? nil : folderTitle
-                self.items = found
-            }
+            withAnimation(.easeInOut(duration: 0.25)) { self.show(found, title: folderTitle) }
         }
+    }
+
+    private func show(_ found: Found, title folderTitle: String) {
+        title = folderTitle
+        recent = found.recent
+        best = found.best
+        statsLine = found.count > 0 ? String(localized: "Studio · \(found.count) films") : String(localized: "Studio")
     }
 
     nonisolated private struct Response: Decodable {
@@ -363,67 +388,83 @@ final class OrbitStudioFilmsModel: ObservableObject {
             let vote_average: Double?
         }
         let results: [Result]?
+        let total_results: Int?
     }
 
-    nonisolated private static func fetch(companies: String, apiKey: String, language: String) async -> [MetaPreview] {
+    /// "Nouveautés": the films out in the last eighteen months (feature length, most popular of
+    /// them, newest first); "Les incontournables": the best rated (feature length, well known).
+    nonisolated private static func fetch(companies: String, apiKey: String, language: String) async
+        -> (recent: [MetaPreview], best: [MetaPreview], count: Int) {
         let lang = language.isEmpty ? "fr-FR" : language
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         let today = formatter.string(from: Date())
-        let since = formatter.string(from: Date().addingTimeInterval(-365 * 24 * 3600))
+        let since = formatter.string(from: Date().addingTimeInterval(-548 * 24 * 3600))
         let encoded = companies.replacingOccurrences(of: "|", with: "%7C")
         let base = "https://api.themoviedb.org/3/discover/movie?api_key=\(apiKey)&language=\(lang)"
-            + "&with_companies=\(encoded)&sort_by=popularity.desc&page=1"
-        var found = await results(base + "&primary_release_date.gte=\(since)&primary_release_date.lte=\(today)")
-        if found.count < 8 {
-            let popular = await results(base + "&vote_count.gte=100")
-            let seen = Set(found.map(\.id))
-            found += popular.filter { !seen.contains($0.id) }
-        }
-        return found.compactMap { r -> MetaPreview? in
-            guard let name = r.title, !name.isEmpty, let poster = r.poster_path else { return nil }
-            return MetaPreview(id: "tmdb:\(r.id)", type: "movie", name: name,
-                               poster: "https://image.tmdb.org/t/p/w500\(poster)",
-                               banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
-                               logo: nil, posterShape: .poster,
-                               description: r.overview, releaseInfo: r.release_date.map { String($0.prefix(4)) },
-                               rawReleaseDate: r.release_date, popularity: nil, voteCount: nil,
-                               imdbRating: r.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
-                               genres: [], rawPosterUrl: nil, landscapePoster: nil,
-                               rawLandscapePosterUrl: nil, customPosterApplied: false)
-        }
+            + "&with_companies=\(encoded)&with_runtime.gte=60"
+        async let recentCall = results(base + "&sort_by=popularity.desc&primary_release_date.gte=\(since)&primary_release_date.lte=\(today)")
+        async let bestCall = results(base + "&sort_by=vote_average.desc&vote_count.gte=300")
+        async let allCall = results("https://api.themoviedb.org/3/discover/movie?api_key=\(apiKey)&with_companies=\(encoded)")
+        let (recentValue, bestValue, allValue) = await (recentCall, bestCall, allCall)
+        let recent = recentValue.items.sorted { ($0.release_date ?? "") > ($1.release_date ?? "") }
+        return (recent.compactMap(preview), bestValue.items.compactMap(preview), allValue.total)
     }
 
-    nonisolated private static func results(_ address: String) async -> [Response.Result] {
+    nonisolated private static func preview(_ r: Response.Result) -> MetaPreview? {
+        guard let name = r.title, !name.isEmpty, let poster = r.poster_path else { return nil }
+        return MetaPreview(id: "tmdb:\(r.id)", type: "movie", name: name,
+                           poster: "https://image.tmdb.org/t/p/w500\(poster)",
+                           banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
+                           logo: nil, posterShape: .poster,
+                           description: r.overview, releaseInfo: r.release_date.map { String($0.prefix(4)) },
+                           rawReleaseDate: r.release_date, popularity: nil, voteCount: nil,
+                           imdbRating: r.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
+                           genres: [], rawPosterUrl: nil, landscapePoster: nil,
+                           rawLandscapePosterUrl: nil, customPosterApplied: false)
+    }
+
+    nonisolated private static func results(_ address: String) async -> (items: [Response.Result], total: Int) {
         guard let url = URL(string: address),
               let response = try? await URLSession.shared.data(from: url),
-              let decoded = try? JSONDecoder().decode(Response.self, from: response.0) else { return [] }
-        return decoded.results ?? []
+              let decoded = try? JSONDecoder().decode(Response.self, from: response.0) else { return ([], 0) }
+        return (decoded.results ?? [], decoded.total_results ?? 0)
     }
 }
 
-/// "Nouveaux films <studio>", scrolling sideways; entering it lands on its first film.
+/// A row of the studio's films in small portrait posters, scrolling sideways; entering it lands
+/// on its first film.
 struct OrbitStudioFilmsRow: View {
+    enum Kind { case recent, best }
+    let kind: Kind
+
     @ObservedObject private var model = OrbitStudioFilmsModel.shared
     @FocusState private var focused: String?
     @MainActor static var lostAt: TimeInterval = 0
-    /// A film holds the focus (read by the studios' line when the focus comes up).
+    /// A film (of either row) holds the focus (read by the studios' line when the focus comes up).
     @MainActor static var hasFocus = false
+    @MainActor private static var holders = 0
 
-    static let posterWidth: CGFloat = 160
-    static var posterHeight: CGFloat { 240 }
+    static let posterSize = CGSize(width: 168, height: 252)
+
+    private var items: [MetaPreview] { kind == .recent ? model.recent : model.best }
+    private var heading: String {
+        kind == .recent ? String(localized: "Nouveautés") : String(localized: "Les incontournables")
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if let title = model.title, !model.items.isEmpty {
-                Text(String(format: String(localized: "Nouveaux films %@"), title))
+        let items = items
+        VStack(alignment: .leading, spacing: 16) {
+            if let title = model.title, items.count >= 3 {
+                Text(heading)
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(Color.white)
                     .shadow(color: .black.opacity(0.5), radius: 8)
+                    .padding(.leading, OrbitHomeLayout.margin)
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 22) {
-                        ForEach(model.items, id: \.id) { item in
+                    HStack(spacing: 24) {
+                        ForEach(items, id: \.id) { item in
                             NavigationLink(value: TitleRoute(preview: item)) {
                                 OrbitStudioFilmPoster(item: item, focused: focused == item.id)
                             }
@@ -431,20 +472,22 @@ struct OrbitStudioFilmsRow: View {
                             .focused($focused, equals: item.id)
                         }
                     }
-                    .padding(.vertical, 14)
-                    .padding(.trailing, OrbitHomeLayout.margin)
+                    .padding(.vertical, 16)
+                    .padding(.horizontal, OrbitHomeLayout.margin)
                 }
                 .scrollClipDisabled()
-                .padding(.vertical, -14)
-                .id("films-\(title)")
+                .padding(.vertical, -16)
+                .id("films-\(kind)-\(title)")
                 .transition(.opacity)
             }
         }
         .focusSection()
         .onChange(of: focused) { old, id in
-            Self.hasFocus = id != nil
+            if old == nil, id != nil { Self.holders += 1 }
+            if old != nil, id == nil { Self.holders = max(0, Self.holders - 1) }
+            Self.hasFocus = Self.holders > 0
             guard let id else { Self.lostAt = ProcessInfo.processInfo.systemUptime; return }
-            if old == nil, let first = model.items.first, id != first.id { focused = first.id }
+            if old == nil, let first = items.first, id != first.id { focused = first.id }
         }
     }
 }
@@ -454,7 +497,7 @@ private struct OrbitStudioFilmPoster: View {
     let focused: Bool
 
     var body: some View {
-        let size = CGSize(width: OrbitStudioFilmsRow.posterWidth, height: OrbitStudioFilmsRow.posterHeight)
+        let size = OrbitStudioFilmsRow.posterSize
         ZStack {
             Color(white: 0.12)
             OrbitImage(url: item.poster, size: size)
