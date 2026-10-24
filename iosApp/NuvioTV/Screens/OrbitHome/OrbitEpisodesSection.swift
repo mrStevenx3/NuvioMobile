@@ -180,7 +180,7 @@ private struct OrbitSeasonCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.55 : 0)), lineWidth: focused ? 4 : 3))
-            .scaleEffect(focused ? 1.08 : 1)
+            .scaleEffect(focused ? 1.05 : 1)
             .opacity(focused || selected ? 1 : 0.65)
             .shadow(color: .black.opacity(focused ? 0.5 : 0.2), radius: 14, y: 8)
             Text(label)
@@ -270,9 +270,7 @@ private struct OrbitEpisodeDetails: View {
             }
         }
         .frame(width: 1300, height: 110, alignment: .topLeading)
-        .id(episode?.id ?? "-")
-        .transition(.asymmetric(insertion: .opacity, removal: .opacity.animation(.easeOut(duration: 0.1))))
-        .animation(.easeOut(duration: 0.15), value: episode?.id)
+        // Swapped at once: two texts cross-fading overlapped into an unreadable mix.
     }
 }
 

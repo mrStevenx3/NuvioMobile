@@ -232,7 +232,9 @@ struct OrbitDetailView: View {
             .onChange(of: section) { _, target in anchor(proxy, target, duration: 0.4) }
             // Steven: Left / Right inside a section let the system nudge the page ("ça se
             // replace"); each move inside a section holds it at its place again.
-            .onChange(of: anchorTick) { _, _ in anchor(proxy, section, duration: 0.22) }
+            // In the episodes (season posters scrolling sideways), the hold is a snap, not a
+            // curve: the system's own nudge and a curved correction read as a bounce.
+            .onChange(of: anchorTick) { _, _ in anchor(proxy, section, duration: section == .episodes ? 0 : 0.22) }
             .onChange(of: heroPin) { _, _ in if section == .hero { anchor(proxy, .hero, duration: 0.3) } }
             // Steven: the page still rose a little as it loaded (the system nudges the scroll
             // when the focus first lands on Lire). On the hero the page stays at its top: any
@@ -462,7 +464,7 @@ struct OrbitDetailView: View {
 
     private func anchor(_ proxy: ScrollViewProxy, _ target: OrbitDetailSection, duration: Double) {
         anchoringUntil = Date().addingTimeInterval(duration + 0.1)
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: duration)) {
+        withAnimation(reduceMotion || duration == 0 ? nil : .easeInOut(duration: duration)) {
             if target == .hero {
                 proxy.scrollTo(OrbitDetailSection.hero, anchor: .top)
             } else {

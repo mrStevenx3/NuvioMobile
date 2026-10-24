@@ -43,6 +43,25 @@ enum OrbitSettingsPins {
         PlayerTuning.showClockKey,
     ]
 
+    private static let defaultsOnceKey = "orbit.defaults.v1"
+
+    /// Steven (2026-10-24): Orbit's starting values where Nuvio's did not suit it — set once (a
+    /// fresh install, or this update); every one stays changeable in Réglages.
+    /// - TMDB enrichment on: Orbit's logos, studios, sagas and cast come from it.
+    /// - Match the frame rate on (a home cinema: the TV follows the film's rate and range).
+    /// - Prepare the next episode on (it starts at once, as on Netflix).
+    private static func applyOrbitDefaults(_ defaults: UserDefaults) {
+        guard !defaults.bool(forKey: defaultsOnceKey) else { return }
+        defaults.set(true, forKey: defaultsOnceKey)
+        if defaults.object(forKey: PlayerTuning.matchFrameRateKey) == nil {
+            defaults.set(true, forKey: PlayerTuning.matchFrameRateKey)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            TmdbSettingsRepository.shared.setEnabled(value: true)
+            PlayerSettingsRepository.shared.setPreloadNextEpisodeSources(enabled: true)
+        }
+    }
+
     static func apply() {
         let defaults = UserDefaults.standard
         defaults.set(NavigationChrome.Style.orbit.rawValue, forKey: NavigationChrome.styleKey)
@@ -52,6 +71,8 @@ enum OrbitSettingsPins {
         // trailer gate follows it (the reset had turned it off — default off).
         let previews = defaults.object(forKey: OrbitHomeSetting.trailersKey) as? Bool ?? true
         defaults.set(previews, forKey: "inline_trailers_enabled")
+
+        applyOrbitDefaults(defaults)
 
         guard !defaults.bool(forKey: onceKey) else { return }
         for key in defaults.dictionaryRepresentation().keys
