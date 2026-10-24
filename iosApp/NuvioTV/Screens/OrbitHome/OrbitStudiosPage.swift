@@ -59,8 +59,28 @@ struct OrbitStudiosPage: View {
         let shown = shownFolder
         let selectedId = shownId ?? folders.first?.id
         ZStack(alignment: .topLeading) {
-            // Steven: less blur, the art shows more (the blur starts under the first row).
-            OrbitStudiosBackdrop(url: Self.backdropURL(shown), blurFrom: 0.62)
+            // Steven (2026-10-24, option B): the studio's colour over the page, its backdrop only
+            // at the top (behind the name and the tiles) as a banner melting into that colour —
+            // the posters sit on a calm ground (the Minions and Mario behind them were too busy).
+            let ground = shown.map(tint) ?? OrbitPlatformBrand.color(title: "")
+            ZStack {
+                OrbitHomeLayout.background
+                LinearGradient(stops: [
+                    .init(color: ground.opacity(0.75), location: 0),
+                    .init(color: ground.opacity(0.4), location: 0.55),
+                    .init(color: ground.opacity(0.18), location: 1),
+                ], startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.4), value: shown?.id)
+            OrbitStudiosBackdrop(url: Self.backdropURL(shown), blurFrom: 1)
+                .mask {
+                    LinearGradient(stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black.opacity(0.85), location: 0.3),
+                        .init(color: .clear, location: 0.52),
+                    ], startPoint: .top, endPoint: .bottom)
+                }
                 .ignoresSafeArea()
             // The studio's name and figures read over any backdrop (a light veil, the backdrop
             // has its own).
@@ -212,13 +232,13 @@ struct OrbitStudiosPage: View {
     }
 
     /// The hero: the studio's logo, then its figures.
-    /// Steven (2026-10-24): the name slides out the way the focus went and the next one slides in
-    /// from the other side (right on the tiles: out to the left, in from the right).
+    /// Steven (2026-10-24): the name follows the focus — right on the tiles, it leaves to the right
+    /// and the next one comes in from the left.
     private var slide: AnyTransition {
         let distance: CGFloat = 90
         return .asymmetric(
-            insertion: .offset(x: forward ? distance : -distance).combined(with: .opacity),
-            removal: .offset(x: forward ? -distance : distance).combined(with: .opacity))
+            insertion: .offset(x: forward ? -distance : distance).combined(with: .opacity),
+            removal: .offset(x: forward ? distance : -distance).combined(with: .opacity))
     }
 
     private func hero(_ folder: CollectionFolder?) -> some View {
@@ -428,11 +448,13 @@ final class OrbitStudioFilmsModel: ObservableObject {
         async let recentCall = results(base + "&sort_by=popularity.desc&primary_release_date.gte=\(since)&primary_release_date.lte=\(today)")
         async let bestCall = results(base + "&sort_by=vote_average.desc&vote_count.gte=300")
         async let popularCall = results(base + "&sort_by=popularity.desc&vote_count.gte=50")
+        async let popular2Call = results(base + "&sort_by=popularity.desc&vote_count.gte=50&page=2")
         async let allCall = results("https://api.themoviedb.org/3/discover/movie?api_key=\(apiKey)&with_companies=\(encoded)")
-        let (recentValue, bestValue, popularValue, allValue) = await (recentCall, bestCall, popularCall, allCall)
+        let (recentValue, bestValue, popularValue, popular2Value, allValue) =
+            await (recentCall, bestCall, popularCall, popular2Call, allCall)
         let recent = recentValue.items.sorted { ($0.release_date ?? "") > ($1.release_date ?? "") }
         return (recent.compactMap(preview), bestValue.items.compactMap(preview),
-                popularValue.items.compactMap(preview), allValue.total)
+                (popularValue.items + popular2Value.items).compactMap(preview), allValue.total)
     }
 
     nonisolated private static func preview(_ r: Response.Result) -> MetaPreview? {
