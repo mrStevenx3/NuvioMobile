@@ -66,7 +66,6 @@ struct OrbitProfileEditor: View {
 
                         nameSection
                         orbitAvatarsSection
-                        nuvioAvatarsSection
                         colorSection
                         actionButtons
                         deleteSection
@@ -94,9 +93,24 @@ struct OrbitProfileEditor: View {
 
     @ViewBuilder
     private var orbitAvatarsSection: some View {
-            section(String(localized: "Avatars Orbit")) {
+            section(String(localized: "Avatar")) {
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
                           alignment: .leading, spacing: 26) {
+                    // A plain colour (no avatar).
+                    Button { avatarId = nil; avatarUrl = nil } label: {
+                        ZStack {
+                            Circle().fill(color)
+                            Text(OrbitProfileColor.initial(name))
+                                .font(.system(size: 46, weight: .bold))
+                                .foregroundStyle(Color.white)
+                        }
+                        .frame(width: 112, height: 112)
+                    }
+                    .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == nil))
+                    .accessibilityLabel(String(localized: "Couleur unie"))
+
+                    // Steven (2026-10-24): Orbit's avatars only (Nuvio's are no longer offered; a
+                    // profile that has one keeps it until another is picked).
                     ForEach(OrbitAvatarCatalog.all) { avatar in
                         Button {
                             avatarId = nil
@@ -108,40 +122,6 @@ struct OrbitProfileEditor: View {
                         }
                         .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == avatar.url))
                         .accessibilityLabel(avatar.name)
-                    }
-                }
-            }
-    }
-
-    @ViewBuilder
-    private var nuvioAvatarsSection: some View {
-            if !model.avatars.isEmpty {
-                section(String(localized: "Avatars Nuvio")) {
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
-                              alignment: .leading, spacing: 26) {
-                        // A plain colour (no avatar).
-                        Button { avatarId = nil; avatarUrl = nil } label: {
-                            ZStack {
-                                Circle().fill(color)
-                                Text(OrbitProfileColor.initial(name))
-                                    .font(.system(size: 46, weight: .bold))
-                                    .foregroundStyle(Color.white)
-                            }
-                            .frame(width: 112, height: 112)
-                        }
-                        .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == nil))
-                        .accessibilityLabel(String(localized: "Couleur unie"))
-
-                        ForEach(model.avatars, id: \.id) { item in
-                            Button { avatarId = item.id; avatarUrl = nil } label: {
-                                CachedAsyncImage(string: ProfileModelsKt.avatarStorageUrl(storagePath: item.storagePath),
-                                                 decodeSize: .points(width: 130, height: 130))
-                                    .frame(width: 112, height: 112)
-                                    .clipShape(Circle())
-                            }
-                            .buttonStyle(OrbitSwatchStyle(selected: avatarId == item.id))
-                            .accessibilityLabel(item.displayName.isEmpty ? String(localized: "Avatar") : item.displayName)
-                        }
                     }
                 }
             }
