@@ -841,6 +841,10 @@ final class OrbitStudioModel: ObservableObject {
     private var started = false
     private var folderModel: FolderDetailViewModel?
     private var folderRows: [OrbitStudioRow] = []
+    /// Short films found in his catalogues (Steven: DC's "Nouveaux films" was full of Krypto
+    /// shorts), and the films already checked.
+    private var shorts = Set<String>()
+    private var runtimeChecked = Set<String>()
     private var tmdbRows: [OrbitStudioRow] = []
     private var cancellable: AnyCancellable?
 
@@ -897,7 +901,43 @@ final class OrbitStudioModel: ObservableObject {
             return OrbitStudioRow(id: "folder-\(row.id)", title: row.heading, items: items,
                                   kind: .posters(transparent: top10))
         }
+        checkRuntimes()
         publish()
+    }
+
+    /// Asks TMDB the length of the films in his catalogues (the first forty of each row) and
+    /// leaves out those under an hour; a film whose length is unknown stays.
+    private func checkRuntimes() {
+        let key = TmdbSettingsRepository.shared.effectiveApiKey()
+        guard !key.isEmpty else { return }
+        let candidates = folderRows.flatMap { $0.items.prefix(40) }
+            .filter { $0.type == "movie" && !runtimeChecked.contains($0.id) }
+        guard !candidates.isEmpty else { return }
+        candidates.forEach { runtimeChecked.insert($0.id) }
+        let ids = candidates.map(\.id)
+        Task { [weak self] in
+            let found = await withTaskGroup(of: String?.self) { group in
+                for id in ids {
+                    group.addTask {
+                        let tmdb = id.hasPrefix("tmdb:") ? String(id.dropFirst(5)) : id
+                        guard tmdb.hasPrefix("tt") || Int(tmdb) != nil else { return nil }
+                        let movie: RuntimeResponse? = await Self.decode("https://api.themoviedb.org/3/movie/\(tmdb)?api_key=\(key)")
+                        guard let minutes = movie?.runtime, minutes > 0, minutes < 60 else { return nil }
+                        return id
+                    }
+                }
+                var out: [String] = []
+                for await id in group { if let id { out.append(id) } }
+                return out
+            }
+            guard let self, !found.isEmpty else { return }
+            self.shorts.formUnion(found)
+            self.publish()
+        }
+    }
+
+    nonisolated private struct RuntimeResponse: Decodable {
+        let runtime: Int?
     }
 
     /// The order: his Nouveautés and Top 10, then "Les incontournables", "Les sagas", and the rest
@@ -905,7 +945,14 @@ final class OrbitStudioModel: ObservableObject {
     /// repeat them); without them (TMDB unknown), every catalog shows.
     private func publish() {
         let own = !tmdbRows.isEmpty
-        let mine = own ? folderRows.filter { OrbitCatalogFilter.isKept($0.title) } : folderRows
+        let kept = own ? folderRows.filter { OrbitCatalogFilter.isKept($0.title) } : folderRows
+        // No short films in his catalogues.
+        let mine = kept.compactMap { row -> OrbitStudioRow? in
+            let items = row.items.filter { !shorts.contains($0.id) }
+            guard !items.isEmpty else { return nil }
+            return items.count == row.items.count ? row
+                : OrbitStudioRow(id: row.id, title: row.title, items: items, kind: row.kind)
+        }
         // "Les plus populaires" without the films of his Top 10 (it was the same row twice).
         let topNames = Set(mine.filter { row in
             if case .posters(transparent: true) = row.kind { return true }
