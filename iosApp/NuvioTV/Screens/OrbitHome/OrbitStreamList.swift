@@ -420,15 +420,14 @@ struct OrbitStreamCard: View {
         Button(action: action) {
             HStack(alignment: .center, spacing: 34) {
                 // The quality marks, the description page's own.
-                // Steven: one mark per line, all on the same left edge (the definition, the
-                // picture, the sound), instead of two side by side over one below.
-                VStack(alignment: .leading, spacing: 10) {
+                // Steven: the marks on one line, as under the description page's title (the
+                // definition, the picture, the sound), the column wide enough for all three.
+                HStack(spacing: 12) {
                     ForEach(OrbitStreamTags.markLines(tags.quality), id: \.rawValue) { mark in
                         OrbitQualityBadges(quality: mark)
-                            .frame(height: 30, alignment: .leading)
                     }
                 }
-                .frame(width: 190, alignment: .leading)
+                .frame(width: 250, height: 34, alignment: .leading)
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {

@@ -37,6 +37,16 @@ final class OrbitPlatformSearchModel: ObservableObject {
         history = UserDefaults.standard.stringArray(forKey: historyKey) ?? []
     }
 
+    func removeRecent(_ text: String) {
+        history = history.filter { $0 != text }
+        UserDefaults.standard.set(history, forKey: historyKey)
+    }
+
+    func clearRecent() {
+        history = []
+        UserDefaults.standard.removeObject(forKey: historyKey)
+    }
+
     /// A title opened from the results: its search goes to the top of the recent ones.
     func recordSearch() {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -89,7 +99,9 @@ final class OrbitPlatformSearchModel: ObservableObject {
                 let chips = self.queryIsEmpty ? self.history
                     : SearchGridResults.entries(suggestions: [], items: self.titles, limit: 10)
                 return OrbitSearchFeed.Snapshot(queryIsEmpty: self.queryIsEmpty, chips: chips, titles: self.titles)
-            }
+            },
+            removeRecent: { [weak self] in self?.removeRecent($0) },
+            clearRecent: { [weak self] in self?.clearRecent() }
         )
     }
 }

@@ -25,6 +25,9 @@ struct OrbitSearchFeed {
 
     let changes: AnyPublisher<Void, Never>
     let read: () -> Snapshot
+    /// Steven: a recent search can be removed (long press on it), or all of them.
+    var removeRecent: ((String) -> Void)? = nil
+    var clearRecent: (() -> Void)? = nil
 
     /// The general Search.
     static func search(_ model: SearchViewModel) -> OrbitSearchFeed {
@@ -42,6 +45,11 @@ struct OrbitSearchFeed {
                 let chips = model.queryIsEmpty ? model.history
                     : SearchGridResults.entries(suggestions: model.suggestions, items: all, limit: 10)
                 return Snapshot(queryIsEmpty: model.queryIsEmpty, chips: chips, titles: all)
+            },
+            removeRecent: { [weak model] in model?.removeHistory($0) },
+            clearRecent: { [weak model] in
+                guard let model else { return }
+                model.history.forEach { model.removeHistory($0) }
             }
         )
     }
@@ -216,6 +224,25 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
         defer { preferredPath = nil }
         return preferredPath
+    }
+
+    /// Long press on a recent search (the field empty): remove it, or every recent search.
+    func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+                        point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let path = indexPaths.first, case .suggestion(let text)? = dataSource.itemIdentifier(for: path),
+              feed.read().queryIsEmpty, let remove = feed.removeRecent else { return nil }
+        let clear = feed.clearRecent
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+            var actions: [UIMenuElement] = [
+                UIAction(title: String(localized: "Supprimer « \(text) »"), image: UIImage(systemName: "xmark"),
+                         attributes: .destructive) { _ in remove(text) },
+            ]
+            if let clear {
+                actions.append(UIAction(title: String(localized: "Effacer toutes les recherches récentes"),
+                                        image: UIImage(systemName: "trash"), attributes: .destructive) { _ in clear() })
+            }
+            return UIMenu(children: actions)
+        }
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
