@@ -264,18 +264,6 @@ struct OrbitStudiosPage: View {
                 .frame(height: 34, alignment: .trailing)
                 .id(films.statsLine ?? "-")
                 .transition(slide)
-            ZStack(alignment: .topTrailing) {
-                if let latest = films.latestLine {
-                    Text(latest)
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.7))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.trailing)
-                        .id(latest)
-                        .transition(slide)
-                }
-            }
-            .frame(height: 64, alignment: .topTrailing)
         }
         // At the bottom right of the photo's height, just above the tiles (Steven).
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
