@@ -222,19 +222,22 @@ private val CLIENTS = listOf(
     // parent of a6fb2aed which replaced this with visionos) — see PREFERRED_SEPARATE_CLIENTS
     // above for why both clients are kept.
     YouTubeClient(
-        // 2026-10-24: yt-dlp's current android_vr (master 2026-10-23).
+        // 2026-10-24: kept at 1.56.21. The newer 1.65.10 (yt-dlp's) gets streams that need a
+        // proof-of-origin token: they stopped after a second and the trailer restarted on a
+        // lower-quality fallback (Steven). Tonight's outage was the watch page (visionos, never
+        // changed, failed too), not this version.
         key = "android_vr",
         id = "28",
-        version = "1.65.10",
-        userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 " +
-            "(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+        version = "1.56.21",
+        userAgent = "com.google.android.apps.youtube.vr.oculus/1.56.21 " +
+            "(Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1) gzip",
         context = jsonObjectOf(
             "clientName" to "ANDROID_VR",
-            "clientVersion" to "1.65.10",
+            "clientVersion" to "1.56.21",
             "deviceMake" to "Oculus",
             "deviceModel" to "Quest 3",
             "osName" to "Android",
-            "osVersion" to "12L",
+            "osVersion" to "12",
             "platform" to "MOBILE",
             "androidSdkVersion" to 32,
             "hl" to "en",
