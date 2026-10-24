@@ -908,6 +908,9 @@ final class OrbitStudioModel: ObservableObject {
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         let today = formatter.string(from: Date())
+        // "Prochainement": the films out within nine months. Further away, TMDB mostly has a
+        // provisional poster (a logo on black: Frozen III, Tangled, Clay…) and no synopsis yet.
+        let soon = formatter.string(from: Date().addingTimeInterval(270 * 86_400))
 
         // The logo (the first id's), the figures, the main rows, all at once.
         let firstId = ids.split(whereSeparator: { $0 == "|" || $0 == "," }).first.map(String.init) ?? ids
@@ -916,7 +919,7 @@ final class OrbitStudioModel: ObservableObject {
         async let best = discover(base + "&sort_by=vote_average.desc&vote_count.gte=300&with_runtime.gte=60", tv: network)
         async let popular = discover(base + "&sort_by=popularity.desc", tv: network)
         async let popular2 = discover(base + "&sort_by=popularity.desc&page=2", tv: network)
-        async let upcoming = discover(base + "&sort_by=\(dateField).asc&\(dateField).gte=\(today)", tv: network)
+        async let upcoming = discover(base + "&sort_by=\(dateField).asc&\(dateField).gte=\(today)&\(dateField).lte=\(soon)", tv: network)
 
         let (entityValue, oldestValue, bestValue, popularValue, popular2Value, upcomingValue) =
             await (entity, oldest, best, popular, popular2, upcoming)
@@ -999,7 +1002,9 @@ final class OrbitStudioModel: ObservableObject {
             if cards.count >= 2 { rows.append(("sagas", String(localized: "Les sagas"), cards)) }
         }
 
-        if upcomingValue.items.count >= 3 { rows.append(("upcoming", String(localized: "Prochainement"), upcomingValue.items)) }
+        // Only the films with a synopsis: the others have no real poster yet either.
+        let upcomingItems = upcomingValue.items.filter { !($0.description_ ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+        if upcomingItems.count >= 3 { rows.append(("upcoming", String(localized: "Prochainement"), upcomingItems)) }
 
         // A row per decade, from the newest.
         let year = Calendar.current.component(.year, from: Date())
