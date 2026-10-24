@@ -24,28 +24,12 @@ import SwiftUI
 /// See the file header.
 struct DiscoverTabRoot: View {
     @StateObject private var model = DiscoverGridViewModel()
-    /// The Browse page's rows, kept for the tab's life so a second Browse is instant.
-    @StateObject private var rowsModel = DiscoverRowsViewModel()
     @State private var path = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
-                // Steven's fork (2026-10-23): Orbit Discover, drawn rather than scrolled.
-                if NavigationChrome.isOrbitBar() {
-                    OrbitDiscoverPage(model: model, onOpen: { path.append(TitleRoute(preview: $0)) })
-                } else {
-                    DiscoverGridPage(model: model, host: .tab, onBrowse: { catalogKey in
-                        rowsModel.show(catalogKey: catalogKey)
-                        path.append(DiscoverBrowseRoute(catalogKey: catalogKey))
-                    })
-                }
-            }
-            .navigationDestination(for: DiscoverBrowseRoute.self) { _ in
-                DiscoverRowsPage(model: rowsModel, host: .pushed, onOpenGrid: { route in
-                    path.append(route)
-                })
-            }
+            // Steven's fork (2026-10-23): Orbit Discover, drawn rather than scrolled.
+            OrbitDiscoverPage(model: model, onOpen: { path.append(TitleRoute(preview: $0)) })
             .navigationDestination(for: TitleRoute.self) { route in
                 DetailView(preview: route.preview)
             }
@@ -56,14 +40,14 @@ struct DiscoverTabRoot: View {
                 PersonDetailView(personId: route.id, personName: route.name)
             }
             .navigationDestination(for: EntityRoute.self) { route in
-                EntityBrowseView(route: route)
+                OrbitStudioPage(route: .entity(route))
             }
         }
         .onAppear { model.start() }
         // Steven's fork (device pass): leaving Discover puts it back on Films, every genre, so a
         // return never opens on the last genre browsed.
         .onDisappear {
-            if NavigationChrome.isOrbitBar() { model.resetToDefault() }
+            model.resetToDefault()
             model.stop()
         }
     }

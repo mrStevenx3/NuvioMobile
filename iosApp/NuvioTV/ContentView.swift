@@ -439,9 +439,6 @@ struct MainTabView: View {
     /// which is precisely what re-resolved `.toolbarVisibility` mid-transition. Only
     /// `NavigationRail` observes it.
     @State private var navigationChrome = NavigationChromeModel()
-    /// FEAT-30 / H9: focus scope over the whole tab shell, so the rail can hand focus back to
-    /// content with `resetFocus(in:)` (see `NavigationRail.fallbackHandOff`).
-    @Namespace private var shellFocusScope
     /// A6: resolved once per tree identity (`@State`'s initial value), never re-read while this
     /// shell lives, so the set of tabs is constant for the tree's lifetime (T3). The rail's item
     /// list is fed from this same value.
@@ -460,17 +457,13 @@ struct MainTabView: View {
             Tab("Home", systemImage: "house", value: 0) {
                 HomeView(model: home)
                     .tabBarImmersiveHide()
-                    .railTabRoot(0)
             }
             Tab("Search", systemImage: "magnifyingglass", value: 1) {
                 // Steven's fork (2026-10-23): Orbit Search, UIKit's own search screen (no two-step open).
-                Group {
-                    if NavigationChrome.isOrbitBar() { OrbitSearchView() } else { SearchView() }
-                }
+                OrbitSearchView()
                     // Review r2 P3-1: Search's entry row reads the same once-per-tree value.
                     .environment(\.discoverPlacementResolved, discoverPlacement)
                     .tabBarImmersiveHide()
-                    .railTabRoot(1)
             }
             // Search & Discover batch 2026-10-06 (O3 Stage Discover, A6): the seventh tab, value
             // 6 so Profile keeps 5 (return routes, rail ids and tests key on it). Present only
@@ -481,18 +474,15 @@ struct MainTabView: View {
                 Tab("Discover", systemImage: "safari", value: 6) {
                     DiscoverTabRoot()
                         .tabBarImmersiveHide()
-                        .railTabRoot(6)
                 }
             }
             Tab("Library", systemImage: "books.vertical", value: 2) {
                 LibraryView()
                     .tabBarImmersiveHide()
-                    .railTabRoot(2)
             }
             Tab("Add-ons", systemImage: "puzzlepiece.extension", value: 3) {
                 AddonsView()
                     .tabBarImmersiveHide()
-                    .railTabRoot(3)
             }
             // T4: Settings and Profile don't scroll meaningfully, so they were left with no
             // tab-bar declaration at all — but that's not neutral. Without one, the resolved
@@ -506,12 +496,10 @@ struct MainTabView: View {
                 // asks for opens on arrival.
                 OrbitSettingsView(openRequest: $settingsLastCategory)
                     .tabBarImmersiveHide()
-                    .railTabRoot(4)
             }
             Tab("Profile", systemImage: "person.crop.circle", value: 5) {
                 OrbitProfilePage(activeProfile: activeProfile, onSwitchProfile: onSwitchProfile)
                     .tabBarImmersiveHide()
-                    .railTabRoot(5)
             }
         }
         .environment(\.tabBarVisibility, tabBarVisibility)
@@ -525,57 +513,12 @@ struct MainTabView: View {
         // (TabBarStateProbe.swift) which the About pane's toggle writes in Release too, so a
         // DEBUG-only armer meant every rc sample logged `NOT-FOUND state=unknown`.
         .background(TabBarProbeArmer())
-        // FEAT-30 / H9: the shell-wide focus scope `resetFocus(in:)` targets. Rail mode only, so
-        // tabs mode carries no new modifier at all (the byte-identical promise; test54's row walk
-        // stopped finding tiles in the one run where this scope was declared in both modes).
-        .modifier(ShellFocusScopeModifier(scope: shellFocusScope))
-        // FEAT-30: keeps `Theme.Size.heroPinnedRowsViewportBudget` honest if hiding the system tab
-        // bar moves the shell's top safe area. Ships as a no-op (the constant is 0 and the
-        // modifier then applies nothing at all, in either mode) until the device spike measures
-        // the delta — see that constant's doc comment.
-        .railTopCompensation()
-        // H9: the rail is mounted HERE — on the TabView and deliberately OUTSIDE every `Tab`
-        // closure (FEAT-30's sidebar sat in the same place). Inside one it would live in that
-        // tab's kept-alive subtree: pruned or deferred with it, re-created per tab, and
-        // re-evaluated on every `Tab` closure rebuild — the T3 class again. As an overlay it is a
-        // floating layer; the only content geometry it changes is Always Visible's leading inset,
-        // UIKit safe area on the tab controller (`HiddenTabBarFocusBlocker.setReservedLeadingInset`)
-        // plus `.railTabRoot`'s environment values, and tabs mode gets no view at all.
-        //
-        // BOTH shared objects are handed over as explicit parameters, and `tabBarVisibility` has
-        // to be (rc2 fix, 2026-09-06). The `.environment(\.tabBarVisibility,)` above does NOT
-        // reach this closure: overlay content is laid out by the `.overlay` modifier, which sits
-        // outside the environment modifiers in this chain, so the child's
-        // `@Environment(\.tabBarVisibility)` resolved to the key's unconnected default instance
-        // and the immersive-push signal never arrived — the pill stayed painted over a pushed
-        // DetailView. Passing the instance costs the shell nothing: a plain `let` hands the object
-        // over without subscribing anyone, so the T3/BUG-66 property (this body never re-evaluates
-        // on a visibility publish) is unchanged, and the overlay keeps the one narrow
-        // `onReceive($immersiveHidden)`.
-        //
-        // The rail places itself (16 pt from the bezel, vertically centred, safe area ignored)
-        // rather than being padded here: the numbers belong next to its own layout constants.
-        // Steven's fork: the Orbit top bar, mounted like the rail (outside every `Tab` closure).
+        // Steven's fork: the Orbit top bar, mounted outside every `Tab` closure.
         .overlay(alignment: .topLeading) {
-            if NavigationChrome.isOrbitBar() {
-                OrbitTopBar(selectedTab: $selectedTab,
-                            tabBarVisibility: tabBarVisibility,
-                            showsDiscover: showsDiscoverTab,
-                            activeProfile: activeProfile)
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            if NavigationChrome.isRail() {
-                NavigationRail(
-                    selectedTab: $selectedTab,
-                    activeProfile: activeProfile,
-                    rootCoverActive: rootCoverActive,
-                    shellFocusScope: shellFocusScope,
-                    chrome: navigationChrome,
-                    tabBarVisibility: tabBarVisibility,
-                    showsDiscover: showsDiscoverTab
-                )
-            }
+            OrbitTopBar(selectedTab: $selectedTab,
+                        tabBarVisibility: tabBarVisibility,
+                        showsDiscover: showsDiscoverTab,
+                        activeProfile: activeProfile)
         }
         // FEAT-25: keep the "is Home frontmost" signal current from OUTSIDE the kept-alive tab
         // subtrees — this closure runs on the always-visible shell, so the hero trailer's
@@ -604,21 +547,6 @@ struct MainTabView: View {
             // Geometry pane — what the bar tracks after a switch is the half of BUG-66 the cold
             // launch never showed. No-op unless that probe is armed.
             TabBarStateProbe.noteTabSelected(tab)
-        }
-    }
-}
-
-/// The Profile tab: shows the active profile's avatar and name with a button to return to the
-/// "Who's watching?" picker. Replaces the old Home-header avatar shortcut.
-/// FEAT-30 / H9: `.focusScope` over the tab shell, structurally absent in tabs mode.
-private struct ShellFocusScopeModifier: ViewModifier {
-    let scope: Namespace.ID
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if NavigationChrome.isRail() {
-            content.focusScope(scope)
-        } else {
-            content
         }
     }
 }

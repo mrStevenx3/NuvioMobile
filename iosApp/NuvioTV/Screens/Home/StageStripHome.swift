@@ -110,9 +110,9 @@ struct StageStripHome: View {
             // Steven's fork (wako pass 6): with Info Below the title logo sits top-right.
             // Steven: no title logo in the top-right corner on Orbit Home (the title sits under the row).
             StageView(controller: stage, geometry: geo,
-                      hidesLogo: singleStudiosCollection != nil || (NavigationChrome.isOrbitBar() && infoBelow),
+                      hidesLogo: singleStudiosCollection != nil || infoBelow,
                       logoTopTrailing: true, plainArt: singleStudiosCollection != nil,
-                      blurredArt: NavigationChrome.isOrbitBar() && infoBelow && singleStudiosCollection == nil
+                      blurredArt: infoBelow && singleStudiosCollection == nil
                           && !showsCollectionGrid)
             if showsCollectionGrid {
                 // Pass 8/9 (Steven): Plateformes sits on the Orbit icon's slate, whatever backdrop
@@ -268,9 +268,6 @@ struct StageStripHome: View {
             // `@Published` emits on willSet: use the payload, not the property.
             syncCover(shell: covered)
         }
-        // H9 (P4 §2.5, R2): Stage's rail return route, registered while the Stage layout is mounted.
-        // Rail mode only; nothing is registered in Tabs mode.
-        .railReturnRoute { stageRailRoute }
     }
 
     // MARK: Geometry
@@ -460,10 +457,7 @@ struct StageStripHome: View {
                        // and duration, no resting settle. This write owns the rail; the strip's
                        // `reportsScrollToTabBar` mirror (kept for TabBarStateProbe) writes the same
                        // value at its later crossing, a no-op under write-on-change.
-                       onPageStart: { index, seconds in
-                           guard NavigationChrome.isRail() else { return }
-                           navigationChrome.setScrolledDown(tab: 0, index > 0, motion: .page(seconds: seconds))
-                       },
+                       onPageStart: { _, _ in },
                        onStripFocusLost: { stage.stripFocusLost() }) { key in
                 rowView(key)
             }
@@ -635,41 +629,9 @@ struct StageStripHome: View {
 
     // MARK: Chrome
 
-    /// Menu at row 0 (§6, P4 R3): in Rail mode, open the rail (HomeView's `railMenuRevealHandler`
-    /// rule); in Tabs mode nil, so the system default applies (focus to the tab bar, then exit). From
-    /// any later row Menu still pages to row 0 first (the strip's own handler). Inside a rail Menu
-    /// opened, Menu is the system default (R4). Up at row 0 has no target in Rail mode and never
-    /// reveals (BUG-98).
-    private var atTopExit: (() -> Void)? {
-        guard NavigationChrome.isRail() else { return nil }
-        let chrome = navigationChrome
-        return {
-            // Read at press time, not as a body dependency.
-            guard !chrome.isFocusedChrome else { return }
-            chrome.requestReveal(.menu)
-        }
-    }
-
-    /// H9 (P4 §2.5, R2): where a rail exit puts focus back on Stage Home. `capture` records the row
-    /// that owns the strip (`currentRowKey`, kept after focus leaves the strip); `restore` asks the
-    /// pager for that row's remembered card through P1's rungs (`requestFocus(rowKey:itemId:)`
-    /// moves the mounted window to the row before asking it for focus). A Left entry comes from card
-    /// 0, which the memory then holds. Declines while a push or the Continue Watching picker covers
-    /// Home. A tab switch back to Home with nothing captured this session falls to the live row.
-    private var stageRailRoute: RailReturnRoute {
-        let controller = stage
-        let box = railRouteBox
-        return RailReturnRoute(
-            name: "home",
-            capture: { box.savedRow = controller.currentRowKey },
-            restore: {
-                guard !box.covered, let row = box.savedRow ?? controller.currentRowKey else { return false }
-                controller.requestFocus(rowKey: row, itemId: controller.memory.itemId(for: row))
-                return true
-            },
-            vetoesLeftArm: { false }
-        )
-    }
+    /// Menu at row 0: the system default (focus to the Orbit bar, then exit). From any later row
+    /// Menu still pages to row 0 first (the strip's own handler).
+    private var atTopExit: (() -> Void)? { nil }
 
     /// D1: the rows skip the in-row morph when the trailer plays in the stage (W2-A).
     private var backgroundTrailerMode: Bool {

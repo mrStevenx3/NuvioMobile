@@ -62,7 +62,7 @@ struct OrbitHomeSwitch: View {
 
     var body: some View {
         let filter = contentFilter.filter
-        if enabled, NavigationChrome.isOrbitBar(), filter == .movies || filter == .series {
+        if enabled, filter == .movies || filter == .series {
             OrbitHomeView(model: model, series: filter == .series, actions: actions, pushGenre: pushGenre,
                           isScrolledDown: $isScrolledDown)
                 .id(filter)

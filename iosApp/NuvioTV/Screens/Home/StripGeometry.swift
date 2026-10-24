@@ -175,7 +175,7 @@ nonisolated struct StripGeometry: Equatable, Sendable {
         // Steven's fork (Orbit Home, wako layout): the stage keeps only the bar and the title logo
         // (top-right), so the rows start right under the bar and the strip takes the rest of the
         // screen (the next rows show further down, as in wako).
-        let orbitCompact = i.infoBelow && NavigationChrome.isOrbitBar()
+        let orbitCompact = i.infoBelow
         let strip = orbitCompact ? max(page + peek, i.screenHeight - StageInfoBelow.orbitStageHeight) : page + peek
         let stage = orbitCompact ? i.screenHeight - strip : max(minStage, i.screenHeight - strip)
         let logo = stage < compactLogoBelowStage ? logoSlotCompact : logoSlotFull

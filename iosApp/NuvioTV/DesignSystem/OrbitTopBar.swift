@@ -42,7 +42,7 @@ final class HomeContentFilterModel: ObservableObject {
     static let shared = HomeContentFilterModel()
 
     /// Films is the landing page with the Orbit bar; every other chrome shows all of Home.
-    @Published var filter: HomeContentFilter = NavigationChrome.isOrbitBar() ? .movies : .all
+    @Published var filter: HomeContentFilter = .movies
 
     func set(_ next: HomeContentFilter) {
         if filter != next { filter = next }

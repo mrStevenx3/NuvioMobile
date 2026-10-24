@@ -156,14 +156,12 @@ nonisolated enum NavigationChrome {
         style(raw: defaults.string(forKey: styleKey))
     }
 
-    static func isRail(_ defaults: UserDefaults = .standard) -> Bool {
-        style(defaults) == .rail
-    }
+    /// Steven's fork (2026-10-24): Orbit is the only navigation — Chris's rail and the system tab
+    /// bar are gone, whatever an old install stored.
+    static func isRail(_ defaults: UserDefaults = .standard) -> Bool { false }
 
     /// Steven's fork: the Orbit top bar replaces the system tab bar (hidden) and the rail.
-    static func isOrbitBar(_ defaults: UserDefaults = .standard) -> Bool {
-        style(defaults) == .orbit
-    }
+    static func isOrbitBar(_ defaults: UserDefaults = .standard) -> Bool { true }
 
     /// "browsing" reads as Hide While Browsing, "hidden" as Hidden (FEAT-62); anything else is
     /// Always Visible (the default).
@@ -184,7 +182,7 @@ nonisolated enum NavigationChrome {
     /// FEAT-80: Corner reserves nothing, as at rest it is only the Home icon in the corner (the
     /// device pass checks that no page's top-left header sits under it).
     static func reservesWidth(_ defaults: UserDefaults = .standard) -> Bool {
-        isRail(defaults) && reservesWidth(visibility: railVisibility(defaults), position: railPosition(defaults))
+        false
     }
 
     /// The pure half of `reservesWidth(_:)`, Rail mode assumed.

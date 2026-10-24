@@ -36,37 +36,12 @@ struct LibraryView: View {
             ZStack {
                 Theme.Palette.background.ignoresSafeArea()
 
-                if NavigationChrome.isOrbitBar() {
-                    // Steven's fork (2026-10-23): the Orbit Library page (`OrbitLibraryPage`).
-                    OrbitLibraryPage(model: model,
-                                     cloudConnected: cloud.hasConnectedProvider,
-                                     showingCloud: $showingCloud,
-                                     onOpen: { path.append(TitleRoute(preview: $0)) },
-                                     cloudContent: { cloudContent })
-                } else {
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                        header
-
-                        if cloud.hasConnectedProvider {
-                            sourceChips
-                        }
-
-                        if showingCloud && cloud.hasConnectedProvider {
-                            cloudContent
-                        } else {
-                            savedContent
-                        }
-                    }
-                    .padding(Theme.Spacing.screen)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .scrollClipDisabled()
-                .reportsScrollToTabBar(tab: "Library")
-                // FEAT-30 / H9: Menu summons the rail in Rail mode (a second Menu, with focus in
-                // the rail, exits as before). No modifier at all in tabs mode.
-                .railMenuReveal()
-                }
+                // Steven's fork (2026-10-23): the Orbit Library page (`OrbitLibraryPage`).
+                OrbitLibraryPage(model: model,
+                                 cloudConnected: cloud.hasConnectedProvider,
+                                 showingCloud: $showingCloud,
+                                 onOpen: { path.append(TitleRoute(preview: $0)) },
+                                 cloudContent: { cloudContent })
             }
             // Simkl: leaving a status also clears the title's watched history and rating there, so
             // the hold menu's remove asks first (`LibraryRepository.removalNeedsConfirmation`).
@@ -94,7 +69,7 @@ struct LibraryView: View {
                 PersonDetailView(personId: route.id, personName: route.name)
             }
             .navigationDestination(for: EntityRoute.self) { route in
-                EntityBrowseView(route: route)
+                OrbitStudioPage(route: .entity(route))
             }
         }
         // A failed remove. The shared toast controller is a no-op on tvOS, so the screen says it.
