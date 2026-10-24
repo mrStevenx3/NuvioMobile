@@ -84,7 +84,7 @@ struct OrbitStudiosPage: View {
             VStack(alignment: .leading, spacing: 0) {
                     hero(shown)
                         .frame(width: L.screenWidth - 2 * L.margin - Self.frameSize.width - 60,
-                               height: Self.frameSize.height, alignment: .topLeading)
+                               height: Self.frameSize.height, alignment: .bottomTrailing)
                         .padding(.leading, L.margin + Self.frameSize.width + 60)
                         .padding(.top, Self.heroTop)
 
@@ -236,11 +236,11 @@ struct OrbitStudiosPage: View {
     /// Fixed places (Steven: from Disney to Pixar the logo moved, the block was centred and its
     /// height changed): the logos sit on one line, the figures and the latest films under it.
     private func hero(_ folder: CollectionFolder?) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            ZStack(alignment: .bottomLeading) {
+        VStack(alignment: .trailing, spacing: 18) {
+            ZStack(alignment: .bottomTrailing) {
                 if let url = Self.logoURL(folder) {
                     OrbitBalancedLogo(url: url, area: 52_000, maxSize: Self.logoSize,
-                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading)
+                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomTrailing)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)
                         .transition(slide)
@@ -255,28 +255,30 @@ struct OrbitStudiosPage: View {
                         .transition(slide)
                 }
             }
-            .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .bottomLeading)
+            .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .bottomTrailing)
 
             Text(films.statsLine ?? " ")
                 .font(.system(size: 27, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
                 .shadow(color: .black.opacity(0.5), radius: 8)
-                .frame(height: 34, alignment: .leading)
+                .frame(height: 34, alignment: .trailing)
                 .id(films.statsLine ?? "-")
                 .transition(slide)
-            ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topTrailing) {
                 if let latest = films.latestLine {
                     Text(latest)
                         .font(.system(size: 24, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.7))
                         .lineLimit(2)
+                        .multilineTextAlignment(.trailing)
                         .id(latest)
                         .transition(slide)
                 }
             }
-            .frame(height: 64, alignment: .topLeading)
+            .frame(height: 64, alignment: .topTrailing)
         }
-        .padding(.top, 60)
+        // At the bottom right of the photo's height, just above the tiles (Steven).
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .allowsHitTesting(false)
     }
 }
