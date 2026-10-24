@@ -57,13 +57,14 @@ struct OrbitStudiosPage: View {
         let shown = shownFolder
         let selectedId = shownId ?? folders.first?.id
         ZStack(alignment: .topLeading) {
-            OrbitStudiosBackdrop(url: Self.backdropURL(shown), blurFrom: 0.3)
+            // Steven: less blur, the art shows more (the blur starts under the first row).
+            OrbitStudiosBackdrop(url: Self.backdropURL(shown), blurFrom: 0.62)
                 .ignoresSafeArea()
-            // The left reads over any backdrop.
+            // The studio's name and figures read over any backdrop (a light veil, the backdrop
+            // has its own).
             LinearGradient(stops: [
-                .init(color: .black.opacity(0.7), location: 0),
-                .init(color: .black.opacity(0.25), location: 0.5),
-                .init(color: .clear, location: 0.8),
+                .init(color: .black.opacity(0.35), location: 0),
+                .init(color: .clear, location: 0.45),
             ], startPoint: .leading, endPoint: .trailing)
             .ignoresSafeArea()
             .allowsHitTesting(false)
