@@ -7,9 +7,9 @@ import SwiftUI
 //    ("Studio · 432 films") on the left as a hero;
 //  - the studios as landscape tiles, six to seven a screen, each its logo in white on its own
 //    colour (dimmed when another is focused, full when focused, with the white frame and a lift);
-//  - two rows of the focused studio's films in small portrait posters: "Nouveautés" (its real
-//    recent releases, no shorts) and "Les incontournables" (its best rated); the second shows at
-//    the bottom of the screen and the page rises to it.
+//  - two rows of the focused studio's films in small portrait posters, in fixed places on the
+//    screen: "Nouveautés" (its real recent releases, no shorts) and "Les incontournables" (its
+//    best rated) — "Les plus populaires" takes a missing one's place (Ghibli: no recent film).
 // Down from the bar lands on the first studio (far left); entering a row lands on its first film;
 // up from the films, back on the studio whose films they are; back from a studio, the focus is
 // the studio it was opened from.
@@ -33,10 +33,10 @@ struct OrbitStudiosPage: View {
     @MainActor private static var restoringUntil: TimeInterval = 0
     @MainActor private static var lostTilesAt: TimeInterval = 0
 
-    static let tileSize = CGSize(width: 252, height: 142)
-    static let tileSpacing: CGFloat = 26
-    static let heroTop: CGFloat = 150
-    static let logoSize = CGSize(width: 420, height: 120)
+    static let tileSize = CGSize(width: 236, height: 133)
+    static let tileSpacing: CGFloat = 24
+    static let heroTop: CGFloat = 112
+    static let logoSize = CGSize(width: 380, height: 100)
 
     private var folders: [CollectionFolder] {
         var seen = Set<String>()
@@ -68,8 +68,8 @@ struct OrbitStudiosPage: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+            // Everything on one screen (no page scroll: it slid the studio's name under the bar).
+            VStack(alignment: .leading, spacing: 0) {
                     hero(shown)
                         .padding(.leading, L.margin)
                         .padding(.top, Self.heroTop)
@@ -92,18 +92,16 @@ struct OrbitStudiosPage: View {
                     }
                     .scrollClipDisabled()
                     .padding(.vertical, -30)
-                    .padding(.top, 40)
+                    .padding(.top, 30)
                     .focusSection()
 
-                    OrbitStudioFilmsRow(kind: .recent)
-                        .padding(.top, 54)
-                    OrbitStudioFilmsRow(kind: .best)
-                        .padding(.top, 46)
-                        .padding(.bottom, 120)
-                }
-                .frame(width: L.screenWidth, alignment: .leading)
+                    // Two fixed slots: they never move, only their content changes.
+                    OrbitStudioFilmsRow(slot: 0)
+                        .padding(.top, 40)
+                    OrbitStudioFilmsRow(slot: 1)
+                        .padding(.top, 30)
             }
-            .scrollClipDisabled()
+            .frame(width: L.screenWidth, alignment: .leading)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .ignoresSafeArea()
@@ -301,14 +299,16 @@ final class OrbitStudioFilmsModel: ObservableObject {
     static let shared = OrbitStudioFilmsModel()
 
     @Published private(set) var title: String?
-    @Published private(set) var recent: [MetaPreview] = []
-    @Published private(set) var best: [MetaPreview] = []
+    /// The two rows shown: "Nouveautés" (when the studio has recent releases), "Les
+    /// incontournables", "Les plus populaires" — the first two of them.
+    @Published private(set) var rows: [(title: String, items: [MetaPreview])] = []
     /// "Studio · 432 films".
     @Published private(set) var statsLine: String?
 
     private struct Found {
         var recent: [MetaPreview]
         var best: [MetaPreview]
+        var popular: [MetaPreview]
         var count: Int
     }
 
@@ -347,7 +347,7 @@ final class OrbitStudioFilmsModel: ObservableObject {
         guard let companies = Self.companies(forTitle: folderTitle) else {
             pending?.cancel()
             current = nil
-            withAnimation(.easeInOut(duration: 0.25)) { title = nil; recent = []; best = []; statsLine = nil }
+            withAnimation(.easeInOut(duration: 0.25)) { title = nil; rows = []; statsLine = nil }
             return
         }
         guard companies != current else { return }
@@ -364,7 +364,7 @@ final class OrbitStudioFilmsModel: ObservableObject {
             guard !Task.isCancelled else { return }
             let lists = await Self.fetch(companies: companies, apiKey: key, language: language)
             guard !Task.isCancelled, let self, self.current == companies else { return }
-            let found = Found(recent: lists.recent, best: lists.best, count: lists.count)
+            let found = Found(recent: lists.recent, best: lists.best, popular: lists.popular, count: lists.count)
             self.cache[companies] = found
             withAnimation(.easeInOut(duration: 0.25)) { self.show(found, title: folderTitle) }
         }
@@ -372,8 +372,13 @@ final class OrbitStudioFilmsModel: ObservableObject {
 
     private func show(_ found: Found, title folderTitle: String) {
         title = folderTitle
-        recent = found.recent
-        best = found.best
+        var list: [(title: String, items: [MetaPreview])] = []
+        if found.recent.count >= 3 { list.append((String(localized: "Nouveautés"), found.recent)) }
+        if found.best.count >= 3 { list.append((String(localized: "Les incontournables"), found.best)) }
+        let bestIds = Set(found.best.prefix(20).map(\.id))
+        let popular = found.popular.filter { !bestIds.contains($0.id) }
+        if popular.count >= 3 { list.append((String(localized: "Les plus populaires"), popular)) }
+        rows = Array(list.prefix(2))
         statsLine = found.count > 0 ? String(localized: "Studio · \(found.count) films") : String(localized: "Studio")
     }
 
@@ -394,7 +399,7 @@ final class OrbitStudioFilmsModel: ObservableObject {
     /// "Nouveautés": the films out in the last eighteen months (feature length, most popular of
     /// them, newest first); "Les incontournables": the best rated (feature length, well known).
     nonisolated private static func fetch(companies: String, apiKey: String, language: String) async
-        -> (recent: [MetaPreview], best: [MetaPreview], count: Int) {
+        -> (recent: [MetaPreview], best: [MetaPreview], popular: [MetaPreview], count: Int) {
         let lang = language.isEmpty ? "fr-FR" : language
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -406,10 +411,12 @@ final class OrbitStudioFilmsModel: ObservableObject {
             + "&with_companies=\(encoded)&with_runtime.gte=60"
         async let recentCall = results(base + "&sort_by=popularity.desc&primary_release_date.gte=\(since)&primary_release_date.lte=\(today)")
         async let bestCall = results(base + "&sort_by=vote_average.desc&vote_count.gte=300")
+        async let popularCall = results(base + "&sort_by=popularity.desc&vote_count.gte=50")
         async let allCall = results("https://api.themoviedb.org/3/discover/movie?api_key=\(apiKey)&with_companies=\(encoded)")
-        let (recentValue, bestValue, allValue) = await (recentCall, bestCall, allCall)
+        let (recentValue, bestValue, popularValue, allValue) = await (recentCall, bestCall, popularCall, allCall)
         let recent = recentValue.items.sorted { ($0.release_date ?? "") > ($1.release_date ?? "") }
-        return (recent.compactMap(preview), bestValue.items.compactMap(preview), allValue.total)
+        return (recent.compactMap(preview), bestValue.items.compactMap(preview),
+                popularValue.items.compactMap(preview), allValue.total)
     }
 
     nonisolated private static func preview(_ r: Response.Result) -> MetaPreview? {
@@ -436,8 +443,8 @@ final class OrbitStudioFilmsModel: ObservableObject {
 /// A row of the studio's films in small portrait posters, scrolling sideways; entering it lands
 /// on its first film.
 struct OrbitStudioFilmsRow: View {
-    enum Kind { case recent, best }
-    let kind: Kind
+    /// 0: the upper row, 1: the lower one.
+    let slot: Int
 
     @ObservedObject private var model = OrbitStudioFilmsModel.shared
     @FocusState private var focused: String?
@@ -446,21 +453,22 @@ struct OrbitStudioFilmsRow: View {
     @MainActor static var hasFocus = false
     @MainActor private static var holders = 0
 
-    static let posterSize = CGSize(width: 168, height: 252)
+    static let posterSize = CGSize(width: 150, height: 225)
 
-    private var items: [MetaPreview] { kind == .recent ? model.recent : model.best }
-    private var heading: String {
-        kind == .recent ? String(localized: "Nouveautés") : String(localized: "Les incontournables")
+    private var row: (title: String, items: [MetaPreview])? {
+        model.rows.indices.contains(slot) ? model.rows[slot] : nil
     }
+    private var items: [MetaPreview] { row?.items ?? [] }
 
     var body: some View {
         let items = items
-        VStack(alignment: .leading, spacing: 16) {
-            if let title = model.title, items.count >= 3 {
+        VStack(alignment: .leading, spacing: 14) {
+            if let title = model.title, let heading = row?.title {
                 Text(heading)
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(Color.white)
                     .shadow(color: .black.opacity(0.5), radius: 8)
+                    .frame(height: 40)
                     .padding(.leading, OrbitHomeLayout.margin)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 24) {
@@ -477,10 +485,12 @@ struct OrbitStudioFilmsRow: View {
                 }
                 .scrollClipDisabled()
                 .padding(.vertical, -16)
-                .id("films-\(kind)-\(title)")
+                .id("films-\(heading)-\(title)")
                 .transition(.opacity)
             }
         }
+        // The slot keeps its height when empty (the rows never move).
+        .frame(height: 40 + 14 + Self.posterSize.height, alignment: .topLeading)
         .focusSection()
         .onChange(of: focused) { old, id in
             if old == nil, id != nil { Self.holders += 1 }
