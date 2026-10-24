@@ -257,14 +257,16 @@ struct OrbitPlatformPage: View {
             for i in stride(from: index - 1, through: 0, by: -1) { y -= rows[i].pitch; out[i] = y }
             return out
         }()
-        let window = max(0, index - 1)...max(max(0, index - 1), min(rows.count - 1, index + 2))
+        // Steven's video: the row leaving upwards faded across the next one (a ghost of the Top 10
+        // over the posters). The rows above the current one are not drawn at all: one leaving
+        // goes at once, one coming back down appears in place.
+        let window = index...max(index, min(rows.count - 1, index + 2))
         ZStack(alignment: .topLeading) {
             if !rows.isEmpty {
                 ForEach(Array(zip(window, rows[window])), id: \.1.id) { i, row in
                     OrbitPlatformRowView(row: row, lead: lead(of: row), isCurrent: i == index,
                                          focused: i == index && canvasFocused)
                         .offset(y: L.rowLine + offsets[i])
-                        .opacity(i < index ? 0 : 1)
                         .transition(.identity)
                 }
             }

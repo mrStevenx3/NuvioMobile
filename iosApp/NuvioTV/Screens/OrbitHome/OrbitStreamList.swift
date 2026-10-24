@@ -72,6 +72,15 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
         return 0
     }
 
+    /// The card's marks, one per line: the best definition, the best picture range, Atmos.
+    static func markLines(_ quality: OrbitQuality) -> [OrbitQuality] {
+        var out: [OrbitQuality] = []
+        if let d = [OrbitQuality.uhd, .fullHD, .hd, .sd].first(where: { quality.contains($0) }) { out.append(d) }
+        if let r = [OrbitQuality.dolbyVision, .hdr10Plus, .hdr10, .hdr].first(where: { quality.contains($0) }) { out.append(r) }
+        if quality.contains(.atmos) { out.append(.atmos) }
+        return out
+    }
+
     /// Dynamic range rank: Dolby Vision 4, HDR10+ 3, HDR10 2, HDR 1, SDR 0.
     var rangeRank: Int {
         if quality.contains(.dolbyVision) { return 4 }
@@ -411,11 +420,11 @@ struct OrbitStreamCard: View {
         Button(action: action) {
             HStack(alignment: .center, spacing: 34) {
                 // The quality marks, the description page's own.
+                // Steven: one mark per line, all on the same left edge (the definition, the
+                // picture, the sound), instead of two side by side over one below.
                 VStack(alignment: .leading, spacing: 10) {
-                    OrbitQualityBadges(quality: tags.quality.subtracting(.atmos))
-                        .frame(height: 30, alignment: .leading)
-                    if tags.quality.contains(.atmos) {
-                        OrbitQualityBadges(quality: .atmos)
+                    ForEach(OrbitStreamTags.markLines(tags.quality), id: \.rawValue) { mark in
+                        OrbitQualityBadges(quality: mark)
                             .frame(height: 30, alignment: .leading)
                     }
                 }
