@@ -215,6 +215,10 @@ struct OrbitDetailView: View {
                 .disabled(cinema)
             }
             .scrollClipDisabled()
+            // Steven (the season row bounced): on a season poster the page does not scroll on its
+            // own — the system nudged it a few points at each season change and the hold pulled it
+            // back. The page's own moves (`anchor`, scrollTo) still place it.
+            .scrollDisabled(onSeasonPoster)
             .ignoresSafeArea()
             // Steven: on some titles the system nudged the hero up a little and the "C" of
             // Casting peeked at the bottom. On the hero, nothing below it shows.
@@ -460,6 +464,11 @@ struct OrbitDetailView: View {
         case .hero, .episodes:
             return nil
         }
+    }
+
+    private var onSeasonPoster: Bool {
+        if case .season? = focus { return true }
+        return false
     }
 
     private func anchor(_ proxy: ScrollViewProxy, _ target: OrbitDetailSection, duration: Double) {
