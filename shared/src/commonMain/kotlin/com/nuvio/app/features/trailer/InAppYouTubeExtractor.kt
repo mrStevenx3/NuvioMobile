@@ -32,7 +32,11 @@ internal const val TRAILER_EXTRACTOR_TIMEOUT_MS = 30_000L
 // separate-A/V source, so [pickBestForClient] walks this list in order — the first client
 // that contributed ANY candidates wins outright — before falling back to pooling across all
 // clients. Costs one extra innertube POST when the first client fails or is empty.
-private val PREFERRED_SEPARATE_CLIENTS = listOf("android_vr", "visionos")
+// 2026-10-24 (Steven: every trailer played a second, went black and restarted in a lower
+// quality): android_vr's streams now need a proof-of-origin token — YouTube serves the first
+// second, then refuses — and the playback failure fell back to a poorer source. visionos needs
+// none (yt-dlp's only token-free default, master 2026-10-23), so it leads; android_vr follows.
+private val PREFERRED_SEPARATE_CLIENTS = listOf("visionos", "android_vr")
 
 // Per-request bounds for the concurrent innertube/manifest batches (Codex 2026-08-29 P1):
 // awaitAll() completes when the SLOWEST request does, and each HTTP call otherwise allows 20s
@@ -243,7 +247,7 @@ private val CLIENTS = listOf(
             "hl" to "en",
             "gl" to "US",
         ),
-        priority = 0,
+        priority = 1,
     ),
     YouTubeClient(
         key = "visionos",
@@ -261,7 +265,7 @@ private val CLIENTS = listOf(
             "hl" to "en",
             "gl" to "US",
         ),
-        priority = 1,
+        priority = 0,
     ),
     YouTubeClient(
         key = "android",

@@ -87,6 +87,10 @@ struct OrbitPlatformPage: View {
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
+    /// Steven: the first title's trailer never started (one YouTube extraction runs at a time
+    /// app-wide, and a title that asks while another one runs is skipped, not queued). Asked
+    /// again while the viewer stays on it.
+    @State private var dwellRetry: Task<Void, Never>?
 
     init(route: FolderRoute, push: @escaping (TitleRoute) -> Void) {
         self.route = route
@@ -372,14 +376,24 @@ struct OrbitPlatformPage: View {
             return logo.flatMap(URL.init(string:)).map { ArtworkPrefetchItem(url: $0, decode: logoRequest) }
         })
 
+        dwellRetry?.cancel()
         trailer.reset()
         trailerKey = nil
         guard trailersOn, canvasFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = focusedItem(rows) else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
-        trailerKey = "\(item.type):\(item.id)"
+        let key = "\(item.type):\(item.id)"
+        trailerKey = key
         trailer.focusChanged(true, item: item)
+        dwellRetry = Task { @MainActor in
+            for _ in 0..<3 {
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                guard !Task.isCancelled, trailerKey == key, trailer.playingURL == nil,
+                      canvasFocused, search == nil else { return }
+                trailer.focusChanged(true, item: item)
+            }
+        }
     }
 }
 
