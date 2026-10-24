@@ -156,6 +156,10 @@ struct EntityBrowseView: View {
     let route: EntityRoute
 
     @StateObject private var model: EntityBrowseViewModel
+    /// Steven (Orbit): a studio's page is immersive like the title page it comes from (as the
+    /// actor's page): the Orbit bar no longer comes back over it and keeps the focus on the way
+    /// back, so the title page returns to the card it was left from.
+    @Environment(\.tabBarVisibility) private var tabBarVisibility
 
     /// BUG-34: anchors `.prefersDefaultFocus` on the header/description block so initial focus can
     /// never settle on a rail poster (see `topBlock`).
@@ -201,7 +205,11 @@ struct EntityBrowseView: View {
                 .focusScope(topFocusNamespace)
             }
         }
-        .onAppear { model.start() }
+        .onAppear {
+            tabBarVisibility.pushImmersive()
+            model.start()
+        }
+        .onDisappear { tabBarVisibility.popImmersive() }
     }
 
     // MARK: - Sections
