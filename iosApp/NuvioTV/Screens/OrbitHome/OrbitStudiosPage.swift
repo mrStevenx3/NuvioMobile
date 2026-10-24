@@ -78,11 +78,12 @@ struct OrbitStudiosPage: View {
 
             // Steven (2026-10-24): a panoramic frame across the page, centred; the studio's name
             // on it, bottom left (a soft shade in that corner only).
-            OrbitStudioFrame(url: Self.backdropURL(shown), forward: forward)
+            OrbitStudioFrame(url: Self.backdropURL(shown), forward: forward,
+                             lift: OrbitStudioFrame.lift(title: shown?.title ?? ""))
                 .overlay(alignment: .bottomLeading) {
                     hero(shown)
-                        .padding(.leading, 48)
-                        .padding(.bottom, 36)
+                        .padding(.leading, 36)
+                        .padding(.bottom, 26)
                 }
                 .offset(x: L.margin, y: Self.heroTop)
 
@@ -175,7 +176,7 @@ struct OrbitStudiosPage: View {
     /// Every studio's backdrop fetched as the page opens (a change is instant), then its colour.
     private func prefetchBackdrops() {
         let request = ArtworkDecodeRequest(size: .points(width: Self.frameSize.width,
-                                                         height: Self.frameSize.height),
+                                                         height: Self.frameSize.width * 9 / 16),
                                            fill: true, scale: displayScale)
         let jobs: [(id: String, raw: String, url: URL)] = folders.compactMap { folder in
             guard let raw = Self.backdropURL(folder), let url = URL(string: raw) else { return nil }
@@ -245,7 +246,8 @@ struct OrbitStudiosPage: View {
             ZStack(alignment: .bottomLeading) {
                 if let url = Self.logoURL(folder) {
                     OrbitBalancedLogo(url: url, area: 38_000, maxSize: Self.logoSize,
-                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading)
+                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading,
+                                      bolden: OrbitBalancedLogo.isThin(folder?.title ?? ""))
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)
                         .transition(slide)
@@ -262,13 +264,6 @@ struct OrbitStudiosPage: View {
             }
             .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .bottomLeading)
 
-            Text(films.statsLine ?? " ")
-                .font(.system(size: 27, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.85))
-                .shadow(color: .black.opacity(0.5), radius: 8)
-                .frame(height: 34, alignment: .leading)
-                .id(films.statsLine ?? "-")
-                .transition(slide)
         }
         .allowsHitTesting(false)
     }
@@ -280,6 +275,16 @@ struct OrbitStudiosPage: View {
 private struct OrbitStudioFrame: View {
     let url: String?
     let forward: Bool
+    /// How far the image is lowered in the frame from its centre (0…1 of what the frame cuts):
+    /// the panorama crops the top and bottom of a 16:9 image, a head may be cut.
+    var lift: CGFloat = 0
+
+    /// Steven: Darth Vader's head was cut (Lucasfilm).
+    static func lift(title raw: String) -> CGFloat {
+        let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        if t.contains("lucasfilm") || t.contains("star wars") { return 0.75 }
+        return 0
+    }
 
     @State private var zoom: CGFloat = 1
     @State private var shift: CGFloat = 0
@@ -289,7 +294,14 @@ private struct OrbitStudioFrame: View {
         let radius: CGFloat = 22
         ZStack {
             Color(white: 0.1)
-            OrbitSwapImage(url: url, fallback: nil, size: size)
+            // The image drawn whole at the frame's width (16:9), the frame showing its middle band,
+            // lowered by `lift`.
+            let full = CGSize(width: size.width, height: size.width * 9 / 16)
+            let spare = max(0, full.height - size.height) / 2
+            OrbitSwapImage(url: url, fallback: nil, size: full)
+                .frame(width: full.width, height: full.height)
+                .offset(y: spare * lift)
+                .frame(width: size.width, height: size.height)
                 .scaleEffect(zoom)
                 .offset(x: shift)
             // The name reads at the bottom left; the rest of the image stays clean.
@@ -329,6 +341,12 @@ struct OrbitBalancedLogo: View {
     let maxSize: CGSize
     var whiten = false
     var alignment: Alignment = .center
+    /// Thicken a thin logo (Pixar's lettering).
+    var bolden = false
+
+    static func isThin(_ raw: String) -> Bool {
+        raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).contains("pixar")
+    }
 
     @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
@@ -346,7 +364,19 @@ struct OrbitBalancedLogo: View {
                 let picture = Image(uiImage: image).resizable().aspectRatio(contentMode: .fit)
                 Group {
                     if whiten {
-                        picture.colorMultiply(.black).colorInvert()
+                        let white = picture.colorMultiply(.black).colorInvert()
+                        if bolden {
+                            // A thin logo (Pixar) thickened: drawn a few times around itself.
+                            ZStack {
+                                ForEach(0..<8, id: \.self) { i in
+                                    let angle = Double(i) * .pi / 4
+                                    white.offset(x: cos(angle) * 1.4, y: sin(angle) * 1.4)
+                                }
+                                white
+                            }
+                        } else {
+                            white
+                        }
                     } else {
                         picture
                     }
@@ -395,7 +425,8 @@ private struct OrbitStudioTile: View {
             if let logo = OrbitStudiosPage.logoURL(folder) {
                 OrbitBalancedLogo(url: logo, area: 7_600,
                                   maxSize: CGSize(width: size.width - 50, height: size.height - 40),
-                                  whiten: OrbitBalancedLogo.isGrey(folder.title), alignment: .center)
+                                  whiten: OrbitBalancedLogo.isGrey(folder.title), alignment: .center,
+                                  bolden: OrbitBalancedLogo.isThin(folder.title))
                     // The logos are white or light: kept white on the colour.
                     .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
             } else {
