@@ -231,22 +231,8 @@ final class RemoteSetupViewModel: ObservableObject {
             MdbListSettingsRepository.shared.setApiKey(value: key)
             MdbListSettingsRepository.shared.setEnabled(value: true)
         }
-        // Custom poster pattern: blank clears. Never logged (may contain an API key).
-        if let raw = proposal.posterPattern {
-            let pattern = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if pattern.isEmpty {
-                CustomPosterUrlRepository.shared.clearPattern()
-            } else if Self.isValidPosterPattern(pattern) {
-                CustomPosterUrlRepository.shared.setPattern(pattern: pattern)
-            }
-        }
-        // Badge pack imports (async fetch+parse; the badge watcher refreshes the page state as
-        // each one lands). Already-imported URLs are re-fetched/updated by the shared repo.
-        for url in proposal.badgeUrls ?? [] {
-            let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            StreamBadgeSettingsRepository.shared.importStreamBadgeRulesFromUrl(url: trimmed) { _, _ in }
-        }
+        // Steven (2026-10-24): custom posters and stream badge packs are look settings, gone
+        // with Orbit's one look — a proposal carrying them (an old page) is ignored for them.
     }
 
     private func applyAddons(_ proposal: RemoteSetupServer.Proposal) {
@@ -362,19 +348,6 @@ final class RemoteSetupViewModel: ObservableObject {
         }
 
         if proposal.mdblistKey?.isEmpty == false { parts.append(String(localized: "MDBList key set")) }
-        if let posterPattern = proposal.posterPattern {
-            let trimmed = posterPattern.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                parts.append(String(localized: "Custom poster pattern cleared"))
-            } else if Self.isValidPosterPattern(trimmed) {
-                parts.append(String(localized: "Custom poster pattern set"))
-            } else {
-                parts.append(String(localized: "Custom poster pattern rejected: must be an http(s) URL"))
-            }
-        }
-        if let badgeCount = proposal.badgeUrls?.count, badgeCount > 0 {
-            parts.append(String(localized: "\(badgeCount) badge pack\(badgeCount == 1 ? "" : "s") imported"))
-        }
 
         return parts.isEmpty ? String(localized: "No changes detected.") : parts.joined(separator: " \u{00B7} ") + "."
     }
