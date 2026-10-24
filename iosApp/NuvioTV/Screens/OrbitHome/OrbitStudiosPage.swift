@@ -38,9 +38,9 @@ struct OrbitStudiosPage: View {
     static let tileSize = CGSize(width: 236, height: 133)
     static let tileSpacing: CGFloat = 24
     static let heroTop: CGFloat = 112
-    static let logoSize = CGSize(width: 520, height: 150)
+    static let logoSize = CGSize(width: 460, height: 130)
     /// The framed backdrop, top right.
-    static let frameSize = CGSize(width: 820, height: 461)
+    static let frameSize = CGSize(width: 1760, height: 450)
 
     private var folders: [CollectionFolder] {
         var seen = Set<String>()
@@ -76,17 +76,22 @@ struct OrbitStudiosPage: View {
             .ignoresSafeArea()
             .animation(.easeInOut(duration: 0.4), value: shown?.id)
 
-            // Steven: the photo on the left (it fills the space), the studio's name on the right.
+            // Steven (2026-10-24): a panoramic frame across the page, centred; the studio's name
+            // on it, bottom left (a soft shade in that corner only).
             OrbitStudioFrame(url: Self.backdropURL(shown), forward: forward)
+                .overlay(alignment: .bottomLeading) {
+                    hero(shown)
+                        .padding(.leading, 48)
+                        .padding(.bottom, 36)
+                }
                 .offset(x: L.margin, y: Self.heroTop)
 
             // Everything on one screen (no page scroll: it slid the studio's name under the bar).
             VStack(alignment: .leading, spacing: 0) {
-                    hero(shown)
-                        .frame(width: L.screenWidth - 2 * L.margin - Self.frameSize.width - 60,
-                               height: Self.frameSize.height, alignment: .bottomTrailing)
-                        .padding(.leading, L.margin + Self.frameSize.width + 60)
-                        .padding(.top, Self.heroTop)
+                    // The frame's place (it is drawn above).
+                    Color.clear
+                        .frame(width: 1, height: Self.heroTop + Self.frameSize.height)
+                        .allowsHitTesting(false)
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Self.tileSpacing) {
@@ -236,11 +241,11 @@ struct OrbitStudiosPage: View {
     /// Fixed places (Steven: from Disney to Pixar the logo moved, the block was centred and its
     /// height changed): the logos sit on one line, the figures and the latest films under it.
     private func hero(_ folder: CollectionFolder?) -> some View {
-        VStack(alignment: .trailing, spacing: 18) {
-            ZStack(alignment: .bottomTrailing) {
+        VStack(alignment: .leading, spacing: 16) {
+            ZStack(alignment: .bottomLeading) {
                 if let url = Self.logoURL(folder) {
-                    OrbitBalancedLogo(url: url, area: 52_000, maxSize: Self.logoSize,
-                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomTrailing)
+                    OrbitBalancedLogo(url: url, area: 38_000, maxSize: Self.logoSize,
+                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)
                         .transition(slide)
@@ -255,18 +260,16 @@ struct OrbitStudiosPage: View {
                         .transition(slide)
                 }
             }
-            .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .bottomTrailing)
+            .frame(width: Self.logoSize.width, height: Self.logoSize.height, alignment: .bottomLeading)
 
             Text(films.statsLine ?? " ")
                 .font(.system(size: 27, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
                 .shadow(color: .black.opacity(0.5), radius: 8)
-                .frame(height: 34, alignment: .trailing)
+                .frame(height: 34, alignment: .leading)
                 .id(films.statsLine ?? "-")
                 .transition(slide)
         }
-        // At the bottom right of the photo's height, just above the tiles (Steven).
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .allowsHitTesting(false)
     }
 }
@@ -289,6 +292,9 @@ private struct OrbitStudioFrame: View {
             OrbitSwapImage(url: url, fallback: nil, size: size)
                 .scaleEffect(zoom)
                 .offset(x: shift)
+            // The name reads at the bottom left; the rest of the image stays clean.
+            RadialGradient(colors: [.black.opacity(0.62), .black.opacity(0.25), .clear],
+                           center: .bottomLeading, startRadius: 0, endRadius: 820)
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
