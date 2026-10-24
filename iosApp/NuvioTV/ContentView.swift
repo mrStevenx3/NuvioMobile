@@ -38,10 +38,10 @@ struct ContentView: View {
     /// category on every theme change — so pressing a colour looked like it had done nothing at
     /// all, which is how the "the theme picker doesn't work" report reads on screen. With the path
     /// held here, the rebuilt stack starts on Appearance again (FEAT-50).
-    @State private var settingsPath: [SettingsCategory] = []
+    @State private var settingsPath: [OrbitSettingsSection] = []
     /// The Settings category last opened: the root's preferred focus after a pop or a remount.
     /// Same ownership reason as `settingsPath`.
-    @State private var settingsLastCategory: SettingsCategory? = nil
+    @State private var settingsLastCategory: OrbitSettingsSection? = nil
     /// Set when the user picks a theme swatch, cleared once the Appearance pane has taken focus
     /// back. Owned HERE for the same reason as `settingsPath`: the swatch press re-identifies
     /// the whole tree, and focus — unlike state — cannot survive a remount at all, so it fell to
@@ -399,9 +399,9 @@ struct MainTabView: View {
     /// Also owned by ContentView (above the theme `.id()` boundary), same reasoning as
     /// `selectedTab`: a theme change must not dump the user out of the Settings pane they were
     /// standing in. Passed straight through to `SettingsView`.
-    @Binding var settingsPath: [SettingsCategory]
+    @Binding var settingsPath: [OrbitSettingsSection]
     /// Root focus restore for Settings; see `ContentView.settingsLastCategory`.
-    @Binding var settingsLastCategory: SettingsCategory?
+    @Binding var settingsLastCategory: OrbitSettingsSection?
     /// See `ContentView.pendingThemeSwatchFocus` — threaded through for the same reason
     /// `settingsPath` is: it must live above the theme rebuild boundary.
     @Binding var pendingThemeSwatchFocus: String?
@@ -499,12 +499,9 @@ struct MainTabView: View {
             // `tabBarImmersiveHide()` is the only safe uniform value here: `.visible` would pin
             // the bar open (BUG-66 itself), and `.hidden` is wrong for a tab root.
             Tab("Settings", systemImage: "gearshape", value: 4) {
-                SettingsView(
-                    path: $settingsPath,
-                    lastCategory: $settingsLastCategory,
-                    pendingThemeSwatchFocus: $pendingThemeSwatchFocus,
-                    pendingAppearanceRowFocus: $pendingAppearanceRowFocus
-                )
+                // Steven (2026-10-24): Orbit's own settings (Chris's are gone); a section Search
+                // asks for opens on arrival.
+                OrbitSettingsView(openRequest: $settingsLastCategory)
                     .tabBarImmersiveHide()
                     .railTabRoot(4)
             }
@@ -591,10 +588,9 @@ struct MainTabView: View {
         // posts `.nuvioOpenSettings` with the category and this always-mounted shell does the jump.
         .onReceive(NotificationCenter.default.publisher(for: .nuvioOpenSettings)) { note in
             let raw = note.userInfo?["category"] as? String
-            let category = raw.flatMap(SettingsCategory.init(rawValue:))
+            let category = raw.flatMap(OrbitSettingsSection.init(openRequest:))
             selectedTab = 4
             if let category {
-                settingsPath = [category]
                 settingsLastCategory = category
             }
         }

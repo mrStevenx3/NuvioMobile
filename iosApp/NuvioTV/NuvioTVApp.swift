@@ -62,6 +62,8 @@ struct NuvioTVApp: App {
         // I1 (beta.19-rc1 verdict, BUG-134): seed the display scale non-view artwork code decodes with
         // (hero resolver, prefetch) while we are certainly on the main thread.
         ArtworkDecodeMath.seedScreenScale()
+        // Steven (2026-10-24): the settings that left with Chris's screens keep Orbit's values.
+        OrbitSettingsPins.apply()
 
         // FEAT-31: register the bundled Open Sans faces + apply the persisted font choice before
         // any view (and therefore any `Theme.Font.*` read) is built.

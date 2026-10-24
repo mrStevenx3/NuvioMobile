@@ -875,3 +875,24 @@ enum LanguageOptions {
         options.first { $0.code == code }?.name ?? code
     }
 }
+
+// MARK: - Legacy stubs (Steven, 2026-10-24)
+
+// Chris's Settings screens are gone (Orbit has its own, `OrbitSettingsView`). These rows stay
+// only for the old page's episode shuffle sheet (`EpisodeShuffleSheet`, Chris's detail page) and
+// go with it when the old pages are removed. The explainer they reported to is gone: the
+// description id is kept as a type so the rows compile, and reporting does nothing.
+enum SettingsDescriptionID: String {
+    case legacy
+}
+
+extension View {
+    func settingsDescription(
+        _ id: SettingsDescriptionID?,
+        title: String,
+        systemImage: String? = nil,
+        focused: Bool? = nil
+    ) -> some View {
+        self
+    }
+}
