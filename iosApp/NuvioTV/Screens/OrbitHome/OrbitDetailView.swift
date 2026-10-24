@@ -59,6 +59,8 @@ enum OrbitDetailLayout {
     /// Steven (the page bounced on Left / Right): low enough that the focused card, lifted, sits
     /// well inside the screen, so the system has no reason to move the page itself.
     static let sectionRest: CGFloat = 200
+    /// The episodes section's top (it holds the season posters, the episodes and their text).
+    static let episodesRest: CGFloat = 100
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
@@ -464,7 +466,9 @@ struct OrbitDetailView: View {
             if target == .hero {
                 proxy.scrollTo(OrbitDetailSection.hero, anchor: .top)
             } else {
-                proxy.scrollTo(target, anchor: UnitPoint(x: 0, y: OrbitDetailLayout.sectionRest / OrbitHomeLayout.screenHeight))
+                // The episodes (seasons, episodes, the episode's text) are taller: higher up.
+                let rest = target == .episodes ? OrbitDetailLayout.episodesRest : OrbitDetailLayout.sectionRest
+                proxy.scrollTo(target, anchor: UnitPoint(x: 0, y: rest / OrbitHomeLayout.screenHeight))
             }
         }
     }

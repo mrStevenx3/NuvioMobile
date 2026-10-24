@@ -31,7 +31,7 @@ struct OrbitEpisodesSection: View {
 
     static let stillSize = CGSize(width: 384, height: 216)
     /// Steven (2026-10-24): larger season posters.
-    static let seasonSize = CGSize(width: 168, height: 252)
+    static let seasonSize = CGSize(width: 200, height: 300)
     /// The episode row's height (card, title, the row's padding): fixed, so a season change —
     /// the old row fading out while the new one fades in — never stacks two rows (the page
     /// bounced).
@@ -69,7 +69,7 @@ struct OrbitEpisodesSection: View {
             return nil
         }()
         let shown = focusedEpisode ?? nextUp
-        VStack(alignment: .leading, spacing: 26) {
+        VStack(alignment: .leading, spacing: 20) {
             Text(String(localized: "Épisodes"))
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(Color.white)
@@ -140,11 +140,12 @@ struct OrbitEpisodesSection: View {
             .clipped()
             .padding(.leading, OrbitDetailLayout.margin)
         }
-        // Entering from above (the hero, or a season row being skipped): the next episode.
+        // Steven: entering from above (the hero) lands on the season being shown — the season
+        // row is no longer skipped (the engine took the poster under Lire, or the episodes).
         .onChange(of: focus.wrappedValue) { old, new in
             guard case .season(let s)? = new else { return }
-            if old == nil || old?.section == .hero, let nextUp {
-                focus.wrappedValue = .episode(nextUp.id)
+            if old == nil || old?.section == .hero, let season, s != season {
+                DispatchQueue.main.async { focus.wrappedValue = .season(season) }
                 return
             }
             if s != shownSeason { shownSeason = s }
