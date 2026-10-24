@@ -194,7 +194,7 @@ struct OrbitStudioPage: View {
                                     onTrailerEnded: { trailer.playbackFinished() })
                         .opacity(onHero ? 1 : 0)
                 } else {
-                    OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: model.statsLine)
+                    OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: nil)
                         .offset(x: L.margin, y: 90)
                         .opacity(index == 0 ? 1 : 0)
                 }
