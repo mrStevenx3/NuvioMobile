@@ -330,6 +330,12 @@ struct OrbitDetailView: View {
                 return
             }
             lastFocus = new
+            // Steven: up from the details block lands on the first studio (far left), not the one
+            // above the block's middle (the same section, so the rule below does not apply).
+            if old == .about, case .company(let index) = new, index != 0 {
+                DispatchQueue.main.async { focus = .company(0) }
+                return
+            }
             // Steven: coming into a row (from another section) lands on its first card, far left.
             // `section`, not `old`: the engine can report a nil in between, which hid the change.
             // Steven: back up into the hero lands on Lire (it took the button above the card).
