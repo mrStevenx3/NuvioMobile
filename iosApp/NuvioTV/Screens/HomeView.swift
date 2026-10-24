@@ -1291,7 +1291,13 @@ struct HomeView: View {
                 EntityBrowseView(route: route)
             }
             .navigationDestination(for: FolderRoute.self) { route in
-                FolderDetailView(route: route)
+                // Orbit: a platform's (or a studio's) own page, rebuilt in the Orbit style; the
+                // old folder page stays for the other navigation modes only.
+                if NavigationChrome.isOrbitBar() {
+                    OrbitPlatformPage(route: route, push: { homePath.append($0) })
+                } else {
+                    FolderDetailView(route: route)
+                }
             }
             .navigationDestination(for: OrbitGenreRoute.self) { route in
                 OrbitGenrePage(genre: route.genre)

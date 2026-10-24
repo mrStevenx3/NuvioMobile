@@ -12,9 +12,44 @@ import UIKit
 //     section 0   suggestions (or recent searches while the field is empty), one scrolling line
 //     section 1   every title found, posters seven to a line
 
+/// What the results show, from any search: the general Search (`SearchViewModel`) or a platform's
+/// own (`OrbitPlatformSearchModel`). `read` is asked after each `changes` signal.
+@MainActor
+struct OrbitSearchFeed {
+    /// Chips (recent searches while the field is empty, suggestions else) and the titles found.
+    struct Snapshot {
+        var queryIsEmpty: Bool
+        var chips: [String]
+        var titles: [MetaPreview]
+    }
+
+    let changes: AnyPublisher<Void, Never>
+    let read: () -> Snapshot
+
+    /// The general Search.
+    static func search(_ model: SearchViewModel) -> OrbitSearchFeed {
+        OrbitSearchFeed(
+            changes: Publishers.MergeMany(
+                model.$rows.map { _ in () }.eraseToAnyPublisher(),
+                model.$topResult.map { _ in () }.eraseToAnyPublisher(),
+                model.$suggestions.map { _ in () }.eraseToAnyPublisher(),
+                model.$history.map { _ in () }.eraseToAnyPublisher(),
+                model.$queryIsEmpty.map { _ in () }.eraseToAnyPublisher()
+            ).eraseToAnyPublisher(),
+            read: { [weak model] in
+                guard let model else { return Snapshot(queryIsEmpty: true, chips: [], titles: []) }
+                let all = SearchGridResults.items(top: model.topResult, rows: model.rows)
+                let chips = model.queryIsEmpty ? model.history
+                    : SearchGridResults.entries(suggestions: model.suggestions, items: all, limit: 10)
+                return Snapshot(queryIsEmpty: model.queryIsEmpty, chips: chips, titles: all)
+            }
+        )
+    }
+}
+
 @MainActor
 final class OrbitSearchResultsController: UIViewController, UICollectionViewDelegate {
-    private let model: SearchViewModel
+    private let feed: OrbitSearchFeed
     private let onPick: (String) -> Void
     private let onOpen: (MetaPreview) -> Void
 
@@ -33,8 +68,12 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     static let margin: CGFloat = OrbitHomeLayout.margin
     static let spacing: CGFloat = 30
 
-    init(model: SearchViewModel, onPick: @escaping (String) -> Void, onOpen: @escaping (MetaPreview) -> Void) {
-        self.model = model
+    convenience init(model: SearchViewModel, onPick: @escaping (String) -> Void, onOpen: @escaping (MetaPreview) -> Void) {
+        self.init(feed: .search(model), onPick: onPick, onOpen: onOpen)
+    }
+
+    init(feed: OrbitSearchFeed, onPick: @escaping (String) -> Void, onOpen: @escaping (MetaPreview) -> Void) {
+        self.feed = feed
         self.onPick = onPick
         self.onOpen = onOpen
         super.init(nibName: nil, bundle: nil)
@@ -83,13 +122,7 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
 
         // One snapshot per change of what the page shows (the model publishes on willSet: read
         // the values on the next turn).
-        Publishers.MergeMany(
-            model.$rows.map { _ in () }.eraseToAnyPublisher(),
-            model.$topResult.map { _ in () }.eraseToAnyPublisher(),
-            model.$suggestions.map { _ in () }.eraseToAnyPublisher(),
-            model.$history.map { _ in () }.eraseToAnyPublisher(),
-            model.$queryIsEmpty.map { _ in () }.eraseToAnyPublisher()
-        )
+        feed.changes
         .debounce(for: .milliseconds(60), scheduler: DispatchQueue.main)
         .sink { [weak self] in MainActor.assumeIsolated { self?.apply() } }
         .store(in: &cancellables)
@@ -136,16 +169,15 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     }
 
     private func apply() {
-        let all = SearchGridResults.items(top: model.topResult, rows: model.rows)
-        let found = all.filter { posterReady($0) }
+        let shot = feed.read()
+        let found = shot.titles.filter { posterReady($0) }
         titles = Dictionary(found.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let entries = model.queryIsEmpty ? model.history
-            : SearchGridResults.entries(suggestions: model.suggestions, items: all, limit: 10)
+        let entries = shot.chips
         var snapshot = NSDiffableDataSourceSnapshot<Section, Item>()
         snapshot.appendSections([.suggestions, .titles])
         var seen = Set<String>()
         snapshot.appendItems(entries.filter { seen.insert($0).inserted }.map(Item.suggestion), toSection: .suggestions)
-        snapshot.appendItems(model.queryIsEmpty ? [] : found.map { Item.title($0.id) }, toSection: .titles)
+        snapshot.appendItems(shot.queryIsEmpty ? [] : found.map { Item.title($0.id) }, toSection: .titles)
         dataSource.apply(snapshot, animatingDifferences: false)
     }
 

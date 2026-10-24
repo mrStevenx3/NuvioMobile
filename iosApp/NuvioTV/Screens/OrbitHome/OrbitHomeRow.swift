@@ -54,6 +54,8 @@ struct OrbitRow: Identifiable, Equatable {
     let cards: [OrbitCard]
     /// The catalog section (localization warm-up), nil for Continue Watching.
     var sectionKey: String?
+    /// Orbit Plateformes: a Top 10 row, each card with its rank (1…10). Never on Home.
+    var ranked = false
 }
 
 struct OrbitHomeRowView: View {
@@ -85,7 +87,7 @@ struct OrbitHomeRowView: View {
             ZStack(alignment: .topLeading) {
                 if !row.cards.isEmpty {
                     ForEach(Array(zip(window, row.cards[window])), id: \.1.id) { index, card in
-                        OrbitPosterCard(card: card)
+                        OrbitPosterCard(card: card, rank: row.ranked && index < 10 ? index + 1 : nil)
                             .offset(x: L.cardX(index - lead))
                             .transition(.identity)
                     }
@@ -97,7 +99,8 @@ struct OrbitHomeRowView: View {
             if row.cards.indices.contains(lead) {
                 OrbitLeadFrame(card: row.cards[lead], meta: metaStore.meta(for: row.cards[lead].preview),
                                focused: focused, trailerURL: trailerURL,
-                               onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                               onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded,
+                               rank: row.ranked && lead < 10 ? lead + 1 : nil)
                     .offset(x: L.margin, y: L.cardsTop)
 
                 // Always there, shown only on the current row: a text block created mid-move was
@@ -132,6 +135,8 @@ struct OrbitHomeRowView: View {
 /// A poster in a row.
 struct OrbitPosterCard: View {
     let card: OrbitCard
+    /// Top 10: the card's rank, drawn big over its corner.
+    var rank: Int? = nil
 
     var body: some View {
         let L = OrbitHomeLayout.self
@@ -144,6 +149,7 @@ struct OrbitPosterCard: View {
                     .padding(.horizontal, 14)
                     .padding(.bottom, 12)
             }
+            if let rank { OrbitRankNumber(rank: rank, size: 150) }
         }
         .frame(width: L.posterWidth, height: L.cardHeight)
         .clipShape(RoundedRectangle(cornerRadius: L.posterRadius, style: .continuous))
@@ -172,6 +178,8 @@ struct OrbitLeadFrame: View {
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
+    /// Top 10: the title's rank, big in the frame's right corner.
+    var rank: Int? = nil
 
     var body: some View {
         let L = OrbitHomeLayout.self
@@ -199,6 +207,11 @@ struct OrbitLeadFrame: View {
                                    maxSize: CGSize(width: 440, height: 130), textSize: 54)
                         .padding(.leading, 28)
                         .padding(.bottom, 24)
+                    if let rank {
+                        OrbitRankNumber(rank: rank, size: 170)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                            .padding(.trailing, 24)
+                    }
                     if let badge = card.badge {
                         Text(badge)
                             .font(.system(size: 22, weight: .bold))
@@ -228,6 +241,22 @@ struct OrbitLeadFrame: View {
             RoundedRectangle(cornerRadius: L.frameRadius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : 0.2), lineWidth: focused ? L.frameBorder : 1.5)
         }
+    }
+}
+
+/// A Top 10 rank: a big white number with a soft shadow, sitting on the card's bottom edge.
+struct OrbitRankNumber: View {
+    let rank: Int
+    let size: CGFloat
+
+    var body: some View {
+        Text("\(rank)")
+            .font(.system(size: size, weight: .black).width(.condensed))
+            .foregroundStyle(Color.white)
+            .shadow(color: .black.opacity(0.7), radius: 14, y: 4)
+            .padding(.leading, 12)
+            .offset(y: size * 0.16)
+            .accessibilityLabel("\(rank)")
     }
 }
 
