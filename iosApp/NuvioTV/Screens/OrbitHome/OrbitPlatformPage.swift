@@ -57,7 +57,7 @@ enum OrbitPlatformLayout {
     /// The current row's heading centre on screen.
     static let rowLine: CGFloat = 610
     /// From a heading's centre to its cards' top.
-    static let cardsTop: CGFloat = 40
+    static let cardsTop: CGFloat = 52
     static let rowGap: CGFloat = 70
     static let posterHeight: CGFloat = 330
     static let landscapeHeight: CGFloat = 225
@@ -251,6 +251,17 @@ struct OrbitPlatformPage: View {
                 }
             }
         }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
+        // Steven's video: the row leaving upwards crossed the synopsis as a ghost. Nothing of the
+        // rows shows above the current row's heading.
+        .mask {
+            LinearGradient(stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .clear, location: (L.rowLine - 60) / OrbitHomeLayout.screenHeight),
+                .init(color: .black, location: (L.rowLine - 30) / OrbitHomeLayout.screenHeight),
+                .init(color: .black, location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+        }
     }
 
     private func trailerURL(for item: MetaPreview?, rows: [OrbitPlatformRow]) -> String? {
@@ -336,6 +347,16 @@ struct OrbitPlatformPage: View {
             })
         }
         OrbitMetaStore.shared.request(metaItems)
+        // Steven's video: moving along a row, the logo area went blank while the next logo
+        // loaded. The logos of the titles around (their meta already known) load ahead, at the
+        // info block's own size.
+        let logoRequest = ArtworkDecodeRequest(size: .points(width: OrbitPlatformLayout.logoSize.width,
+                                                             height: OrbitPlatformLayout.logoSize.height),
+                                               fill: false, scale: UIScreen.main.scale)
+        ArtworkStore.prefetch(metaItems.compactMap { item in
+            let logo = OrbitInfo.make(item, meta: OrbitMetaStore.shared.meta(for: item)).logo
+            return logo.flatMap(URL.init(string:)).map { ArtworkPrefetchItem(url: $0, decode: logoRequest) }
+        })
 
         trailer.reset()
         trailerKey = nil
@@ -503,7 +524,8 @@ private struct OrbitPlatformCard: View {
                     .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: 16, y: 10)
             }
         }
-        .scaleEffect(focused ? 1.08 : 1, anchor: .bottomLeading)
+        // Grows from its left edge's middle: never over the heading above it.
+        .scaleEffect(focused ? 1.06 : 1, anchor: .leading)
         .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
