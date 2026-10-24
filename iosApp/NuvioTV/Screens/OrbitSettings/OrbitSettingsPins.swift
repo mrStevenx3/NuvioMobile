@@ -4,17 +4,49 @@ import SharedCore
 // Orbit Réglages (Steven, 2026-10-24): the settings that left with Chris's screens are pinned to
 // Orbit's choices, so no hidden value can still change the app.
 //
-// - Every launch: Orbit's home stays on (its switch is gone).
-// - Once: Chris's test switches and probes ("debug.…" keys: A/B legs, diagnostics) go back to
-//   their normal values, and the custom poster service (RPDB…) is cleared — Orbit has one look.
-//   The other look settings keep what this Apple TV shows today (the screens Steven validated).
+// - Every launch: the Orbit bar and Orbit's home stay on (their switches are gone).
+// - Once:
+//   - Chris's test switches and probes ("debug.…" keys: A/B legs, diagnostics) go back to their
+//     normal values;
+//   - every look setting that left (theme, focus ring, card depth, posters, font, navigation,
+//     home and detail layouts, detail sections, trailer placement, player extras) goes back to
+//     its default, Orbit's one look;
+//   - the custom poster service (RPDB…) is cleared.
+//   Kept: what the new settings still offer (previews, spoilers, default player…).
 enum OrbitSettingsPins {
-    private static let onceKey = "orbit.settingsPins.v1"
+    private static let onceKey = "orbit.settingsPins.v2"
     /// The crash guard of the seek preview harvester is not a test switch: it stays.
     private static let keptDebugKeys: Set<String> = [HarvestCrashSentinel.disabledKey]
 
+    /// Look settings stored on this Apple TV: removed, so each falls back to its default.
+    private static let lookKeys: [String] = [
+        // Appearance
+        "hero_poster_focus_only", "settings_style", "accent_focus_ring", "focus_ring_poster_color",
+        "depth_rail_poster_color", "no_zoom_on_focus",
+        RowEdgeFadeSetting.defaultsKey, HeadingDetailsSetting.defaultsKey, Theme.AppFontFamily.defaultsKey,
+        NavigationChrome.railVisibilityKey, NavigationChrome.railPositionKey,
+        NavigationChrome.railLabelsKey, NavigationChrome.railStyleKey,
+        // Home screen
+        FolderLayoutDefault.defaultsKey, FolderLayoutDefault.classicDefaultsKey, AmbientWashSetting.defaultsKey,
+        "inline_trailers_enabled", "hero_nuvio_style",
+        StageTrendingHeroSetting.defaultsKey, StageTrendingHeroSetting.fullBleedKey,
+        "home_upcoming_row_enabled", FocusLeadsRow.defaultsKey, StageInfoBelow.defaultsKey,
+        "hero_trailer_autoplay", "trailer_playback_location", TrailerStartDelay.storageKey,
+        // Detail page
+        DetailSettingsKeys.layout, "detail_action_icons_only", DetailAppleStyle.defaultsKey,
+        "detail_poster_backdrop", "detail_trailer_autoplay", "detail_trailer_duration", "trailer_audio_default_on",
+        DetailSettingsKeys.sectionStudioLogos, DetailSettingsKeys.sectionParentalGuide,
+        DetailSettingsKeys.sectionRatings, DetailSettingsKeys.sectionCast, DetailSettingsKeys.sectionCollection,
+        DetailSettingsKeys.sectionTrailers, DetailSettingsKeys.sectionMoreLikeThis,
+        DetailSettingsKeys.sectionComments, DetailSettingsKeys.sectionAbout,
+        // Player extras
+        PlayerTuning.showClockKey,
+    ]
+
     static func apply() {
         let defaults = UserDefaults.standard
+        defaults.set(NavigationChrome.Style.orbit.rawValue, forKey: NavigationChrome.styleKey)
+        defaults.set(HomeLayout.stage.rawValue, forKey: HomeLayout.defaultsKey)
         defaults.set(true, forKey: OrbitHomeSetting.enabledKey)
 
         guard !defaults.bool(forKey: onceKey) else { return }
@@ -22,10 +54,22 @@ enum OrbitSettingsPins {
         where key.hasPrefix("debug.") && !keptDebugKeys.contains(key) {
             defaults.removeObject(forKey: key)
         }
+        lookKeys.forEach { defaults.removeObject(forKey: $0) }
         defaults.set(true, forKey: onceKey)
-        // After launch (the shared repositories are up by then).
+
+        // The settings kept by the shared repositories (synced per profile): after launch, once
+        // they are up.
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             CustomPosterUrlRepository.shared.clearPattern()
+            PosterCardStyleRepository.shared.resetToDefaults()
+            CardDepthStyleRepository.shared.resetToDefaults()
+            ThemeSettingsRepository.shared.setAmoled(enabled: false)
+            ThemeSettingsRepository.shared.setTheme(theme: .white)
+            HomeCatalogSettingsRepository.shared.setHeroEnabled(enabled: true)
+            HomeCatalogSettingsRepository.shared.setShowCatalogType(enabled: true)
+            PlayerSettingsRepository.shared.setPauseOverlayEnabled(enabled: true)
+            PlayerSettingsRepository.shared.setShowLoadingOverlay(enabled: true)
+            _ = EpisodeShuffleRepository.shared.setAvailable(available: false)
         }
     }
 }
