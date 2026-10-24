@@ -433,26 +433,18 @@ private struct OrbitStudioHero: View {
                 .init(color: OrbitHomeLayout.background, location: 1),
             ], startPoint: .top, endPoint: .bottom)
 
-            // The studio, in the corner.
-            HStack(alignment: .center, spacing: 22) {
-                Group {
-                    if let studioLogo, !studioLogo.isEmpty {
-                        CachedAsyncImage(string: studioLogo, contentMode: .fit,
-                                         decodeSize: .points(width: 260, height: 80),
-                                         loading: { Color.clear }, failure: { studioText })
-                    } else {
-                        studioText
-                    }
-                }
-                .frame(maxWidth: 260, maxHeight: 80, alignment: .leading)
-                if let statsLine, !statsLine.isEmpty {
-                    Rectangle().fill(Color.white.opacity(0.35)).frame(width: 2, height: 40)
-                    Text(statsLine)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.8))
+            // The studio's logo, top right (Steven: no figures; the film's name has the left).
+            Group {
+                if let studioLogo, !studioLogo.isEmpty {
+                    OrbitBalancedLogo(url: studioLogo, area: 17_000, maxSize: CGSize(width: 300, height: 100),
+                                      whiten: OrbitBalancedLogo.isGrey(studioName), alignment: .topTrailing)
+                } else {
+                    studioText
+                        .frame(width: 300, height: 100, alignment: .topTrailing)
                 }
             }
-            .offset(x: L.margin, y: 60)
+            .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
+            .offset(x: size.width - L.margin - 300, y: 56)
 
             if let item {
                 let info = OrbitInfo.make(item, meta: meta)
