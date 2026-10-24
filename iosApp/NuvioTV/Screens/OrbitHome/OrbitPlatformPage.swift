@@ -538,25 +538,34 @@ private struct OrbitPlatformCard: View {
     var body: some View {
         let L = OrbitPlatformLayout.self
         let art: String? = item.shape == .landscape ? (item.landscapePoster ?? item.poster) : item.poster
+        // Steven's video: the focused card rose before the others. Its focus animation (0.18 s)
+        // also took over the row's vertical move (0.36 s). The focus look now animates on its own,
+        // never the card's place.
         Group {
             if transparent {
                 OrbitImage(url: art, fallback: item.rawPosterUrl, mode: .fit, size: size)
                     .frame(width: size.width, height: size.height)
-                    .shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 20 : 8, y: 8)
+                    .animation(.easeOut(duration: 0.18)) { view in
+                        view.shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 20 : 8, y: 8)
+                    }
             } else {
                 OrbitImage(url: art, fallback: item.rawPosterUrl, mode: .fill, size: size)
                     .frame(width: size.width, height: size.height)
                     .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                            .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 4)
+                    .animation(.easeOut(duration: 0.18)) { view in
+                        view
+                            .overlay {
+                                RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 4)
+                            }
+                            .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: 16, y: 10)
                     }
-                    .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: 16, y: 10)
             }
         }
         // Grows from its left edge's middle: never over the heading above it.
-        .scaleEffect(focused ? 1.06 : 1, anchor: .leading)
-        .animation(.easeOut(duration: 0.18), value: focused)
+        .animation(.easeOut(duration: 0.18)) { view in
+            view.scaleEffect(focused ? 1.06 : 1, anchor: .leading)
+        }
     }
 }
 
