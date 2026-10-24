@@ -119,6 +119,8 @@ struct OrbitStudioPage: View {
     @State private var trailerKey: String?
     @State private var opening: TitleRoute?
     @State private var tint: Color?
+    /// The opening is over: the page's own studio logo shows (the opening's lands on it).
+    @State private var introDone = false
 
     init(route: OrbitStudioRoute) {
         self.route = route
@@ -187,6 +189,7 @@ struct OrbitStudioPage: View {
                 if hasHero {
                     OrbitStudioHero(item: heroItem, meta: heroItem.flatMap { metaStore.meta(for: $0) },
                                     studioName: model.name, studioLogo: model.logo ?? route.logo,
+                                    showsStudioLogo: introDone,
                                     statsLine: model.statsLine, focused: onHero && canvasFocused,
                                     count: heroItems.count, index: heroIndex % max(1, heroItems.count),
                                     trailerURL: onHero ? trailerURL(for: heroItem) : nil,
@@ -245,6 +248,14 @@ struct OrbitStudioPage: View {
             .focused($canvasFocused)
             .onMoveCommand(perform: move)
             .onExitCommand(perform: exitAction(index: index))
+
+            // The studio's opening, over everything from the first frame (the catalogue never
+            // shows before it).
+            if !introDone {
+                OrbitStudioIntro(name: model.name, logoUrl: model.logo ?? route.logo,
+                                 onDone: { introDone = true })
+                    .zIndex(20)
+            }
         }
         .frame(width: W, height: H, alignment: .topLeading)
         .background(OrbitHomeLayout.background)
@@ -370,6 +381,106 @@ private struct OrbitStudioCanvasStyle: ButtonStyle {
     }
 }
 
+// MARK: - Opening
+
+/// The studio's opening (Steven, 2026-10-24, "le générique de studio"): black, the studio's logo
+/// fades in large in the middle, a light sweeps across it, then it glides to its place top right
+/// while the page fades in. Once per visit (back from a film, nothing replays); any press skips
+/// it; with Reduce Motion, nothing plays.
+struct OrbitStudioIntro: View {
+    let name: String
+    let logoUrl: String?
+    let onDone: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: Phase = .black
+    @State private var veil: Double = 1
+    @State private var sweep: CGFloat = -1
+    @State private var work: [DispatchWorkItem] = []
+
+    private enum Phase { case black, splash, corner }
+
+    /// The page's studio logo: its box and place (top right of the banner).
+    static let cornerBox = CGSize(width: 300, height: 100)
+    static let cornerTop: CGFloat = 56
+    static let splashScale: CGFloat = 2.4
+
+    var body: some View {
+        let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
+        let box = Self.cornerBox
+        let corner = CGPoint(x: W - OrbitHomeLayout.margin - box.width / 2, y: Self.cornerTop + box.height / 2)
+        let centre = phase == .corner ? corner : CGPoint(x: W / 2, y: H / 2)
+        ZStack(alignment: .topLeading) {
+            Color.black
+                .frame(width: W, height: H)
+                .opacity(veil)
+
+            logo
+                // Centred in the middle; in the corner, right-aligned as the page's own logo.
+                .frame(width: box.width, height: box.height, alignment: phase == .corner ? .topTrailing : .center)
+                .overlay {
+                    // The light sweeping across the logo, masked by it.
+                    LinearGradient(colors: [.clear, .white.opacity(0.9), .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 90, height: box.height * 1.6)
+                        .rotationEffect(.degrees(18))
+                        .offset(x: sweep * (box.width / 2 + 90))
+                        .blendMode(.plusLighter)
+                        .mask(logo.frame(width: box.width, height: box.height))
+                        .opacity(phase == .splash ? 1 : 0)
+                }
+                .scaleEffect(phase == .corner ? 1 : (phase == .black ? Self.splashScale * 0.92 : Self.splashScale))
+                .opacity(phase == .black ? 0 : 1)
+                .position(centre)
+        }
+        .frame(width: W, height: H, alignment: .topLeading)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .onAppear(perform: play)
+        .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
+            // A press skips the opening.
+            guard phase != .corner || veil > 0 else { return }
+            work.forEach { $0.cancel() }
+            withAnimation(.easeOut(duration: 0.3)) { phase = .corner; veil = 0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) { onDone() }
+        }
+    }
+
+    @ViewBuilder
+    private var logo: some View {
+        if let logoUrl, !logoUrl.isEmpty {
+            OrbitBalancedLogo(url: logoUrl, area: 17_000, maxSize: Self.cornerBox,
+                              whiten: OrbitBalancedLogo.isGrey(name), alignment: phase == .corner ? .topTrailing : .center)
+        } else {
+            Text(name)
+                .font(.system(size: 40, weight: .heavy))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        }
+    }
+
+    private func play() {
+        guard phase == .black, veil == 1 else { return }
+        if reduceMotion { onDone(); return }
+        func at(_ delay: Double, _ body: @escaping () -> Void) {
+            let item = DispatchWorkItem(block: body)
+            work.append(item)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+        }
+        // 0 s: the logo fades in, large, in the middle.
+        withAnimation(.easeOut(duration: 0.55)) { phase = .splash }
+        // 0.6 s: the light sweeps across it.
+        at(0.6) { withAnimation(.easeInOut(duration: 0.75)) { sweep = 1 } }
+        // 1.5 s: it glides to its place, the page fades in under it.
+        at(1.5) {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.9)) { phase = .corner }
+            withAnimation(.easeInOut(duration: 0.8)) { veil = 0 }
+        }
+        // 2.4 s: the page's own logo takes over (same place, same size).
+        at(2.4) { onDone() }
+    }
+}
+
 // MARK: - Background, banner, header
 
 /// A calm page: Orbit's black with the studio's colour rising from the top-left.
@@ -398,6 +509,7 @@ private struct OrbitStudioHero: View {
     let meta: OrbitMeta?
     let studioName: String
     let studioLogo: String?
+    var showsStudioLogo = true
     let statsLine: String?
     let focused: Bool
     let count: Int
@@ -444,7 +556,8 @@ private struct OrbitStudioHero: View {
                 }
             }
             .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
-            .offset(x: size.width - L.margin - 300, y: 56)
+            .opacity(showsStudioLogo ? 1 : 0)
+            .offset(x: size.width - L.margin - 300, y: OrbitStudioIntro.cornerTop)
 
             if let item {
                 let info = OrbitInfo.make(item, meta: meta)
