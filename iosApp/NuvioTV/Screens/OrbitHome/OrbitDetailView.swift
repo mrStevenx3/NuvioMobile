@@ -329,10 +329,11 @@ struct OrbitDetailView: View {
                 // press made from it: ignored, the card is put back just after.
                 return
             }
+            let previous = old ?? lastFocus   // the engine can report a nil in between
             lastFocus = new
             // Steven: up from the details block lands on the first studio (far left), not the one
             // above the block's middle (the same section, so the rule below does not apply).
-            if old == .about, case .company(let index) = new, index != 0 {
+            if previous == .about, case .company(let index) = new, index != 0 {
                 DispatchQueue.main.async { focus = .company(0) }
                 return
             }
