@@ -1288,7 +1288,15 @@ struct HomeView: View {
                 PersonDetailView(personId: route.id, personName: route.name)
             }
             .navigationDestination(for: EntityRoute.self) { route in
-                EntityBrowseView(route: route)
+                // Orbit: a studio or a channel from a film's "À propos" opens the new studio page.
+                if NavigationChrome.isOrbitBar() {
+                    OrbitStudioPage(route: .entity(route))
+                } else {
+                    EntityBrowseView(route: route)
+                }
+            }
+            .navigationDestination(for: OrbitStudioRoute.self) { route in
+                OrbitStudioPage(route: route)
             }
             .navigationDestination(for: FolderRoute.self) { route in
                 // Orbit: a platform's (or a studio's) own page, rebuilt in the Orbit style; the

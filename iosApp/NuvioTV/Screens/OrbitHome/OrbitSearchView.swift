@@ -33,7 +33,7 @@ struct OrbitSearchView: View {
                 PersonDetailView(personId: route.id, personName: route.name)
             }
             .navigationDestination(for: EntityRoute.self) { route in
-                EntityBrowseView(route: route)
+                OrbitStudioPage(route: .entity(route))
             }
         }
         .onAppear { model.start() }

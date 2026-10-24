@@ -579,6 +579,13 @@ private extension MetaPreview {
 /// folder not listed (a studio…) takes a neutral slate.
 enum OrbitPlatformBrand {
     static func color(title raw: String) -> Color {
+        known(title: raw) ?? Color(red: 0.30, green: 0.34, blue: 0.42)
+    }
+
+    /// No brand colour known for this title (the page samples one from the logo).
+    static func isNeutral(title raw: String) -> Bool { known(title: raw) == nil }
+
+    static func known(title raw: String) -> Color? {
         let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .replacingOccurrences(of: " ", with: "")
         if t.contains("netflix") { return Color(red: 0.78, green: 0.04, blue: 0.08) }
@@ -593,7 +600,7 @@ enum OrbitPlatformBrand {
         if t.contains("pixar") { return Color(red: 0.10, green: 0.45, blue: 0.80) }
         if t.contains("marvel") { return Color(red: 0.75, green: 0.08, blue: 0.10) }
         if t.contains("dreamworks") { return Color(red: 0.10, green: 0.35, blue: 0.75) }
-        return Color(red: 0.30, green: 0.34, blue: 0.42)
+        return nil
     }
 }
 

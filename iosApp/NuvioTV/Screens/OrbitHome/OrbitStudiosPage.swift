@@ -64,7 +64,7 @@ struct OrbitStudiosPage: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Self.tileSpacing) {
                         ForEach(folders, id: \.id) { folder in
-                            NavigationLink(value: FolderRoute(collectionId: collection.id, folder: folder)) {
+                            NavigationLink(value: OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)) {
                                 OrbitStudioTile(folder: folder,
                                                 collectionBackdropUrl: collection.backdropImageUrl,
                                                 focused: lit == folder.id,
