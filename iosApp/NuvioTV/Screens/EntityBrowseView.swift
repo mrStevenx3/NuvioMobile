@@ -166,6 +166,11 @@ struct EntityBrowseView: View {
     @Namespace private var topFocusNamespace
     /// Drives the focus affordance on the otherwise non-interactive `topBlock`.
     @FocusState private var topFocused: Bool
+    /// Steven (Orbit): the focused poster, "<rail>#<item>". Coming into a rail (from the header
+    /// or another rail) lands on its first poster, far left, not the one under the old focus.
+    @FocusState private var posterFocus: String?
+    /// Back from a title opened here: the poster the engine gives back is kept (no redirect).
+    @State private var returning = false
 
     init(route: EntityRoute) {
         self.route = route
@@ -205,11 +210,25 @@ struct EntityBrowseView: View {
                 .focusScope(topFocusNamespace)
             }
         }
+        .onChange(of: posterFocus) { old, new in
+            guard let new else { return }
+            if returning { returning = false; return }
+            let rail = new.components(separatedBy: "#").first ?? ""
+            let oldRail = old?.components(separatedBy: "#").first
+            guard oldRail != rail,
+                  let target = model.rails.first(where: { "\($0.id)" == rail })?.items.first else { return }
+            let first = "\(rail)#\(target.id)"
+            // Not inside the focus engine's own update (a write there is dropped): next turn.
+            if first != new { DispatchQueue.main.async { posterFocus = first } }
+        }
         .onAppear {
             tabBarVisibility.pushImmersive()
             model.start()
         }
-        .onDisappear { tabBarVisibility.popImmersive() }
+        .onDisappear {
+            tabBarVisibility.popImmersive()
+            returning = posterFocus != nil
+        }
     }
 
     // MARK: - Sections
@@ -327,6 +346,7 @@ struct EntityBrowseView: View {
                         .cardFocusButtonStyle()
                         .posterButtonShape()
                         .titleHoldMenu(preview: item)
+                        .focused($posterFocus, equals: "\(rail.id)#\(item.id)")
                         .onAppear { model.itemAppeared(railId: rail.id, index: index) }
                     }
                     if rail.isLoadingMore {
