@@ -144,7 +144,10 @@ struct OrbitEpisodesSection: View {
         // row is no longer skipped (the engine took the poster under Lire, or the episodes).
         .onChange(of: focus.wrappedValue) { old, new in
             guard case .season(let s)? = new else { return }
-            if old == nil || old?.section == .hero, let season, s != season {
+            // Up from the episodes too: back on the season they belong to (the engine took the
+            // poster above the focused episode).
+            let fromEpisodes: Bool = { if case .episode? = old { return true }; return false }()
+            if old == nil || old?.section == .hero || fromEpisodes, let season, s != season {
                 DispatchQueue.main.async { focus.wrappedValue = .season(season) }
                 return
             }
