@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Studios (Steven, 2026-10-24, third version): the Studios page in Orbit's own language —
 //  - the page on the focused studio's colour; its backdrop whole in a large frame top right
@@ -224,17 +225,19 @@ struct OrbitStudiosPage: View {
     private var slide: AnyTransition {
         let distance: CGFloat = 90
         return .asymmetric(
-            insertion: .offset(x: forward ? -distance : distance).combined(with: .opacity),
-            removal: .offset(x: forward ? distance : -distance).combined(with: .opacity))
+            insertion: .offset(x: forward ? -distance : distance).combined(with: .opacity)
+                .animation(.easeOut(duration: 0.3).delay(0.06)),
+            // The old one leaves quickly: the two barely cross (a Warner ghost behind Universal).
+            removal: .offset(x: forward ? distance * 0.5 : -distance * 0.5).combined(with: .opacity)
+                .animation(.easeIn(duration: 0.12)))
     }
 
     private func hero(_ folder: CollectionFolder?) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             ZStack(alignment: .bottomLeading) {
                 if let url = Self.logoURL(folder) {
-                    CachedAsyncImage(string: url, contentMode: .fit,
-                                     decodeSize: .points(width: Self.logoSize.width, height: Self.logoSize.height))
-                        .frame(maxWidth: Self.logoSize.width, maxHeight: Self.logoSize.height, alignment: .bottomLeading)
+                    OrbitBalancedLogo(url: url, area: 52_000, maxSize: Self.logoSize,
+                                      whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)
                         .transition(slide)
@@ -295,6 +298,61 @@ private struct OrbitStudioFrame: View {
     }
 }
 
+/// A logo drawn at a balanced size: every logo covers about the same area (a tall, narrow one —
+/// Ghibli, DreamWorks — no longer ends up tiny next to a wide one — Illumination), within a
+/// maximum box. `whiten`: a grey logo drawn white (its shape kept).
+struct OrbitBalancedLogo: View {
+    let url: String
+    let area: CGFloat
+    let maxSize: CGSize
+    var whiten = false
+    var alignment: Alignment = .center
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var image: UIImage?
+
+    /// Steven's grey logos (unreadable on a colour).
+    static func isGrey(_ raw: String) -> Bool {
+        let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        return t.contains("ghibli") || t.contains("pixar")
+    }
+
+    var body: some View {
+        ZStack(alignment: alignment) {
+            if let image, image.size.width > 0, image.size.height > 0 {
+                let fitted = Self.size(aspect: image.size.width / image.size.height, area: area, max: maxSize)
+                let picture = Image(uiImage: image).resizable().aspectRatio(contentMode: .fit)
+                Group {
+                    if whiten {
+                        picture.colorMultiply(.black).colorInvert()
+                    } else {
+                        picture
+                    }
+                }
+                .frame(width: fitted.width, height: fitted.height)
+            }
+        }
+        .frame(width: maxSize.width, height: maxSize.height, alignment: alignment)
+        .task(id: url) { await load() }
+    }
+
+    static func size(aspect: CGFloat, area: CGFloat, max: CGSize) -> CGSize {
+        var width = (area * aspect).squareRoot()
+        var height = width / aspect
+        if width > max.width { width = max.width; height = width / aspect }
+        if height > max.height { height = max.height; width = height * aspect }
+        return CGSize(width: width, height: height)
+    }
+
+    private func load() async {
+        guard let address = URL(string: url) else { image = nil; return }
+        let request = ArtworkDecodeRequest(size: .points(width: maxSize.width, height: maxSize.height),
+                                           fill: false, scale: displayScale)
+        if let hit = ArtworkStore.cached(address, decode: request) { image = hit; return }
+        image = try? await ArtworkStore.fetch(address, decode: request)
+    }
+}
+
 /// One studio tile, landscape: its logo in white on its own colour; dimmed while another studio
 /// is focused, full with the white frame and a lift when focused (half-way while the focus is on
 /// its films below).
@@ -313,10 +371,9 @@ private struct OrbitStudioTile: View {
             LinearGradient(colors: [tint, tint.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 .opacity(0.55 + 0.45 * lift)
             if let logo = OrbitStudiosPage.logoURL(folder) {
-                CachedAsyncImage(string: logo, contentMode: .fit,
-                                 decodeSize: .points(width: size.width - 56, height: size.height - 50),
-                                 loading: { Color.clear }, failure: { name })
-                    .frame(maxWidth: size.width - 56, maxHeight: size.height - 50)
+                OrbitBalancedLogo(url: logo, area: 7_600,
+                                  maxSize: CGSize(width: size.width - 50, height: size.height - 40),
+                                  whiten: OrbitBalancedLogo.isGrey(folder.title), alignment: .center)
                     // The logos are white or light: kept white on the colour.
                     .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
             } else {
@@ -437,7 +494,8 @@ final class OrbitStudioFilmsModel: ObservableObject {
         if popular.count >= 3 { list.append((String(localized: "Les plus populaires"), popular)) }
         // One row: the new films when there are enough, else the essentials.
         rows = Array((found.recent.count >= 6 ? list : list.filter { $0.title != String(localized: "Nouveautés") }).prefix(1))
-        let latest = found.recent.prefix(2).map(\.name)
+        // Only with real recent releases (Ghibli showed an obscure 1987 documentary).
+        let latest = found.recent.count >= 6 ? found.recent.prefix(2).map(\.name) : []
         latestLine = latest.isEmpty ? nil : String(localized: "Derniers films : \(latest.joined(separator: ", "))")
         statsLine = found.count > 0 ? String(localized: "Studio · \(found.count) films") : String(localized: "Studio")
     }
