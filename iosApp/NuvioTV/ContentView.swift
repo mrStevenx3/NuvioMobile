@@ -481,6 +481,10 @@ struct MainTabView: View {
                         showsDiscover: showsDiscoverTab,
                         activeProfile: activeProfile)
         }
+        // Steven: a house top left on pushed pages, back to Home in one press.
+        .overlay(alignment: .topLeading) {
+            OrbitHomeButton(tabBarVisibility: tabBarVisibility, selectedTab: $selectedTab)
+        }
         // FEAT-25: keep the "is Home frontmost" signal current from OUTSIDE the kept-alive tab
         // subtrees — this closure runs on the always-visible shell, so the hero trailer's
         // teardown can't be deferred along with a hidden tab's rendering.

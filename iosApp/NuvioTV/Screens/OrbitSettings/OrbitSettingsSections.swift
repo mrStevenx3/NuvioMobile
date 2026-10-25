@@ -652,6 +652,21 @@ struct OrbitAboutSection: View {
             OrbitSettingsInfo(title: String(localized: "Appareil"), value: Self.deviceModel)
         }
 
+        // Steven (2026-10-25): the signature, quiet.
+        HStack(spacing: 14) {
+            Image("OrbitMark")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 30)
+                .opacity(0.6)
+                .accessibilityHidden(true)
+            Text("Fait avec amour par Steven")
+                .font(OrbitSettingsLayout.note)
+                .foregroundStyle(Color.white.opacity(0.5))
+        }
+        .frame(width: OrbitSettingsLayout.rowWidth)
+        .padding(.vertical, 6)
+
         OrbitSettingsGroup(title: String(localized: "Diagnostic")) {
             OrbitSettingsToggle(title: String(localized: "Diagnostic des sources"),
                                 subtitle: String(localized: "Note ce qui se passe quand un titre ne trouve aucune source : active-le, lance le titre, puis reviens ici."),

@@ -293,8 +293,8 @@ struct OrbitDiscoverTile: View {
         }
         .scaleEffect(focused ? 1.08 : 1)
         .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: 18, y: 10)
-        .onAppear { if focused { metaStore.request([item]) } }
-        .onChange(of: focused) { _, on in if on { metaStore.request([item]) } }
+        // Steven: every tile shows its logo, not only the focused one (looked up once per title).
+        .onAppear { metaStore.request([item]) }
     }
 }
 

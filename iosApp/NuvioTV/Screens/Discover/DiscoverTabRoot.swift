@@ -43,6 +43,8 @@ struct DiscoverTabRoot: View {
                 OrbitStudioPage(route: .entity(route))
             }
         }
+        .environment(\.orbitPush, { path.append($0) })
+        .orbitPopsToRootOnGoHome($path)
         .onAppear { model.start() }
         // Steven's fork (device pass): leaving Discover puts it back on Films, every genre, so a
         // return never opens on the last genre browsed.

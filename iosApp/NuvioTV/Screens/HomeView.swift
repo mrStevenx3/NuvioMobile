@@ -71,6 +71,8 @@ struct HomeView: View {
                 )
             }
         }
+        .environment(\.orbitPush, { homePath.append($0) })
+        .orbitPopsToRootOnGoHome($homePath)
         .onAppear {
             // Retain, don't start: during a theme rebuild the incoming Home appears before the
             // outgoing one disappears, so the count goes 1 → 2 → 1 and the pipeline never restarts.

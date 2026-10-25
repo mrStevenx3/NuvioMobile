@@ -36,6 +36,8 @@ struct OrbitSearchView: View {
                 OrbitStudioPage(route: .entity(route))
             }
         }
+        .environment(\.orbitPush, { path.append($0) })
+        .orbitPopsToRootOnGoHome($path)
         .onAppear { model.start() }
         .onDisappear {
             model.stop()

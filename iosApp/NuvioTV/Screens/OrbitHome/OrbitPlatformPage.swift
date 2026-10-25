@@ -37,6 +37,12 @@ struct OrbitPlatformRow: Identifiable, Equatable {
 
     var cardSize: CGSize {
         let L = OrbitPlatformLayout.self
+        // Steven (2026-10-25): his Top 10 images, much larger than the other rows, so they stand out.
+        if transparent {
+            let height = L.posterHeight * L.top10Scale
+            return shape == .landscape ? CGSize(width: height * 16 / 9, height: height)
+                                       : CGSize(width: height * 2 / 3, height: height)
+        }
         switch shape {
         case .landscape: return CGSize(width: L.landscapeHeight * 16 / 9, height: L.landscapeHeight)
         case .square: return CGSize(width: L.squareSide, height: L.squareSide)
@@ -60,6 +66,8 @@ enum OrbitPlatformLayout {
     static let cardsTop: CGFloat = 52
     static let rowGap: CGFloat = 70
     static let posterHeight: CGFloat = 330
+    /// The Top 10 rows' size against the others.
+    static let top10Scale: CGFloat = 1.22
     static let landscapeHeight: CGFloat = 225
     static let squareSide: CGFloat = 260
     static let gap: CGFloat = 26
@@ -550,10 +558,14 @@ private struct OrbitPlatformCard: View {
         // never the card's place.
         Group {
             if transparent {
+                // Steven: no frame on these (transparent art), so the cursor is a white glow.
                 OrbitImage(url: art, fallback: item.rawPosterUrl, mode: .fit, size: size)
                     .frame(width: size.width, height: size.height)
                     .animation(.easeOut(duration: 0.18)) { view in
-                        view.shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 20 : 8, y: 8)
+                        view
+                            .shadow(color: .white.opacity(focused ? 0.55 : 0), radius: focused ? 24 : 0)
+                            .shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 20 : 8, y: 8)
+                            .brightness(focused ? 0.06 : 0)
                     }
             } else {
                 OrbitImage(url: art, fallback: item.rawPosterUrl, mode: .fill, size: size)
@@ -635,6 +647,7 @@ private struct OrbitPlatformIntro: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .hidden
     @State private var glide: DispatchWorkItem?
+    @State private var appearedAt = Date.distantFuture
 
     private enum Phase { case hidden, splash, settled }
 
@@ -673,10 +686,14 @@ private struct OrbitPlatformIntro: View {
         }
         .frame(width: W, height: H, alignment: .topLeading)
         .allowsHitTesting(false)
-        .onAppear(perform: play)
+        .onAppear {
+            appearedAt = Date()
+            play()
+        }
         .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
-            // Steven: a press skips the intro (the page is used often).
-            guard phase != .settled else { return }
+            // Steven: a press skips the intro (the page is used often) — not the press that opened
+            // the page, which lands just after it appears (the catalogue showed before the intro).
+            guard phase != .settled, Date().timeIntervalSince(appearedAt) > 0.8 else { return }
             glide?.cancel()
             withAnimation(.easeOut(duration: 0.3)) { phase = .settled }
         }

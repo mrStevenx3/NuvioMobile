@@ -70,7 +70,9 @@ struct OrbitStudioRow: Identifiable, Equatable {
         switch kind {
         case .featured: return CGSize(width: 448, height: 252)
         case .sagas: return CGSize(width: 380, height: 214)
-        case .posters: return CGSize(width: 196, height: 294)
+        // Steven (2026-10-25): his Top 10 images much larger than the other posters.
+        case .posters(let transparent):
+            return transparent ? CGSize(width: 274, height: 412) : CGSize(width: 196, height: 294)
         }
     }
 
@@ -118,6 +120,7 @@ struct OrbitStudioPage: View {
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var opening: TitleRoute?
+    @Environment(\.orbitPush) private var orbitPush
     @State private var tint: Color?
     /// The opening is over: the page's own studio logo shows (the opening's lands on it).
     @State private var introDone = false
@@ -334,7 +337,8 @@ struct OrbitStudioPage: View {
     private func select() {
         guard let item = focusedItem() else { return }
         // A saga opens its first film, as that film (its own name and art, not the saga's).
-        opening = TitleRoute(preview: model.sagaFilms[item.id] ?? item)
+        let route = TitleRoute(preview: model.sagaFilms[item.id] ?? item)
+        if let orbitPush { orbitPush(route) } else { opening = route }
     }
 
     /// Menu: back to the top from below it; at the top, the page closes.
@@ -398,6 +402,7 @@ struct OrbitStudioIntro: View {
     @State private var sweep: CGFloat = -1
     @State private var work: [DispatchWorkItem] = []
     @State private var started = false
+    @State private var appearedAt = Date.distantFuture
 
     private enum Phase { case black, splash, corner }
 
@@ -437,6 +442,7 @@ struct OrbitStudioIntro: View {
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .onAppear {
+            appearedAt = Date()
             // Steven (opened from a film's page): the logo is not known yet — the screen stays
             // black until it is (its name only if it never comes).
             if let logoUrl, !logoUrl.isEmpty {
@@ -449,8 +455,8 @@ struct OrbitStudioIntro: View {
             if let url, !url.isEmpty { play() }
         }
         .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
-            // A press skips the opening.
-            guard phase != .corner || veil > 0 else { return }
+            // A press skips the opening — not the press that opened the page (it lands just after).
+            guard phase != .corner || veil > 0, Date().timeIntervalSince(appearedAt) > 0.8 else { return }
             work.forEach { $0.cancel() }
             withAnimation(.easeOut(duration: 0.3)) { phase = .corner; veil = 0 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) { onDone() }
@@ -814,7 +820,10 @@ private struct OrbitStudioPoster: View {
                 OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
                     .frame(width: size.width, height: size.height)
                     .animation(.easeOut(duration: 0.18)) { view in
-                        view.shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 20 : 8, y: 8)
+                        view
+                            .shadow(color: .white.opacity(focused ? 0.55 : 0), radius: focused ? 24 : 0)
+                            .shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 20 : 8, y: 8)
+                            .brightness(focused ? 0.06 : 0)
                     }
             } else {
                 OrbitImage(url: item.poster, fallback: item.rawPosterUrl, size: size)
