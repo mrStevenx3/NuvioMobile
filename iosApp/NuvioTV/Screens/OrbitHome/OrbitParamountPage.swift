@@ -682,7 +682,8 @@ private struct OrbitParamountPoster: View {
     var body: some View {
         let L = OrbitParamountLayout.self
         let size = L.poster
-        let url: String? = orbitParamountIsOwn(item) ? item.poster : (meta?.localPoster ?? item.poster)
+        // His add-on no longer adds a mark: the French poster for all when TMDB has one.
+        let url: String? = meta?.localPoster ?? item.poster
         ZStack(alignment: .topLeading) {
             Color(white: 0.12)
             OrbitImage(url: url, fallback: item.rawPosterUrl, mode: .fill, size: size)
