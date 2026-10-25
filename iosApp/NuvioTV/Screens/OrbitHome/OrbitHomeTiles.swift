@@ -342,9 +342,10 @@ struct OrbitRankedTile: View {
                 // Steven: the focused title's rank lit from behind, a soft glow in its own colour
                 // (a spotlight on the dark band).
                 .background {
-                    RadialGradient(colors: [base.opacity(focused ? 0.55 : 0), base.opacity(focused ? 0.18 : 0), .clear],
-                                   center: .center, startRadius: 0, endRadius: size.height * 0.5)
-                        .frame(width: size.height * 1.1, height: size.height * 1.1)
+                    // (Steven: stronger and a little wider once the band behind the row was gone.)
+                    RadialGradient(colors: [base.opacity(focused ? 0.78 : 0), base.opacity(focused ? 0.26 : 0), .clear],
+                                   center: .center, startRadius: 0, endRadius: size.height * 0.62)
+                        .frame(width: size.height * 1.35, height: size.height * 1.35)
                         .animation(.easeOut(duration: 0.25), value: focused)
                         .allowsHitTesting(false)
                 }
