@@ -33,10 +33,10 @@ struct HomeView: View {
             }
             .navigationDestination(for: TitleRoute.self) { route in
                 if route.zoom {
-                    DetailView(preview: route.preview)
+                    DetailView(preview: route.preview, platform: route.platform)
                         .navigationTransition(.zoom(sourceID: route.zoomID, in: zoomSpace))
                 } else {
-                    DetailView(preview: route.preview)
+                    DetailView(preview: route.preview, platform: route.platform)
                 }
             }
             .navigationDestination(for: CatalogRoute.self) { route in

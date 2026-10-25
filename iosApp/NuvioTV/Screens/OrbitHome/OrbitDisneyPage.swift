@@ -312,7 +312,7 @@ struct OrbitDisneyPage: View {
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
-                                         onOpen: { push(TitleRoute(preview: $0)) },
+                                         onOpen: { push(TitleRoute(preview: $0, platform: detailPlatform)) },
                                          onClose: closeSearch)
                     .transition(.opacity)
                     .zIndex(10)
@@ -422,13 +422,18 @@ struct OrbitDisneyPage: View {
         refreshAfterMove()
     }
 
+    /// The detail page's Disney+ touch.
+    private var detailPlatform: OrbitDetailPlatform {
+        OrbitDetailPlatform(theme: .disney, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl)
+    }
+
     private func select() {
         if current == 0 {
-            if let heroItem { push(TitleRoute(preview: heroItem)) }
+            if let heroItem { push(TitleRoute(preview: heroItem, platform: detailPlatform)) }
         } else if let r = rowIndex(of: current), rows.indices.contains(r) {
             let row = rows[r]
             guard row.items.indices.contains(lead(of: row)) else { return }
-            push(TitleRoute(preview: row.items[lead(of: row)]))
+            push(TitleRoute(preview: row.items[lead(of: row)], platform: detailPlatform))
         }
     }
 

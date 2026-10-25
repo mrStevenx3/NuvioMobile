@@ -66,14 +66,19 @@ enum OrbitDetailLayout {
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
 struct DetailView: View {
     let preview: MetaPreview
+    /// The platform page it was opened from, if any (its light touch).
+    var platform: OrbitDetailPlatform? = nil
 
     var body: some View {
-        OrbitDetailView(preview: preview)
+        OrbitDetailView(preview: preview, platform: platform)
     }
 }
 
 struct OrbitDetailView: View {
     let preview: MetaPreview
+    /// Steven (2026-10-25): opened from a platform page, the page takes its light touch — its logo
+    /// top right, its "original" tag above the title, its Lecture button, its tint under the sections.
+    var platform: OrbitDetailPlatform? = nil
 
     @StateObject private var model: DetailViewModel
     /// Steven: 4K / Dolby Vision / HDR / Atmos when his sources have them.
@@ -126,8 +131,9 @@ struct OrbitDetailView: View {
     /// Per row ("cast", "saga", "similar"): bumped to bring the row back to its start.
     @State private var rowResets: [String: Int] = [:]
 
-    init(preview: MetaPreview) {
+    init(preview: MetaPreview, platform: OrbitDetailPlatform? = nil) {
         self.preview = preview
+        self.platform = platform
         _model = StateObject(wrappedValue: DetailViewModel(preview: preview))
     }
 
@@ -186,6 +192,7 @@ struct OrbitDetailView: View {
                                   dimmed: section != .hero && !cinema,
                                   cinema: cinema,
                                   holdArt: holdArt,
+                                  tint: platform?.theme.tint ?? .black,
                                   onTrailerFailure: {
                                       model.trailerFailed()
                                       if cinema { exitCinema() }
@@ -262,6 +269,13 @@ struct OrbitDetailView: View {
                 still.disablesAnimations = true
                 withTransaction(still) { proxy.scrollTo(OrbitDetailSection.hero, anchor: .top) }
             }
+            }
+
+            // The platform's logo, top right (not in the trailer's cinema).
+            if let platform, !cinema {
+                OrbitDetailPlatformMark(platform: platform)
+                    .transition(.opacity)
+                    .zIndex(4)
             }
 
             if cinema {
@@ -627,6 +641,12 @@ struct OrbitDetailView: View {
     private var hero: some View {
         let L = OrbitDetailLayout.self
         return VStack(alignment: .leading, spacing: 0) {
+            // The platform's "original" tag above the title (N SÉRIE, prime, HBO ORIGINAL…).
+            if let own = platform?.own, !cinema {
+                OrbitDetailOwnTag(own: own, series: isSeries)
+                    .shadow(color: .black.opacity(0.5), radius: 6)
+                    .padding(.bottom, 16)
+            }
             Group {
                 if cinema {
                     Color.clear
@@ -746,21 +766,21 @@ struct OrbitDetailView: View {
         if isSeries {
             if let action = model.seriesAction, let meta {
                 OrbitPlayButton(label: model.isPlayEnabled ? OrbitDetailFormat.playLabel(action.label) : String(localized: "Lecture indisponible"),
-                                focused: focus == .play) {
+                                focused: focus == .play, theme: platform?.theme) {
                     model.noteSeriesPlayStarted(action)
                     seriesPlay = OrbitSeriesPlayRoute(meta: meta, action: action)
                 }
                 .disabled(!model.isPlayEnabled)
                 .focused($focus, equals: .play)
             } else {
-                OrbitPlayButton(label: String(localized: "Lire"), focused: focus == .play) {}
+                OrbitPlayButton(label: String(localized: "Lire"), focused: focus == .play, theme: platform?.theme) {}
                     .disabled(true)
                     .focused($focus, equals: .play)
             }
         } else {
             OrbitPlayButton(label: !model.isPlayEnabled ? String(localized: "Lecture indisponible")
                                 : (model.hasResumableProgress ? String(localized: "Reprendre") : String(localized: "Lire")),
-                            focused: focus == .play) { showStreams = true }
+                            focused: focus == .play, theme: platform?.theme) { showStreams = true }
                 .disabled(!model.isPlayEnabled)
                 .focused($focus, equals: .play)
         }
@@ -959,6 +979,8 @@ private struct OrbitDetailBackground: View {
     var cinema: Bool = false
     /// The art held over a trailer that has just started (its black opening frames).
     var holdArt: Bool = false
+    /// Under the sections (black, or the platform's tint when opened from one).
+    var tint: Color = .black
     let onTrailerFailure: () -> Void
     let onTrailerEnded: () -> Void
 
@@ -1016,7 +1038,7 @@ private struct OrbitDetailBackground: View {
             // Cinema: only a light bottom shade stays (for the title and the hint).
             .opacity(cinema ? 0.35 : 1)
             // Under the sections: dark enough for white text on any art.
-            Color.black.opacity(dimmed ? 0.62 : 0)
+            tint.opacity(dimmed ? 0.62 : 0)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -1248,6 +1270,8 @@ private struct OrbitCompanyLogo: View {
 private struct OrbitPlayButton: View {
     let label: String
     let focused: Bool
+    /// The platform's Lecture button (its colour and shape), else Orbit's white capsule.
+    var theme: OrbitPlatformTheme? = nil
     let action: () -> Void
 
     var body: some View {
@@ -1257,10 +1281,27 @@ private struct OrbitPlayButton: View {
                 Text(label).lineLimit(1)
             }
             .font(.system(size: 30, weight: .bold))
-            .foregroundStyle(Color.black)
+            .foregroundStyle(theme?.playText ?? Color.black)
             .padding(.horizontal, 44)
             .frame(height: 84)
-            .background(Capsule().fill(Color.white.opacity(focused ? 1 : 0.86)))
+            .background {
+                if let radius = theme?.playRadius {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .fill((theme?.playFill ?? .white).opacity(focused ? 1 : 0.86))
+                } else {
+                    Capsule().fill((theme?.playFill ?? .white).opacity(focused ? 1 : 0.86))
+                }
+            }
+            .overlay {
+                // A coloured button shows its focus with a white rim.
+                if let theme, theme.playFill != .white, focused {
+                    if let radius = theme.playRadius {
+                        RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Color.white, lineWidth: 3)
+                    } else {
+                        Capsule().strokeBorder(Color.white, lineWidth: 3)
+                    }
+                }
+            }
             .scaleEffect(focused ? 1.06 : 1)
             .shadow(color: .black.opacity(focused ? 0.45 : 0), radius: 18, y: 8)
             .animation(.easeOut(duration: 0.16), value: focused)

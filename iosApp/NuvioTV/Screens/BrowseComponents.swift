@@ -44,6 +44,9 @@ struct TitleRoute: Hashable {
     /// Steven (Apple TV): the detail page opens by growing out of its poster (tvOS's zoom), only
     /// from the Apple TV page — not part of the route's identity.
     var zoom: Bool = false
+    /// The platform page it was opened from (its light touch on the detail page) — not part of the
+    /// route's identity either.
+    var platform: OrbitDetailPlatform? = nil
 
     /// The poster's id for the zoom.
     var zoomID: String { "\(preview.type):\(preview.id)" }

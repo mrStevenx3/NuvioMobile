@@ -277,7 +277,7 @@ struct OrbitNetflixPage: View {
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
-                                         onOpen: { push(TitleRoute(preview: $0)) },
+                                         onOpen: { push(TitleRoute(preview: $0, platform: detailPlatform($0))) },
                                          onClose: closeSearch)
                     .transition(.opacity)
                     .zIndex(10)
@@ -375,8 +375,14 @@ struct OrbitNetflixPage: View {
         refreshAfterMove()
     }
 
+    /// The detail page's Netflix touch.
+    private func detailPlatform(_ item: MetaPreview) -> OrbitDetailPlatform {
+        OrbitDetailPlatform(theme: .netflix, own: isNetflixOwn(item, metaStore.meta(for: item)) ? .netflix : nil,
+                            logoUrl: model.titleLogoUrl ?? route.titleLogoUrl)
+    }
+
     private func select() {
-        if let focusedItem { push(TitleRoute(preview: focusedItem)) }
+        if let focusedItem { push(TitleRoute(preview: focusedItem, platform: detailPlatform(focusedItem))) }
     }
 
     private func exitAction() -> (() -> Void)? {

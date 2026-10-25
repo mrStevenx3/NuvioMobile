@@ -307,7 +307,7 @@ struct OrbitParamountPage: View {
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
-                                         onOpen: { push(TitleRoute(preview: $0)) },
+                                         onOpen: { push(TitleRoute(preview: $0, platform: detailPlatform($0))) },
                                          onClose: closeSearch)
                     .transition(.opacity)
                     .zIndex(10)
@@ -407,8 +407,14 @@ struct OrbitParamountPage: View {
         refreshAfterMove()
     }
 
+    /// The detail page's Paramount+ touch.
+    private func detailPlatform(_ item: MetaPreview) -> OrbitDetailPlatform {
+        OrbitDetailPlatform(theme: .paramount, own: orbitParamountIsOwn(item) ? .paramount : nil,
+                            logoUrl: model.titleLogoUrl ?? route.titleLogoUrl)
+    }
+
     private func select() {
-        if let shownItem { push(TitleRoute(preview: shownItem)) }
+        if let shownItem { push(TitleRoute(preview: shownItem, platform: detailPlatform(shownItem))) }
     }
 
     private func exitAction() -> (() -> Void)? {

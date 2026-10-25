@@ -325,7 +325,7 @@ struct OrbitAppleTVPage: View {
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
-                                         onOpen: { push(TitleRoute(preview: $0)) },
+                                         onOpen: { push(TitleRoute(preview: $0, platform: OrbitDetailPlatform(theme: .appletv))) },
                                          onClose: closeSearch)
                     .transition(.opacity)
                     .zIndex(10)
@@ -439,7 +439,7 @@ struct OrbitAppleTVPage: View {
     }
 
     private func select() {
-        if let focusedItem { push(TitleRoute(preview: focusedItem, zoom: zoomSpace != nil)) }
+        if let focusedItem { push(TitleRoute(preview: focusedItem, zoom: zoomSpace != nil, platform: OrbitDetailPlatform(theme: .appletv))) }
     }
 
     private func exitAction() -> (() -> Void)? {

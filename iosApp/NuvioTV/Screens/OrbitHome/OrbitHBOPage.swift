@@ -374,7 +374,7 @@ struct OrbitHBOPage: View {
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
-                                         onOpen: { push(TitleRoute(preview: $0)) },
+                                         onOpen: { push(TitleRoute(preview: $0, platform: detailPlatform($0))) },
                                          onClose: closeSearch)
                     .transition(.opacity)
                     .zIndex(10)
@@ -478,8 +478,18 @@ struct OrbitHBOPage: View {
         refreshAfterMove()
     }
 
+    /// The detail page's HBO Max touch.
+    private func detailPlatform(_ item: MetaPreview) -> OrbitDetailPlatform {
+        let own: OrbitDetailOwn? = switch OrbitHBOOwn.of(item) {
+        case .hbo?: .hbo
+        case .max?: .hboMax
+        case nil: nil
+        }
+        return OrbitDetailPlatform(theme: .hbo, own: own, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl)
+    }
+
     private func select() {
-        if let focusedItem { push(TitleRoute(preview: focusedItem)) }
+        if let focusedItem { push(TitleRoute(preview: focusedItem, platform: detailPlatform(focusedItem))) }
     }
 
     private func exitAction() -> (() -> Void)? {
