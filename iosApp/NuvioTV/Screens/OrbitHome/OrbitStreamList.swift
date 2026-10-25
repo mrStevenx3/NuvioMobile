@@ -63,6 +63,13 @@ nonisolated struct OrbitStreamTags: Equatable, Sendable {
         }
     }
 
+    /// French audio: MULTI, VFF or VF 2, VFQ 1, none 0 (VOSTFR is French subtitles only).
+    var frenchRank: Int {
+        if languages.contains(where: { ["MULTI", "VFF", "VF"].contains($0) }) { return 2 }
+        if languages.contains("VFQ") { return 1 }
+        return 0
+    }
+
     /// Definition rank: 4K 4, 1080p 3, 720p 2, SD 1, unknown 0.
     var definitionRank: Int {
         if quality.contains(.uhd) { return 4 }
@@ -242,15 +249,23 @@ struct OrbitStreamRow: Identifiable {
     let order: Int
     var id: String { key }
 
-    /// Best first: instant, then the definition, then the source (a Remux before a light
-    /// re-encode: Steven's 75" shows it), then the range (Dolby Vision, HDR10+, HDR10), then the
-    /// size; the add-on's own order breaks the ties.
+    /// Orbit's order (Steven, 2026-10-25), for the list and the automatic start alike:
+    ///  1. French audio (MULTI, VFF, VF, then VFQ) before everything else;
+    ///  2. ready at once (cached on the debrid service);
+    ///  3. the definition (4K, 1080p, 720p…);
+    ///  4. the picture: Dolby Vision, then HDR10+, HDR10, HDR;
+    ///  5. Dolby Atmos;
+    ///  6. the source (Remux, Blu-ray, WEB);
+    ///  7. the size; the add-on's own order breaks the ties.
     static func sorted(_ rows: [OrbitStreamRow]) -> [OrbitStreamRow] {
         rows.sorted { a, b in
+            if a.tags.frenchRank != b.tags.frenchRank { return a.tags.frenchRank > b.tags.frenchRank }
             if a.tags.instant != b.tags.instant { return a.tags.instant }
             if a.tags.definitionRank != b.tags.definitionRank { return a.tags.definitionRank > b.tags.definitionRank }
-            if a.tags.sourceRank != b.tags.sourceRank { return a.tags.sourceRank > b.tags.sourceRank }
             if a.tags.rangeRank != b.tags.rangeRank { return a.tags.rangeRank > b.tags.rangeRank }
+            let atmosA = a.tags.quality.contains(.atmos), atmosB = b.tags.quality.contains(.atmos)
+            if atmosA != atmosB { return atmosA }
+            if a.tags.sourceRank != b.tags.sourceRank { return a.tags.sourceRank > b.tags.sourceRank }
             let sa = a.tags.sizeBytes ?? 0, sb = b.tags.sizeBytes ?? 0
             if sa != sb { return sa > sb }
             return a.order < b.order

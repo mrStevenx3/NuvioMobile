@@ -277,7 +277,7 @@ struct OrbitSourcesSection: View {
 
     var body: some View {
         OrbitSettingsGroup(title: String(localized: "Lecture automatique"),
-                           note: String(localized: "Lire lance la meilleure source arrivée : la plus haute résolution, puis le HDR ou le Dolby Vision, puis les liens en cache, puis le plus gros fichier. Maintiens Lire pour choisir.")) {
+                           note: String(localized: "Lire lance la meilleure source arrivée, dans l'ordre de la liste : le français d'abord (MULTI, VFF), puis les liens prêts tout de suite, la résolution, le Dolby Vision, l'Atmos, puis le Remux. Si elle échoue, la suivante est essayée. Maintiens Lire pour choisir.")) {
             OrbitSettingsToggle(title: String(localized: "Lancer la meilleure source"),
                                 isOn: Binding(get: { model.autoPlayBestSource }, set: { model.setAutoPlayBestSource($0) }))
             if model.autoPlayBestSource {
