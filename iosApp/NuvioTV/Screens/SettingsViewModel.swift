@@ -634,11 +634,6 @@ final class SettingsViewModel: ObservableObject {
         PlayerSettingsRepository.shared.setSubtitleStyle(style: transform(current))
     }
 
-
-
-
-
-
     func setSubtitleStripSdh(_ enabled: Bool) {
         updateSubtitleStyle {
             SubtitleStyleState(textColor: $0.textColor, backgroundColor: $0.backgroundColor, outlineColor: $0.outlineColor, outlineEnabled: $0.outlineEnabled, outlineWidth: $0.outlineWidth, bold: $0.bold, fontSizeSp: $0.fontSizeSp, bottomOffset: $0.bottomOffset, stripSdh: enabled, useForcedSubtitles: $0.useForcedSubtitles, showOnlyPreferredLanguages: $0.showOnlyPreferredLanguages)
