@@ -26,14 +26,18 @@ extension Notification.Name {
 }
 
 extension View {
-    /// Pops this stack to its root on `orbitGoHome`.
-    func orbitPopsToRootOnGoHome(_ path: Binding<NavigationPath>) -> some View {
+    /// Pops this stack to its root on `orbitGoHome`. `delay`: the other tabs' stacks pop once Home
+    /// is on screen (Steven: from a film opened in Search, the search page showed before Home).
+    func orbitPopsToRootOnGoHome(_ path: Binding<NavigationPath>, delay: TimeInterval = 0.5) -> some View {
         onReceive(NotificationCenter.default.publisher(for: .orbitGoHome)) { _ in
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                if !path.wrappedValue.isEmpty { path.wrappedValue = NavigationPath() }
+            let pop = {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    if !path.wrappedValue.isEmpty { path.wrappedValue = NavigationPath() }
+                }
             }
+            if delay > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: pop) } else { pop() }
         }
     }
 }

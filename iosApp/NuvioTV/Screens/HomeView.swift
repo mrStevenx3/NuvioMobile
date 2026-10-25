@@ -45,7 +45,12 @@ struct HomeView: View {
                 OrbitStudioPage(route: route)
             }
             .navigationDestination(for: FolderRoute.self) { route in
-                OrbitPlatformPage(route: route, push: { homePath.append($0) })
+                if OrbitDisneyPage.handles(route) {
+                    OrbitDisneyPage(route: route, push: { homePath.append($0) },
+                                    pushStudio: { homePath.append($0) })
+                } else {
+                    OrbitPlatformPage(route: route, push: { homePath.append($0) })
+                }
             }
             .navigationDestination(for: OrbitGenreRoute.self) { route in
                 OrbitGenrePage(genre: route.genre)
@@ -72,7 +77,7 @@ struct HomeView: View {
             }
         }
         .environment(\.orbitPush, { homePath.append($0) })
-        .orbitPopsToRootOnGoHome($homePath)
+        .orbitPopsToRootOnGoHome($homePath, delay: 0)
         .onAppear {
             // Retain, don't start: during a theme rebuild the incoming Home appears before the
             // outgoing one disappears, so the count goes 1 → 2 → 1 and the pipeline never restarts.
