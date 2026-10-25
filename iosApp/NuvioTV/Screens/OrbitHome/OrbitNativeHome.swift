@@ -220,10 +220,14 @@ struct OrbitNativeRow: View {
     @State private var holds = false
     /// The last title focused here (its details stay through the passage).
     @State private var shown: String?
+    /// The classic row: the title it is scrolled to (its frame at the margin).
+    @State private var anchor: String?
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
-    /// The classic row's open frame becomes 16:9 tiles here (the frame widened on every press).
-    private var style: OrbitRowStyle { row.style == .classic ? .landscape : row.style }
+    private var style: OrbitRowStyle { row.style }
+    /// Steven: the first row as before — the focused title open in a large 16:9 frame at the left
+    /// margin, the others as posters after it, the row sliding under it (Netflix).
+    private var classic: Bool { row.style == .classic }
 
     static let infoHeight: CGFloat = 112
 
@@ -237,13 +241,19 @@ struct OrbitNativeRow: View {
             OrbitRowHeading(title: row.title, isCurrent: isCurrent)
                 .padding(.leading, L.margin + 4)
 
+            let lead = shown ?? row.cards.first?.id
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .bottom, spacing: T.gap(style)) {
                     ForEach(Array(row.cards.enumerated()), id: \.element.id) { index, card in
                         Button {
                             open(card)
                         } label: {
-                            OrbitNativeTile(card: card, meta: metaStore.meta(for: card.preview), style: style, rank: index + 1)
+                            if classic {
+                                OrbitNativeClassicTile(card: card, meta: metaStore.meta(for: card.preview),
+                                                       open: card.id == lead)
+                            } else {
+                                OrbitNativeTile(card: card, meta: metaStore.meta(for: card.preview), style: style, rank: index + 1)
+                            }
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: card.id)
@@ -252,8 +262,11 @@ struct OrbitNativeRow: View {
                 }
                 .scrollTargetLayout()
                 .padding(.vertical, 34)
+                // The frame opening on the new title and closing on the old one, on the row's curve.
+                .animation(classic ? OrbitHomeLayout.horizontal : nil, value: lead)
             }
             .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $anchor, anchor: .leading)
             .contentMargins(.horizontal, L.margin, for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
@@ -293,6 +306,8 @@ struct OrbitNativeRow: View {
                 onEnter()
             }
             shown = new
+            // The classic row keeps its frame at the margin: scrolled to the focused title.
+            if classic, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
             OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
@@ -338,6 +353,27 @@ struct OrbitNativeRow: View {
             actions.resume(ResumeTarget(entry: entry))
         } else {
             actions.push(TitleRoute(preview: card.preview))
+        }
+    }
+}
+
+/// The classic row's tile: the open 16:9 frame (art, logo, badge) for its title, else a poster.
+private struct OrbitNativeClassicTile: View {
+    let card: OrbitCard
+    let meta: OrbitMeta?
+    let open: Bool
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        if open {
+            OrbitLeadFrame(card: card, meta: meta, focused: isFocused, trailerURL: nil,
+                           onTrailerFailure: { _ in }, onTrailerEnded: {})
+                .shadow(color: .black.opacity(isFocused ? 0.55 : 0), radius: isFocused ? 18 : 0, y: isFocused ? 10 : 0)
+                .animation(.easeOut(duration: 0.18), value: isFocused)
+                .transition(.opacity)
+        } else {
+            OrbitPosterCard(card: card)
+                .transition(.opacity)
         }
     }
 }
