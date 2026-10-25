@@ -767,8 +767,10 @@ private struct OrbitDisneyTop10Card: View {
                     .frame(width: size.width * 5.23, height: size.width * 5.23)
                     .position(x: size.width * 2.07, y: size.width * 2.07)
             }
+            // Steven (device: the 10 ran past the blue arc): two digits smaller and tighter.
             Text("\(rank)")
-                .font(.system(size: 82, weight: .heavy, design: .rounded))
+                .font(.system(size: rank >= 10 ? 62 : 82, weight: .heavy, design: .rounded))
+                .kerning(rank >= 10 ? -4 : 0)
                 .foregroundStyle(Color(red: 0.15, green: 0.80, blue: 0.92))
                 .padding(.leading, size.width * 0.055)
                 .padding(.top, size.width * 0.02)
