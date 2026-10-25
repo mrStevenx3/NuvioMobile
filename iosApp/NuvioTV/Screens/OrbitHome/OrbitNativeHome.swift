@@ -39,11 +39,15 @@ struct OrbitNativeHome: View {
     @State private var onHero = true
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
     @State private var position: String? = "hero"
+    /// The row holding the focus (its heading lit, its details shown) — set by the page, so a
+    /// row's own focus passing through "none" between two titles never dims it.
+    @State private var currentRow: String?
 
     /// The line under the bar the page aligns its sections on (the bar's band is above it).
     static let topLine: CGFloat = 120
-    /// The hero's own height in the column: the first row's heading peeks at the screen's bottom.
-    static var heroHeight: CGFloat { OrbitHomeLayout.heroPitch - topLine - sectionGap }
+    /// The hero's own height in the column. Steven: the hero takes the whole screen (no sliver of
+    /// the first row under it).
+    static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine }
     static let sectionGap: CGFloat = 56
 
     var body: some View {
@@ -58,7 +62,8 @@ struct OrbitNativeHome: View {
                             .id("hero")
                     }
                     ForEach(rows) { row in
-                        OrbitNativeRow(row: row, actions: actions, onEnter: { enter(row.id) })
+                        OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions,
+                                       onEnter: { enter(row.id) })
                             .id(row.id)
                     }
                 }
@@ -90,6 +95,7 @@ struct OrbitNativeHome: View {
         .onChange(of: heroFocus) { _, page in
             guard let page else { return }
             heroPage = page
+            currentRow = nil
             setOnHero(true)
             if position != "hero" { withAnimation(.easeInOut(duration: 0.32)) { position = "hero" } }
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
@@ -143,6 +149,7 @@ struct OrbitNativeHome: View {
     }
 
     private func enter(_ rowID: String) {
+        currentRow = rowID
         setOnHero(false)
         if position != rowID { withAnimation(.easeInOut(duration: 0.32)) { position = rowID } }
     }
@@ -197,6 +204,8 @@ private struct OrbitNativeBackdrop: View {
 
 struct OrbitNativeRow: View {
     let row: OrbitRow
+    /// Steven (device: the headings still blinked): lit by the page, not by the row's own focus.
+    let isCurrent: Bool
     let actions: StageHomeActions
     /// The focus came into this row (from outside it).
     let onEnter: () -> Void
@@ -222,7 +231,7 @@ struct OrbitNativeRow: View {
         let size = T.size(style)
         let shownCard = row.cards.first { $0.id == shown }
         VStack(alignment: .leading, spacing: 14) {
-            OrbitRowHeading(title: row.title, isCurrent: holds)
+            OrbitRowHeading(title: row.title, isCurrent: isCurrent)
                 .padding(.leading, L.margin + 4)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -258,7 +267,7 @@ struct OrbitNativeRow: View {
             if style != .cards {
                 ZStack(alignment: .topLeading) {
                     Color.clear
-                    details(holds ? shownCard : nil)
+                    details(isCurrent ? shownCard : nil)
                 }
                 .frame(width: 1200, height: Self.infoHeight, alignment: .topLeading)
                 .clipped()
