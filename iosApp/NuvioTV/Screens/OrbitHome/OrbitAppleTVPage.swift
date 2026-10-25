@@ -24,9 +24,11 @@ enum OrbitAppleTVLayout {
     static let firstRowLine: CGFloat = 130
     static let aboveRowShows: CGFloat = 0.5
     static let headingHeight: CGFloat = 50
-    static let poster = CGSize(width: 232, height: 348)
+    /// Measured on Steven's video (tvOS 26, 1920 wide): the Top 10's and the new titles' posters
+    /// ≈ 256 × 384, ≈ 36 apart.
+    static let poster = CGSize(width: 256, height: 384)
     static let card = CGSize(width: 520, height: 620)
-    static let gap: CGFloat = 28
+    static let gap: CGFloat = 36
     static let cardGap: CGFloat = 34
     static let rowGap: CGFloat = 46
     static let radius: CGFloat = 20
