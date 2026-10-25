@@ -100,12 +100,16 @@ struct OrbitNativeHome: View {
     private var hero: some View {
         let count = heroItems.count
         return ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 0) {
+            // Steven (device: still no Left / Right on the hero): a lazy stack never built the next
+            // page (wholly off screen), so the focus engine had nowhere to go. Every page is a real
+            // button; only the pages next to the shown one draw their art.
+            HStack(spacing: 0) {
                 ForEach(Array(heroItems.enumerated()), id: \.offset) { index, item in
                     Button {
                         actions.push(TitleRoute(preview: item))
                     } label: {
-                        OrbitNativeHeroPage(item: item, count: count, index: index)
+                        OrbitNativeHeroPage(item: item, count: count, index: index,
+                                            live: abs(index - heroPage) <= 1)
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($heroFocus, equals: index)
@@ -144,14 +148,22 @@ private struct OrbitNativeHeroPage: View {
     let item: MetaPreview
     let count: Int
     let index: Int
+    /// Next to the shown page: drawn (the others are empty frames until they come close).
+    let live: Bool
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
-        OrbitHomeHeroView(item: item, focused: isFocused, count: count, index: index,
-                          trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
-            .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
-            .offset(y: -OrbitNativeHome.topLine)
-            .frame(width: OrbitHomeLayout.screenWidth, height: OrbitNativeHome.heroHeight, alignment: .top)
+        ZStack(alignment: .top) {
+            if live {
+                OrbitHomeHeroView(item: item, focused: isFocused, count: count, index: index,
+                                  trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
+                    .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+                    .offset(y: -OrbitNativeHome.topLine)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitNativeHome.heroHeight, alignment: .top)
     }
 }
 
