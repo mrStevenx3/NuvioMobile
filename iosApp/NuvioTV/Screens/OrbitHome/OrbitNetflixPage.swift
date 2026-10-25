@@ -22,9 +22,10 @@ enum OrbitNetflixLayout {
     static let margin: CGFloat = OrbitHomeLayout.margin
     /// The billboard.
     static let billboardTop: CGFloat = 112
-    static let billboardSize = CGSize(width: OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin, height: 640)
+    /// Steven (2026-10-25): much taller, as on the real app — the screen nearly to the bottom.
+    static let billboardSize = CGSize(width: OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin, height: 830)
     /// The first row's heading under the billboard (it peeks on the first screen).
-    static let rowsTop: CGFloat = 800
+    static let rowsTop: CGFloat = 990
     /// The current row's heading once the billboard has gone.
     static let restTop: CGFloat = 118
     static let headingHeight: CGFloat = 50
@@ -583,17 +584,17 @@ private struct OrbitNetflixBillboard: View {
             ], startPoint: .bottomLeading, endPoint: .topTrailing)
             VStack(alignment: .leading, spacing: 14) {
                 if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 22) }
-                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 600, height: 190), textSize: 64,
+                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 700, height: 230), textSize: 72,
                                fallbackLogo: info.logoFallback, hugsLogo: true)
                     // Its own height (Steven: a wide logo left N FILM floating high above it).
-                    .frame(width: 600, alignment: .leading)
+                    .frame(width: 700, alignment: .leading)
                 Text(netflixMeta(item, meta))
                     .font(.system(size: 23, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.9))
                     .lineLimit(1)
             }
-            .padding(.leading, 48)
-            .padding(.bottom, 44)
+            .padding(.leading, 56)
+            .padding(.bottom, 56)
             if let rank {
                 OrbitNetflixBadge(text: series ? String(localized: "N° \(String(rank)) des séries")
                                                : String(localized: "N° \(String(rank)) des films"))
