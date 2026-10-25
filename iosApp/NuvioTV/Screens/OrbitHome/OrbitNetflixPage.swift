@@ -121,7 +121,15 @@ struct OrbitNetflixPage: View {
     private var series: Bool { typeFilter == "series" }
 
     /// His Nouveautés, his Top 10, then the genres (TMDB).
+    /// Built once per change of what they are made of (fluidity: every press rebuilt them).
+    @State private var rowsMemo = OrbitRowsMemo<[OrbitNetflixRow]>()
+
     private var rows: [OrbitNetflixRow] {
+        rowsMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter,
+                                  extras: extras.movieRows + extras.seriesRows)) { buildRows() }
+    }
+
+    private func buildRows() -> [OrbitNetflixRow] {
         let extraRows: [OrbitPlatformExtrasModel.Extra] = switch typeFilter {
         case "movie"?: extras.movieRows
         case "series"?: extras.seriesRows

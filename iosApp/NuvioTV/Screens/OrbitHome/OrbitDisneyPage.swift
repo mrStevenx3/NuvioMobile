@@ -116,7 +116,15 @@ struct OrbitDisneyPage: View {
     /// Steven (option A, as on Disney+): films and series together, no Films / Séries switch. His
     /// Top 10 rows first (films, then series), his Nouveautés, then the franchises and genres
     /// (TMDB), films and series in turn.
+    /// Built once per change of what they are made of (fluidity: every press rebuilt them).
+    @State private var disneyMemo = OrbitRowsMemo<[OrbitDisneyRow]>()
+
     private var disneyRows: [OrbitDisneyRow] {
+        disneyMemo.get(OrbitRowsKey(rows: model.stripRows, filter: nil,
+                                    extras: extras.movieRows + extras.seriesRows)) { buildDisneyRows() }
+    }
+
+    private func buildDisneyRows() -> [OrbitDisneyRow] {
         // Steven: Marvel, Star Wars (and Comédie, Animation) came twice, once for the films and once
         // for the series. One row per title, its films and series in turn.
         var extraRows: [OrbitPlatformExtrasModel.Extra] = []

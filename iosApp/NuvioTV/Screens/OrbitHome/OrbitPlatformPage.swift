@@ -112,7 +112,15 @@ struct OrbitPlatformPage: View {
     private var brand: Color { OrbitPlatformBrand.color(title: model.folderTitle) }
 
     /// The folder's catalogs of the current type (loaded ones), then the TMDB extras.
+    /// Built once per change of what they are made of (fluidity: every press rebuilt them).
+    @State private var rowsMemo = OrbitRowsMemo<[OrbitPlatformRow]>()
+
     private var rows: [OrbitPlatformRow] {
+        rowsMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter,
+                                  extras: extras.movieRows + extras.seriesRows, variant: series ? "s" : "m")) { buildRows() }
+    }
+
+    private func buildRows() -> [OrbitPlatformRow] {
         let extraRows = series ? extras.seriesRows : extras.movieRows
         // Steven: where this page builds its own rows (a platform TMDB knows), his catalogs that
         // repeat them are not drawn — only his Nouveautés and Top 10 (the « Tous » catalogs stay,

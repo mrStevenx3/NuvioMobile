@@ -148,7 +148,14 @@ struct OrbitHBOPage: View {
     /// Steven: the TV app's "HBO" tab, HBO's own programmes only.
     private var onHBO: Bool { typeFilter == "hbo" }
 
+    /// Built once per change of what they are made of (fluidity: every press rebuilt them).
+    @State private var catalogsMemo = OrbitRowsMemo<[Catalog]>()
+
     private var catalogs: [Catalog] {
+        catalogsMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter, variant: onHBO ? "hbo" : "")) { buildCatalogs() }
+    }
+
+    private func buildCatalogs() -> [Catalog] {
         let source = CollectionTypeFilter.rows(model.stripRows, filter: onHBO ? nil : typeFilter)
         let hasOriginals = source.contains { Self.isOriginalsCatalog($0.heading) }
         return source.compactMap { row in

@@ -114,7 +114,14 @@ struct OrbitAppleTVPage: View {
         let fresh: Bool
     }
 
+    /// Built once per change of what they are made of (fluidity: every press rebuilt them).
+    @State private var catalogsMemo = OrbitRowsMemo<[Catalog]>()
+
     private var catalogs: [Catalog] {
+        catalogsMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter)) { buildCatalogs() }
+    }
+
+    private func buildCatalogs() -> [Catalog] {
         CollectionTypeFilter.rows(model.stripRows, filter: typeFilter).compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             var seen = Set<String>()

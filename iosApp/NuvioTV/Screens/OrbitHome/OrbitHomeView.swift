@@ -610,3 +610,37 @@ final class OrbitRowsCache {
     var key: String?
     var rows: [OrbitRow] = []
 }
+
+/// Fluidity (Steven, 2026-10-25, before the IPA): what a platform page's rows are made of — his
+/// catalogs (compared by their own equality key, no Kotlin list read), the page's filter, the TMDB
+/// extras and any page switch. The rows are rebuilt only when it changes.
+struct OrbitRowsKey: Equatable {
+    var rows: [FolderStripRow]
+    var filter: String?
+    var extras: [OrbitPlatformExtrasModel.Extra] = []
+    var variant: String = ""
+    /// The rows' types (the Films / Séries filter reads them; not in a row's own equality key).
+    private var types: [String?]
+
+    init(rows: [FolderStripRow], filter: String?, extras: [OrbitPlatformExtrasModel.Extra] = [], variant: String = "") {
+        self.rows = rows
+        self.filter = filter
+        self.extras = extras
+        self.variant = variant
+        types = rows.map(\.contentType)
+    }
+}
+
+/// One page's last built value for an `OrbitRowsKey` (a reference: updating it never re-renders).
+final class OrbitRowsMemo<Value> {
+    private var key: OrbitRowsKey?
+    private var value: Value?
+
+    func get(_ key: OrbitRowsKey, _ make: () -> Value) -> Value {
+        if let value, self.key == key { return value }
+        let built = make()
+        self.key = key
+        value = built
+        return built
+    }
+}
