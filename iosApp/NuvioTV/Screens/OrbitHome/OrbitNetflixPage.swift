@@ -38,7 +38,7 @@ enum OrbitNetflixLayout {
     static let rowGap: CGFloat = 40
     static let radius: CGFloat = 8
     static let rankWidth: CGFloat = 170
-    static let rankWidthTen: CGFloat = 330
+    static let rankWidthTen: CGFloat = 360
     static let horizontal = Animation.easeOut(duration: 0.26)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -670,15 +670,21 @@ private struct OrbitNetflixRank: View {
 
     var body: some View {
         let L = OrbitNetflixLayout.self
-        let text = Text("\(rank)").font(.system(size: L.tileHeight * 0.62, weight: .black)).kerning(-10)
+        // Steven: "10" showed as "…" (too wide for its room, the text truncated): never truncated,
+        // and "10" drawn a bit narrower (tighter, slightly smaller) in a wider room.
+        let text = Text("\(rank)")
+            .font(.system(size: L.tileHeight * (rank == 10 ? 0.56 : 0.62), weight: .black))
+            .kerning(rank == 10 ? -22 : -10)
         ZStack {
             // The outline: the number drawn around itself in grey, then black inside.
             ForEach(0..<8, id: \.self) { i in
                 let angle = Double(i) * .pi / 4
                 text.foregroundStyle(Color(white: 0.55))
+                    .fixedSize()
                     .offset(x: cos(angle) * 3, y: sin(angle) * 3)
             }
             text.foregroundStyle(Color.black)
+                .fixedSize()
         }
         .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .bottomTrailing)
         .offset(x: 24, y: 34)
