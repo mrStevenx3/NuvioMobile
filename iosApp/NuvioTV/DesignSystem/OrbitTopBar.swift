@@ -699,6 +699,15 @@ struct CollectionFilterBar: View {
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
         .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
         .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
+        // Steven: Disney+ / Hulu switch on focus, no press (after a short rest: passing over opens nothing).
+        .onChange(of: switchFocused) { _, index in
+            guard let index else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                if switchFocused == index, switchSelection?.wrappedValue != index {
+                    switchSelection?.wrappedValue = index
+                }
+            }
+        }
     }
 
     private var leftPill: some View {

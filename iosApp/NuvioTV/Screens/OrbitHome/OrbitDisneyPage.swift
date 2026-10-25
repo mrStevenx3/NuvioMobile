@@ -117,7 +117,7 @@ struct OrbitDisneyPage: View {
     /// (TMDB), films and series in turn.
     private var disneyRows: [OrbitDisneyRow] {
         let extraRows = Self.alternate(extras.movieRows, extras.seriesRows)
-        let catalogs: [OrbitDisneyRow] = model.stripRows.compactMap { row in
+        let catalogs: [(OrbitDisneyRow, Int)] = model.stripRows.compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             guard extraRows.isEmpty || OrbitCatalogFilter.isKept(row.heading) else { return nil }
             var seen = Set<String>()
@@ -125,10 +125,14 @@ struct OrbitDisneyPage: View {
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             let top10 = heading.contains("top 10") || heading.contains("top10")
             let isSeries = heading.contains("serie") || unique.first.map { $0.type != "movie" } == true
-            return OrbitDisneyRow(id: row.id, title: top10 ? Self.top10Title(series: isSeries) : row.heading,
-                                  items: top10 ? Array(unique.prefix(10)) : unique, top10: top10)
+            return (OrbitDisneyRow(id: row.id, title: top10 ? Self.top10Title(series: isSeries) : row.heading,
+                                   items: top10 ? Array(unique.prefix(10)) : unique, top10: top10),
+                    (isSeries ? 2 : 0) + (top10 ? 1 : 0))
         }
-        let ordered = catalogs.filter(\.top10) + catalogs.filter { !$0.top10 }
+        // Steven: Nouveaux films, Top 10 des films, Nouvelles séries, Top 10 des séries (stable).
+        let ordered = catalogs.enumerated()
+            .sorted { $0.element.1 != $1.element.1 ? $0.element.1 < $1.element.1 : $0.offset < $1.offset }
+            .map(\.element.0)
         var shown = Set(ordered.flatMap { $0.items.map(Self.identity) })
         var more: [OrbitDisneyRow] = []
         for extra in extraRows {
