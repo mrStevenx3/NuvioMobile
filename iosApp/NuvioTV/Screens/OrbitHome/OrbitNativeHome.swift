@@ -8,7 +8,9 @@ import SwiftUI
 //
 //  - Each row is a horizontal ScrollView of buttons: the system slides it (on the GPU), only the
 //    two tiles whose focus changed redraw (`@Environment(\.isFocused)` in the tile).
-//  - The page is a vertical ScrollView: the focused row is brought to its line under the bar.
+//  - The page is a vertical ScrollView aligned on its rows (`.viewAligned`): the system brings the
+//    focused row to the line under the bar itself — no scroll of our own fighting its own.
+//  - The hero is a carousel of buttons the system slides too (Left / Right).
 //  - The page's own view never redraws on a press — each row keeps its own focus; the colour wash
 //    behind the rows follows a small shared object.
 //  - Entering a row lands on its first title (Steven's rule), the row back at its start.
@@ -30,55 +32,48 @@ struct OrbitNativeHome: View {
     let actions: StageHomeActions
     @Binding var isScrolledDown: Bool
 
-    @State private var heroIndex = 0
-    @FocusState private var heroFocused: Bool
+    @FocusState private var heroFocus: Int?
+    /// The hero page last focused (Menu comes back to it).
+    @State private var heroPage = 0
     /// The page is on its hero (else on a row): the wash shows, the bar locks, Menu goes up.
     @State private var onHero = true
-    /// Where the page is brought to (the hero, or a row's line).
-    @State private var scrollTarget: String?
 
-    private static let rowLine: CGFloat = 130
+    /// The line under the bar the page aligns its sections on (the bar's band is above it).
+    static let topLine: CGFloat = 120
+    /// The hero's own height in the column: the first row's heading peeks at the screen's bottom.
+    static var heroHeight: CGFloat { OrbitHomeLayout.heroPitch - topLine - sectionGap }
+    static let sectionGap: CGFloat = 56
 
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack(alignment: .topLeading) {
             OrbitNativeBackdrop(visible: !onHero)
 
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: 56) {
-                        if !heroItems.isEmpty {
-                            hero
-                                .id("hero")
-                        }
-                        ForEach(rows) { row in
-                            OrbitNativeRow(row: row, actions: actions, onEnter: { enter(row.id) })
-                                .overlay(alignment: .top) {
-                                    // The row's line: its heading this far under the screen's top.
-                                    Color.clear.frame(width: 1, height: 1)
-                                        .alignmentGuide(.top) { $0[.top] + Self.rowLine }
-                                        .id("line-\(row.id)")
-                                }
-                                .id(row.id)
-                        }
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: Self.sectionGap) {
+                    if !heroItems.isEmpty {
+                        hero
                     }
-                    .padding(.bottom, 240)
-                }
-                .scrollClipDisabled()
-                .onChange(of: scrollTarget) { _, target in
-                    guard let target else { return }
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        proxy.scrollTo(target, anchor: .top)
+                    ForEach(rows) { row in
+                        OrbitNativeRow(row: row, actions: actions, onEnter: { setOnHero(false) })
                     }
                 }
+                .scrollTargetLayout()
+                .padding(.bottom, 300)
             }
+            // Steven (device: the rows jumped on a quick Up / Down, as if the cursor didn't know
+            // where to stop): the system aligns the focused section on the line itself.
+            .scrollTargetBehavior(.viewAligned)
+            .contentMargins(.top, Self.topLine, for: .scrollContent)
+            .scrollClipDisabled()
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
-        .onChange(of: heroFocused) { _, focused in
-            guard focused else { return }
+        .onChange(of: heroFocus) { _, page in
+            guard let page else { return }
+            heroPage = page
             setOnHero(true)
-            scrollTarget = "hero"
+            if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
         .onAppear {
             OrbitBarLock.shared.set(!onHero)
@@ -89,28 +84,29 @@ struct OrbitNativeHome: View {
 
     // MARK: Hero
 
+    /// Steven (device: the hero no longer changed title): a carousel of buttons, slid by the system.
+    /// Its buttons start under the bar (the bar stays reachable above them: Up from the hero).
     private var hero: some View {
-        let L = OrbitHomeLayout.self
         let count = heroItems.count
-        let item = heroItems[heroIndex % max(1, count)]
-        return Button {
-            actions.push(TitleRoute(preview: item))
-        } label: {
-            OrbitNativeHeroContent(item: item, count: count, index: heroIndex % max(1, count))
-        }
-        .buttonStyle(OrbitPlainStyle())
-        .focused($heroFocused)
-        .onMoveCommand { direction in
-            guard count > 1 else { return }
-            switch direction {
-            case .left: withAnimation(L.horizontal) { heroIndex = (heroIndex - 1 + count) % count }
-            case .right: withAnimation(L.horizontal) { heroIndex = (heroIndex + 1) % count }
-            default: return
+        return ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 0) {
+                ForEach(Array(heroItems.enumerated()), id: \.offset) { index, item in
+                    Button {
+                        actions.push(TitleRoute(preview: item))
+                    } label: {
+                        OrbitNativeHeroPage(item: item, count: count, index: index)
+                    }
+                    .buttonStyle(OrbitPlainStyle())
+                    .focused($heroFocus, equals: index)
+                }
             }
-            OrbitMetaStore.shared.request([heroItems[(heroIndex + 1) % count]])
+            .scrollTargetLayout()
         }
-        // The hero is drawn full screen; the first row's heading peeks over its bottom.
-        .frame(height: L.heroPitch - 56, alignment: .top)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollClipDisabled()
+        .frame(width: OrbitHomeLayout.screenWidth, height: Self.heroHeight)
+        .focusSection()
+        .defaultFocus($heroFocus, heroPage, priority: .userInitiated)
     }
 
     // MARK: Moves
@@ -120,16 +116,7 @@ struct OrbitNativeHome: View {
         if onHero {
             return { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
         }
-        return { goTop() }
-    }
-
-    private func enter(_ rowID: String) {
-        setOnHero(false)
-        scrollTarget = "line-\(rowID)"
-    }
-
-    private func goTop() {
-        heroFocused = true
+        return { heroFocus = heroPage }
     }
 
     private func setOnHero(_ value: Bool) {
@@ -140,8 +127,9 @@ struct OrbitNativeHome: View {
     }
 }
 
-/// The hero's art and details, focused as the button it sits in is.
-private struct OrbitNativeHeroContent: View {
+/// One hero page: the full-screen art and details (drawn from the screen's top, above the button's
+/// own frame), focused as its button is.
+private struct OrbitNativeHeroPage: View {
     let item: MetaPreview
     let count: Int
     let index: Int
@@ -150,6 +138,9 @@ private struct OrbitNativeHeroContent: View {
     var body: some View {
         OrbitHomeHeroView(item: item, focused: isFocused, count: count, index: index,
                           trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
+            .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+            .offset(y: -OrbitNativeHome.topLine)
+            .frame(width: OrbitHomeLayout.screenWidth, height: OrbitNativeHome.heroHeight, alignment: .top)
     }
 }
 
@@ -175,6 +166,12 @@ struct OrbitNativeRow: View {
     let onEnter: () -> Void
 
     @FocusState private var focused: String?
+    /// The row holds the focus. Steven (device: the headings blinked on every Left / Right): the
+    /// focus passes through "none" between two titles of a row — the row lets go only if it stays
+    /// gone a moment.
+    @State private var holds = false
+    /// The last title focused here (its details stay through the passage).
+    @State private var shown: String?
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     /// The classic row's open frame becomes 16:9 tiles here (the frame widened on every press).
@@ -187,9 +184,9 @@ struct OrbitNativeRow: View {
         let T = OrbitTileLayout.self
         let style = style
         let size = T.size(style)
-        let focusedCard = row.cards.first { $0.id == focused }
+        let shownCard = row.cards.first { $0.id == shown }
         VStack(alignment: .leading, spacing: 14) {
-            OrbitRowHeading(title: row.title, isCurrent: focused != nil)
+            OrbitRowHeading(title: row.title, isCurrent: holds)
                 .padding(.leading, L.margin + 4)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -205,9 +202,11 @@ struct OrbitNativeRow: View {
                         .onAppear { OrbitMetaStore.shared.request([card.preview]) }
                     }
                 }
-                .padding(.horizontal, L.margin)
+                .scrollTargetLayout()
                 .padding(.vertical, 34)
             }
+            .scrollTargetBehavior(.viewAligned)
+            .contentMargins(.horizontal, L.margin, for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
             .background {
@@ -218,7 +217,7 @@ struct OrbitNativeRow: View {
 
             // The focused title's details under the row (large cards carry theirs).
             if style != .cards {
-                details(focusedCard)
+                details(holds ? shownCard : nil)
                     .frame(height: Self.infoHeight, alignment: .topLeading)
                     .padding(.leading, L.margin + 6)
             }
@@ -226,9 +225,20 @@ struct OrbitNativeRow: View {
         .focusSection()
         // Steven: coming into a row lands on its first title (the row back at its start).
         .defaultFocus($focused, row.cards.first?.id, priority: .userInitiated)
-        .onChange(of: focused) { old, new in
-            guard let new, let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
-            if old == nil { onEnter() }
+        .onChange(of: focused) { _, new in
+            guard let new else {
+                // Gone for good, or only passing between two titles?
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    if focused == nil, holds { holds = false }
+                }
+                return
+            }
+            if !holds {
+                holds = true
+                onEnter()
+            }
+            shown = new
+            guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
             OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
             let ahead = row.cards[index..<min(row.cards.count, index + 6)].map(\.preview)
