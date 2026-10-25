@@ -1,4 +1,5 @@
 import Combine
+import SharedCore
 import SwiftUI
 
 // The platform pages, native (Steven, 2026-10-26: "fais-les toutes en même temps"). Each page
