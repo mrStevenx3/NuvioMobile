@@ -99,7 +99,8 @@ struct OrbitNetflixPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
 
-    @State private var typeFilter: String? = "movie"
+    /// nil: Accueil (films and series together, Steven 2026-10-25); "movie"; "series".
+    @State private var typeFilter: String? = nil
     /// 0: the billboard; then the rows.
     @State private var current = 0
     @State private var leads: [String: Int] = [:]
@@ -120,7 +121,11 @@ struct OrbitNetflixPage: View {
 
     /// His Nouveautés, his Top 10, then the genres (TMDB).
     private var rows: [OrbitNetflixRow] {
-        let extraRows = series ? extras.seriesRows : extras.movieRows
+        let extraRows: [OrbitPlatformExtrasModel.Extra] = switch typeFilter {
+        case "movie"?: extras.movieRows
+        case "series"?: extras.seriesRows
+        default: Self.alternate(extras.movieRows, extras.seriesRows)
+        }
         let catalogs: [OrbitNetflixRow] = CollectionTypeFilter.rows(model.stripRows, filter: typeFilter).compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             guard extraRows.isEmpty || OrbitCatalogFilter.isKept(row.heading) else { return nil }
@@ -128,8 +133,9 @@ struct OrbitNetflixPage: View {
             let unique = items.filter { seen.insert("\($0.type):\($0.id)").inserted }
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             let top10 = heading.contains("top 10") || heading.contains("top10")
+            let seriesRow = heading.contains("serie") || unique.first.map { $0.type != "movie" } == true
             return OrbitNetflixRow(id: row.id,
-                                   title: top10 ? (series ? String(localized: "Top 10 des séries en France aujourd'hui")
+                                   title: top10 ? (seriesRow ? String(localized: "Top 10 des séries en France aujourd'hui")
                                                           : String(localized: "Top 10 des films en France aujourd'hui"))
                                                 : row.heading,
                                    items: top10 ? Array(unique.prefix(10)) : unique, top10: top10,
@@ -138,14 +144,32 @@ struct OrbitNetflixPage: View {
         let ordered = catalogs.filter(\.fresh) + catalogs.filter { !$0.fresh }
         var shown = Set(ordered.flatMap { $0.items.map(Self.identity) })
         var more: [OrbitNetflixRow] = []
+        var merged: [String: Int] = [:]
         for extra in extraRows {
             let fresh = extra.items.filter { !shown.contains(Self.identity($0)) }
             guard fresh.count >= 8 else { continue }
             let kept = Array(fresh.prefix(24))
             kept.forEach { shown.insert(Self.identity($0)) }
-            more.append(OrbitNetflixRow(id: extra.id, title: extra.title, items: kept, top10: false, fresh: false))
+            if let i = merged[extra.title] {
+                // Accueil: one row per genre, its films and series in turn.
+                let row = more[i]
+                more[i] = OrbitNetflixRow(id: row.id, title: row.title, items: Self.alternate(row.items, kept),
+                                          top10: false, fresh: false)
+            } else {
+                merged[extra.title] = more.count
+                more.append(OrbitNetflixRow(id: extra.id, title: extra.title, items: kept, top10: false, fresh: false))
+            }
         }
         return ordered + more
+    }
+
+    private static func alternate<T>(_ a: [T], _ b: [T]) -> [T] {
+        var out: [T] = []
+        for i in 0..<max(a.count, b.count) {
+            if i < a.count { out.append(a[i]) }
+            if i < b.count { out.append(b[i]) }
+        }
+        return out
     }
 
     private static func identity(_ item: MetaPreview) -> String {
@@ -162,8 +186,11 @@ struct OrbitNetflixPage: View {
 
     /// "N° 3 des films" for a title of the Top 10.
     private func topRank(_ item: MetaPreview) -> Int? {
-        guard let top = rows.first(where: \.top10) else { return nil }
-        return top.items.firstIndex { Self.identity($0) == Self.identity(item) }.map { $0 + 1 }
+        // Accueil has both Top 10s: the title's rank on whichever lists it.
+        for top in rows where top.top10 {
+            if let i = top.items.firstIndex(where: { Self.identity($0) == Self.identity(item) }) { return i + 1 }
+        }
+        return nil
     }
 
     private var sectionCount: Int { 1 + rows.count }
@@ -206,7 +233,7 @@ struct OrbitNetflixPage: View {
             ZStack(alignment: .topLeading) {
                 if let billboard {
                     OrbitNetflixBillboard(item: billboard, meta: metaStore.meta(for: billboard),
-                                          rank: topRank(billboard), series: series,
+                                          rank: topRank(billboard), series: billboard.type != "movie",
                                           focused: canvasFocused && current == 0,
                                           trailerURL: current == 0 ? trailerURL(for: billboard) : nil,
                                           onTrailerFailure: { trailer.playbackFailed($0) },
@@ -241,7 +268,7 @@ struct OrbitNetflixPage: View {
             .offset(y: 110)
             .disabled(search != nil)
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch)
+            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
                 .disabled(search != nil || (canvasFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
@@ -287,14 +314,6 @@ struct OrbitNetflixPage: View {
             leads = [:]
             refreshAfterMove()
         }
-        // A series-only folder does not open on an empty Films tab.
-        .onChange(of: model.stripRows.map(\.id), initial: true) { _, _ in
-            let all = model.stripRows
-            if typeFilter == "movie", !all.isEmpty, CollectionTypeFilter.rows(all, filter: "movie").isEmpty,
-               !CollectionTypeFilter.rows(all, filter: "series").isEmpty {
-                typeFilter = "series"
-            }
-        }
     }
 
     @ViewBuilder
@@ -310,7 +329,8 @@ struct OrbitNetflixPage: View {
                     let lead = lead(of: row)
                     let item: MetaPreview? = row.items.indices.contains(lead) ? row.items[lead] : nil
                     OrbitNetflixRowView(row: row, lead: lead, isCurrent: i == currentRow,
-                                        focused: canvasFocused && i == currentRow, series: series,
+                                        focused: canvasFocused && i == currentRow,
+                                        series: item.map { $0.type != "movie" } ?? series,
                                         rank: item.flatMap { topRank($0) },
                                         trailerURL: i == currentRow ? trailerURL(for: item) : nil,
                                         onTrailerFailure: { trailer.playbackFailed($0) },
