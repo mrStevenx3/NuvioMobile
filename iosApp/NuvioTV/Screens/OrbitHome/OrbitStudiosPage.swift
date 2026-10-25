@@ -356,7 +356,11 @@ struct OrbitBalancedLogo: View {
                 let picture = Image(uiImage: image).resizable().aspectRatio(contentMode: .fit)
                 Group {
                     if whiten {
-                        picture.colorMultiply(.black).colorInvert()
+                        // Steven: Pixar's and Ghibli's thin, half-transparent lines read pale even
+                        // whitened — drawn three times over, they come out solid white.
+                        ZStack {
+                            ForEach(0..<3, id: \.self) { _ in picture.colorMultiply(.black).colorInvert() }
+                        }
                     } else {
                         picture
                     }
@@ -403,7 +407,8 @@ private struct OrbitStudioTile: View {
             LinearGradient(colors: [tint, tint.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 .opacity(0.55 + 0.45 * lift)
             if let logo = OrbitStudiosPage.logoURL(folder) {
-                OrbitBalancedLogo(url: logo, area: 7_600,
+                // The thin logos (Pixar, Ghibli) a little larger, to read as well as the others.
+                OrbitBalancedLogo(url: logo, area: OrbitBalancedLogo.isGrey(folder.title) ? 10_500 : 7_600,
                                   maxSize: CGSize(width: size.width - 50, height: size.height - 40),
                                   whiten: OrbitBalancedLogo.isGrey(folder.title), alignment: .center)
                     // The logos are white or light: kept white on the colour.

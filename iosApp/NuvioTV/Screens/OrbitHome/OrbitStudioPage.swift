@@ -55,6 +55,9 @@ enum OrbitStudioRowKind: Equatable {
     case saga
     /// Small portrait posters (transparent ones drawn as they are).
     case posters(transparent: Bool)
+    /// Steven (2026-10-25): Orbit's own Top 10 (TMDB), drawn as Home's — the rank beside the
+    /// poster, in the poster's colour (his add-on's images are no longer used).
+    case ranked
 }
 
 /// One row of the studio page.
@@ -75,11 +78,13 @@ struct OrbitStudioRow: Identifiable, Equatable {
         // Steven (2026-10-25): his Top 10 images much larger than the other posters.
         case .posters(let transparent):
             return transparent ? CGSize(width: 274, height: 412) : CGSize(width: 196, height: 294)
+        case .ranked: return OrbitTileLayout.rankedPoster
         }
     }
 
     var gap: CGFloat {
         if case .posters = kind { return 22 }
+        if kind == .ranked { return 18 }
         return 26
     }
 
@@ -93,6 +98,7 @@ struct OrbitStudioRow: Identifiable, Equatable {
     /// at the margin). A saga's shelf (Steven): the logo stays put and the cursor moves along the
     /// films; they slide only once the cursor would leave the screen.
     func x(of index: Int, lead: Int) -> CGFloat {
+        if kind == .ranked { return CGFloat(index - lead) * (OrbitTileLayout.rankWidth + cardSize.width + gap) }
         guard kind == .saga else { return CGFloat(index - lead) * (cardSize.width + gap) }
         if index == 0 { return 0 }
         return Self.sagaPanelWidth + gap + CGFloat(index - 1 - sagaScroll(lead: lead)) * (cardSize.width + gap)
@@ -791,6 +797,10 @@ private struct OrbitStudioRowView: View {
                             trailerURL: trailer, onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
         case .posters(let transparent):
             OrbitStudioPoster(item: item, size: size, transparent: transparent, focused: focused)
+        case .ranked:
+            OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                            meta: metaStore.meta(for: item), rank: (row.items.firstIndex { $0.id == item.id } ?? 0) + 1,
+                            focused: focused, showsBadge: false)
         }
     }
 }
@@ -1065,7 +1075,7 @@ final class OrbitStudioModel: ObservableObject {
             self.sagaFilms = found.sagaFilms
             self.tmdbRows = found.rows.map { raw in
                 let kind: OrbitStudioRowKind = raw.id == "best" ? .featured : raw.id.hasPrefix("saga-") ? .saga
-                    : .posters(transparent: false)
+                    : raw.id == "top10" ? .ranked : .posters(transparent: false)
                 return OrbitStudioRow(id: raw.id, title: raw.title, items: raw.items, kind: kind)
             }
             self.loading = false
@@ -1077,9 +1087,10 @@ final class OrbitStudioModel: ObservableObject {
         folderRows = strip.compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-            let top10 = heading.contains("top 10") || heading.contains("top10")
+            // His Top 10 add-on is replaced by Orbit's own (TMDB, `ranked`).
+            if heading.contains("top 10") || heading.contains("top10") { return nil }
             return OrbitStudioRow(id: "folder-\(row.id)", title: row.heading, items: items,
-                                  kind: .posters(transparent: top10))
+                                  kind: .posters(transparent: false))
         }
         checkRuntimes()
         publish()
@@ -1134,10 +1145,7 @@ final class OrbitStudioModel: ObservableObject {
                 : OrbitStudioRow(id: row.id, title: row.title, items: items, kind: row.kind)
         }
         // "Les plus populaires" without the films of his Top 10 (it was the same row twice).
-        let topNames = Set(mine.filter { row in
-            if case .posters(transparent: true) = row.kind { return true }
-            return false
-        }.flatMap { $0.items.map { $0.name.lowercased() } })
+        let topNames = Set(tmdbRows.filter { $0.kind == .ranked }.flatMap { $0.items.map { $0.name.lowercased() } })
         let shown = tmdbRows.compactMap { row -> OrbitStudioRow? in
             guard row.id == "popular", !topNames.isEmpty else { return row }
             let trimmed = OrbitStudioRow(id: row.id, title: row.title,
@@ -1251,15 +1259,22 @@ final class OrbitStudioModel: ObservableObject {
         async let best = discover(base + "&sort_by=vote_average.desc&vote_count.gte=300&with_runtime.gte=60", tv: network)
         async let popular = discover(base + "&sort_by=popularity.desc", tv: network)
         async let popular2 = discover(base + "&sort_by=popularity.desc&page=2", tv: network)
+        // Orbit's Top 10: the most popular of the moment among what is out (an hour or more).
+        async let top10 = discover(base + "&sort_by=popularity.desc&\(dateField).lte=\(today)&vote_count.gte=20"
+                                   + (network ? "" : "&with_runtime.gte=60"), tv: network)
         async let upcoming = discover(base + "&sort_by=\(dateField).asc&\(dateField).gte=\(today)&\(dateField).lte=\(soon)", tv: network)
 
-        let (entityValue, oldestValue, bestValue, popularValue, popular2Value, upcomingValue) =
-            await (entity, oldest, best, popular, popular2, upcoming)
+        let (entityValue, oldestValue, bestValue, popularValue, popular2Value, upcomingValue, top10Value) =
+            await (entity, oldest, best, popular, popular2, upcoming, top10)
 
         var rows: [(id: String, title: String, items: [MetaPreview])] = []
         /// Steven: the sagas spread through the page (one after each row), not one after another.
         var sagaRows: [(id: String, title: String, items: [MetaPreview])] = []
         var sagaFilms: [String: MetaPreview] = [:]
+        if top10Value.items.count >= 10 {
+            rows.append(("top10", network ? String(localized: "Top 10 des séries") : String(localized: "Top 10 des films"),
+                         Array(top10Value.items.prefix(10))))
+        }
         if bestValue.items.count >= 5 { rows.append(("best", String(localized: "Les incontournables"), bestValue.items)) }
         let popularItems = popularValue.items + popular2Value.items
         if popularItems.count >= 5 { rows.append(("popular", String(localized: "Les plus populaires"), popularItems)) }

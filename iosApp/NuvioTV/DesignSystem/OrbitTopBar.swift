@@ -451,14 +451,20 @@ struct OrbitCollectionGrid: View {
 
     /// The focused platform's colour (the halo), nil for a grey cover.
     @State private var haloColor: Color?
+    @ObservedObject private var trending = OrbitPlatformTrendingModel.shared
 
     var body: some View {
         let entries = entries
         ZStack(alignment: .topLeading) {
             OrbitHomeLayout.background.ignoresSafeArea()
+            // Steven (2026-10-25): the platform's number one (or the focused title) faded in top
+            // right, as on Home, under the platform's colour.
+            OrbitRowsBackdrop(url: trending.spotlight, opaque: false)
+                .ignoresSafeArea()
+                .animation(.easeInOut(duration: 0.4), value: trending.spotlight)
             // The halo: the focused platform's colour, soft, from the top left.
             if let haloColor {
-                RadialGradient(colors: [haloColor.opacity(0.42), haloColor.opacity(0.12), .clear],
+                RadialGradient(colors: [haloColor.opacity(0.55), haloColor.opacity(0.18), .clear],
                                center: UnitPoint(x: 0.22, y: 0.18), startRadius: 0, endRadius: 1250)
                     .ignoresSafeArea()
                     .transition(.opacity)

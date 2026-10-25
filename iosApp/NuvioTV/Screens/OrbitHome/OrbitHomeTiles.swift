@@ -171,7 +171,7 @@ struct OrbitHomeTileRowView: View {
 }
 
 /// Orbit's focus on a tile: the white frame, a little larger.
-private struct OrbitTileFocus: ViewModifier {
+struct OrbitTileFocus: ViewModifier {
     let focused: Bool
     var radius: CGFloat = 12
 
@@ -189,10 +189,11 @@ private struct OrbitTileFocus: ViewModifier {
 }
 
 /// A 16:9 tile: the art, the logo, the platform badge, the progress for Reprendre.
-private struct OrbitLandscapeTile: View {
+struct OrbitLandscapeTile: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let focused: Bool
+    var showsBadge = true
 
     var body: some View {
         let size = OrbitTileLayout.landscape
@@ -222,7 +223,7 @@ private struct OrbitLandscapeTile: View {
                     .padding(.trailing, 14)
                     .padding(.bottom, 22)
             }
-            if let kind = OrbitPlatformBadgeKind.of(meta) {
+            if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
                 OrbitPlatformBadge(kind: kind, size: 15)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(12)
@@ -303,11 +304,13 @@ private struct OrbitSmallPoster: View {
 
 /// A poster of the Top 10 across the platforms: the big rank beside it (Steven's add-on's spirit:
 /// coloured with the poster's own dominant colour), the platform's badge on it.
-private struct OrbitRankedTile: View {
+struct OrbitRankedTile: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let rank: Int
     let focused: Bool
+    /// The platform's badge on the poster (not on a studio's page: every film there is its own).
+    var showsBadge = true
 
     @State private var tone: Color?
 
@@ -340,7 +343,7 @@ private struct OrbitRankedTile: View {
             ZStack(alignment: .bottom) {
                 Color(white: 0.1)
                 OrbitImage(url: poster, fallback: card.landscape, mode: .fill, size: size)
-                if let kind = OrbitPlatformBadgeKind.of(meta) {
+                if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
                     OrbitPlatformBadge(kind: kind, size: 16)
                         .padding(.bottom, 14)
                 }

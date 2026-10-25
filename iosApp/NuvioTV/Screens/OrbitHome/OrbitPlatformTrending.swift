@@ -16,8 +16,13 @@ final class OrbitPlatformTrendingModel: ObservableObject {
     @Published private(set) var title: String?
     @Published private(set) var movies: [MetaPreview] = []
     @Published private(set) var series: [MetaPreview] = []
+    /// Steven (2026-10-25): "Top 10 sur <platform>" — its ten most popular titles, films and series.
+    @Published private(set) var top: [MetaPreview] = []
+    /// The art faded in behind the page: the focused title's, else the platform's number one.
+    @Published var spotlight: String?
 
-    private var cache: [Int: (movies: [MetaPreview], series: [MetaPreview])] = [:]
+    private typealias Found = (movies: [MetaPreview], series: [MetaPreview], top: [MetaPreview])
+    private var cache: [Int: Found] = [:]
     private var pending: Task<Void, Never>?
     private var current: Int?
 
@@ -42,14 +47,14 @@ final class OrbitPlatformTrendingModel: ObservableObject {
         guard let provider = Self.providerId(forTitle: folderTitle) else {
             pending?.cancel()
             current = nil
-            withAnimation(.easeInOut(duration: 0.25)) { title = nil; movies = []; series = [] }
+            withAnimation(.easeInOut(duration: 0.25)) { title = nil; movies = []; series = []; top = []; spotlight = nil }
             return
         }
         guard provider != current else { return }
         current = provider
         pending?.cancel()
         if let cached = cache[provider] {
-            withAnimation(.easeInOut(duration: 0.25)) { title = folderTitle; movies = cached.movies; series = cached.series }
+            apply(cached, title: folderTitle)
             return
         }
         let key = TmdbSettingsRepository.shared.effectiveApiKey()
@@ -60,12 +65,31 @@ final class OrbitPlatformTrendingModel: ObservableObject {
             let found = await Self.fetch(provider: provider, apiKey: key, language: language)
             guard !Task.isCancelled, let self, self.current == provider else { return }
             self.cache[provider] = found
-            withAnimation(.easeInOut(duration: 0.25)) {
-                self.title = found.movies.isEmpty && found.series.isEmpty ? nil : folderTitle
-                self.movies = found.movies
-                self.series = found.series
-            }
+            self.apply(found, title: folderTitle)
         }
+    }
+
+    private func apply(_ found: Found, title folderTitle: String) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            title = found.movies.isEmpty && found.series.isEmpty && found.top.isEmpty ? nil : folderTitle
+            movies = found.movies
+            series = found.series
+            top = found.top
+        }
+        spotlight = Self.featured(found)
+        // Logos for the landscape tiles, the French posters for the Top 10.
+        OrbitMetaStore.shared.request(found.top + Array(found.movies.prefix(12)))
+    }
+
+    /// The platform's number one with art (the page's backdrop while no title is focused).
+    private static func featured(_ found: Found) -> String? {
+        (found.top + found.movies + found.series).lazy.compactMap(\.banner).first
+    }
+
+    /// The platform's own art back (the focus left the titles).
+    func resetSpotlight() {
+        guard let provider = current, let found = cache[provider] else { return }
+        spotlight = Self.featured(found)
     }
 
     nonisolated private struct Response: Decodable {
@@ -79,6 +103,7 @@ final class OrbitPlatformTrendingModel: ObservableObject {
             let release_date: String?
             let first_air_date: String?
             let vote_average: Double?
+            let popularity: Double?
         }
         let results: [Result]?
     }
@@ -91,16 +116,21 @@ final class OrbitPlatformTrendingModel: ObservableObject {
     }
 
     nonisolated private static func fetch(provider: Int, apiKey: String,
-                                          language: String) async -> (movies: [MetaPreview], series: [MetaPreview]) {
+                                          language: String) async -> (movies: [MetaPreview], series: [MetaPreview], top: [MetaPreview]) {
         let lang = language.isEmpty ? "fr-FR" : language
         let region = region(language: lang)
         async let movies = page(media: "movie", provider: provider, region: region, apiKey: apiKey, language: lang)
         async let series = page(media: "tv", provider: provider, region: region, apiKey: apiKey, language: lang)
-        return await (movies, series)
+        async let topMovies = page(media: "movie", provider: provider, region: region, apiKey: apiKey, language: lang, popular: true)
+        async let topSeries = page(media: "tv", provider: provider, region: region, apiKey: apiKey, language: lang, popular: true)
+        let (m, s, tm, ts) = await (movies, series, topMovies, topSeries)
+        // Films and series together, the most popular first.
+        let top = (tm + ts).sorted { ($0.popularity?.doubleValue ?? 0) > ($1.popularity?.doubleValue ?? 0) }
+        return (m, s, Array(top.prefix(10)))
     }
 
     nonisolated private static func page(media: String, provider: Int, region: String, apiKey: String,
-                                         language: String) async -> [MetaPreview] {
+                                         language: String, popular: Bool = false) async -> [MetaPreview] {
         // Steven: the new titles, not the all-time popular ones. What came out on the platform in
         // the last four months (series: episodes aired in that window), the most popular first;
         // the plain popular list when the window has too few.
@@ -115,8 +145,9 @@ final class OrbitPlatformTrendingModel: ObservableObject {
         let base = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(language)"
             + "&watch_region=\(region)&with_watch_providers=\(provider)"
             + "&with_watch_monetization_types=flatrate&sort_by=popularity.desc&page=1"
-        var found = await Self.results(base + window)
-        if found.count < 8 {
+        // The Top 10: what is popular there now among what is out (no window).
+        var found = await Self.results(popular ? base + (tv ? "" : "&primary_release_date.lte=\(today)") : base + window)
+        if !popular, found.count < 8 {
             let popular = await Self.results(base)
             let seen = Set(found.map(\.id))
             found += popular.filter { !seen.contains($0.id) }
@@ -129,7 +160,7 @@ final class OrbitPlatformTrendingModel: ObservableObject {
                                banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                                logo: nil, posterShape: .poster,
                                description: r.overview, releaseInfo: date.map { String($0.prefix(4)) },
-                               rawReleaseDate: date, popularity: nil, voteCount: nil,
+                               rawReleaseDate: date, popularity: r.popularity.map { KotlinDouble(double: $0) }, voteCount: nil,
                                imdbRating: r.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
                                genres: [], rawPosterUrl: nil, landscapePoster: nil,
                                rawLandscapePosterUrl: nil, customPosterApplied: false)
@@ -144,66 +175,101 @@ final class OrbitPlatformTrendingModel: ObservableObject {
     }
 }
 
-/// The rows under the platforms: "Films populaires sur Netflix", "Séries populaires sur Netflix",
-/// each scrolling sideways, each poster opening its title.
+/// The rows under the platforms (Steven, 2026-10-25: as varied as Home): "Top 10 sur Netflix"
+/// (Home's ranked posters), "Nouveaux films sur Netflix" in landscape tiles, "Nouveautés séries
+/// sur Netflix" in posters. Each scrolls sideways; each title opens its page.
 struct OrbitPlatformTrendingRow: View {
     @ObservedObject var model = OrbitPlatformTrendingModel.shared
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
     @FocusState private var focused: String?
     /// When the focus last left the rows (the platforms keep their own landing when coming back up).
     @MainActor static var lostAt: TimeInterval = 0
 
-    static let posterWidth: CGFloat = 170
-    static let posterHeight: CGFloat = 255
+    static let posterWidth: CGFloat = 220
+    static let posterHeight: CGFloat = 330
     static let spacing: CGFloat = 24
 
+    private enum Kind { case ranked, landscape, posters }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 30) {
+        VStack(alignment: .leading, spacing: 34) {
             if let title = model.title {
+                if model.top.count >= 5 {
+                    row(heading: String(format: String(localized: "Top 10 sur %@"), title),
+                        items: model.top, key: "top-\(title)", kind: .ranked)
+                }
                 if !model.movies.isEmpty {
                     row(heading: String(format: String(localized: "Nouveaux films sur %@"), title),
-                        items: model.movies, key: "movies-\(title)")
+                        items: model.movies, key: "movies-\(title)", kind: .landscape)
                 }
                 if !model.series.isEmpty {
                     row(heading: String(format: String(localized: "Nouveautés séries sur %@"), title),
-                        items: model.series, key: "series-\(title)")
+                        items: model.series, key: "series-\(title)", kind: .posters)
                 }
             }
         }
         .onChange(of: focused) { old, id in
-            guard let id else { Self.lostAt = ProcessInfo.processInfo.systemUptime; return }
+            guard let id else {
+                Self.lostAt = ProcessInfo.processInfo.systemUptime
+                model.resetSpotlight()
+                return
+            }
+            let rowKey = String(id.prefix { $0 != "/" })
+            let items = items(rowKey)
+            // The page's art follows the focused title.
+            if let item = items.first(where: { "\(rowKey)/\($0.id)" == id }) {
+                model.spotlight = item.banner ?? metaStore.meta(for: item)?.backdrop ?? model.spotlight
+            }
             // Steven: coming into a row (down from the platforms, or from the other row) lands on
             // its first title, far left, not the one under the previous focus.
-            let rowKey = String(id.prefix { $0 != "/" })
             let oldRow = old.map { String($0.prefix { $0 != "/" }) }
-            guard oldRow != rowKey, let title = model.title else { return }
-            let items = rowKey.hasPrefix("movies-") ? model.movies : model.series
-            let expectedKey = rowKey.hasPrefix("movies-") ? "movies-\(title)" : "series-\(title)"
-            guard rowKey == expectedKey, let first = items.first else { return }
+            guard oldRow != rowKey, let first = items.first else { return }
             let target = "\(rowKey)/\(first.id)"
             if id != target { focused = target }
         }
     }
 
-    private func row(heading: String, items: [MetaPreview], key: String) -> some View {
+    private func items(_ rowKey: String) -> [MetaPreview] {
+        guard let title = model.title else { return [] }
+        switch rowKey {
+        case "top-\(title)": return model.top
+        case "movies-\(title)": return model.movies
+        case "series-\(title)": return model.series
+        default: return []
+        }
+    }
+
+    private func row(heading: String, items: [MetaPreview], key: String, kind: Kind) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(heading)
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(Color.white)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Self.spacing) {
-                    ForEach(items, id: \.id) { item in
+                HStack(alignment: .bottom, spacing: kind == .ranked ? 18 : Self.spacing) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        let lit = focused == "\(key)/\(item.id)"
                         NavigationLink(value: TitleRoute(preview: item)) {
-                            OrbitTrendingPoster(item: item, focused: focused == "\(key)/\(item.id)")
+                            switch kind {
+                            case .ranked:
+                                OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                                meta: metaStore.meta(for: item), rank: index + 1, focused: lit,
+                                                showsBadge: false)
+                            case .landscape:
+                                OrbitLandscapeTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                                   meta: metaStore.meta(for: item), focused: lit, showsBadge: false)
+                            case .posters:
+                                OrbitTrendingPoster(item: item, focused: lit)
+                            }
                         }
                         .buttonStyle(OrbitPlatformTileStyle())
                         .focused($focused, equals: "\(key)/\(item.id)")
                     }
                 }
-                .padding(.vertical, 14)
+                .padding(.vertical, 20)
                 .padding(.trailing, OrbitHomeLayout.margin)
             }
             .scrollClipDisabled()
-            .padding(.vertical, -14)
+            .padding(.vertical, -20)
         }
         .id(key)
         .transition(.opacity)
@@ -222,14 +288,7 @@ private struct OrbitTrendingPoster: View {
             OrbitImage(url: item.poster, size: size)
         }
         .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 4)
-        }
-        .scaleEffect(focused ? 1.08 : 1)
-        .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: 16, y: 8)
-        .animation(.easeOut(duration: 0.14), value: focused)
+        .modifier(OrbitTileFocus(focused: focused, radius: 10))
         .accessibilityLabel(item.name)
     }
 }

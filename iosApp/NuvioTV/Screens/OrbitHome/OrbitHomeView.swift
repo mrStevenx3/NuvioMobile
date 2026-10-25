@@ -514,14 +514,16 @@ private struct OrbitCanvasButtonStyle: ButtonStyle {
 
 /// The rows' backdrop: the focused title's art in the top right, fading into the page to the left
 /// and down (as on Prime's and Paramount+'s pages), dimmed so the rows stay in front.
-private struct OrbitRowsBackdrop: View {
+struct OrbitRowsBackdrop: View {
     let url: String?
+    /// The page's black under it (off where the page has its own ground: Plateformes).
+    var opaque = true
 
     var body: some View {
         let L = OrbitHomeLayout.self
         let size = CGSize(width: 1400, height: 788)
         ZStack(alignment: .topTrailing) {
-            L.background
+            if opaque { L.background }
             if let url {
                 // Steven: the art showed as a sharp rectangle. It now melts into the page itself
                 // (its own transparency, not a coloured shade): to the left, down, and a little at
