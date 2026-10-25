@@ -8,8 +8,8 @@ import UIKit
 //    (rounded, a shadow, as on the platforms); on the left its logo, "Studio · 432 films" and its
 //    latest films;
 //  - the studios as landscape tiles, each its logo in white on its own colour;
-//  - one row of the studio's films in portrait posters: "Nouveautés" (its real recent releases,
-//    no shorts), or "Les incontournables" when it released few.
+//  - one row of the studio's films in portrait posters: "Les incontournables" (Steven, 2026-10-25:
+//    on every studio; "Les plus populaires" when TMDB has too few).
 // Down from the bar lands on the first studio (far left); entering a row lands on its first film;
 // up from the films, back on the studio whose films they are; back from a studio, the focus is
 // the studio it was opened from.
@@ -519,13 +519,13 @@ final class OrbitStudioFilmsModel: ObservableObject {
     private func show(_ found: Found, title folderTitle: String) {
         title = folderTitle
         var list: [(title: String, items: [MetaPreview])] = []
-        if found.recent.count >= 3 { list.append((String(localized: "Nouveautés"), found.recent)) }
+        // Steven: "Les incontournables" everywhere (a studio with few new films looked empty).
         if found.best.count >= 3 { list.append((String(localized: "Les incontournables"), found.best)) }
         let bestIds = Set(found.best.prefix(20).map(\.id))
         let popular = found.popular.filter { !bestIds.contains($0.id) }
         if popular.count >= 3 { list.append((String(localized: "Les plus populaires"), popular)) }
-        // One row: the new films when there are enough, else the essentials.
-        rows = Array((found.recent.count >= 6 ? list : list.filter { $0.title != String(localized: "Nouveautés") }).prefix(1))
+        // One row: the essentials (the most popular when TMDB has too few well-rated ones).
+        rows = Array(list.prefix(1))
         // Only with real recent releases (Ghibli showed an obscure 1987 documentary).
         let latest = found.recent.count >= 6 ? found.recent.prefix(2).map(\.name) : []
         latestLine = latest.isEmpty ? nil : String(localized: "Derniers films : \(latest.joined(separator: ", "))")
