@@ -434,6 +434,31 @@ private struct OrbitNetflixTag: View {
     }
 }
 
+/// The open tile's still, a little larger than the tile, gliding slowly to the left (Netflix's own
+/// focus effect before its preview).
+private struct OrbitNetflixDrift: View {
+    let url: String?
+    let fallback: String?
+    let size: CGSize
+
+    @State private var drifting = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let zoom: CGFloat = 1.1
+        let travel = size.width * (zoom - 1) / 2
+        OrbitImage(url: url, fallback: fallback, size: CGSize(width: size.width * zoom, height: size.height * zoom))
+            .offset(x: drifting ? -travel : travel)
+            .frame(width: size.width, height: size.height)
+            .clipped()
+            .onAppear {
+                guard !reduceMotion else { return }
+                drifting = false
+                withAnimation(.linear(duration: 14)) { drifting = true }
+            }
+    }
+}
+
 /// His add-on's N on a poster: the same image, place and size (8 % of the height, 4.5 % / 3 % from
 /// the corner), over the same light veil at the top.
 private struct OrbitNetflixPosterN: View {
@@ -689,7 +714,9 @@ private struct OrbitNetflixTile: View {
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.09)
             if open {
-                OrbitImage(url: banner ?? meta?.backdrop, fallback: poster, size: size)
+                // Netflix (Steven's video): the still drifts slowly to the left until the trailer starts.
+                OrbitNetflixDrift(url: banner ?? meta?.backdrop, fallback: poster, size: size)
+                    .id("\(item.type):\(item.id)")
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
