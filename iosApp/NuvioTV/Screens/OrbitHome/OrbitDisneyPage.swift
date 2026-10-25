@@ -579,13 +579,33 @@ private struct OrbitDisneyHero: View {
         let L = OrbitDisneyLayout.self
         let info = OrbitInfo.make(item, meta: meta)
         return VStack(alignment: .leading, spacing: 0) {
-            Text(isHulu ? "Hulu" : String(localized: "Nouveau sur Disney+"))
-                .font(.system(size: 19, weight: .bold))
-                .foregroundStyle(L.background)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(RoundedRectangle(cornerRadius: 5).fill(Color.white))
-                .padding(.bottom, 22)
+            // Steven (device: a text label): the platforms' own marks — "Nouveau sur" and Disney+'s
+            // logo (his collection's), Hulu's green word mark.
+            Group {
+                if isHulu {
+                    Text("hulu")
+                        .font(.system(size: 40, weight: .black, design: .rounded))
+                        .foregroundStyle(Color(red: 0.11, green: 0.91, blue: 0.51))
+                } else {
+                    HStack(spacing: 12) {
+                        Text(String(localized: "Nouveau sur"))
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                        if let logo = OrbitPlatformLogos.url(.disney) {
+                            CachedAsyncImage(string: logo, contentMode: .fit,
+                                             decodeSize: .points(width: 240, height: 90),
+                                             loading: { Color.clear },
+                                             failure: { Text("Disney+").font(.system(size: 30, weight: .bold, design: .rounded)) })
+                                .frame(width: 130, height: 50, alignment: .leading)
+                        } else {
+                            Text("Disney+").font(.system(size: 30, weight: .bold, design: .rounded))
+                        }
+                    }
+                    .foregroundStyle(Color.white)
+                }
+            }
+            .frame(height: 52, alignment: .leading)
+            .padding(.bottom, 18)
             OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
                            fallbackLogo: info.logoFallback)
                 .frame(width: L.logoSize.width, height: L.logoSize.height, alignment: .bottomLeading)

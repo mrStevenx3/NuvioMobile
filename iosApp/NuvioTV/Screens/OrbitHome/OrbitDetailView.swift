@@ -1346,7 +1346,9 @@ private struct OrbitActionButton: View {
                         .font(.system(size: 28, weight: .semibold))
                         .lineLimit(1)
                         .fixedSize()
-                        .transition(.opacity.combined(with: .move(edge: .leading)))
+                        // Steven (device: the words slid in from the left, over the buttons
+                        // beside): they fade in inside the pill as it opens.
+                        .transition(.opacity.animation(.easeOut(duration: 0.14).delay(0.06)))
                 }
             }
             .foregroundStyle(focused ? Color.black : Color.white)
