@@ -49,7 +49,8 @@ struct OrbitHBORow: Identifiable, Equatable {
         a.id == b.id && a.top10 == b.top10 && a.items.map(\.id) == b.items.map(\.id)
     }
 
-    var cardHeight: CGFloat { top10 ? OrbitHBOLayout.top10Image.height : OrbitHBOLayout.poster.height }
+    /// The Top 10 too: only its poster's band (his image's transparent top and bottom cut).
+    var cardHeight: CGFloat { OrbitHBOLayout.poster.height }
     var height: CGFloat { OrbitHBOLayout.headingHeight + cardHeight + OrbitHBOLayout.rowGap }
     var slot: CGFloat { (top10 ? OrbitHBOLayout.top10Image.width : OrbitHBOLayout.poster.width) + OrbitHBOLayout.gap }
 }
@@ -146,7 +147,8 @@ struct OrbitHBOPage: View {
         for c in all where c.fresh {
             out.append(OrbitHBORow(id: c.id, title: c.heading, items: c.items, top10: false))
         }
-        var seen = Set<String>()
+        // Steven: "À la une sur HBO" repeated the Nouveautés: only HBO's own not already above.
+        var seen = Set(out.flatMap { $0.items.map(Self.identity) })
         let own = all.flatMap(\.items).filter { OrbitHBOOwn.of($0) != nil && seen.insert(Self.identity($0)).inserted }
         if own.count >= 4 {
             out.append(OrbitHBORow(id: "hbo-originals-\(typeFilter ?? "all")",
@@ -191,6 +193,8 @@ struct OrbitHBOPage: View {
     private var freshIdentities: Set<String> {
         Set(catalogs.filter(\.fresh).flatMap { $0.items.map(Self.identity) })
     }
+
+    private var freshRowIDs: Set<String> { Set(catalogs.filter(\.fresh).map(\.id)) }
 
     private func isNew(_ item: MetaPreview) -> Bool { freshIdentities.contains(Self.identity(item)) }
 
@@ -357,7 +361,8 @@ struct OrbitHBOPage: View {
                     let row = rows[i]
                     OrbitHBORowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
                                     focused: canvasFocused && i == currentRow,
-                                    news: Set(row.items.filter(isNew).map(\.id)),
+                                    // Not on the Nouveautés rows themselves (every poster said it).
+                                    news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
                                     metaStore: metaStore)
                         .offset(y: tops[i])
                         .id(row.id)
@@ -691,17 +696,20 @@ private struct OrbitHBOTop10Image: View {
     var body: some View {
         let L = OrbitHBOLayout.self
         let size = L.top10Image
-        let card = CGRect(x: size.width * 0.28, y: (size.height - L.poster.height) / 2,
-                          width: size.width * 0.72, height: L.poster.height)
+        let band = (size.height - L.poster.height) / 2
+        let card = CGRect(x: size.width * 0.28, y: 0, width: size.width * 0.72, height: L.poster.height)
+        // Only the poster's band shows (the rank sits on its bottom), at a poster's height.
         OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
             .frame(width: size.width, height: size.height)
+            .offset(y: -band)
+            .frame(width: size.width, height: L.poster.height, alignment: .topLeading)
             .overlay(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: L.radius, style: .continuous)
                     .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 4)
                     .frame(width: card.width, height: card.height)
                     .offset(x: card.minX, y: card.minY)
             }
-            .scaleEffect(focused ? L.focusScale : 1)
+            .scaleEffect(focused ? L.focusScale : 1, anchor: UnitPoint(x: 0.64, y: 0.5))
             .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
