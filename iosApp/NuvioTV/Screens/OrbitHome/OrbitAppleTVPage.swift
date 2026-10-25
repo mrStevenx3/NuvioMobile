@@ -51,6 +51,11 @@ struct OrbitAppleTVRow: Identifiable, Equatable {
 
     var cardHeight: CGFloat { kind == .cards ? OrbitAppleTVLayout.card.height : OrbitAppleTVLayout.poster.height }
     var height: CGFloat { OrbitAppleTVLayout.headingHeight + cardHeight + OrbitAppleTVLayout.rowGap }
+    /// The titles that fit whole on screen (the last one before the right margin).
+    var visibleCount: Int {
+        max(1, Int((OrbitHomeLayout.screenWidth - OrbitAppleTVLayout.margin * 2 + (slot - (kind == .cards ? OrbitAppleTVLayout.card.width : OrbitAppleTVLayout.poster.width))) / slot))
+    }
+
     var slot: CGFloat {
         kind == .cards ? OrbitAppleTVLayout.card.width + OrbitAppleTVLayout.cardGap
                        : OrbitAppleTVLayout.poster.width + OrbitAppleTVLayout.gap
@@ -83,6 +88,9 @@ struct OrbitAppleTVPage: View {
     @State private var current = 0
     @State private var heroIndex = 0
     @State private var leads: [String: Int] = [:]
+    /// Steven (as in the app): each row's first title on screen — the focus moves along a still row,
+    /// which scrolls only when the focus would leave the screen.
+    @State private var firsts: [String: Int] = [:]
     @FocusState private var canvasFocused: Bool
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
@@ -242,6 +250,10 @@ struct OrbitAppleTVPage: View {
         return rowTops(rows)[r] - line
     }
 
+    private func first(of row: OrbitAppleTVRow) -> Int {
+        min(firsts[row.id] ?? 0, lead(of: row))
+    }
+
     private func lead(of row: OrbitAppleTVRow) -> Int {
         min(leads[row.id] ?? 0, max(0, row.items.count - 1))
     }
@@ -352,6 +364,7 @@ struct OrbitAppleTVPage: View {
             current = 0
             heroIndex = 0
             leads = [:]
+            firsts = [:]
             refreshAfterMove()
         }
     }
@@ -366,7 +379,7 @@ struct OrbitAppleTVPage: View {
             if low <= high {
                 ForEach(low...high, id: \.self) { i in
                     let row = rows[i]
-                    OrbitAppleTVRowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
+                    OrbitAppleTVRowView(row: row, lead: lead(of: row), first: first(of: row), isCurrent: i == currentRow,
                                         focused: canvasFocused && i == currentRow,
                                         newIDs: Set(row.items.filter(isNew).map(\.id)),
                                         rankLine: { rankLine($0) },
@@ -409,7 +422,13 @@ struct OrbitAppleTVPage: View {
                 let row = rows[r]
                 let next = lead(of: row) + step
                 guard row.items.indices.contains(next) else { return }
-                withAnimation(reduceMotion ? nil : OrbitAppleTVLayout.horizontal) { leads[row.id] = next }
+                var start = first(of: row)
+                if next < start { start = next }
+                if next > start + row.visibleCount - 1 { start = next - row.visibleCount + 1 }
+                withAnimation(reduceMotion ? nil : OrbitAppleTVLayout.horizontal) {
+                    leads[row.id] = next
+                    firsts[row.id] = start
+                }
             }
         @unknown default:
             return
@@ -693,6 +712,7 @@ private struct OrbitAppleTVHero: View {
 private struct OrbitAppleTVRowView: View {
     let row: OrbitAppleTVRow
     let lead: Int
+    let first: Int
     let isCurrent: Bool
     let focused: Bool
     let newIDs: Set<String>
@@ -711,8 +731,8 @@ private struct OrbitAppleTVRowView: View {
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
-        let low = max(0, lead - 1)
-        let window = low...max(low, min(row.items.count - 1, lead + (row.kind == .cards ? 4 : 8)))
+        let low = max(0, first - 1)
+        let window = low...max(low, min(row.items.count - 1, first + row.visibleCount + 1))
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 26, weight: .semibold))
@@ -722,8 +742,9 @@ private struct OrbitAppleTVRowView: View {
                 .padding(.leading, L.margin)
                 // As in the app (Steven): the focused title under the heading grows, the heading
                 // steps up out of its way, quickly, and comes back once it is no longer focused.
-                .offset(y: focused ? -headingLift : 0)
-                .animation(.easeOut(duration: 0.16), value: focused)
+                // Only when the focused title is the first on screen, right under the heading.
+                .offset(y: focused && lead == first ? -headingLift : 0)
+                .animation(.easeOut(duration: 0.16), value: focused && lead == first)
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
                     ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
@@ -742,9 +763,9 @@ private struct OrbitAppleTVRowView: View {
                                 OrbitAppleTVPoster(url: meta?.localPoster ?? item.poster, fallback: item.rawPosterUrl, focused: lit)
                             }
                         }
-                        .offset(x: L.margin + CGFloat(index - lead) * row.slot)
+                        .offset(x: L.margin + CGFloat(index - first) * row.slot)
                         .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
-                        .opacity(index < lead ? 0 : 1)
+                        .opacity(index < first ? 0 : 1)
                         .zIndex(lit ? 1 : 0)
                     }
                 }
