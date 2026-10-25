@@ -1,6 +1,8 @@
 import Combine
+import CoreImage
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Home, pass 3 (Steven, 2026-10-25: "trop pauvre encore", tiles of different kinds and sizes
 // depending on the row). The row kinds besides the classic one (the open frame and its posters):
@@ -21,14 +23,17 @@ enum OrbitTileLayout {
     static let landscape = CGSize(width: 456, height: 256)
     static let card = CGSize(width: 400, height: 560)
     static let poster = CGSize(width: 248, height: 372)
-    static let rankWidth: CGFloat = 132
+    /// Steven: the Top 10 more prominent — larger posters, larger ranks.
+    static let rankedPoster = CGSize(width: 300, height: 450)
+    static let rankWidth: CGFloat = 190
     static let infoGap: CGFloat = 26
 
     static func size(_ style: OrbitRowStyle) -> CGSize {
         switch style {
         case .landscape: return landscape
         case .cards: return card
-        case .posters, .ranked: return poster
+        case .posters: return poster
+        case .ranked: return rankedPoster
         case .classic: return CGSize(width: OrbitHomeLayout.posterWidth, height: OrbitHomeLayout.cardHeight)
         }
     }
@@ -53,7 +58,8 @@ enum OrbitTileLayout {
         case .classic: return OrbitHomeLayout.rowPitch
         case .cards: return OrbitHomeLayout.cardsTop + card.height + 90
         case .landscape: return OrbitHomeLayout.cardsTop + landscape.height + infoGap + 150
-        case .posters, .ranked: return OrbitHomeLayout.cardsTop + poster.height + infoGap + 150
+        case .posters: return OrbitHomeLayout.cardsTop + poster.height + infoGap + 150
+        case .ranked: return OrbitHomeLayout.cardsTop + rankedPoster.height + infoGap + 150
         }
     }
 }
@@ -276,38 +282,90 @@ private struct OrbitSmallPoster: View {
     }
 }
 
-/// A poster of the Top 10 across the platforms: the big rank beside it, the platform's badge on it.
+/// A poster of the Top 10 across the platforms: the big rank beside it (Steven's add-on's spirit:
+/// coloured with the poster's own dominant colour), the platform's badge on it.
 private struct OrbitRankedTile: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let rank: Int
     let focused: Bool
 
+    @State private var tone: Color?
+
     var body: some View {
         let T = OrbitTileLayout.self
-        let size = T.poster
-        HStack(alignment: .bottom, spacing: -26) {
+        let size = T.rankedPoster
+        let poster: String? = meta?.localPoster ?? card.poster
+        let base = tone ?? Color(white: 0.85)
+        HStack(alignment: .bottom, spacing: -34) {
             Text(String(rank))
-                .font(.system(size: size.height * 0.62, weight: .heavy, design: .rounded))
-                .foregroundStyle(LinearGradient(colors: [Color.white, Color.white.opacity(0.35)],
+                .font(.system(size: size.height * 0.7, weight: .heavy, design: .rounded))
+                .kerning(-size.height * 0.03)
+                .foregroundStyle(LinearGradient(colors: [base.opacity(1), base.opacity(0.75)],
                                                 startPoint: .top, endPoint: .bottom))
-                .shadow(color: .black.opacity(0.6), radius: 10)
+                .overlay {
+                    // A light rim on top, as on his add-on's ranks.
+                    Text(String(rank))
+                        .font(.system(size: size.height * 0.7, weight: .heavy, design: .rounded))
+                        .kerning(-size.height * 0.03)
+                        .foregroundStyle(LinearGradient(colors: [Color.white.opacity(0.55), .clear],
+                                                        startPoint: .top, endPoint: .center))
+                }
+                .shadow(color: .black.opacity(0.7), radius: 14, y: 4)
                 .lineLimit(1)
                 .fixedSize()
-                .frame(width: T.rankWidth + 26, alignment: .trailing)
-                .offset(y: size.height * 0.1)
+                .frame(width: T.rankWidth + 34, alignment: .trailing)
+                .offset(y: size.height * 0.12)
+                .animation(.easeInOut(duration: 0.4), value: tone)
             ZStack(alignment: .bottom) {
                 Color(white: 0.1)
-                OrbitImage(url: meta?.localPoster ?? card.poster, fallback: card.landscape, mode: .fill, size: size)
+                OrbitImage(url: poster, fallback: card.landscape, mode: .fill, size: size)
                 if let kind = OrbitPlatformBadgeKind.of(meta) {
-                    OrbitPlatformBadge(kind: kind, size: 14)
-                        .padding(.bottom, 12)
+                    OrbitPlatformBadge(kind: kind, size: 16)
+                        .padding(.bottom, 14)
                 }
             }
             .frame(width: size.width, height: size.height)
-            .modifier(OrbitTileFocus(focused: focused, radius: 10))
+            .modifier(OrbitTileFocus(focused: focused, radius: 12))
         }
         .frame(width: T.rankWidth + size.width, height: size.height, alignment: .bottomLeading)
+        .task(id: poster ?? "-") {
+            guard let poster else { return }
+            tone = await OrbitDominantColor.color(for: poster)
+        }
+    }
+}
+
+/// A poster's dominant colour, lively enough to colour a rank (computed once per image, small).
+@MainActor
+enum OrbitDominantColor {
+    private static var cache: [String: Color] = [:]
+
+    static func color(for url: String) async -> Color? {
+        if let known = cache[url] { return known }
+        guard let address = URL(string: url),
+              let image = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(48), fill: true, scale: 1)),
+              let cg = image.cgImage else { return nil }
+        let color = await Task.detached(priority: .utility) { () -> Color? in Self.average(cg) }.value
+        if let color { cache[url] = color }
+        return color
+    }
+
+    nonisolated private static func average(_ cg: CGImage) -> Color? {
+        let input = CIImage(cgImage: cg)
+        guard let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: input,
+                                                                       kCIInputExtentKey: CIVector(cgRect: input.extent)]),
+              let output = filter.outputImage else { return nil }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        CIContext(options: [.workingColorSpace: NSNull()])
+            .render(output, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                    format: .RGBA8, colorSpace: nil)
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)
+            .getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        // Lively: a grey poster stays a light grey, a coloured one gets its colour, bright.
+        let saturation = sat < 0.12 ? sat : max(sat, 0.6)
+        return Color(hue: Double(h), saturation: Double(min(saturation, 0.9)), brightness: Double(max(b, 0.85)))
     }
 }
 
@@ -373,10 +431,25 @@ final class OrbitHomeExtrasModel: ObservableObject {
             for await (index, items) in group { out[index] = items }
             return out
         }
-        return specs.enumerated().compactMap { index, spec in
-            let items = (lists[index] ?? []).filter { $0.banner != nil }
-            guard items.count >= (spec.style == .ranked ? 10 : 6) else { return nil }
-            return Extra(id: spec.id, title: spec.title, items: Array(items.prefix(spec.limit)), style: spec.style)
+        // Steven: one row for the platforms' new titles (one per platform ran in a long series),
+        // the platforms in turn.
+        var out: [Extra] = []
+        if let top = lists[0], top.filter({ $0.banner != nil }).count >= 10 {
+            out.append(Extra(id: specs[0].id, title: specs[0].title,
+                             items: Array(top.filter { $0.banner != nil }.prefix(10)), style: .ranked))
         }
+        let perPlatform = specs.indices.dropFirst().map { (lists[$0] ?? []).filter { $0.banner != nil } }
+        var mixed: [MetaPreview] = []
+        var seen = Set<String>()
+        for i in 0..<(perPlatform.map(\.count).max() ?? 0) {
+            for list in perPlatform where i < list.count {
+                if seen.insert(list[i].id).inserted { mixed.append(list[i]) }
+            }
+        }
+        if mixed.count >= 6 {
+            out.append(Extra(id: "orbit-new-\(media)", title: String(localized: "Nouveau sur vos plateformes"),
+                             items: Array(mixed.prefix(30)), style: .landscape))
+        }
+        return out
     }
 }

@@ -159,6 +159,9 @@ struct OrbitHomeView: View {
             guard series ? !movie : movie, !section.items.isEmpty, seen.insert(section.key).inserted else { continue }
             let heading = section.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             let isTop = heading.contains("top 10") || heading.contains("top10")
+            // Steven: one Top 10 is enough — Orbit's own (across his platforms) replaces his add-on's
+            // on Home once it has arrived (the platforms' pages keep theirs).
+            if isTop, extraRows.contains(where: { $0.style == .ranked }) { continue }
             var style: OrbitRowStyle = .classic
             if !isTop {
                 style = styled == 0 ? .classic : cycle[(styled - 1) % cycle.count]
@@ -168,8 +171,8 @@ struct OrbitHomeView: View {
                                 cards: Self.unique(section.items.map(OrbitCard.catalog)), sectionKey: section.key,
                                 style: style))
             catalogs += 1
-            // Not next to his own Top 10 (Steven's video: two Top 10 in a row).
-            if catalogs == 3, !top.isEmpty { out.append(top.removeFirst()) }
+            // Steven: the Top 10 well forward, right after the first catalog.
+            if catalogs == 1, !top.isEmpty { out.append(top.removeFirst()) }
             if catalogs % 2 == 0, !platforms.isEmpty { out.append(platforms.removeFirst()) }
         }
         return out + top + platforms
