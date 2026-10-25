@@ -1273,10 +1273,11 @@ private struct OrbitSagaPanel: View {
     var body: some View {
         let info = OrbitInfo.make(saga, meta: meta)
         let count: String? = saga.releaseInfo
-        VStack(spacing: 22) {
+        // Steven: the logo, the count and TOUT VOIR on one line, the page's left margin.
+        VStack(alignment: .leading, spacing: 22) {
             OrbitTitleMark(name: saga.name, logo: info.logo, maxSize: CGSize(width: size.width * 0.8, height: 140),
                            textSize: 44, fallbackLogo: info.logoFallback)
-                .frame(width: size.width * 0.8, height: 140, alignment: .center)
+                .frame(width: size.width * 0.8, height: 140, alignment: .bottomLeading)
                 .clipped()
             Text(String(localized: "La saga · \(count ?? "") films"))
                 .font(.system(size: 24, weight: .semibold))
@@ -1290,10 +1291,10 @@ private struct OrbitSagaPanel: View {
                 .padding(.horizontal, 30)
                 .padding(.vertical, 14)
                 .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.white : Color.white.opacity(0.2)))
-                .scaleEffect(focused ? 1.06 : 1)
+                .scaleEffect(focused ? 1.06 : 1, anchor: .leading)
                 .animation(.easeOut(duration: 0.18), value: focused)
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: size.width, height: size.height, alignment: .leading)
     }
 }
 
