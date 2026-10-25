@@ -64,18 +64,19 @@ struct OrbitNetflixRow: Identifiable, Equatable {
         return index == 9 ? OrbitNetflixLayout.rankWidthTen : OrbitNetflixLayout.rankWidth
     }
 
-    /// A title's slot (its rank on the Top 10, then its tile: open when focused).
-    func slotWidth(_ index: Int, lead: Int) -> CGFloat {
+    /// A title's slot (its rank on the Top 10, then its tile: open when focused on the current row).
+    func slotWidth(_ index: Int, lead: Int, opens: Bool) -> CGFloat {
         let L = OrbitNetflixLayout.self
-        return rankWidth(index) + (index == lead ? L.openWidth : L.posterWidth)
+        return rankWidth(index) + (opens && index == lead ? L.openWidth : L.posterWidth)
     }
 
     /// A slot's left edge from the margin: the focused one at the margin, the others after it.
-    func x(of index: Int, lead: Int) -> CGFloat {
+    /// Steven's video: only the current row has an open tile; the others are all portrait.
+    func x(of index: Int, lead: Int, opens: Bool) -> CGFloat {
         let L = OrbitNetflixLayout.self
         guard index > lead else { return index == lead ? 0 : -(L.posterWidth + L.gap) }
         var x: CGFloat = 0
-        for i in lead..<index { x += slotWidth(i, lead: lead) + L.gap }
+        for i in lead..<index { x += slotWidth(i, lead: lead, opens: opens) + L.gap }
         return x
     }
 }
@@ -315,6 +316,10 @@ struct OrbitNetflixPage: View {
                                         onTrailerEnded: { trailer.playbackFinished() },
                                         metaStore: metaStore)
                         .offset(y: tops[i])
+                        // Steven's video: the row leaving upwards overlapped the new one while the
+                        // page moved. It goes at once, the others keep their place.
+                        .id(row.id)
+                        .transition(.identity)
                 }
             }
         }
@@ -549,7 +554,7 @@ private struct OrbitNetflixRowView: View {
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
                     ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        let open = index == lead
+                        let open = isCurrent && index == lead
                         let meta = metaStore.meta(for: item)
                         HStack(alignment: .bottom, spacing: 0) {
                             if row.top10 { OrbitNetflixRank(rank: index + 1) }
@@ -559,7 +564,7 @@ private struct OrbitNetflixRowView: View {
                                              trailerURL: open ? trailerURL : nil,
                                              onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                         }
-                        .offset(x: L.margin + row.x(of: index, lead: lead))
+                        .offset(x: L.margin + row.x(of: index, lead: lead, opens: isCurrent))
                         .opacity(index < lead ? 0 : 1)
                     }
                 }
