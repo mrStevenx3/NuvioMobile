@@ -50,7 +50,10 @@ struct OrbitParamountRow: Identifiable, Equatable {
     }
 
     var cardHeight: CGFloat { top10 ? OrbitParamountLayout.top10Image.height : OrbitParamountLayout.poster.height }
-    var height: CGFloat { OrbitParamountLayout.headingHeight + cardHeight + OrbitParamountLayout.rowGap }
+    /// Steven: the ranks ran over the heading; the Top 10 keeps room between them (its focused
+    /// title grows upwards too).
+    var headingHeight: CGFloat { OrbitParamountLayout.headingHeight + (top10 ? 46 : 0) }
+    var height: CGFloat { headingHeight + cardHeight + OrbitParamountLayout.rowGap }
     var slot: CGFloat {
         (top10 ? OrbitParamountLayout.top10Image.width : OrbitParamountLayout.poster.width) + OrbitParamountLayout.gap
     }
@@ -628,7 +631,7 @@ private struct OrbitParamountRowView: View {
                 .font(.system(size: 25, weight: .bold))
                 .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.8))
                 .lineLimit(1)
-                .frame(height: L.headingHeight, alignment: .topLeading)
+                .frame(height: row.headingHeight, alignment: .topLeading)
                 .padding(.leading, L.margin)
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
@@ -709,7 +712,7 @@ private struct OrbitParamountTop10Image: View {
         OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: L.top10Image)
             .frame(width: L.top10Image.width, height: L.top10Image.height)
             .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
-            .scaleEffect(focused ? L.focusScale : 1, anchor: .bottom)
+            .scaleEffect(focused ? 1.06 : 1, anchor: .bottom)
             .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
