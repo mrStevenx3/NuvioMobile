@@ -421,14 +421,39 @@ private struct OrbitNetflixTag: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("N")
-                .font(.system(size: size * 1.35, weight: .black))
-                .foregroundStyle(OrbitNetflixLayout.red)
+            // Steven's own N (his add-on's image), not a letter.
+            Image("NetflixN")
+                .resizable()
+                .scaledToFit()
+                .frame(height: size * 1.2)
             Text(series ? String(localized: "SÉRIE") : String(localized: "FILM"))
                 .font(.system(size: size * 0.8, weight: .bold))
                 .kerning(size * 0.2)
                 .foregroundStyle(Color.white.opacity(0.85))
         }
+    }
+}
+
+/// His add-on's N on a poster: the same image, place and size (8 % of the height, 4.5 % / 3 % from
+/// the corner), over the same light veil at the top.
+private struct OrbitNetflixPosterN: View {
+    let size: CGSize
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            LinearGradient(stops: [
+                .init(color: .black.opacity(0.4), location: 0),
+                .init(color: .clear, location: 0.16),
+            ], startPoint: .top, endPoint: .bottom)
+            Image("NetflixN")
+                .resizable()
+                .scaledToFit()
+                .frame(height: size.height * 0.08)
+                .padding(.leading, size.width * 0.045)
+                .padding(.top, size.height * 0.03)
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .allowsHitTesting(false)
     }
 }
 
@@ -504,7 +529,7 @@ private struct OrbitNetflixBillboard: View {
             VStack(alignment: .leading, spacing: 14) {
                 if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 22) }
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 600, height: 190), textSize: 64,
-                               fallbackLogo: info.logoFallback)
+                               fallbackLogo: info.logoFallback, hugsLogo: true)
                     // Its own height (Steven: a wide logo left N FILM floating high above it).
                     .frame(width: 600, alignment: .leading)
                 Text(netflixMeta(item, meta))
@@ -652,10 +677,15 @@ private struct OrbitNetflixTile: View {
         // Steven: the catalog's posters were often in English (Le Pacte des innocentes showed "The
         // Night Everything Changed"): TMDB's French poster first. His Top 10 images carry their own
         // numbers: TMDB's poster there too.
+        // The portrait art (Steven: his posters were often English, Le Pacte des innocentes showed
+        // "The Night Everything Changed"): TMDB's French poster; else, when TMDB has a French logo,
+        // its title-less art with that logo; else his poster (his N already on it). His Top 10 images
+        // carry their numbers: never those.
         let french: String? = meta?.localPoster
-        let poster: String? = french ?? (top10 ? meta?.titledPoster : (item.poster ?? meta?.titledPoster))
-        // His posters carry Netflix's N; TMDB's do not.
-        let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
+        let composed: String? = french == nil && meta?.logoIsLocal == true ? meta?.textlessPoster : nil
+        let poster: String? = french ?? composed ?? (top10 ? meta?.titledPoster : item.poster)
+        // TMDB's art has no N: his N, drawn as his add-on draws it.
+        let drawsN = (french != nil || composed != nil || top10) && isNetflixOwn(item, meta)
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.09)
             if open {
@@ -671,7 +701,7 @@ private struct OrbitNetflixTile: View {
                 VStack(alignment: .leading, spacing: 8) {
                     if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
                     OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 380, height: 120), textSize: 40,
-                                   fallbackLogo: info.logoFallback)
+                                   fallbackLogo: info.logoFallback, hugsLogo: true)
                         .frame(width: 380, alignment: .leading)
                 }
                 .padding(.leading, 24)
@@ -682,15 +712,15 @@ private struct OrbitNetflixTile: View {
                         .padding(22)
                 }
             } else {
-                OrbitImage(url: poster, fallback: item.poster, mode: .fill, size: size)
-                if drawsN {
-                    Text("N")
-                        .font(.system(size: 40, weight: .black))
-                        .foregroundStyle(L.red)
-                        .padding(.leading, 12)
-                        .padding(.top, 6)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                OrbitImage(url: poster, fallback: top10 ? nil : item.poster, mode: .fill, size: size)
+                if composed != nil {
+                    LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: UnitPoint(x: 0.5, y: 0.55), endPoint: .bottom)
+                    OrbitTitleMark(name: item.name, logo: info.logo,
+                                   maxSize: CGSize(width: size.width * 0.82, height: size.height * 0.2), textSize: 30)
+                        .frame(width: size.width, height: size.height * 0.24, alignment: .bottom)
+                        .padding(.bottom, size.height * 0.05)
                 }
+                if drawsN { OrbitNetflixPosterN(size: size) }
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)

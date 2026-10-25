@@ -244,6 +244,10 @@ struct OrbitTitleMark: View {
     var fallbackLogo: String? = nil
     /// Tried after those two, in order.
     var moreLogos: [String] = []
+    /// The mark takes the logo's own height (Steven: a wide logo left "N FILM" floating high above it).
+    var hugsLogo = false
+
+    @State private var aspect: CGFloat?
 
     private var candidates: [String] {
         var seen = Set<String>()
@@ -254,11 +258,27 @@ struct OrbitTitleMark: View {
     var body: some View {
         let list = candidates
         if let first = list.first {
-            CachedAsyncImage(string: first, fallback: list.count > 1 ? list[1] : nil, contentMode: .fit,
-                             decodeSize: .points(width: maxSize.width, height: maxSize.height),
-                             loading: { Color.clear }, failure: { rest(list) })
-            .frame(maxWidth: maxSize.width, maxHeight: maxSize.height, alignment: .bottomLeading)
-            .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+            let image = CachedAsyncImage(string: first, fallback: list.count > 1 ? list[1] : nil, contentMode: .fit,
+                                         decodeSize: .points(width: maxSize.width, height: maxSize.height),
+                                         loading: { Color.clear }, failure: { rest(list) })
+            if hugsLogo {
+                // Fitted by hand: the logo's own width and height inside the box, nothing above it.
+                let fitted: CGSize = aspect.map { a in
+                    let h = min(maxSize.height, maxSize.width / max(a, 0.01))
+                    return CGSize(width: h * a, height: h)
+                } ?? maxSize
+                image
+                    .onImageLoaded { loaded in
+                        let a = loaded.size.width / max(loaded.size.height, 1)
+                        if aspect != a { aspect = a }
+                    }
+                    .frame(width: fitted.width, height: fitted.height, alignment: .bottomLeading)
+                    .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+            } else {
+                image
+                    .frame(maxWidth: maxSize.width, maxHeight: maxSize.height, alignment: .bottomLeading)
+                    .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+            }
         } else {
             nameText
         }
