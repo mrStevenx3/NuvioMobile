@@ -351,12 +351,17 @@ private struct OrbitSearchChip: View {
 private struct OrbitSearchPoster: View {
     let item: MetaPreview
     let focused: Bool
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 Color(white: 0.1)
-                OrbitImage(url: item.poster, fallback: item.rawPosterUrl, size: geo.size)
+                // Steven (Charmed: a plain catalog poster, no title): TMDB's poster in his language,
+                // with its title, as on Home; the catalog's while TMDB has none.
+                let local = metaStore.meta(for: item)?.localPoster
+                OrbitImage(url: local ?? item.poster, fallback: local != nil ? item.poster : item.rawPosterUrl,
+                           size: geo.size, placeholder: local != nil ? item.poster : nil)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -368,6 +373,7 @@ private struct OrbitSearchPoster: View {
             .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: 16, y: 10)
             .animation(.easeOut(duration: 0.18), value: focused)
         }
+        .onAppear { metaStore.request([item]) }
     }
 }
 
