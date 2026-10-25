@@ -309,8 +309,10 @@ struct OrbitNativeRow: View {
                 onEnter()
             }
             shown = new
-            // The classic row keeps its frame at the margin: scrolled to the focused title.
-            if classic, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
+            // Every row keeps its focused title at the margin, the row sliding under it (Steven: the
+            // synopsis stayed on the left while the focus ran off to the right). The classic row's
+            // frame stays there too.
+            if anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
             OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
