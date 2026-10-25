@@ -20,6 +20,10 @@ nonisolated struct OrbitMeta: Equatable, Sendable {
     /// Steven: the English synopsis, only when there is none in his language (a title too new to
     /// be translated) — better than an empty space under the title.
     var overviewEnglish: String? = nil
+    /// The poster without its title (Disney+'s Top 10 cards draw the logo themselves), else TMDB's.
+    var cleanPoster: String? = nil
+    /// The French age rating ("TP", "12", "16"…), nil when TMDB has none.
+    var certification: String? = nil
 }
 
 @MainActor
@@ -141,7 +145,28 @@ final class OrbitMetaStore: ObservableObject {
             let file_path: String?
             let iso_639_1: String?
         }
-        nonisolated struct Images: Decodable { let logos: [Logo]? }
+        nonisolated struct Images: Decodable {
+            let logos: [Logo]?
+            let posters: [Logo]?
+        }
+        nonisolated struct ReleaseDates: Decodable {
+            nonisolated struct Country: Decodable {
+                nonisolated struct Entry: Decodable { let certification: String? }
+                let iso_3166_1: String?
+                let release_dates: [Entry]?
+            }
+            let results: [Country]?
+        }
+        nonisolated struct ContentRatings: Decodable {
+            nonisolated struct Rating: Decodable {
+                let iso_3166_1: String?
+                let rating: String?
+            }
+            let results: [Rating]?
+        }
+        let poster_path: String?
+        let release_dates: ReleaseDates?
+        let content_ratings: ContentRatings?
         let overview: String?
         let release_date: String?
         let first_air_date: String?
@@ -215,7 +240,7 @@ final class OrbitMetaStore: ObservableObject {
         }
         let media = tv ? "tv" : "movie"
         guard let url = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)?api_key=\(apiKey)&language=\(lang)"
-                            + "&append_to_response=images&include_image_language=\(short),en,null") else { return .missing }
+                            + "&append_to_response=images,\(tv ? "content_ratings" : "release_dates")&include_image_language=\(short),en,null") else { return .missing }
         let response = await fetch(url)
         guard let body = response.data else { return response.missing ? .missing : .transient }
         guard let d = try? JSONDecoder().decode(Details.self, from: body) else { return .transient }
@@ -243,6 +268,18 @@ final class OrbitMetaStore: ObservableObject {
             logo = all.logos?.first?.file_path
         }
         if logo == nil { log("no TMDB logo for \(media)/\(tmdbId)") }
+        let textless = d.images?.posters?.first { $0.iso_639_1 == nil }?.file_path
+        let cleanPoster = (textless ?? d.poster_path).map { "https://image.tmdb.org/t/p/w500\($0)" }
+        let region = "FR"
+        let rawRating: String? = tv
+            ? d.content_ratings?.results?.first { $0.iso_3166_1 == region }?.rating
+            : d.release_dates?.results?.first { $0.iso_3166_1 == region }?.release_dates?
+                .compactMap { $0.certification }.first { !$0.isEmpty }
+        let certification = rawRating.flatMap { raw -> String? in
+            let r = raw.trimmingCharacters(in: .whitespaces).uppercased()
+            if r.isEmpty || r == "NR" { return nil }
+            return r == "U" || r == "TOUS PUBLICS" || r == "ALL" ? "TP" : r.replacingOccurrences(of: "+", with: "")
+        }
         return .found(OrbitMeta(percent: d.vote_average.flatMap { $0 > 0 ? Int(($0 * 10).rounded()) : nil },
                          year: (d.release_date ?? d.first_air_date).map { String($0.prefix(4)) }.flatMap { $0.isEmpty ? nil : $0 },
                          genre: d.genres?.first?.name,
@@ -250,7 +287,9 @@ final class OrbitMetaStore: ObservableObject {
                          overview: overview,
                          logo: logo.map { "https://image.tmdb.org/t/p/w500\($0)" },
                          backdrop: d.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
-                         overviewEnglish: english))
+                         overviewEnglish: english,
+                         cleanPoster: cleanPoster,
+                         certification: certification))
     }
 }
 

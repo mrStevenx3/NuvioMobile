@@ -637,12 +637,69 @@ struct CollectionFilterBar: View {
     /// The pill's width, for the logo to make room for it.
     var onWidth: (CGFloat) -> Void = { _ in }
     let onSearch: () -> Void
+    /// Steven (Disney+, 2026-10-25): a second pill at the screen's centre ("Disney+ · Hulu").
+    var switchItems: [String] = []
+    var switchSelection: Binding<Int>? = nil
 
     @FocusState private var focused: OrbitBarItem?
+    @FocusState private var switchFocused: Int?
     @State private var placedEntryFocus = false
     @State private var searchReady = false
 
     var body: some View {
+        ZStack(alignment: .topLeading) {
+            leftPill
+                .padding(.leading, OrbitBarMetrics.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if !switchItems.isEmpty {
+                centrePill
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        // Pass 3 (Steven: Up never reached it): the focus section spans the screen's width in the
+        // bar's band, so Up from any card of the top row finds the bar (the engine only searches
+        // straight up, and the pill sits at the far right).
+        .focusSection()
+        .padding(.top, OrbitBarMetrics.top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .ignoresSafeArea()
+    }
+
+    /// "Disney+ · Hulu": the selected one light, the focused one white.
+    private var centrePill: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(switchItems.enumerated()), id: \.offset) { index, title in
+                let selected = switchSelection?.wrappedValue == index
+                let lit = switchFocused == index
+                Button {
+                    switchSelection?.wrappedValue = index
+                } label: {
+                    Text(title)
+                        .font(.system(size: OrbitBarMetrics.fontSize, weight: .semibold))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, OrbitBarMetrics.textPadding + 6)
+                        .foregroundStyle(lit ? Color.black : Color.white)
+                        .frame(minHeight: OrbitBarMetrics.itemHeight)
+                        .background {
+                            Capsule(style: .continuous)
+                                .fill(lit ? Color.white : Color.white.opacity(selected ? 0.24 : 0))
+                        }
+                        .scaleEffect(lit ? OrbitBarMetrics.focusScale : 1)
+                        .animation(.easeOut(duration: 0.15), value: lit)
+                }
+                .buttonStyle(OrbitBarButtonStyle())
+                .focused($switchFocused, equals: index)
+                .accessibilityLabel(title)
+            }
+        }
+        .padding(OrbitBarMetrics.pillPadding)
+        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
+    }
+
+    private var leftPill: some View {
         HStack(spacing: 4) {
             ForEach([OrbitBarItem.home, .search, .films, .series], id: \.self) { item in
                 Button { select(item) } label: {
@@ -674,16 +731,6 @@ struct CollectionFilterBar: View {
                 if focused != target { focused = target }
             }
         }
-        // Pass 3 (Steven: Up never reached it): the focus section spans the screen's width in the
-        // bar's band, so Up from any card of the top row finds the bar (the engine only searches
-        // straight up, and the pill sits at the far right).
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .focusSection()
-        .padding(.top, OrbitBarMetrics.top)
-        // Pass 5 (Steven, device): back at the top-left, like Home's bar.
-        .padding(.leading, OrbitBarMetrics.leading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .ignoresSafeArea()
     }
 
     private func type(of item: OrbitBarItem) -> String? {

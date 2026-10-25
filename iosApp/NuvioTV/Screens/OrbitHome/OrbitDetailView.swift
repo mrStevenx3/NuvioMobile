@@ -123,6 +123,8 @@ struct OrbitDetailView: View {
     /// TMDB's logo for the title (`OrbitMetaStore`), kept apart so the store's other titles never
     /// redraw the page.
     @State private var tmdbLogo: String?
+    /// Per row ("cast", "saga", "similar"): bumped to bring the row back to its start.
+    @State private var rowResets: [String: Int] = [:]
 
     init(preview: MetaPreview) {
         self.preview = preview
@@ -363,6 +365,7 @@ struct OrbitDetailView: View {
                 DispatchQueue.main.async { focus = .play }
                 return
             }
+            if new.section != section { resetRow(of: new.section) }
             if new.section != section, new.section != .hero, new.section != .episodes,
                let first = firstFocus(of: new.section), first != new {
                 // Not inside the focus engine's own update (a write there is dropped): next turn.
@@ -461,6 +464,17 @@ struct OrbitDetailView: View {
     }
 
     // MARK: Focus / scroll
+
+    /// The row of a section back to its start (its first card at the margin).
+    private func resetRow(of target: OrbitDetailSection) {
+        let key: String? = switch target {
+        case .cast: "cast"
+        case .saga: "saga"
+        case .similar: "similar"
+        default: nil
+        }
+        if let key { rowResets[key, default: 0] += 1 }
+    }
 
     /// A section's first card (the far left of its row).
     private func firstFocus(of target: OrbitDetailSection) -> OrbitDetailFocus? {
@@ -785,7 +799,7 @@ struct OrbitDetailView: View {
                     .padding(.vertical, 16)
                 }
                 .scrollClipDisabled()
-                .modifier(OrbitRowMemory(key: "cast", store: rowOffsets))
+                .modifier(OrbitRowMemory(key: "cast", store: rowOffsets, resetGeneration: rowResets["cast", default: 0]))
             }
             .focusSection()
             .id(OrbitDetailSection.cast)
@@ -814,7 +828,7 @@ struct OrbitDetailView: View {
                     .padding(.vertical, 20)
                 }
                 .scrollClipDisabled()
-                .modifier(OrbitRowMemory(key: "saga", store: rowOffsets))
+                .modifier(OrbitRowMemory(key: "saga", store: rowOffsets, resetGeneration: rowResets["saga", default: 0]))
             }
             .focusSection()
             .id(OrbitDetailSection.saga)
@@ -868,7 +882,7 @@ struct OrbitDetailView: View {
                     .padding(.vertical, 20)
                 }
                 .scrollClipDisabled()
-                .modifier(OrbitRowMemory(key: "similar", store: rowOffsets))
+                .modifier(OrbitRowMemory(key: "similar", store: rowOffsets, resetGeneration: rowResets["similar", default: 0]))
             }
             .focusSection()
             .id(OrbitDetailSection.similar)
@@ -1308,11 +1322,17 @@ final class OrbitRowOffsets {
 private struct OrbitRowMemory: ViewModifier {
     let key: String
     let store: OrbitRowOffsets
+    /// Bumped when the focus enters the row on its first card: the row goes back to its start
+    /// (Steven: the cast row stayed scrolled, its first card not at the margin).
+    var resetGeneration = 0
     @State private var position = ScrollPosition(edge: .leading)
 
     func body(content: Content) -> some View {
         content
             .scrollPosition($position)
+            .onChange(of: resetGeneration) { _, _ in
+                withAnimation(.easeOut(duration: 0.25)) { position.scrollTo(edge: .leading) }
+            }
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
                 store.x[key] = x
             }

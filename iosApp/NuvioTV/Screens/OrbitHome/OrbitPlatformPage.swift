@@ -641,7 +641,7 @@ enum OrbitPlatformBrand {
 /// The platform's logo, large on a screen tinted with its colour, then gliding to the top-right
 /// corner while the tint fades (an app opening on Apple TV). Once per visit; any press skips it;
 /// Reduce Motion goes straight to the corner.
-private struct OrbitPlatformIntro: View {
+struct OrbitPlatformIntro: View {
     let title: String
     let logoUrl: String?
     let brand: Color
@@ -818,7 +818,7 @@ final class OrbitPlatformExtrasModel: ObservableObject {
         }
     }
 
-    nonisolated private static func region(language: String) -> String {
+    nonisolated static func region(language: String) -> String {
         let parts = language.split(whereSeparator: { $0 == "-" || $0 == "_" })
         if parts.count > 1 { return String(parts[1]).uppercased() }
         if let region = Locale.current.region?.identifier, region.count == 2 { return region }
@@ -840,7 +840,8 @@ final class OrbitPlatformExtrasModel: ObservableObject {
         let results: [Result]?
     }
 
-    nonisolated private static func fetch(_ address: String, tv: Bool) async -> [MetaPreview] {
+    /// One TMDB discover page as previews (the Disney+ page's Hulu rows use it too).
+    nonisolated static func fetch(_ address: String, tv: Bool) async -> [MetaPreview] {
         guard let url = URL(string: address),
               let (data, _) = try? await URLSession.shared.data(from: url),
               let decoded = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
