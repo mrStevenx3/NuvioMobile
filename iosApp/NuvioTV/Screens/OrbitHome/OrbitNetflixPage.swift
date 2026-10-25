@@ -538,7 +538,9 @@ private struct OrbitNetflixBillboard: View {
         let banner: String? = item.banner
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.08)
-            OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+            // Netflix (Steven's video): the billboard's still drifts slowly to the left until its trailer.
+            OrbitNetflixDrift(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+                .id("\(item.type):\(item.id)")
             if let trailerURL {
                 TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                   zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -707,19 +709,16 @@ private struct OrbitNetflixTile: View {
         // its title-less art with that logo; else his poster (his N already on it). His Top 10 images
         // carry their numbers: never those.
         let french: String? = meta?.localPoster
-        // Steven: still English — new Netflix titles often have no title-less poster on TMDB either:
-        // their backdrop (no text), centred, then.
-        let composed: String? = french == nil && meta?.logoIsLocal == true
-            ? (meta?.textlessPoster ?? banner ?? meta?.backdrop) : nil
+        // (A backdrop cropped to portrait was tried: Steven found it distorted. With no French and no
+        // title-less poster on TMDB, his poster stays.)
+        let composed: String? = french == nil && meta?.logoIsLocal == true ? meta?.textlessPoster : nil
         let poster: String? = french ?? composed ?? (top10 ? meta?.titledPoster : item.poster)
         // TMDB's art has no N: his N, drawn as his add-on draws it.
         let drawsN = (french != nil || composed != nil || top10) && isNetflixOwn(item, meta)
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.09)
             if open {
-                // Netflix (Steven's video): the still drifts slowly to the left until the trailer starts.
-                OrbitNetflixDrift(url: banner ?? meta?.backdrop, fallback: poster, size: size)
-                    .id("\(item.type):\(item.id)")
+                OrbitImage(url: banner ?? meta?.backdrop, fallback: poster, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
