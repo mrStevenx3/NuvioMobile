@@ -61,6 +61,8 @@ enum OrbitDetailLayout {
     static let sectionRest: CGFloat = 200
     /// The episodes section's top (it holds the season posters, the episodes and their text).
     static let episodesRest: CGFloat = 100
+    /// The line the system aligns a focused section's top on (the page's top margin).
+    static let pageTop: CGFloat = 140
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
@@ -95,6 +97,8 @@ struct OrbitDetailView: View {
 
     @FocusState private var focus: OrbitDetailFocus?
     @State private var section: OrbitDetailSection = .hero
+    /// The section the page is aligned on (the system scrolls to it, on its own curve).
+    @State private var pagePosition: OrbitDetailSection? = .hero
     /// Bumped on every focus move inside a section (the page is held at its place again).
     @State private var anchorTick = 0
     /// The page is on screen (not under a pushed page).
@@ -213,7 +217,8 @@ struct OrbitDetailView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: L.sectionGap) {
                     hero
-                        .frame(height: L.heroHeight, alignment: .bottomLeading)
+                        // (The page's top margin is above it: the hero ends where it always did.)
+                        .frame(height: L.heroHeight - L.pageTop, alignment: .bottomLeading)
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
@@ -236,68 +241,41 @@ struct OrbitDetailView: View {
                     similarSection
                     aboutSection
                 }
+                .scrollTargetLayout()
                 .padding(.bottom, 160)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 // Cinema: the whole page out of focus (the trailer's catcher holds it).
                 .disabled(cinema)
             }
+            // Fluidity (Steven, 2026-10-25: "la page de description est ultra fluide sur l'app Apple
+            // TV"): built as Home now is — the system aligns the focused section under the top on
+            // its own curve. Our own scrolls (the anchors, their re-tries, the holds on Left /
+            // Right, the undoing of the system's nudges) and the mask over the whole page (redrawn
+            // off screen on every frame of a move) are gone.
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $pagePosition, anchor: .top)
+            .contentMargins(.top, L.pageTop, for: .scrollContent)
             .scrollClipDisabled()
             // Steven (the season row bounced): on a season poster the page does not scroll on its
             // own — the system nudged it a few points at each season change and the hold pulled it
             // back. The page's own moves (`anchor`, scrollTo) still place it.
             .scrollDisabled(onSeasonPoster)
             .ignoresSafeArea()
-            // Steven: on some titles the system nudged the hero up a little and the "C" of
-            // Casting peeked at the bottom. On the hero, nothing below it shows.
-            .mask {
-                VStack(spacing: 0) {
-                    // Steven (device: the trailers' captions showed at the top, by the house): under
-                    // the sections, the page fades out at the top.
-                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                        .frame(height: section == .hero ? 0 : 160)
-                    // Up to just under the buttons: a nudge of the page can no longer show "Casting".
-                    Color.black.frame(height: section == .hero ? 1050 : OrbitHomeLayout.screenHeight - 160)
-                    Color.clear
-                }
-                .frame(height: OrbitHomeLayout.screenHeight, alignment: .top)
-                // Fluidity (Steven: the first Down still jerked): the mask switches at once — an
-                // animated mask redrew the whole page off screen on every frame of the move.
-                .ignoresSafeArea()
-            }
-            // The section the focus entered comes to the top on one curve; the hero, to the top.
             .onChange(of: section) { _, target in
-                let startY = scrollBox.y
-                anchor(proxy, target, duration: 0.4)
-                // Steven (device: the FIRST Down from the hero stood still, then jumped): that first
-                // scroll is dropped while the sections below build. Seen at once (the page has not
-                // moved a moment later), it is asked again on the rest of the curve — no wait.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) {
-                    if section == target, abs(scrollBox.y - startY) < 1 { anchor(proxy, target, duration: 0.33) }
-                }
-                // Steven (device: the first Down dimmed the art but the page stayed): the first
-                // scroll can be dropped while the page settles — placed again once the curve ends.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                    if section == target { anchor(proxy, target, duration: 0.2) }
+                if pagePosition != target {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.36)) { pagePosition = target }
                 }
             }
-            // Steven: Left / Right inside a section let the system nudge the page ("ça se
-            // replace"); each move inside a section holds it at its place again.
-            // In the episodes (season posters scrolling sideways), the hold is a snap, not a
-            // curve: the system's own nudge and a curved correction read as a bounce.
-            .onChange(of: anchorTick) { _, _ in anchor(proxy, section, duration: section == .episodes ? 0 : 0.22) }
-            .onChange(of: heroPin) { _, _ in if section == .hero { anchor(proxy, .hero, duration: 0.3) } }
-            // Steven: the page still rose a little as it loaded (the system nudges the scroll
-            // when the focus first lands on Lire). On the hero the page stays at its top: any
-            // move the page did not ask for is undone at once.
-            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
-                scrollBox.y = y
-                guard section == .hero, (focus?.section ?? .hero) == .hero, !cinema,
-                      abs(y) > 0.5, Date() > anchoringUntil else { return }
-                var still = Transaction()
-                still.disablesAnimations = true
-                withTransaction(still) { proxy.scrollTo(OrbitDetailSection.hero, anchor: .top) }
             }
-            }
+
+            // Under the sections, the page fades out at the top (Steven: the trailers' captions
+            // showed by the house) — a shade over it, not a mask.
+            LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(width: OrbitHomeLayout.screenWidth, height: L.pageTop + 20)
+                .opacity(section == .hero || cinema ? 0 : 1)
+                .animation(.easeInOut(duration: 0.25), value: section == .hero)
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
 
             // The platform's logo, top right (not in the trailer's cinema).
             if let platform, !cinema {
