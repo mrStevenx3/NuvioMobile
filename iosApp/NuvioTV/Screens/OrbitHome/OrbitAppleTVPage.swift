@@ -426,7 +426,7 @@ struct OrbitAppleTVPage: View {
     private func nativeSections(_ rows: [OrbitAppleTVRow]) -> some View {
         OrbitNativeSections(
             count: 1 + rows.count, hasHero: true,
-            height: { s in s == 0 ? OrbitAppleTVLayout.rowsTopOnArrival - nativeLine(rows) : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            height: { s in s == 0 ? OrbitAppleTVLayout.rowsTopOnArrival - OrbitAppleTVLayout.firstRowLine - (rows.isEmpty ? 0 : rows.map(\.height).reduce(0, +) / CGFloat(rows.count)) * OrbitAppleTVLayout.aboveRowShows : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
             topLine: nativeLine(rows), current: current, hidesAbove: false,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
@@ -463,7 +463,13 @@ struct OrbitAppleTVPage: View {
     private func nativeLine(_ rows: [OrbitAppleTVRow]) -> CGFloat {
         let L = OrbitAppleTVLayout.self
         let average = rows.isEmpty ? 0 : rows.map(\.height).reduce(0, +) / CGFloat(rows.count)
-        return L.firstRowLine + average * L.aboveRowShows
+        let line = L.firstRowLine + average * L.aboveRowShows
+        // Steven (device: a large card, focused and larger, touched the screen's bottom): a row of
+        // large cards keeps its whole height on screen, room for the zoom under it.
+        if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].kind == .cards {
+            return min(line, OrbitHomeLayout.screenHeight - rows[r].height - 60)
+        }
+        return line
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {
