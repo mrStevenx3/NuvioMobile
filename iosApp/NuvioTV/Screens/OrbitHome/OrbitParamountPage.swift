@@ -362,22 +362,26 @@ struct OrbitParamountPage: View {
     private func rowsLayer(_ rows: [OrbitParamountRow]) -> some View {
         let tops = rowTops(rows)
         let currentRow = rowIndex(of: current) ?? -1
-        let low = max(0, currentRow)
+        // Steven (device: Up / Down looked odd — the rows vanished, then the next one rose from the
+        // bottom): the row above stays mounted and fades as it leaves (and back in coming up),
+        // and the rows are keyed by their own id, as on Home.
+        let low = max(0, currentRow - 1)
         let high = min(rows.count - 1, max(currentRow, 0) + 3)
         ZStack(alignment: .topLeading) {
             if low <= high {
-                ForEach(low...high, id: \.self) { i in
-                    let row = rows[i]
+                ForEach(Array(zip(low...high, rows[low...high])), id: \.1.id) { i, row in
                     OrbitParamountRowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
                                           focused: canvasFocused && i == currentRow,
                                           news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
                                           metaStore: metaStore)
                         .offset(y: tops[i])
+                        .opacity(i < currentRow ? 0 : 1)
                         .id(row.id)
                         .transition(.identity)
                 }
             }
         }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {
