@@ -21,7 +21,8 @@ nonisolated enum OrbitRowStyle: Equatable {
 
 enum OrbitTileLayout {
     static let landscape = CGSize(width: 456, height: 256)
-    static let card = CGSize(width: 400, height: 560)
+    /// Steven (device): 15 % smaller — larger than the Top 10, they stole its place.
+    static let card = CGSize(width: 340, height: 476)
     static let poster = CGSize(width: 248, height: 372)
     /// Steven: the sagas' posters larger (their art is the point of the row).
     static let sagaPoster = CGSize(width: 340, height: 510)
@@ -273,7 +274,7 @@ private struct OrbitBigCard: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.85))
                     .lineLimit(2)
-                    .frame(width: 350, alignment: .leading)
+                    .frame(width: OrbitTileLayout.card.width - 44, alignment: .leading)
                     .opacity(focused ? 1 : 0)
             }
             .padding(22)

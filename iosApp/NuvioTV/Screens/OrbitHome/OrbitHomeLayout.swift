@@ -43,17 +43,19 @@ enum OrbitHomeLayout {
 
     // Rows
     static let rowAnchor: CGFloat = 150
-    static let rowPitch: CGFloat = 820
+    // Steven (device, 2026-10-25): the classic row 15 % smaller — it took the whole screen and
+    // overshadowed the Top 10; the next row now shows below it.
+    static let rowPitch: CGFloat = 745
     static let cardsTop: CGFloat = 44
-    static let cardHeight: CGFloat = 500
-    static let posterWidth: CGFloat = 320
-    static let frameWidth: CGFloat = 889
+    static let cardHeight: CGFloat = 425
+    static let posterWidth: CGFloat = 272
+    static let frameWidth: CGFloat = 756
     static let gap: CGFloat = 16
     static let posterRadius: CGFloat = 10
     static let frameRadius: CGFloat = 12
     static let frameBorder: CGFloat = 4
-    static let metaCentre: CGFloat = 582
-    static let synopsisTop: CGFloat = 610
+    static let metaCentre: CGFloat = 507
+    static let synopsisTop: CGFloat = 535
     static let synopsisWidth: CGFloat = 960
     static let headingFont: CGFloat = 30
     static let metaFont: CGFloat = 28
