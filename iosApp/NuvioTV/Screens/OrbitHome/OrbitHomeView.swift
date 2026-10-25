@@ -168,7 +168,8 @@ struct OrbitHomeView: View {
                                 cards: Self.unique(section.items.map(OrbitCard.catalog)), sectionKey: section.key,
                                 style: style))
             catalogs += 1
-            if catalogs == 1, !top.isEmpty { out.append(top.removeFirst()) }
+            // Not next to his own Top 10 (Steven's video: two Top 10 in a row).
+            if catalogs == 3, !top.isEmpty { out.append(top.removeFirst()) }
             if catalogs % 2 == 0, !platforms.isEmpty { out.append(platforms.removeFirst()) }
         }
         return out + top + platforms

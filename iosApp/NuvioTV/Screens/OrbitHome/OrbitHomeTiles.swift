@@ -136,7 +136,9 @@ struct OrbitHomeTileRowView: View {
                         .frame(width: 1100, alignment: .topLeading)
                 }
                 .id(card.id)
-                .transition(.opacity.animation(L.crossfade))
+                // Steven's video: two titles' text over each other while they cross-faded. The old
+                // one goes at once, the new one fades in.
+                .transition(.asymmetric(insertion: .opacity.animation(L.crossfade), removal: .identity))
                 .opacity(isCurrent ? 1 : 0)
                 .offset(x: L.margin + 6, y: L.cardsTop + size.height + T.infoGap)
             }
