@@ -184,7 +184,7 @@ struct OrbitTileFocus: ViewModifier {
             }
             .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 3)
             .scaleEffect(focused ? 1.05 : 1, anchor: .leading)
-            .animation(.easeOut(duration: 0.18), value: focused)
+            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 

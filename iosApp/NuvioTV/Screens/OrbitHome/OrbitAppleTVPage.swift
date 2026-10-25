@@ -888,7 +888,7 @@ private struct OrbitAppleTVFocus: ViewModifier {
             }
             .shadow(color: .black.opacity(focused ? 0.55 : 0.25), radius: focused ? 24 : 8, y: focused ? 16 : 4)
             .scaleEffect(focused ? scale : 1)
-            .animation(.easeOut(duration: 0.2), value: focused)
+            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 

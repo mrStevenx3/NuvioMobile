@@ -791,6 +791,6 @@ private struct OrbitNetflixTile: View {
             RoundedRectangle(cornerRadius: L.radius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
         }
-        .animation(.easeOut(duration: 0.18), value: focused)
+        // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }

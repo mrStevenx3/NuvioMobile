@@ -712,7 +712,7 @@ private struct OrbitParamountPoster: View {
         }
         .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
         .scaleEffect(focused ? L.focusScale : 1, anchor: .leading)
-        .animation(.easeOut(duration: 0.18), value: focused)
+        // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 
@@ -735,6 +735,6 @@ private struct OrbitParamountTop10Image: View {
             }
             .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
             // No growth (Steven: the focused rank rose above the others): the frame shows it.
-            .animation(.easeOut(duration: 0.18), value: focused)
+            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }

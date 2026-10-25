@@ -914,7 +914,7 @@ private struct OrbitHBOFocus: ViewModifier {
             }
             .shadow(color: .black.opacity(focused ? 0.6 : 0.25), radius: focused ? 18 : 6, y: focused ? 10 : 4)
             .scaleEffect(focused ? OrbitHBOLayout.focusScale : 1)
-            .animation(.easeOut(duration: 0.18), value: focused)
+            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 

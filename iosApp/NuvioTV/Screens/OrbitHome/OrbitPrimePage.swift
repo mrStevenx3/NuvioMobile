@@ -822,7 +822,7 @@ private struct OrbitPrimeTop10Image: View {
                     .offset(x: card.minX, y: card.minY)
             }
             .scaleEffect(focused ? L.focusScale : 1, anchor: .leading)
-            .animation(.easeOut(duration: 0.18), value: focused)
+            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 
@@ -926,7 +926,7 @@ private struct OrbitPrimePoster: View {
                 .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
         }
         .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 4)
-        .animation(.easeOut(duration: 0.18), value: focused)
+        // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 
@@ -942,6 +942,6 @@ private struct OrbitPrimeFocus: ViewModifier {
             }
             .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 4)
             .scaleEffect(focused ? OrbitPrimeLayout.focusScale : 1, anchor: .leading)
-            .animation(.easeOut(duration: 0.18), value: focused)
+            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }

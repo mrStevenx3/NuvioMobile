@@ -252,7 +252,14 @@ struct OrbitDetailView: View {
                 .ignoresSafeArea()
             }
             // The section the focus entered comes to the top on one curve; the hero, to the top.
-            .onChange(of: section) { _, target in anchor(proxy, target, duration: 0.4) }
+            .onChange(of: section) { _, target in
+                anchor(proxy, target, duration: 0.4)
+                // Steven (device: the first Down dimmed the art but the page stayed): the first
+                // scroll can be dropped while the page settles — placed again once the curve ends.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    if section == target { anchor(proxy, target, duration: 0.2) }
+                }
+            }
             // Steven: Left / Right inside a section let the system nudge the page ("ça se
             // replace"); each move inside a section holds it at its place again.
             // In the episodes (season posters scrolling sideways), the hold is a snap, not a
