@@ -585,27 +585,33 @@ private struct OrbitStudioHero: View {
         let size = CGSize(width: OrbitHomeLayout.screenWidth, height: L.heroHeight)
         let banner: String? = item?.banner
         ZStack(alignment: .topLeading) {
-            OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
-            if let trailerURL, let item {
-                TrailerHeroPlayer(urlString: trailerURL,
-                                  onFailure: onTrailerFailure,
-                                  zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
-                                  loops: false,
-                                  onPlaybackEnded: onTrailerEnded,
-                                  cornerRadius: 0)
-                    .frame(width: size.width, height: size.height)
-                    .transition(.opacity.animation(.easeOut(duration: 0.6)))
+            // Steven (device: a sharp line between the banner and the rows): the art itself fades
+            // out at the bottom, into the page's own colour, whatever it is.
+            ZStack(alignment: .topLeading) {
+                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+                if let trailerURL, let item {
+                    TrailerHeroPlayer(urlString: trailerURL,
+                                      onFailure: onTrailerFailure,
+                                      zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                      loops: false,
+                                      onPlaybackEnded: onTrailerEnded,
+                                      cornerRadius: 0)
+                        .frame(width: size.width, height: size.height)
+                        .transition(.opacity.animation(.easeOut(duration: 0.6)))
+                }
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.85), location: 0),
+                    .init(color: .black.opacity(0.4), location: 0.45),
+                    .init(color: .clear, location: 0.72),
+                ], startPoint: .leading, endPoint: .trailing)
             }
-            LinearGradient(stops: [
-                .init(color: .black.opacity(0.85), location: 0),
-                .init(color: .black.opacity(0.4), location: 0.45),
-                .init(color: .clear, location: 0.72),
-            ], startPoint: .leading, endPoint: .trailing)
-            // Melts into the page below.
-            LinearGradient(stops: [
-                .init(color: .clear, location: 0.55),
-                .init(color: OrbitHomeLayout.background, location: 1),
-            ], startPoint: .top, endPoint: .bottom)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .mask(LinearGradient(stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black, location: 0.5),
+                .init(color: .black.opacity(0.45), location: 0.78),
+                .init(color: .clear, location: 1),
+            ], startPoint: .top, endPoint: .bottom))
 
             // The studio's logo, top right (Steven: no figures; the film's name has the left).
             Group {
@@ -633,7 +639,7 @@ private struct OrbitStudioHero: View {
                         .font(.system(size: 25, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.92))
                         .lineSpacing(4)
-                        .lineLimit(3)
+                        .lineLimit(2)
                         .frame(width: 880, alignment: .leading)
                         .padding(.top, 18)
                     HStack(spacing: 18) {
@@ -657,7 +663,8 @@ private struct OrbitStudioHero: View {
                 }
                 .id("\(item.type):\(item.id)")
                 .transition(.opacity.animation(.easeInOut(duration: 0.25)))
-                .offset(x: L.margin, y: 170)
+                // Steven (device: "Nouveaux films" ran over the banner's text): higher up.
+                .offset(x: L.margin, y: 130)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)

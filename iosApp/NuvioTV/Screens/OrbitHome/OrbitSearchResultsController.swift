@@ -283,8 +283,12 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         guard let path = lastOpened, path.section < collectionView.numberOfSections,
               path.item < collectionView.numberOfItems(inSection: path.section) else { return nil }
         preferredPath = path
-        collectionView.scrollToItem(at: path, at: .centeredVertically, animated: false)
-        collectionView.layoutIfNeeded()
+        // Steven (device: a bounce on the way back): the results stay where they were when the
+        // poster is still on screen; only an off-screen one is brought back.
+        if !collectionView.indexPathsForVisibleItems.contains(path) {
+            collectionView.scrollToItem(at: path, at: .centeredVertically, animated: false)
+            collectionView.layoutIfNeeded()
+        }
         return collectionView
     }
 
