@@ -116,7 +116,18 @@ struct OrbitDisneyPage: View {
     /// Top 10 rows first (films, then series), his Nouveautés, then the franchises and genres
     /// (TMDB), films and series in turn.
     private var disneyRows: [OrbitDisneyRow] {
-        let extraRows = Self.alternate(extras.movieRows, extras.seriesRows)
+        // Steven: Marvel, Star Wars (and Comédie, Animation) came twice, once for the films and once
+        // for the series. One row per title, its films and series in turn.
+        var extraRows: [OrbitPlatformExtrasModel.Extra] = []
+        for row in Self.alternate(extras.movieRows, extras.seriesRows) {
+            if let i = extraRows.firstIndex(where: { $0.title == row.title }) {
+                let merged = extraRows[i]
+                extraRows[i] = OrbitPlatformExtrasModel.Extra(id: merged.id, title: merged.title,
+                                                              items: Self.alternate(merged.items, row.items))
+            } else {
+                extraRows.append(row)
+            }
+        }
         let catalogs: [(OrbitDisneyRow, Int)] = model.stripRows.compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             guard extraRows.isEmpty || OrbitCatalogFilter.isKept(row.heading) else { return nil }
@@ -138,7 +149,7 @@ struct OrbitDisneyPage: View {
         for extra in extraRows {
             let fresh = extra.items.filter { !shown.contains(Self.identity($0)) }
             guard fresh.count >= 8 else { continue }
-            let kept = Array(fresh.prefix(20))
+            let kept = Array(fresh.prefix(24))
             kept.forEach { shown.insert(Self.identity($0)) }
             more.append(OrbitDisneyRow(id: extra.id, title: extra.title, items: kept, top10: false, portrait: true))
         }
