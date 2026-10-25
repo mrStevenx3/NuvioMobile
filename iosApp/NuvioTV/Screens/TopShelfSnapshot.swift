@@ -54,6 +54,14 @@ struct TopShelfItemSnapshot: Codable, Equatable {
 struct TopShelfSnapshot: Codable {
     let generatedAtEpochMs: Int64
     let items: [TopShelfItemSnapshot]
+    /// Steven (2026-10-25): Orbit's Top 10 of the day, a second Top Shelf row (and the only one
+    /// while Reprendre is empty). Optional, so an older snapshot or extension decodes it fine.
+    var top: [TopShelfItemSnapshot]? = nil
+}
+
+extension Notification.Name {
+    /// Orbit Home's Top 10 of the day (`object`: [MetaPreview]), for the Top Shelf.
+    static let orbitTopShelfTop = Notification.Name("orbit.topShelf.top")
 }
 
 /// Lives at the ContentView root (started once a profile is entered). Watches the shared
@@ -69,9 +77,20 @@ final class TopShelfUpdater: ObservableObject {
     private var lastWrittenItems: [TopShelfItemSnapshot]?
     /// Coalesces a burst of emissions (progress save + source + settings) into one write.
     private var pendingWrite: Task<Void, Never>?
+    /// Orbit's Top 10 of the day (from Orbit Home).
+    private var topItems: [TopShelfItemSnapshot] = []
+    private var topObserver: NSObjectProtocol?
 
     func start() {
         guard watcher == nil else { return }
+        if topObserver == nil {
+            topObserver = NotificationCenter.default.addObserver(forName: .orbitTopShelfTop, object: nil, queue: .main) { [weak self] note in
+                guard let previews = note.object as? [MetaPreview] else { return }
+                MainActor.assumeIsolated { self?.applyTop(previews) }
+            }
+        }
+        // Posted before this updater started (Home loads it at once).
+        if let latest = Self.latestTop { applyTop(latest) }
         WatchProgressRepository.shared.ensureLoaded()
         CustomPosterUrlRepository.shared.ensureLoaded()   // A7: the pattern the snapshot applies
         watcher = FlowWatcherKt.watch(WatchProgressRepository.shared.uiState) { [weak self] _ in
@@ -90,6 +109,22 @@ final class TopShelfUpdater: ObservableObject {
                 self.scheduleWrite()
             }
         }
+    }
+
+    /// Orbit Home's last Top 10 (kept for an updater started after it was posted).
+    static var latestTop: [MetaPreview]?
+
+    private func applyTop(_ previews: [MetaPreview]) {
+        Self.latestTop = previews
+        let items = previews.prefix(10).map { p in
+            TopShelfItemSnapshot(videoId: p.id, parentMetaId: p.id, parentMetaType: p.type, title: p.name,
+                                 episodeTitle: nil, season: nil, episode: nil, poster: p.poster,
+                                 background: p.banner, progressPercent: nil)
+        }
+        guard Array(items) != topItems else { return }
+        topItems = Array(items)
+        lastWrittenItems = nil
+        scheduleWrite()
     }
 
     func stop() {
@@ -182,7 +217,8 @@ final class TopShelfUpdater: ObservableObject {
         guard let url = TopShelf.snapshotURL else { return }
         let snapshot = TopShelfSnapshot(
             generatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
-            items: items
+            items: items,
+            top: topItems.isEmpty ? nil : topItems
         )
 
         // Encode on main (cheap, ≤10 tiny items); write atomically so the extension never reads

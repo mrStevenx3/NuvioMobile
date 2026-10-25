@@ -426,6 +426,11 @@ final class OrbitHomeExtrasModel: ObservableObject {
             if m.isEmpty && s.isEmpty { self.started = false; return }
             self.movieRows = m
             self.seriesRows = s
+            // The Top Shelf's second row: the films of the day.
+            if let top = m.first(where: { $0.style == .ranked }) {
+                TopShelfUpdater.latestTop = top.items
+                NotificationCenter.default.post(name: .orbitTopShelfTop, object: top.items)
+            }
         }
     }
 

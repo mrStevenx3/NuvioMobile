@@ -42,6 +42,8 @@ class ContentProvider: TVTopShelfContentProvider {
     private struct Snapshot: Codable {
         let generatedAtEpochMs: Int64
         let items: [ItemSnapshot]
+        /// Orbit's Top 10 of the day (optional: older snapshots have none).
+        let top: [ItemSnapshot]?
     }
 
     override func loadTopShelfContent() async -> (any TVTopShelfContent)? {
@@ -54,37 +56,52 @@ class ContentProvider: TVTopShelfContentProvider {
             .appendingPathComponent("Library/Caches", isDirectory: true)
             .appendingPathComponent(Self.snapshotFilename)
         guard let data = try? Data(contentsOf: fileURL),
-              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
-              !snapshot.items.isEmpty
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data)
         else {
             return nil  // falls back to the static Top Shelf image
         }
 
-        let items = snapshot.items.compactMap { topShelfItem(for: $0) }
-        guard !items.isEmpty else { return nil }
-
-        let section = TVTopShelfItemCollection(items: items)
-        section.title = "Continue Watching"
-        return TVTopShelfSectionedContent(sections: [section])
+        // Steven (2026-10-25, Orbit): "Reprendre" in wide images (as Netflix / Apple TV), then
+        // "Top 10 du jour" in posters — the Top 10 alone while nothing is in progress.
+        var sections: [TVTopShelfItemCollection<TVTopShelfSectionedItem>] = []
+        let wide = !snapshot.items.isEmpty && snapshot.items.allSatisfy { $0.background != nil }
+        let resume = snapshot.items.compactMap { topShelfItem(for: $0, wide: wide) }
+        if !resume.isEmpty {
+            let section = TVTopShelfItemCollection(items: resume)
+            section.title = "Reprendre"
+            sections.append(section)
+        }
+        let top = (snapshot.top ?? []).enumerated().compactMap { index, entry -> TVTopShelfSectionedItem? in
+            let item = topShelfItem(for: entry, wide: false, playable: false)
+            item?.title = "\(index + 1). \(entry.title)"
+            return item
+        }
+        if !top.isEmpty {
+            let section = TVTopShelfItemCollection(items: top)
+            section.title = "Top 10 du jour"
+            sections.append(section)
+        }
+        guard !sections.isEmpty else { return nil }
+        return TVTopShelfSectionedContent(sections: sections)
     }
 
-    private func topShelfItem(for entry: ItemSnapshot) -> TVTopShelfSectionedItem? {
+    private func topShelfItem(for entry: ItemSnapshot, wide: Bool, playable: Bool = true) -> TVTopShelfSectionedItem? {
         let item = TVTopShelfSectionedItem(identifier: entry.videoId)
         item.title = itemTitle(for: entry)
-        item.imageShape = .poster
+        item.imageShape = wide ? .hdtv : .poster
         // The progress bar under the poster (0-1). The snapshot carries 0-100; it was decoded but
         // never set, so no Top Shelf item ever showed one.
         if let percent = entry.progressPercent, percent > 0 {
             item.playbackProgress = min(max(percent / 100, 0), 1)
         }
-        if let poster = entry.displayPoster ?? entry.poster, let url = URL(string: poster) {
+        if let image = wide ? entry.background : (entry.displayPoster ?? entry.poster), let url = URL(string: image) {
             item.setImageURL(url, for: [.screenScale1x, .screenScale2x])
         }
 
         if let display = displayURL(for: entry) {
             item.displayAction = TVTopShelfAction(url: display)
         }
-        if let play = resumeURL(for: entry) {
+        if playable, let play = resumeURL(for: entry) {
             item.playAction = TVTopShelfAction(url: play)
         }
         return item
