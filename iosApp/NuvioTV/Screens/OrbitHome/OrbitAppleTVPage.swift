@@ -491,8 +491,9 @@ struct OrbitAppleTVPage: View {
         let r = rowIndex(of: current) ?? 0
         for i in max(0, r - 1)...max(r, min(rows.count - 1, r + 2)) where rows.indices.contains(i) {
             let row = rows[i]
-            let lead = lead(of: row)
-            metaItems += row.items.indices.filter { $0 >= lead - 1 && $0 <= lead + 8 }.map { row.items[$0] }
+            // Every title on screen (the focus moves along a still row now) and a little beyond.
+            let start = first(of: row)
+            metaItems += row.items.indices.filter { $0 >= start - 1 && $0 <= start + row.visibleCount + 2 }.map { row.items[$0] }
         }
         OrbitMetaStore.shared.request(metaItems)
 
