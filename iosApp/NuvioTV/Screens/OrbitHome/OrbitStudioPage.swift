@@ -1208,22 +1208,19 @@ private struct OrbitSagaBand: View {
         let W = OrbitHomeLayout.screenWidth
         let pair = colors ?? OrbitSagaPalette.cached(backdrop)
         // Steven (2026-10-26: "une bande qui se fond vers le noir"): the saga's colours, strongest
-        // under its logo on the left, melting into the page's dark to the right and above / below.
+        // under its logo on the left, melting into the page's dark to the right.
         ZStack {
             if let pair {
                 LinearGradient(stops: [.init(color: pair.left, location: 0),
-                                       .init(color: pair.right.opacity(0.6), location: 0.5),
+                                       .init(color: pair.right, location: 0.45),
+                                       .init(color: pair.right.opacity(0.55), location: 0.75),
                                        .init(color: pair.right.opacity(0), location: 1)],
                                startPoint: .leading, endPoint: .trailing)
                     .transition(.opacity)
             }
         }
+        // (Steven: the top and bottom edges stay sharp; only the right end melts away.)
         .frame(width: W, height: height)
-        .mask(LinearGradient(stops: [.init(color: .clear, location: 0),
-                                     .init(color: .black, location: 0.22),
-                                     .init(color: .black, location: 0.78),
-                                     .init(color: .clear, location: 1)],
-                             startPoint: .top, endPoint: .bottom))
         .animation(.easeInOut(duration: 0.4), value: pair?.left)
         .task(id: backdrop) {
             if colors == nil { colors = await OrbitSagaPalette.colors(for: backdrop) }
