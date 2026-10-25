@@ -148,22 +148,39 @@ struct OrbitHBOPage: View {
     private var onHBO: Bool { typeFilter == "hbo" }
 
     private var catalogs: [Catalog] {
-        CollectionTypeFilter.rows(model.stripRows, filter: onHBO ? nil : typeFilter).compactMap { row in
+        let source = CollectionTypeFilter.rows(model.stripRows, filter: onHBO ? nil : typeFilter)
+        let hasOriginals = source.contains { Self.isOriginalsCatalog($0.heading) }
+        return source.compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             var seen = Set<String>()
             var unique = items.filter { seen.insert("\($0.type):\($0.id)").inserted }
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             let top10 = heading.contains("top 10") || heading.contains("top10")
+            var fresh = heading.contains("nouveau") || heading.contains("nouvelle")
+            var title = row.heading
             if onHBO {
                 // HBO: no Top 10 (its ranks are everyone's), only the originals (HBO and HBO Max:
                 // Steven, Paolo is an HBO Max Original).
                 guard !top10 else { return nil }
+                if Self.isOriginalsCatalog(row.heading) {
+                    // Steven (the Nouveautés looked empty: 4 originals among the 20 newest titles):
+                    // the originals catalogs, newest first, are this tab's Nouveautés.
+                    let series = unique.first.map { $0.type != "movie" } ?? heading.contains("serie")
+                    title = series ? String(localized: "Nouvelles séries") : String(localized: "Nouveaux films")
+                    fresh = true
+                } else if fresh, hasOriginals {
+                    return nil
+                }
                 unique = unique.filter { OrbitHBOOwn.of($0) != nil }
                 guard unique.count >= 3 else { return nil }
             }
-            return Catalog(id: row.id, heading: row.heading, items: unique, top10: top10,
-                           fresh: heading.contains("nouveau") || heading.contains("nouvelle"))
+            return Catalog(id: row.id, heading: title, items: unique, top10: top10, fresh: fresh)
         }
+    }
+
+    /// His "Séries originales HBO" / "Films originaux HBO".
+    private static func isOriginalsCatalog(_ heading: String) -> Bool {
+        heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).contains("origina")
     }
 
     private static func alternate<T>(_ a: [T], _ b: [T]) -> [T] {
