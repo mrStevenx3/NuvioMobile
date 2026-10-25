@@ -2,45 +2,43 @@ import Combine
 import SharedCore
 import SwiftUI
 
-// Orbit × Prime Video (Steven, 2026-10-25, pass 2, after his photos of Prime Video's 2025 look): the
-// Prime Video folder in Prime's style, Orbit's DNA kept (one focusable canvas; the collection bar top
-// left with the house, Films / Séries as tabs switching on focus; the intro).
+// Orbit × Prime Video (Steven, 2026-10-25, pass 3: Prime's TV app, not its website). Orbit's DNA
+// kept (one focusable canvas; the house and Search top left; the intro; trailers on a rest).
 //
-//  - Prime's blue-black. The hero: the new titles in turn, the art across the page (still — Prime
-//    plays the trailer, no drift), "prime" above the logo for Amazon's own titles, the green "Série
-//    n° 2 en France" line for a title of the Top 10, two lines of synopsis, the age box, the dots;
-//    the trailer starts on a rest whether or not the hero has the focus.
-//  - "Amazon Original et exclusivités": tall portrait posters; the focused one opens into a large
-//    16:9 card (logo, Plus d'informations, the green line, the chips).
-//  - The other rows: 16:9 tiles (TMDB's backdrop, the title's French logo, "prime" on Amazon's own,
-//    a white badge top right on the new ones); the focused one grows into a card with its summary.
-//  - The Top 10: Prime's big solid grey ranks, partly behind each 16:9 tile.
+//  - Prime's blue-black. The top of the screen always shows a title: the new titles in turn on
+//    arrival (its trailer on a rest), then the focused title once in the rows — its art on the right
+//    fading to the left, "prime" above the logo on Amazon's own (today's mark, not "AMAZON
+//    ORIGINAL"), the green "Série n° 2 en France" for a title of the Top 10, two lines of synopsis,
+//    "✓ Inclus avec Prime" and the age.
+//  - On arrival, the TV app's buttons (Lecture, +, i) and, under them, the "Tout · Films · Séries"
+//    pills (they switch as the cursor moves along them).
+//  - The rows below: 16:9 tiles (TMDB's backdrop, the French logo, "prime" on Amazon's own), the
+//    focused one framed in white and a little larger, in place; Amazon's own titles in tall
+//    posters; the Top 10 with Prime's wide grey ranks tucked under its tiles.
 
 enum OrbitPrimeLayout {
     static let background = Color(red: 0.03, green: 0.05, blue: 0.09)
     static let green = Color(red: 0.16, green: 0.84, blue: 0.55)
     static let blue = Color(red: 0.10, green: 0.55, blue: 0.95)
     static let margin: CGFloat = OrbitHomeLayout.margin
-    static let heroHeight: CGFloat = 860
-    static let infoTop: CGFloat = 250
-    static let logoSize = CGSize(width: 560, height: 210)
-    static let synopsisWidth: CGFloat = 820
-    static let rowsTop: CGFloat = 840
-    static let restTop: CGFloat = 150
-    static let headingHeight: CGFloat = 54
-    // Measured on Steven's photos (a 2000-pixel-wide page), at 1920.
-    static let tile = CGSize(width: 290, height: 163)
-    static let gap: CGFloat = 20
-    static let grownScale: CGFloat = 1.6
-    static let panelHeight: CGFloat = 210
-    static let poster = CGSize(width: 292, height: 438)
-    static var openWidth: CGFloat { poster.height * 16 / 9 }
-    static let top10Tile = CGSize(width: 288, height: 162)
-    static let rankWidth: CGFloat = 84
-    /// How far the rank runs under its tile.
-    static let rankTuck: CGFloat = 40
-    static let rowGap: CGFloat = 44
+    static let artHeight: CGFloat = 860
+    static let infoTop: CGFloat = 170
+    static let logoSize = CGSize(width: 560, height: 190)
+    static let synopsisWidth: CGFloat = 800
+    /// The pills on arrival, and the first row under them.
+    static let pillsTop: CGFloat = 770
+    static let rowsTopOnArrival: CGFloat = 860
+    /// Once in the rows: the current row's top (the title's details stay above it).
+    static let rowLine: CGFloat = 580
+    static let headingHeight: CGFloat = 50
+    static let tile = CGSize(width: 340, height: 191)
+    static let poster = CGSize(width: 260, height: 390)
+    static let gap: CGFloat = 22
+    static let rankWidth: CGFloat = 96
+    static let rankTuck: CGFloat = 46
+    static let rowGap: CGFloat = 40
     static let radius: CGFloat = 10
+    static let focusScale: CGFloat = 1.07
     static let horizontal = Animation.easeOut(duration: 0.24)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -57,33 +55,19 @@ struct OrbitPrimeRow: Identifiable, Equatable {
         a.id == b.id && a.kind == b.kind && a.items.map(\.id) == b.items.map(\.id)
     }
 
-    var cardHeight: CGFloat {
-        switch kind {
-        case .tiles: return OrbitPrimeLayout.tile.height
-        case .originals: return OrbitPrimeLayout.poster.height
-        case .top10: return OrbitPrimeLayout.top10Tile.height
-        }
-    }
-
+    var cardHeight: CGFloat { kind == .originals ? OrbitPrimeLayout.poster.height : OrbitPrimeLayout.tile.height }
     var height: CGFloat { OrbitPrimeLayout.headingHeight + cardHeight + OrbitPrimeLayout.rowGap }
 
-    /// A title's slot width (the focused one open on the originals row).
-    func slot(_ index: Int, lead: Int, current: Bool) -> CGFloat {
+    private var slot: CGFloat {
         let L = OrbitPrimeLayout.self
         switch kind {
         case .tiles: return L.tile.width
-        case .originals: return current && index == lead ? L.openWidth : L.poster.width
-        case .top10: return L.rankWidth + L.top10Tile.width
+        case .originals: return L.poster.width
+        case .top10: return L.rankWidth + L.tile.width
         }
     }
 
-    func x(of index: Int, lead: Int, current: Bool) -> CGFloat {
-        let L = OrbitPrimeLayout.self
-        guard index > lead else { return index == lead ? 0 : -(slot(index, lead: lead, current: current) + L.gap) }
-        var x: CGFloat = 0
-        for i in lead..<index { x += slot(i, lead: lead, current: current) + L.gap }
-        return x
-    }
+    func x(of index: Int, lead: Int) -> CGFloat { CGFloat(index - lead) * (slot + OrbitPrimeLayout.gap) }
 }
 
 /// Amazon's own title: Steven's add-on marks it in its image address ("/img/v…/tv/123/o0/…").
@@ -110,7 +94,9 @@ struct OrbitPrimePage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
 
-    @State private var typeFilter: String? = "movie"
+    /// nil: Tout; "movie"; "series".
+    @State private var typeFilter: String? = nil
+    /// 0: the hero; 1: the pills; then the rows.
     @State private var current = 0
     @State private var heroIndex = 0
     @State private var leads: [String: Int] = [:]
@@ -120,6 +106,8 @@ struct OrbitPrimePage: View {
     @State private var search: OrbitPlatformSearchModel?
     @State private var heroClock: Task<Void, Never>?
 
+    private static let filters: [String?] = [nil, "movie", "series"]
+
     init(route: FolderRoute, push: @escaping (TitleRoute) -> Void) {
         self.route = route
         self.push = push
@@ -127,8 +115,6 @@ struct OrbitPrimePage: View {
     }
 
     // MARK: Data
-
-    private var series: Bool { typeFilter == "series" }
 
     private struct Catalog {
         let id: String
@@ -150,27 +136,43 @@ struct OrbitPrimePage: View {
         }
     }
 
+    private static func alternate<T>(_ a: [T], _ b: [T]) -> [T] {
+        var out: [T] = []
+        for i in 0..<max(a.count, b.count) {
+            if i < a.count { out.append(a[i]) }
+            if i < b.count { out.append(b[i]) }
+        }
+        return out
+    }
+
     /// His Nouveautés, Amazon's own titles (portrait), his Top 10, then the genres (TMDB).
     private var rows: [OrbitPrimeRow] {
-        let extraRows = series ? extras.seriesRows : extras.movieRows
+        let extraRows: [OrbitPlatformExtrasModel.Extra] = switch typeFilter {
+        case "movie"?: extras.movieRows
+        case "series"?: extras.seriesRows
+        default: Self.alternate(extras.movieRows, extras.seriesRows)
+        }
         let all = catalogs
         var out: [OrbitPrimeRow] = []
         for c in all where c.fresh {
             out.append(OrbitPrimeRow(id: c.id, title: c.heading, items: c.items, kind: .tiles))
         }
         var seen = Set<String>()
-        let own = all.flatMap(\.items)
-            .filter { orbitPrimeIsOwn($0) && seen.insert(Self.identity($0)).inserted }
+        let own = all.flatMap(\.items).filter { orbitPrimeIsOwn($0) && seen.insert(Self.identity($0)).inserted }
         if own.count >= 4 {
-            out.append(OrbitPrimeRow(id: "prime-originals-\(series)",
-                                     title: series ? String(localized: "Programmes Amazon Original et exclusivités")
-                                                   : String(localized: "Films Amazon Original et exclusivités"),
+            let title: String = switch typeFilter {
+            case "movie"?: String(localized: "Films Amazon Original et exclusivités")
+            case "series"?: String(localized: "Séries Amazon Original et exclusivités")
+            default: String(localized: "Programmes Amazon Original et exclusivités")
+            }
+            out.append(OrbitPrimeRow(id: "prime-originals-\(typeFilter ?? "all")", title: title,
                                      items: Array(own.prefix(20)), kind: .originals))
         }
         for c in all where c.top10 {
+            let isSeries = c.heading.lowercased().contains("série") || c.items.first.map { $0.type != "movie" } == true
             out.append(OrbitPrimeRow(id: c.id,
-                                     title: series ? String(localized: "Top 10 des séries en France")
-                                                   : String(localized: "Top 10 des films en France"),
+                                     title: isSeries ? String(localized: "Top 10 des séries en France")
+                                                     : String(localized: "Top 10 des films en France"),
                                      items: Array(c.items.prefix(10)), kind: .top10))
         }
         if extraRows.isEmpty {
@@ -179,14 +181,20 @@ struct OrbitPrimePage: View {
             }
         }
         var shown = Set(out.flatMap { $0.items.map(Self.identity) })
+        var merged: [String: Int] = [:]
         for extra in extraRows {
             let fresh = extra.items.filter { !shown.contains(Self.identity($0)) && $0.banner != nil }
             guard fresh.count >= 8 else { continue }
             let kept = Array(fresh.prefix(24))
             kept.forEach { shown.insert(Self.identity($0)) }
-            out.append(OrbitPrimeRow(id: extra.id,
-                                     title: "\(extra.title) – \(series ? String(localized: "Séries") : String(localized: "Films"))",
-                                     items: kept, kind: .tiles))
+            if let i = merged[extra.title] {
+                // Tout: one row per genre, its films and series in turn.
+                let row = out[i]
+                out[i] = OrbitPrimeRow(id: row.id, title: row.title, items: Self.alternate(row.items, kept), kind: .tiles)
+            } else {
+                merged[extra.title] = out.count
+                out.append(OrbitPrimeRow(id: extra.id, title: extra.title, items: kept, kind: .tiles))
+            }
         }
         return out
     }
@@ -196,14 +204,14 @@ struct OrbitPrimePage: View {
         return item.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) + "|" + year
     }
 
-    /// The new titles (the white badge).
     private var freshIdentities: Set<String> {
         Set(catalogs.filter(\.fresh).flatMap { $0.items.map(Self.identity) })
     }
 
     private var heroItems: [MetaPreview] {
-        let source = catalogs.first(where: \.fresh) ?? catalogs.first
-        return Array((source?.items ?? []).prefix(6))
+        let fresh = catalogs.filter(\.fresh).map(\.items)
+        let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
+        return Array(items.prefix(6))
     }
 
     private var heroItem: MetaPreview? {
@@ -212,8 +220,11 @@ struct OrbitPrimePage: View {
     }
 
     private func topRank(_ item: MetaPreview) -> Int? {
-        guard let top = catalogs.first(where: \.top10) else { return nil }
-        return top.items.prefix(10).firstIndex { Self.identity($0) == Self.identity(item) }.map { $0 + 1 }
+        let tops = catalogs.filter(\.top10)
+        for top in tops {
+            if let i = top.items.prefix(10).firstIndex(where: { Self.identity($0) == Self.identity(item) }) { return i + 1 }
+        }
+        return nil
     }
 
     /// "Série n° 2 en France".
@@ -229,30 +240,32 @@ struct OrbitPrimePage: View {
         return item.type == "movie" ? String(localized: "NOUVEAU FILM") : String(localized: "NOUVELLE SÉRIE")
     }
 
-    private var sectionCount: Int { 1 + rows.count }
+    private var sectionCount: Int { 2 + rows.count }
+
+    private func rowIndex(of section: Int) -> Int? { section >= 2 ? section - 2 : nil }
 
     private func rowTops(_ rows: [OrbitPrimeRow]) -> [CGFloat] {
-        var y = OrbitPrimeLayout.rowsTop
+        var y = OrbitPrimeLayout.rowsTopOnArrival
         return rows.map { row in defer { y += row.height }; return y }
     }
 
+    /// How far the rows have moved up: none on arrival, else the current row at its line.
     private func scroll(_ rows: [OrbitPrimeRow]) -> CGFloat {
-        let r = current - 1
-        guard r >= 0, rows.indices.contains(r) else { return 0 }
-        return rowTops(rows)[r] - OrbitPrimeLayout.restTop
+        guard let r = rowIndex(of: current), rows.indices.contains(r) else { return 0 }
+        return rowTops(rows)[r] - OrbitPrimeLayout.rowLine
     }
 
     private func lead(of row: OrbitPrimeRow) -> Int {
         min(leads[row.id] ?? 0, max(0, row.items.count - 1))
     }
 
-    private var focusedItem: MetaPreview? {
-        if current == 0 { return heroItem }
+    /// The title the top of the screen shows: the hero's on arrival, else the focused one.
+    private var shownItem: MetaPreview? {
+        guard let r = rowIndex(of: current) else { return heroItem }
         let rows = rows
-        let r = current - 1
-        guard rows.indices.contains(r) else { return nil }
+        guard rows.indices.contains(r) else { return heroItem }
         let row = rows[r]
-        return row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil
+        return row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : heroItem
     }
 
     // MARK: Body
@@ -261,33 +274,35 @@ struct OrbitPrimePage: View {
         let rows = rows
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let offset = scroll(rows)
-        let hero = heroItem
+        let shown = shownItem
+        let onArrival = current <= 1
 
         ZStack(alignment: .topLeading) {
             OrbitPrimeLayout.background
 
-            ZStack(alignment: .topLeading) {
-                if let hero {
-                    OrbitPrimeHero(item: hero, meta: metaStore.meta(for: hero), line: rankLine(hero),
-                                   count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
-                                   trailerURL: current == 0 ? trailerURL(for: hero) : nil,
-                                   onTrailerFailure: { trailer.playbackFailed($0) },
-                                   onTrailerEnded: {
-                                       trailer.playbackFinished()
-                                       advanceHero()
-                                   })
-                        .opacity(current <= 1 ? 1 : 0)
-                }
-                rowsLayer(rows)
+            if let shown {
+                OrbitPrimeTop(item: shown, meta: metaStore.meta(for: shown), line: rankLine(shown),
+                              onArrival: onArrival, buttonsLit: canvasFocused && current == 0,
+                              count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
+                              trailerURL: current == 0 ? trailerURL(for: shown) : nil,
+                              onTrailerFailure: { trailer.playbackFailed($0) },
+                              onTrailerEnded: {
+                                  trailer.playbackFinished()
+                                  advanceHero()
+                              })
             }
-            .offset(y: -offset)
-            .animation(reduceMotion ? nil : OrbitPrimeLayout.vertical, value: offset)
 
-            LinearGradient(colors: [OrbitPrimeLayout.background, OrbitPrimeLayout.background.opacity(0)],
-                           startPoint: .top, endPoint: .bottom)
-                .frame(width: W, height: 130)
-                .opacity(offset > 0 ? 1 : 0)
-                .allowsHitTesting(false)
+            if onArrival {
+                OrbitPrimePills(selected: Self.filters.firstIndex(of: typeFilter) ?? 0,
+                                lit: canvasFocused && current == 1)
+                    .frame(width: W)
+                    .offset(y: OrbitPrimeLayout.pillsTop)
+                    .transition(.opacity)
+            }
+
+            rowsLayer(rows)
+                .offset(y: -offset)
+                .animation(reduceMotion ? nil : OrbitPrimeLayout.vertical, value: offset)
 
             if rows.isEmpty, model.isLoading {
                 ProgressView().frame(width: W, height: H)
@@ -305,7 +320,7 @@ struct OrbitPrimePage: View {
             .offset(y: 110)
             .disabled(search != nil)
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch)
+            CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false)
                 .disabled(search != nil || (canvasFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
@@ -325,6 +340,7 @@ struct OrbitPrimePage: View {
         .background(OrbitPrimeLayout.background)
         .ignoresSafeArea()
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
+        .animation(.easeInOut(duration: 0.25), value: onArrival)
         .onAppear {
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
@@ -350,41 +366,28 @@ struct OrbitPrimePage: View {
         }
         .onChange(of: heroItems.map(\.id)) { _, _ in refreshAfterMove() }
         .onChange(of: typeFilter) { _, _ in
-            current = 0
             heroIndex = 0
             leads = [:]
             refreshAfterMove()
-        }
-        .onChange(of: model.stripRows.map(\.id), initial: true) { _, _ in
-            let all = model.stripRows
-            if typeFilter == "movie", !all.isEmpty, CollectionTypeFilter.rows(all, filter: "movie").isEmpty,
-               !CollectionTypeFilter.rows(all, filter: "series").isEmpty {
-                typeFilter = "series"
-            }
         }
     }
 
     @ViewBuilder
     private func rowsLayer(_ rows: [OrbitPrimeRow]) -> some View {
         let tops = rowTops(rows)
-        let currentRow = current - 1
+        let currentRow = rowIndex(of: current) ?? -1
         let low = max(0, currentRow)
-        let high = min(rows.count - 1, max(currentRow, 0) + 4)
+        let high = min(rows.count - 1, max(currentRow, 0) + 3)
         ZStack(alignment: .topLeading) {
             if low <= high {
                 ForEach(low...high, id: \.self) { i in
                     let row = rows[i]
-                    let lead = lead(of: row)
-                    let item: MetaPreview? = row.items.indices.contains(lead) ? row.items[lead] : nil
-                    OrbitPrimeRowView(row: row, lead: lead, isCurrent: i == currentRow,
+                    OrbitPrimeRowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
                                       focused: canvasFocused && i == currentRow,
-                                      line: item.flatMap { rankLine($0) },
                                       badges: Dictionary(row.items.map { ($0.id, badge($0) ?? "") },
                                                          uniquingKeysWith: { a, _ in a }),
                                       metaStore: metaStore)
                         .offset(y: tops[i])
-                        // The current row's grown card spills over the rows below: drawn above them.
-                        .zIndex(i == currentRow ? 1 : 0)
                         .id(row.id)
                         .transition(.identity)
                 }
@@ -414,9 +417,12 @@ struct OrbitPrimePage: View {
                 let n = heroItems.count
                 guard n > 1 else { return }
                 withAnimation(.easeInOut(duration: 0.3)) { heroIndex = (heroIndex + step + n) % n }
-            } else {
-                let r = current - 1
-                guard rows.indices.contains(r) else { return }
+            } else if current == 1 {
+                // The pills switch as the cursor moves along them.
+                let i = (Self.filters.firstIndex(of: typeFilter) ?? 0) + step
+                guard Self.filters.indices.contains(i) else { return }
+                withAnimation(.easeInOut(duration: 0.2)) { typeFilter = Self.filters[i] }
+            } else if let r = rowIndex(of: current), rows.indices.contains(r) {
                 let row = rows[r]
                 let next = lead(of: row) + step
                 guard row.items.indices.contains(next) else { return }
@@ -429,7 +435,12 @@ struct OrbitPrimePage: View {
     }
 
     private func select() {
-        if let focusedItem { push(TitleRoute(preview: focusedItem)) }
+        if current == 1 {
+            withAnimation(reduceMotion ? nil : OrbitPrimeLayout.vertical) { current = 2 }
+            refreshAfterMove()
+            return
+        }
+        if let shownItem { push(TitleRoute(preview: shownItem)) }
     }
 
     private func exitAction() -> (() -> Void)? {
@@ -442,13 +453,12 @@ struct OrbitPrimePage: View {
 
     private func advanceHero() {
         let n = heroItems.count
-        guard n > 1 else { return }
+        guard n > 1, current == 0 else { return }
         withAnimation(.easeInOut(duration: 0.5)) { heroIndex = (heroIndex + 1) % n }
         motion.stamp()
         refreshAfterMove()
     }
 
-    /// The carousel moves on by itself after a long rest with no trailer playing.
     private func startHeroClock() {
         heroClock?.cancel()
         heroClock = Task { @MainActor in
@@ -479,17 +489,17 @@ struct OrbitPrimePage: View {
         let rows = rows
         motion.stamp()
         var metaItems: [MetaPreview] = heroItems
-        let r = max(0, current - 1)
-        for i in r...max(r, min(rows.count - 1, r + 3)) where rows.indices.contains(i) {
+        let r = rowIndex(of: current) ?? 0
+        for i in r...max(r, min(rows.count - 1, r + 2)) where rows.indices.contains(i) {
             let row = rows[i]
             let lead = lead(of: row)
-            metaItems += row.items.indices.filter { $0 >= lead - 1 && $0 <= lead + 8 }.map { row.items[$0] }
+            metaItems += row.items.indices.filter { $0 >= lead - 1 && $0 <= lead + 7 }.map { row.items[$0] }
         }
         OrbitMetaStore.shared.request(metaItems)
 
         trailer.reset()
         trailerKey = nil
-        // Prime: the hero's trailer plays whether or not the hero has the focus (the bar can).
+        // The hero's trailer plays whether or not it has the focus (the bar can).
         guard trailersOn, current == 0, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = heroItem else { return }
         trailer.prefersReducedMotion = reduceMotion
@@ -505,7 +515,7 @@ private struct OrbitPrimeCanvasStyle: ButtonStyle {
 
 // MARK: - Pieces
 
-/// "prime" with Amazon's smile, as on Prime's tiles.
+/// "prime" with Amazon's smile.
 private struct OrbitPrimeMark: View {
     var size: CGFloat = 22
     var color: Color = .white
@@ -536,50 +546,17 @@ private struct OrbitPrimeSmile: Shape {
     }
 }
 
-/// The white badge top right ("NOUVEAU FILM").
+/// The small white badge top right ("NOUVEAU FILM").
 private struct OrbitPrimeBadge: View {
     let text: String
 
     var body: some View {
         Text(text)
-            .font(.system(size: 14, weight: .heavy))
+            .font(.system(size: 13, weight: .heavy))
             .foregroundStyle(Color.black)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Rectangle().fill(Color.white))
-    }
-}
-
-/// "[NOUVEAU FILM] [16+] Drame  1 h 51".
-private struct OrbitPrimeChips: View {
-    let item: MetaPreview
-    let meta: OrbitMeta?
-    let badge: String?
-
-    var body: some View {
-        let info = OrbitInfo.make(item, meta: meta)
-        HStack(spacing: 10) {
-            if let badge, !badge.isEmpty {
-                Text(badge)
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundStyle(Color.black)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(Color.white))
-            }
-            if let certification = meta?.certification {
-                Text(certification == "TP" ? String(localized: "TOUS PUBLICS") : "\(certification)+")
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.25)))
-            }
-            Text(info.parts.joined(separator: "  "))
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.75))
-                .lineLimit(1)
-        }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Rectangle().fill(Color.white.opacity(0.9)))
     }
 }
 
@@ -599,11 +576,14 @@ private struct OrbitPrimeLine: View {
     }
 }
 
-/// The hero: the still art across the page, its trailer on a rest; the text on the left.
-private struct OrbitPrimeHero: View {
+/// The top of the screen: a title's art on the right (its trailer on a rest), its details on the
+/// left; on arrival, the TV app's buttons and the dots.
+private struct OrbitPrimeTop: View {
     let item: MetaPreview
     let meta: OrbitMeta?
     let line: String?
+    let onArrival: Bool
+    let buttonsLit: Bool
     let count: Int
     let index: Int
     let trailerURL: String?
@@ -612,7 +592,7 @@ private struct OrbitPrimeHero: View {
 
     var body: some View {
         let L = OrbitPrimeLayout.self
-        let size = CGSize(width: OrbitHomeLayout.screenWidth, height: L.heroHeight)
+        let size = CGSize(width: OrbitHomeLayout.screenWidth, height: L.artHeight)
         let banner: String? = item.banner
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .topLeading) {
@@ -626,14 +606,14 @@ private struct OrbitPrimeHero: View {
                         .transition(.opacity.animation(.easeOut(duration: 0.6)))
                 }
                 LinearGradient(stops: [
-                    .init(color: L.background.opacity(0.95), location: 0),
-                    .init(color: L.background.opacity(0.5), location: 0.38),
-                    .init(color: .clear, location: 0.62),
+                    .init(color: L.background.opacity(0.97), location: 0),
+                    .init(color: L.background.opacity(0.6), location: 0.38),
+                    .init(color: .clear, location: 0.64),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
-                    .init(color: .clear, location: 0.55),
-                    .init(color: L.background.opacity(0.85), location: 0.85),
-                    .init(color: L.background, location: 1),
+                    .init(color: .clear, location: onArrival ? 0.5 : 0.25),
+                    .init(color: L.background.opacity(0.9), location: onArrival ? 0.82 : 0.6),
+                    .init(color: L.background, location: onArrival ? 1 : 0.72),
                 ], startPoint: .top, endPoint: .bottom)
             }
             .frame(width: size.width, height: size.height)
@@ -641,30 +621,74 @@ private struct OrbitPrimeHero: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 if orbitPrimeIsOwn(item) {
-                    OrbitPrimeMark(size: 30, color: L.blue)
+                    OrbitPrimeMark(size: 28, color: L.blue)
                         .padding(.bottom, 10)
                 }
-                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
-                               fallbackLogo: info.logoFallback, hugsLogo: true)
+                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: onArrival ? L.logoSize : CGSize(width: 440, height: 140),
+                               textSize: onArrival ? 64 : 48, fallbackLogo: info.logoFallback, hugsLogo: true)
                     .frame(width: L.logoSize.width, alignment: .leading)
                 if let line {
                     OrbitPrimeLine(text: line)
-                        .padding(.top, 22)
+                        .padding(.top, 20)
                 }
                 Text(info.synopsis)
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 23, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.85))
                     .lineSpacing(4)
                     .lineLimit(2)
                     .frame(width: L.synopsisWidth, alignment: .topLeading)
                     .padding(.top, 14)
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(L.blue)
+                    Text(String(localized: "Inclus avec Prime"))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                    if let certification = meta?.certification {
+                        Text(certification == "TP" ? String(localized: "TP") : "\(certification)+")
+                            .font(.system(size: 15, weight: .heavy))
+                            .foregroundStyle(Color.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.22)))
+                    }
+                    Text(info.parts.joined(separator: "  ·  "))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                }
+                .font(.system(size: 20, weight: .semibold))
+                .lineLimit(1)
+                .padding(.top, 14)
+                if onArrival {
+                    HStack(spacing: 18) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 26, weight: .bold))
+                                .foregroundStyle(Color.black)
+                                .frame(width: 66, height: 66)
+                                .background(Circle().fill(Color.white))
+                            Text(String(localized: "Lecture"))
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(Color.white)
+                        }
+                        .scaleEffect(buttonsLit ? 1.06 : 1, anchor: .leading)
+                        ForEach(["plus", "info"], id: \.self) { symbol in
+                            Image(systemName: symbol)
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(Color.white)
+                                .frame(width: 52, height: 52)
+                                .background(Circle().fill(Color.white.opacity(0.2)))
+                        }
+                    }
+                    .padding(.top, 26)
+                    .animation(.easeOut(duration: 0.18), value: buttonsLit)
+                    .transition(.opacity)
+                }
             }
             .frame(width: L.synopsisWidth, alignment: .topLeading)
             .offset(x: L.margin, y: L.infoTop)
             .id("\(item.type):\(item.id)-info")
-            .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+            .transition(.opacity.animation(.easeInOut(duration: 0.25)))
 
-            if count > 1 {
+            if onArrival, count > 1 {
                 HStack(spacing: 10) {
                     ForEach(0..<count, id: \.self) { i in
                         Circle()
@@ -674,21 +698,34 @@ private struct OrbitPrimeHero: View {
                 }
                 .animation(.easeInOut(duration: 0.3), value: index)
                 .frame(width: size.width)
-                .offset(y: L.heroHeight - 110)
-            }
-            if let certification = meta?.certification {
-                Text(certification == "TP" ? String(localized: "TP") : "\(certification)+")
-                    .font(.system(size: 16, weight: .heavy))
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.22)))
-                    .frame(width: size.width - L.margin, alignment: .trailing)
-                    .offset(y: L.heroHeight - 120)
+                .offset(y: L.pillsTop - 40)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
+    }
+}
+
+/// "Tout · Films · Séries", centred under the hero.
+private struct OrbitPrimePills: View {
+    let selected: Int
+    let lit: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(Array([String(localized: "Tout"), String(localized: "Films"), String(localized: "Séries")].enumerated()),
+                    id: \.offset) { i, title in
+                let on = i == selected
+                Text(title)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(on && lit ? Color.black : Color.white.opacity(on ? 1 : 0.75))
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 9)
+                    .background(Capsule().fill(on ? (lit ? Color.white : Color.white.opacity(0.22)) : Color.clear))
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: selected)
+        .animation(.easeOut(duration: 0.18), value: lit)
     }
 }
 
@@ -698,54 +735,51 @@ private struct OrbitPrimeRowView: View {
     let lead: Int
     let isCurrent: Bool
     let focused: Bool
-    let line: String?
     let badges: [String: String]
     @ObservedObject var metaStore: OrbitMetaStore
 
     var body: some View {
         let L = OrbitPrimeLayout.self
         let low = max(0, lead - 1)
-        let window = low...max(low, min(row.items.count - 1, lead + 8))
+        let window = low...max(low, min(row.items.count - 1, lead + 7))
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text(row.title)
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.85))
+                if row.kind == .originals {
+                    Text("Prime").foregroundStyle(L.blue)
+                }
+                Text(row.title).foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.8))
                 if row.kind == .top10 {
                     Image(systemName: "chart.line.uptrend.xyaxis.circle")
-                        .font(.system(size: 26, weight: .semibold))
                         .foregroundStyle(Color.white.opacity(0.9))
                 }
             }
+            .font(.system(size: 26, weight: .bold))
             .lineLimit(1)
             .frame(height: L.headingHeight, alignment: .topLeading)
             .padding(.leading, L.margin)
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
-                    // The focused title last: its grown card above its neighbours.
                     ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        let isLead = isCurrent && index == lead
+                        let lit = focused && index == lead
                         let meta = metaStore.meta(for: item)
                         let badge = badges[item.id].flatMap { $0.isEmpty ? nil : $0 }
                         Group {
                             switch row.kind {
                             case .tiles:
-                                OrbitPrimeTile(item: item, meta: meta, badge: badge, grown: isLead, focused: focused && isLead)
+                                OrbitPrimeTile(item: item, meta: meta, badge: badge, focused: lit)
                             case .originals:
-                                OrbitPrimeOriginal(item: item, meta: meta, badge: badge, open: isLead,
-                                                   focused: focused && isLead, line: isLead ? line : nil)
+                                OrbitPrimePoster(item: item, meta: meta, badge: badge, focused: lit)
                             case .top10:
-                                HStack(alignment: .bottom, spacing: 0) {
+                                HStack(alignment: .center, spacing: 0) {
                                     OrbitPrimeRank(rank: index + 1)
-                                    OrbitPrimeTile(item: item, meta: meta, badge: badge, grown: isLead,
-                                                   focused: focused && isLead, size: L.top10Tile)
+                                    OrbitPrimeTile(item: item, meta: meta, badge: badge, focused: lit)
                                         .padding(.leading, -L.rankTuck)
                                 }
                             }
                         }
-                        .offset(x: L.margin + row.x(of: index, lead: lead, current: isCurrent))
+                        .offset(x: L.margin + row.x(of: index, lead: lead))
                         .opacity(index < lead ? 0 : 1)
-                        .zIndex(isLead ? 1 : 0)
+                        .zIndex(lit ? 1 : 0)
                     }
                 }
             }
@@ -756,151 +790,100 @@ private struct OrbitPrimeRowView: View {
     }
 }
 
-/// Prime's Top 10 rank: big, solid grey, its right part behind the tile.
+/// Prime's Top 10 rank: a very wide, very heavy face, flat grey, its right part under the tile.
 private struct OrbitPrimeRank: View {
     let rank: Int
 
     var body: some View {
         let L = OrbitPrimeLayout.self
-        // Steven's photo: Prime's ranks are a very wide, very heavy face, flat grey, about a third of
-        // the tile's height, a little above its middle, their right part under the tile.
         Text("\(rank)")
-            .font(.system(size: L.top10Tile.height * 0.5, weight: .black).width(.expanded))
+            .font(.system(size: L.tile.height * 0.5, weight: .black).width(.expanded))
             .kerning(rank == 10 ? -4 : 0)
             .foregroundStyle(Color(white: 0.55))
             .fixedSize()
-            .frame(width: L.rankWidth + L.rankTuck, height: L.top10Tile.height, alignment: .trailing)
-            .offset(y: -L.top10Tile.height * 0.1)
+            .frame(width: L.rankWidth + L.rankTuck, height: L.tile.height, alignment: .trailing)
+            .offset(y: -L.tile.height * 0.1)
     }
 }
 
-/// A 16:9 tile: TMDB's backdrop, the title's logo, "prime" on Amazon's own, the badge; focused, it
-/// grows (from its top-left corner) into a card with its summary under the art.
+/// A 16:9 tile: TMDB's backdrop, the French logo, "prime" on Amazon's own, the badge; focused, a
+/// white frame and a little larger, in place.
 private struct OrbitPrimeTile: View {
     let item: MetaPreview
     let meta: OrbitMeta?
     let badge: String?
-    let grown: Bool
     let focused: Bool
-    var size: CGSize = OrbitPrimeLayout.tile
 
     var body: some View {
         let L = OrbitPrimeLayout.self
-        let scale = grown ? L.grownScale : 1
-        let art = CGSize(width: size.width * scale, height: size.height * scale)
+        let size = L.tile
         let info = OrbitInfo.make(item, meta: meta)
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .bottomLeading) {
-                Color(red: 0.10, green: 0.13, blue: 0.18)
-                OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster, size: art)
-                LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
-                OrbitTitleMark(name: item.name, logo: info.logo,
-                               maxSize: CGSize(width: art.width * 0.55, height: art.height * 0.42), textSize: 22 * scale,
-                               fallbackLogo: info.logoFallback)
-                    .padding(.leading, 14 * scale)
-                    .padding(.bottom, 14 * scale)
-                if orbitPrimeIsOwn(item) {
-                    OrbitPrimeMark(size: 17 * scale)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .padding(12 * scale)
-                }
-                if let badge {
-                    OrbitPrimeBadge(text: badge)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                        .padding(5)
-                }
+        ZStack(alignment: .bottomLeading) {
+            Color(red: 0.10, green: 0.13, blue: 0.18)
+            OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster, size: size)
+            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
+            OrbitTitleMark(name: item.name, logo: info.logo,
+                           maxSize: CGSize(width: size.width * 0.55, height: size.height * 0.42), textSize: 24,
+                           fallbackLogo: info.logoFallback)
+                .padding(.leading, 14)
+                .padding(.bottom, 14)
+            if orbitPrimeIsOwn(item) {
+                OrbitPrimeMark(size: 18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(12)
             }
-            .frame(width: art.width, height: art.height)
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: L.radius, bottomLeadingRadius: grown ? 0 : L.radius,
-                                              bottomTrailingRadius: grown ? 0 : L.radius, topTrailingRadius: L.radius,
-                                              style: .continuous))
-            if grown {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(item.name)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(Color.white)
-                        .lineLimit(1)
-                    OrbitPrimeChips(item: item, meta: meta, badge: badge)
-                    Text(info.synopsis)
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .lineSpacing(2)
-                        .lineLimit(3)
-                }
-                .padding(18)
-                .frame(width: art.width, height: L.panelHeight, alignment: .topLeading)
-                .background(UnevenRoundedRectangle(bottomLeadingRadius: L.radius, bottomTrailingRadius: L.radius,
-                                                   style: .continuous).fill(Color.black))
-                .transition(.opacity)
+            if let badge {
+                OrbitPrimeBadge(text: badge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(5)
             }
         }
-        .shadow(color: .black.opacity(grown ? 0.7 : 0.25), radius: grown ? 26 : 6, y: grown ? 14 : 4)
-        .animation(.easeOut(duration: 0.22), value: grown)
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+        .modifier(OrbitPrimeFocus(focused: focused))
     }
 }
 
-/// A portrait poster of Amazon's own titles; focused, it opens into a large 16:9 card.
-private struct OrbitPrimeOriginal: View {
+/// A tall poster of Amazon's own titles (TMDB's, in French when it has one).
+private struct OrbitPrimePoster: View {
     let item: MetaPreview
     let meta: OrbitMeta?
     let badge: String?
-    let open: Bool
     let focused: Bool
-    let line: String?
 
     var body: some View {
         let L = OrbitPrimeLayout.self
-        let size = CGSize(width: open ? L.openWidth : L.poster.width, height: L.poster.height)
-        let info = OrbitInfo.make(item, meta: meta)
+        let size = L.poster
         let poster: String? = meta?.localPoster ?? meta?.titledPoster
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .bottomTrailing) {
             Color(red: 0.10, green: 0.13, blue: 0.18)
-            if open {
-                OrbitImage(url: item.banner ?? meta?.backdrop, fallback: poster, size: size)
-                LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: UnitPoint(x: 0.5, y: 0.35), endPoint: .bottom)
-                VStack(alignment: .leading, spacing: 14) {
-                    OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 420, height: 130), textSize: 44,
-                                   fallbackLogo: info.logoFallback, hugsLogo: true)
-                        .frame(width: 420, alignment: .leading)
-                    HStack(spacing: 14) {
-                        Text(String(localized: "Plus d'informations"))
-                            .font(.system(size: 19, weight: .bold))
-                            .foregroundStyle(focused ? Color.black : Color.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(RoundedRectangle(cornerRadius: 6).fill(focused ? Color.white : Color.white.opacity(0.22)))
-                        Image(systemName: "plus")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(Color.white)
-                            .frame(width: 42, height: 42)
-                            .background(Circle().fill(Color.white.opacity(0.22)))
-                    }
-                    if let line { OrbitPrimeLine(text: line, size: 18) }
-                    OrbitPrimeChips(item: item, meta: meta, badge: badge)
-                }
-                .padding(.leading, 24)
-                .padding(.bottom, 24)
-                OrbitPrimeMark(size: 26)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(26)
-            } else {
-                OrbitImage(url: poster ?? item.poster, fallback: item.poster, mode: .fill, size: size)
-                OrbitPrimeMark(size: 18)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(14)
-                if let badge {
-                    OrbitPrimeBadge(text: badge)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                        .padding(5)
-                }
+            OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: size)
+            OrbitPrimeMark(size: 18)
+                .padding(14)
+            if let badge {
+                OrbitPrimeBadge(text: badge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(5)
             }
         }
-        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 0.9 : 0), lineWidth: 3)
-        }
-        .animation(.easeOut(duration: 0.18), value: focused)
+        .modifier(OrbitPrimeFocus(focused: focused))
+    }
+}
+
+/// The TV app's focus: a white frame, a little larger, in place (from the top-left corner).
+private struct OrbitPrimeFocus: ViewModifier {
+    let focused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                RoundedRectangle(cornerRadius: OrbitPrimeLayout.radius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
+            }
+            .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 4)
+            .scaleEffect(focused ? OrbitPrimeLayout.focusScale : 1, anchor: .leading)
+            .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
