@@ -341,7 +341,8 @@ struct OrbitHBOPage: View {
                                  trailer.playbackFinished()
                                  advanceHero()
                              })
-                    .offset(y: -offset)
+                    // Steven (device: back to the top, the art came down from above): it stays in
+                    // place and fades; only the rows move.
                     .opacity(onArrival ? 1 : 0)
             }
 

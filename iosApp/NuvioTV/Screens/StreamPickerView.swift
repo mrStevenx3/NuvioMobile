@@ -214,7 +214,9 @@ struct StreamPickerView: View {
     /// Orbit's loading screen. Menu cancels the automatic start (the list shows); while it only
     /// holds (a player opening, the page leaving) Menu does nothing.
     private var cover: some View {
-        OrbitLoadingView(title: title, logoUrl: logoUrl, backdropUrl: backdropUrl, plain: closing)
+        // Steven (device: back from the player, the loading screen with "Encore un instant…"):
+        // once a player is up, what is left under it is plain black.
+        OrbitLoadingView(title: title, logoUrl: logoUrl, backdropUrl: backdropUrl, plain: closing || selected != nil)
             .overlay(OrbitCoverFocus(onMenu: autoMode && !holdCover ? { cancelAutoPlay() } : nil))
     }
 

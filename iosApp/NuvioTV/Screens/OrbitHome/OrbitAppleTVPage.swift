@@ -299,7 +299,7 @@ struct OrbitAppleTVPage: View {
                                  })
                     // The carousel's art grows into its detail page too (before the offset, see the rows).
                     .modifier(OrbitAppleTVZoomSource(id: onArrival ? "\(hero.type):\(hero.id)" : "hero", space: zoomSpace))
-                    .offset(y: -offset)
+                    // Steven (device): the art stays in place and fades; only the rows move.
                     .opacity(onArrival ? 1 : 0)
             }
 
