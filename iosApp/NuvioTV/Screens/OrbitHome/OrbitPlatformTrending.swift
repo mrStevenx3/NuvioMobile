@@ -205,14 +205,17 @@ struct OrbitPlatformTrendingRow: View {
 
     /// Steven: the page moves a row at a time — the focused row's heading sits here.
     static let rowLine: CGFloat = 150
-    static let posterWidth: CGFloat = 220
-    static let posterHeight: CGFloat = 330
+    /// Steven (2026-10-25: "tout est trop grand" — the page is a preview of the platform): smaller.
+    static let posterWidth: CGFloat = 170
+    static let posterHeight: CGFloat = 255
+    /// The 16:9 tiles, from Home's size.
+    static let landscapeScale: CGFloat = 0.68
     static let spacing: CGFloat = 24
 
     private enum Kind { case ranked, landscape, posters }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 34) {
+        VStack(alignment: .leading, spacing: 26) {
             if let title = model.title {
                 if model.top.count >= 5 {
                     row(heading: String(format: String(localized: "Top 10 sur %@"), title),
@@ -280,9 +283,9 @@ struct OrbitPlatformTrendingRow: View {
     }
 
     private func row(heading: String, items: [MetaPreview], key: String, kind: Kind) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(heading)
-                .font(.system(size: 30, weight: .bold))
+                .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(Color.white)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: kind == .ranked ? 18 : Self.spacing) {
@@ -299,6 +302,10 @@ struct OrbitPlatformTrendingRow: View {
                             case .landscape:
                                 OrbitLandscapeTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
                                                    meta: metaStore.meta(for: item), focused: lit, showsBadge: false)
+                                    .scaleEffect(Self.landscapeScale, anchor: .topLeading)
+                                    .frame(width: OrbitTileLayout.landscape.width * Self.landscapeScale,
+                                           height: OrbitTileLayout.landscape.height * Self.landscapeScale,
+                                           alignment: .topLeading)
                             case .posters:
                                 OrbitTrendingPoster(item: item, focused: lit)
                             }
