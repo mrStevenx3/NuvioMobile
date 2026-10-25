@@ -132,7 +132,7 @@ struct OrbitAppleTVPage: View {
         let all = catalogs
         var out: [OrbitAppleTVRow] = []
         // Series' Top 10 before the films' (the app's order).
-        let tops = all.filter(\.top10).sorted { a, _ in Self.isSeries(a) }
+        let tops = all.filter { $0.top10 && Self.isSeries($0) } + all.filter { $0.top10 && !Self.isSeries($0) }
         for c in tops {
             out.append(OrbitAppleTVRow(id: c.id,
                                        title: Self.isSeries(c) ? String(localized: "Top 10 : séries sur Apple TV")
