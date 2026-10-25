@@ -38,7 +38,7 @@ enum OrbitDisneyLayout {
     static let top10 = CGSize(width: 385, height: 620)
     static let top10Gap: CGFloat = 36
     /// Disney+ 2026 mixes 16:9 rows and portrait ones (posters with their title).
-    static let poster = CGSize(width: 250, height: 375)
+    static let poster = CGSize(width: 295, height: 411)
     static let gap: CGFloat = 26
     static let rowGap: CGFloat = 58
     static let radius: CGFloat = 12
@@ -701,18 +701,24 @@ private struct OrbitDisneyTop10Card: View {
         let size = L.top10
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .topLeading) {
-            Color(red: 0.07, green: 0.08, blue: 0.12)
-            if let poster = meta?.cleanPoster {
-                OrbitImage(url: poster, mode: .fill, size: size)
-                    .frame(width: size.width, height: size.height)
+            // As on Disney+ (Steven's video): the card's corner is a teal gradient, and the poster
+            // sits inside a large circle whose edge curves across that corner (the arc bulges
+            // towards the corner, it is the poster's edge, not a disc over it).
+            LinearGradient(colors: [Color(red: 0.07, green: 0.47, blue: 0.53), Color(red: 0.04, green: 0.14, blue: 0.22)],
+                           startPoint: .topLeading, endPoint: UnitPoint(x: 0.45, y: 0.3))
+            Group {
+                if let poster = meta?.cleanPoster {
+                    OrbitImage(url: poster, mode: .fill, size: size)
+                } else {
+                    Color(red: 0.07, green: 0.08, blue: 0.12)
+                }
             }
-            // The arc behind the rank.
-            Circle()
-                .fill(RadialGradient(colors: [Color(red: 0.03, green: 0.20, blue: 0.24).opacity(0.97),
-                                              Color(red: 0.03, green: 0.20, blue: 0.24).opacity(0.85)],
-                                     center: .center, startRadius: 0, endRadius: size.width * 0.6))
-                .frame(width: size.width * 0.9, height: size.width * 0.9)
-                .offset(x: -size.width * 0.52, y: -size.width * 0.52)
+            .frame(width: size.width, height: size.height)
+            .mask {
+                Circle()
+                    .frame(width: size.width * 2.25, height: size.width * 2.25)
+                    .position(x: size.width * 0.9, y: size.width * 0.95)
+            }
             Text("\(rank)")
                 .font(.system(size: 84, weight: .heavy, design: .rounded))
                 .foregroundStyle(L.turquoise)
