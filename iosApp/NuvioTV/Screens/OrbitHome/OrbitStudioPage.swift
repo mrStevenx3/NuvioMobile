@@ -9,7 +9,8 @@ import SwiftUI
 //    in large behind the logo, the meta line and the synopsis; the studio's logo and figures in
 //    the banner's corner.
 //  - "Les incontournables" in large landscape cards (the trailer plays in the focused one).
-//  - "Les sagas" in medium landscape cards (the saga's name; it opens its first film).
+//  - A shelf per saga (Disney+ style): its logo, "La saga · N films" and TOUT VOIR on its backdrop,
+//    then its films' posters in order.
 //  - Every other row in small portrait posters, seven to eight a screen: the folder's Nouveautés
 //    and Top 10 (Steven's transparent Top 10 images drawn as they are), "Les plus populaires",
 //    "Prochainement", a row per decade. The focused film's meta line and synopsis under the row.
@@ -49,8 +50,8 @@ struct OrbitStudioRoute: Hashable {
 enum OrbitStudioRowKind: Equatable {
     /// Large landscape cards, the trailer in the focused one.
     case featured
-    /// Medium landscape cards with the saga's name.
-    case sagas
+    /// One saga's shelf: its logo and TOUT VOIR first (`items[0]`), then its films' posters.
+    case saga
     /// Small portrait posters (transparent ones drawn as they are).
     case posters(transparent: Bool)
 }
@@ -69,7 +70,7 @@ struct OrbitStudioRow: Identifiable, Equatable {
     var cardSize: CGSize {
         switch kind {
         case .featured: return CGSize(width: 448, height: 252)
-        case .sagas: return CGSize(width: 380, height: 214)
+        case .saga: return CGSize(width: 220, height: 330)
         // Steven (2026-10-25): his Top 10 images much larger than the other posters.
         case .posters(let transparent):
             return transparent ? CGSize(width: 274, height: 412) : CGSize(width: 196, height: 294)
@@ -81,12 +82,24 @@ struct OrbitStudioRow: Identifiable, Equatable {
         return 26
     }
 
-    /// The focused film's info shows under the row (not for the sagas: their name is the card).
-    var showsInfo: Bool { kind != .sagas }
+    /// The focused film's info shows under the row (not for a saga's shelf: its band is the info).
+    var showsInfo: Bool { kind != .saga }
+
+    /// A saga shelf's first place (its logo and TOUT VOIR).
+    static let sagaPanelWidth: CGFloat = 560
+
+    /// A card's place along the row from the focused one (the saga's panel is wider).
+    func x(of index: Int, lead: Int) -> CGFloat {
+        func start(_ i: Int) -> CGFloat {
+            guard kind == .saga else { return CGFloat(i) * (cardSize.width + gap) }
+            return i == 0 ? 0 : Self.sagaPanelWidth + gap + CGFloat(i - 1) * (cardSize.width + gap)
+        }
+        return start(index) - start(lead)
+    }
 
     /// From this row's heading to the next one's.
     var pitch: CGFloat {
-        OrbitStudioLayout.cardsTop + cardSize.height + (showsInfo ? 230 : 80)
+        OrbitStudioLayout.cardsTop + cardSize.height + (showsInfo ? 230 : kind == .saga ? 110 : 80)
     }
 }
 
@@ -695,19 +708,26 @@ private struct OrbitStudioRowView: View {
         let size = row.cardSize
         let window = max(0, lead - 1)...max(max(0, lead - 1), min(row.items.count - 1, lead + 9))
         ZStack(alignment: .topLeading) {
-            Text(row.title)
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(Color.white)
-                .opacity(isCurrent ? 1 : 0.55)
-                .lineLimit(1)
-                .frame(height: 40)
-                .offset(x: L.margin + 4, y: -20)
+            if row.kind == .saga {
+                OrbitSagaBand(backdrop: row.items.first?.banner, height: L.cardsTop + size.height + 60)
+                    .offset(y: -30)
+            } else {
+                Text(row.title)
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .opacity(isCurrent ? 1 : 0.55)
+                    .lineLimit(1)
+                    .frame(height: 40)
+                    .offset(x: L.margin + 4, y: -20)
+            }
 
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
-                    ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        card(item, focused: focused && index == lead, trailer: index == lead ? trailerURL : nil, size: size)
-                            .offset(x: L.margin + CGFloat(index - lead) * (size.width + row.gap))
+                    // By place, not id: a saga's panel carries its first film's id.
+                    ForEach(Array(zip(window, row.items[window])), id: \.0) { index, item in
+                        card(item, focused: focused && index == lead, trailer: index == lead ? trailerURL : nil, size: size,
+                             panel: row.kind == .saga && index == 0)
+                            .offset(x: L.margin + row.x(of: index, lead: lead))
                             .opacity(index < lead ? 0 : 1)
                             .transition(.identity)
                     }
@@ -743,17 +763,77 @@ private struct OrbitStudioRowView: View {
     }
 
     @ViewBuilder
-    private func card(_ item: MetaPreview, focused: Bool, trailer: String?, size: CGSize) -> some View {
+    private func card(_ item: MetaPreview, focused: Bool, trailer: String?, size: CGSize, panel: Bool = false) -> some View {
         switch row.kind {
+        case .saga where panel:
+            OrbitSagaPanel(saga: item, meta: metaStore.meta(for: item),
+                           size: CGSize(width: OrbitStudioRow.sagaPanelWidth, height: size.height), focused: focused)
+        case .saga:
+            OrbitStudioPoster(item: item, size: size, transparent: false, focused: focused)
         case .featured:
             OrbitStudioCard(item: item, meta: metaStore.meta(for: item), size: size, focused: focused,
                             trailerURL: trailer, onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
-        case .sagas:
-            OrbitStudioCard(item: item, meta: metaStore.meta(for: item), size: size, saga: true, focused: focused,
-                            trailerURL: nil, onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
         case .posters(let transparent):
             OrbitStudioPoster(item: item, size: size, transparent: transparent, focused: focused)
         }
+    }
+}
+
+/// A saga shelf's band across the page: its backdrop at a small size (soft, no blur to compute),
+/// darkened, darker on the left under the logo.
+private struct OrbitSagaBand: View {
+    let backdrop: String?
+    let height: CGFloat
+
+    var body: some View {
+        let W = OrbitHomeLayout.screenWidth
+        // w300 instead of w1280: drawn large, it is already soft.
+        let soft = backdrop?.replacingOccurrences(of: "/w1280/", with: "/w300/")
+        ZStack {
+            Color(white: 0.08)
+            OrbitImage(url: soft, size: CGSize(width: W, height: height))
+                .saturation(1.3)
+                .opacity(0.75)
+            LinearGradient(stops: [
+                .init(color: .black.opacity(0.7), location: 0),
+                .init(color: .black.opacity(0.35), location: 0.4),
+                .init(color: .black.opacity(0.15), location: 1),
+            ], startPoint: .leading, endPoint: .trailing)
+        }
+        .frame(width: W, height: height)
+        .clipped()
+    }
+}
+
+/// A saga shelf's first place: the saga's logo (its first film's: "Toy Story" for Toy Story 1, 2,
+/// 3…), "La saga · 4 films" and TOUT VOIR (it opens the first film).
+private struct OrbitSagaPanel: View {
+    let saga: MetaPreview
+    let meta: OrbitMeta?
+    let size: CGSize
+    let focused: Bool
+
+    var body: some View {
+        let info = OrbitInfo.make(saga, meta: meta)
+        let count: String? = saga.releaseInfo
+        VStack(spacing: 22) {
+            OrbitTitleMark(name: saga.name, logo: info.logo, maxSize: CGSize(width: size.width * 0.8, height: 150),
+                           textSize: 44, fallbackLogo: info.logoFallback)
+                .frame(width: size.width * 0.8, height: 150, alignment: .center)
+            Text(String(localized: "La saga · \(count ?? "") films"))
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.85))
+            Text(String(localized: "TOUT VOIR"))
+                .font(.system(size: 22, weight: .bold))
+                .kerning(2)
+                .foregroundStyle(focused ? Color.black : Color.white)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 14)
+                .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.white : Color.white.opacity(0.2)))
+                .scaleEffect(focused ? 1.06 : 1)
+                .animation(.easeOut(duration: 0.18), value: focused)
+        }
+        .frame(width: size.width, height: size.height)
     }
 }
 
@@ -926,7 +1006,7 @@ final class OrbitStudioModel: ObservableObject {
             self.statsLine = Self.statsLine(network: route.isNetwork, count: found.count, since: found.since)
             self.sagaFilms = found.sagaFilms
             self.tmdbRows = found.rows.map { raw in
-                let kind: OrbitStudioRowKind = raw.id == "best" ? .featured : raw.id == "sagas" ? .sagas
+                let kind: OrbitStudioRowKind = raw.id == "best" ? .featured : raw.id.hasPrefix("saga-") ? .saga
                     : .posters(transparent: false)
                 return OrbitStudioRow(id: raw.id, title: raw.title, items: raw.items, kind: kind)
             }
@@ -1154,19 +1234,22 @@ final class OrbitStudioModel: ObservableObject {
             }
             var sagaSeen = Set<String>()
             let unique = sagas.filter { sagaSeen.insert($0.rawPosterUrl ?? $0.name).inserted }
-            // Each saga's first film (the earliest released part): the card opens it.
-            let firsts = await withTaskGroup(of: (Int, MetaPreview?).self) { group in
+            // Each saga's released films, oldest first (Steven, 2026-10-25: a shelf per saga, Disney+'s
+            // brand shelf — the saga's logo and TOUT VOIR on the left, its films' posters on the right).
+            let parts = await withTaskGroup(of: (Int, [MetaPreview]).self) { group in
                 for (index, card) in unique.enumerated() {
                     group.addTask {
                         let sagaId = (card.rawPosterUrl ?? "").replacingOccurrences(of: "saga:", with: "")
                         guard let collection: CollectionResponse = await decode("https://api.themoviedb.org/3/collection/\(sagaId)?api_key=\(apiKey)&language=\(lang)") else {
-                            return (index, nil)
+                            return (index, [])
                         }
-                        let released = (collection.parts ?? []).filter { !($0.release_date ?? "").isEmpty && ($0.release_date ?? "") <= today }
-                        guard let part = released.min(by: { ($0.release_date ?? "") < ($1.release_date ?? "") }),
-                              let title = part.title, !title.isEmpty else { return (index, nil) }
+                        let released = (collection.parts ?? [])
+                            .filter { !($0.release_date ?? "").isEmpty && ($0.release_date ?? "") <= today && $0.poster_path != nil }
+                            .sorted { ($0.release_date ?? "") < ($1.release_date ?? "") }
+                        return (index, released.compactMap { part -> MetaPreview? in
+                        guard let title = part.title, !title.isEmpty else { return nil }
                         let date = part.release_date
-                        return (index, MetaPreview(id: "tmdb:\(part.id)", type: "movie", name: title,
+                        return MetaPreview(id: "tmdb:\(part.id)", type: "movie", name: title,
                                                    poster: part.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
                                                    banner: part.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                                                    logo: nil, posterShape: .poster,
@@ -1174,26 +1257,30 @@ final class OrbitStudioModel: ObservableObject {
                                                    rawReleaseDate: date, popularity: nil, voteCount: nil,
                                                    imdbRating: part.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
                                                    genres: [], rawPosterUrl: nil, landscapePoster: nil,
-                                                   rawLandscapePosterUrl: nil, customPosterApplied: false))
+                                                   rawLandscapePosterUrl: nil, customPosterApplied: false)
+                        })
                     }
                 }
-                var out: [Int: MetaPreview] = [:]
-                for await (index, film) in group { if let film { out[index] = film } }
+                var out: [Int: [MetaPreview]] = [:]
+                for await (index, films) in group { out[index] = films }
                 return out
             }
-            var cards: [MetaPreview] = []
-            for (index, card) in unique.enumerated() {
-                guard let film = firsts[index] else { cards.append(card); continue }
-                // The card takes the first film's id (its meta, its logo); the saga's name and art stay.
-                cards.append(MetaPreview(id: film.id, type: "movie", name: card.name, poster: card.poster,
-                                         banner: card.banner, logo: nil, posterShape: .landscape,
-                                         description: film.description_, releaseInfo: film.releaseInfo,
-                                         rawReleaseDate: nil, popularity: nil, voteCount: nil, imdbRating: nil,
-                                         genres: [], rawPosterUrl: card.rawPosterUrl, landscapePoster: nil,
-                                         rawLandscapePosterUrl: nil, customPosterApplied: false))
-                sagaFilms[film.id] = film
+            var shelves = 0
+            for (index, card) in unique.enumerated() where shelves < 6 {
+                let films = parts[index] ?? []
+                guard let first = films.first, films.count >= 2 else { continue }
+                shelves += 1
+                // The shelf's first place: the saga itself (the first film's id, for its logo and
+                // TOUT VOIR, which opens it; the saga's name, its backdrop, its number of films).
+                let panel = MetaPreview(id: first.id, type: "movie", name: card.name, poster: card.poster,
+                                        banner: card.banner, logo: nil, posterShape: .landscape,
+                                        description: first.description_, releaseInfo: "\(films.count)",
+                                        rawReleaseDate: nil, popularity: nil, voteCount: nil, imdbRating: nil,
+                                        genres: [], rawPosterUrl: card.rawPosterUrl, landscapePoster: nil,
+                                        rawLandscapePosterUrl: nil, customPosterApplied: false)
+                sagaFilms[first.id] = first
+                rows.append(("saga-\(card.rawPosterUrl ?? card.name)", card.name, [panel] + films))
             }
-            if cards.count >= 2 { rows.append(("sagas", String(localized: "Les sagas"), cards)) }
         }
 
         // Only the films with a synopsis: the others have no real poster yet either.

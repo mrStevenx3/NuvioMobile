@@ -34,7 +34,10 @@ enum OrbitDisneyLayout {
     static let restTop: CGFloat = 160
     static let headingHeight: CGFloat = 54
     static let tile = CGSize(width: 400, height: 225)
-    static let top10 = CGSize(width: 270, height: 405)
+    /// Steven: the Top 10 a bit larger.
+    static let top10 = CGSize(width: 310, height: 465)
+    /// Disney+ 2026 mixes 16:9 rows and portrait ones (posters with their title).
+    static let poster = CGSize(width: 250, height: 375)
     static let gap: CGFloat = 26
     static let rowGap: CGFloat = 58
     static let radius: CGFloat = 12
@@ -48,14 +51,18 @@ struct OrbitDisneyRow: Identifiable, Equatable {
     let title: String
     let items: [MetaPreview]
     let top10: Bool
+    /// Portrait posters (the franchises and the genres), as in Disney+'s 2026 app.
+    var portrait = false
 
     static func == (a: OrbitDisneyRow, b: OrbitDisneyRow) -> Bool {
         a.id == b.id && a.top10 == b.top10 && a.items.map(\.id) == b.items.map(\.id)
     }
 
-    var cardSize: CGSize { top10 ? OrbitDisneyLayout.top10 : OrbitDisneyLayout.tile }
+    var cardSize: CGSize { top10 ? OrbitDisneyLayout.top10 : portrait ? OrbitDisneyLayout.poster : OrbitDisneyLayout.tile }
+    /// The 16:9 tiles have their name and meta line under them.
+    var hasLabels: Bool { !top10 && !portrait }
     var height: CGFloat {
-        OrbitDisneyLayout.headingHeight + cardSize.height + (top10 ? 0 : OrbitDisneyLayout.labelHeight) + OrbitDisneyLayout.rowGap
+        OrbitDisneyLayout.headingHeight + cardSize.height + (hasLabels ? OrbitDisneyLayout.labelHeight : 0) + OrbitDisneyLayout.rowGap
     }
 }
 
@@ -128,18 +135,21 @@ struct OrbitDisneyPage: View {
             guard fresh.count >= 8 else { continue }
             let kept = Array(fresh.prefix(20))
             kept.forEach { shown.insert(Self.identity($0)) }
-            more.append(OrbitDisneyRow(id: extra.id, title: extra.title, items: kept, top10: false))
+            more.append(OrbitDisneyRow(id: extra.id, title: extra.title, items: kept, top10: false, portrait: true))
         }
         return catalogs + more
     }
 
     /// Hulu: its Top 10 (the most popular), then its rows.
     private var huluRows: [OrbitDisneyRow] {
-        let source = series ? hulu.seriesRows : hulu.movieRows
+        // Hulu's films are rarely credited to Hulu on TMDB: its series when it has none.
+        let showsSeries = series || hulu.movieRows.isEmpty
+        let source = showsSeries ? hulu.seriesRows : hulu.movieRows
         guard let popular = source.first else { return [] }
-        var out = [OrbitDisneyRow(id: "hulu-top10-\(series)", title: Self.top10Title(series: series),
+        var out = [OrbitDisneyRow(id: "hulu-top10-\(showsSeries)", title: Self.top10Title(series: showsSeries),
                                   items: Array(popular.items.prefix(10)), top10: true)]
-        out += source.map { OrbitDisneyRow(id: $0.id, title: $0.title, items: $0.items, top10: false) }
+        out += source.map { OrbitDisneyRow(id: $0.id, title: $0.title, items: $0.items, top10: false,
+                                           portrait: $0.id.contains("genre")) }
         return out
     }
 
@@ -230,8 +240,7 @@ struct OrbitDisneyPage: View {
                 if model.isLoading || hulu.isLoading {
                     ProgressView().frame(width: W, height: H)
                 } else if isHulu {
-                    Text(series ? String(localized: "Aucune série Hulu trouvée sur Disney+ en France.")
-                                : String(localized: "Aucun film Hulu trouvé sur Disney+ en France."))
+                    Text(String(localized: "Aucun titre Hulu trouvé sur Disney+ en France."))
                         .font(.system(size: 30, weight: .semibold))
                         .foregroundStyle(Color.white.opacity(0.7))
                         .frame(width: W, height: H)
@@ -441,6 +450,9 @@ struct OrbitDisneyPage: View {
             let lead = lead(of: row)
             metaItems += row.items.indices.filter { $0 >= lead - 1 && $0 <= lead + 6 }.map { row.items[$0] }
         }
+        // The Top 10 cards need their clean poster and logo: all ten asked at once (Steven: a card
+        // still loading showed as a grey block at the right).
+        metaItems += rows.filter(\.top10).flatMap(\.items)
         OrbitMetaStore.shared.request(metaItems)
 
         trailer.reset()
@@ -627,6 +639,8 @@ private struct OrbitDisneyRowView: View {
                             if row.top10 {
                                 OrbitDisneyTop10Card(item: item, rank: index + 1, meta: meta,
                                                      focused: focused && index == lead)
+                            } else if row.portrait {
+                                OrbitDisneyPoster(item: item, focused: focused && index == lead)
                             } else {
                                 OrbitDisneyTile(item: item, meta: meta, focused: focused && index == lead)
                             }
@@ -657,7 +671,7 @@ private struct OrbitDisneyTop10Card: View {
         let size = L.top10
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .topLeading) {
-            Color(red: 0.10, green: 0.11, blue: 0.16)
+            Color(red: 0.07, green: 0.08, blue: 0.12)
             if let poster = meta?.cleanPoster {
                 OrbitImage(url: poster, mode: .fill, size: size)
                     .frame(width: size.width, height: size.height)
@@ -708,6 +722,24 @@ private struct OrbitDisneyTop10Card: View {
     }
 }
 
+/// A portrait poster (its title on the art), as in Disney+'s 2026 rows.
+private struct OrbitDisneyPoster: View {
+    let item: MetaPreview
+    let focused: Bool
+
+    var body: some View {
+        let L = OrbitDisneyLayout.self
+        let size = L.poster
+        ZStack {
+            Color(red: 0.07, green: 0.08, blue: 0.12)
+            OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+        .modifier(OrbitDisneyFocus(focused: focused))
+    }
+}
+
 /// A 16:9 tile: the title's backdrop, its logo bottom left.
 private struct OrbitDisneyTile: View {
     let item: MetaPreview
@@ -721,7 +753,7 @@ private struct OrbitDisneyTile: View {
         let banner: String? = item.banner
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                Color(red: 0.10, green: 0.11, blue: 0.16)
+                Color(red: 0.07, green: 0.08, blue: 0.12)
                 OrbitImage(url: banner ?? meta?.backdrop, fallback: item.poster, size: size, placeholder: item.poster)
                 LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
                 OrbitTitleMark(name: item.name, logo: info.logo,
