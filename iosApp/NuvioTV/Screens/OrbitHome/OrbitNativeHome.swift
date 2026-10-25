@@ -51,7 +51,8 @@ struct OrbitNativeHome: View {
     /// off screen, so the focus had nowhere to go. Its top edge stays on the screen's last points,
     /// where nothing of it shows.)
     static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine - sectionGap - 2 }
-    static let sectionGap: CGFloat = 56
+    /// (Steven: 12 points taken from here went above the details, so the rows stay in place.)
+    static let sectionGap: CGFloat = 44
 
     var body: some View {
         let L = OrbitHomeLayout.self
@@ -288,6 +289,9 @@ struct OrbitNativeRow: View {
                 }
                 .frame(width: 1200, height: Self.infoHeight, alignment: .topLeading)
                 .clipped()
+                // Steven: the text was too close under the posters (the focused one, larger,
+                // nearly touched it).
+                .padding(.top, 12)
                 .padding(.leading, L.margin + 6)
             }
         }
