@@ -270,7 +270,10 @@ struct OrbitNativeRow: View {
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $anchor, anchor: .leading)
-            .contentMargins(.horizontal, L.margin, for: .scrollContent)
+            // Room after the last title (Steven: at a row's end the focus stopped at the margin and
+            // ran on to the right): the last one can come to the margin too.
+            .contentMargins(.leading, L.margin, for: .scrollContent)
+            .contentMargins(.trailing, L.screenWidth - L.margin - (classic ? L.frameWidth : size.width), for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
             // Steven's video (the row below bounced on Left / Right): every part of a row has a
