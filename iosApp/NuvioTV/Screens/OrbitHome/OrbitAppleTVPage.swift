@@ -60,6 +60,8 @@ struct OrbitAppleTVRow: Identifiable, Equatable {
 struct OrbitAppleTVPage: View {
     let route: FolderRoute
     let push: (TitleRoute) -> Void
+    /// The zoom into the detail page (HomeView's namespace).
+    var zoomSpace: Namespace.ID? = nil
 
     static func handles(_ route: FolderRoute) -> Bool {
         let t = route.folderTitle.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
@@ -87,9 +89,10 @@ struct OrbitAppleTVPage: View {
     @State private var search: OrbitPlatformSearchModel?
     @State private var heroClock: Task<Void, Never>?
 
-    init(route: FolderRoute, push: @escaping (TitleRoute) -> Void) {
+    init(route: FolderRoute, push: @escaping (TitleRoute) -> Void, zoomSpace: Namespace.ID? = nil) {
         self.route = route
         self.push = push
+        self.zoomSpace = zoomSpace
         _model = StateObject(wrappedValue: FolderDetailViewModel(route: route))
     }
 
@@ -275,6 +278,8 @@ struct OrbitAppleTVPage: View {
                                  })
                     .offset(y: -offset)
                     .opacity(onArrival ? 1 : 0)
+                    // The carousel's art grows into its detail page too.
+                    .modifier(OrbitAppleTVZoomSource(id: onArrival ? "\(hero.type):\(hero.id)" : "hero", space: zoomSpace))
             }
 
             rowsLayer(rows)
@@ -368,6 +373,7 @@ struct OrbitAppleTVPage: View {
                                         trailerURL: i == currentRow && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
                                         onTrailerFailure: { trailer.playbackFailed($0) },
                                         onTrailerEnded: { trailer.playbackFinished() },
+                                        zoomSpace: zoomSpace,
                                         metaStore: metaStore)
                         .offset(y: tops[i])
                         .id(row.id)
@@ -412,7 +418,7 @@ struct OrbitAppleTVPage: View {
     }
 
     private func select() {
-        if let focusedItem { push(TitleRoute(preview: focusedItem)) }
+        if let focusedItem { push(TitleRoute(preview: focusedItem, zoom: zoomSpace != nil)) }
     }
 
     private func exitAction() -> (() -> Void)? {
@@ -694,6 +700,7 @@ private struct OrbitAppleTVRowView: View {
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
+    let zoomSpace: Namespace.ID?
     @ObservedObject var metaStore: OrbitMetaStore
 
     /// Half the focused title's growth, plus a little air.
@@ -736,6 +743,7 @@ private struct OrbitAppleTVRowView: View {
                             }
                         }
                         .offset(x: L.margin + CGFloat(index - lead) * row.slot)
+                        .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
                         .opacity(index < lead ? 0 : 1)
                         .zIndex(lit ? 1 : 0)
                     }
@@ -848,5 +856,19 @@ private struct OrbitAppleTVFocus: ViewModifier {
             .shadow(color: .black.opacity(focused ? 0.55 : 0.25), radius: focused ? 24 : 8, y: focused ? 16 : 4)
             .scaleEffect(focused ? scale : 1)
             .animation(.easeOut(duration: 0.2), value: focused)
+    }
+}
+
+/// A poster the detail page grows out of (tvOS's zoom), when the page has the namespace.
+private struct OrbitAppleTVZoomSource: ViewModifier {
+    let id: String
+    let space: Namespace.ID?
+
+    func body(content: Content) -> some View {
+        if let space {
+            content.matchedTransitionSource(id: id, in: space)
+        } else {
+            content
+        }
     }
 }

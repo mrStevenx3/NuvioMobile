@@ -15,6 +15,8 @@ struct HomeView: View {
     /// picker cover is gone.
     @State private var homePostPlayPending: MetaPreview?
     @State private var homePath = NavigationPath()
+    /// The Apple TV page's posters and the detail page they grow into.
+    @Namespace private var zoomSpace
     @State private var isScrolledDown = false
     @AppStorage("home_upcoming_row_enabled") private var upcomingRowEnabled = true
 
@@ -30,7 +32,12 @@ struct HomeView: View {
                                 isScrolledDown: $isScrolledDown)
             }
             .navigationDestination(for: TitleRoute.self) { route in
-                DetailView(preview: route.preview)
+                if route.zoom {
+                    DetailView(preview: route.preview)
+                        .navigationTransition(.zoom(sourceID: route.zoomID, in: zoomSpace))
+                } else {
+                    DetailView(preview: route.preview)
+                }
             }
             .navigationDestination(for: CatalogRoute.self) { route in
                 CatalogGridView(route: route)
@@ -56,7 +63,7 @@ struct HomeView: View {
                 } else if OrbitParamountPage.handles(route) {
                     OrbitParamountPage(route: route, push: { homePath.append($0) })
                 } else if OrbitAppleTVPage.handles(route) {
-                    OrbitAppleTVPage(route: route, push: { homePath.append($0) })
+                    OrbitAppleTVPage(route: route, push: { homePath.append($0) }, zoomSpace: zoomSpace)
                 } else {
                     OrbitPlatformPage(route: route, push: { homePath.append($0) })
                 }

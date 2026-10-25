@@ -41,6 +41,12 @@ nonisolated enum FocusLeadsRow {
 /// the destination's initial render. Shared by Home, Search, and detail "more like this".
 struct TitleRoute: Hashable {
     let preview: MetaPreview
+    /// Steven (Apple TV): the detail page opens by growing out of its poster (tvOS's zoom), only
+    /// from the Apple TV page — not part of the route's identity.
+    var zoom: Bool = false
+
+    /// The poster's id for the zoom.
+    var zoomID: String { "\(preview.type):\(preview.id)" }
 
     static func == (lhs: TitleRoute, rhs: TitleRoute) -> Bool {
         lhs.preview.id == rhs.preview.id && lhs.preview.type == rhs.preview.type
