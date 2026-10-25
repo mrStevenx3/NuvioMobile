@@ -57,12 +57,15 @@ private enum OrbitBarItem: Hashable, CaseIterable {
     case home
     /// Collections' bar only (Prime Video): films and series together.
     case everything
+    /// HBO Max's bar only: HBO's own programmes (filter "hbo").
+    case hbo
 
     var title: String? {
         switch self {
         case .films: return String(localized: "Films")
         case .series: return String(localized: "Séries")
         case .everything: return String(localized: "Accueil")
+        case .hbo: return "HBO"
         case .services: return String(localized: "Plateformes")
         case .studios: return String(localized: "Studios")
         default: return nil
@@ -644,6 +647,8 @@ struct CollectionFilterBar: View {
     var showsTypes = true
     /// "Accueil" before Films / Séries (Prime Video): the filter nil.
     var showsAll = false
+    /// "HBO" after Films / Séries (HBO Max's own tab): the filter "hbo".
+    var showsHBO = false
     /// Steven (Disney+, 2026-10-25): a second pill at the screen's centre ("Disney+ · Hulu").
     var switchItems: [String] = []
     var switchSelection: Binding<Int>? = nil
@@ -774,12 +779,14 @@ struct CollectionFilterBar: View {
 
     private var items: [OrbitBarItem] {
         guard showsTypes else { return [.home, .search] }
-        return showsAll ? [.home, .search, .everything, .films, .series] : [.home, .search, .films, .series]
+        let base: [OrbitBarItem] = showsAll ? [.home, .search, .everything, .films, .series] : [.home, .search, .films, .series]
+        return showsHBO ? base + [.hbo] : base
     }
 
     /// Where the cursor lands on entry: the page's current tab.
     private var entryItem: OrbitBarItem {
         if showsAll, filter == nil { return .everything }
+        if showsHBO, filter == "hbo" { return .hbo }
         return isSelected(.series) && !isSelected(.films) ? .series : .films
     }
 
@@ -787,6 +794,7 @@ struct CollectionFilterBar: View {
         switch item {
         case .films: return "movie"
         case .series: return "series"
+        case .hbo: return "hbo"
         default: return nil
         }
     }

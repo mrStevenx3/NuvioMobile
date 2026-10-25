@@ -138,14 +138,23 @@ struct OrbitHBOPage: View {
         let fresh: Bool
     }
 
+    /// Steven: the TV app's "HBO" tab, HBO's own programmes only.
+    private var onHBO: Bool { typeFilter == "hbo" }
+
     private var catalogs: [Catalog] {
-        CollectionTypeFilter.rows(model.stripRows, filter: typeFilter).compactMap { row in
+        CollectionTypeFilter.rows(model.stripRows, filter: onHBO ? nil : typeFilter).compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             var seen = Set<String>()
-            let unique = items.filter { seen.insert("\($0.type):\($0.id)").inserted }
+            var unique = items.filter { seen.insert("\($0.type):\($0.id)").inserted }
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-            return Catalog(id: row.id, heading: row.heading, items: unique,
-                           top10: heading.contains("top 10") || heading.contains("top10"),
+            let top10 = heading.contains("top 10") || heading.contains("top10")
+            if onHBO {
+                // HBO: no Top 10 (its ranks are everyone's), only HBO Originals.
+                guard !top10 else { return nil }
+                unique = unique.filter { OrbitHBOOwn.of($0) == .hbo }
+                guard unique.count >= 3 else { return nil }
+            }
+            return Catalog(id: row.id, heading: row.heading, items: unique, top10: top10,
                            fresh: heading.contains("nouveau") || heading.contains("nouvelle"))
         }
     }
@@ -168,6 +177,9 @@ struct OrbitHBOPage: View {
         }
         let all = catalogs
         var out: [OrbitHBORow] = []
+        if onHBO {
+            return all.map { OrbitHBORow(id: "hbo-\($0.id)", title: $0.heading, items: $0.items, top10: false) }
+        }
         for c in all where c.fresh {
             out.append(OrbitHBORow(id: c.id, title: c.heading, items: c.items, top10: false))
         }
@@ -319,7 +331,7 @@ struct OrbitHBOPage: View {
             .offset(y: 110)
             .disabled(search != nil)
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
+            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, showsHBO: true)
                 .disabled(search != nil || (canvasFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
