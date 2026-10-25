@@ -116,8 +116,14 @@ struct OrbitPrimePage: View {
     /// 0: the hero; then the rows. (Tout / Films / Séries: in the bar, Steven, as on Prime 2026.)
     @State private var current = 0
     @State private var heroIndex = 0
-    @State private var leads: [String: Int] = [:]
+    /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
+    @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
+    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
+    @State private var nativeHasFocus = false
+    /// The page holds the focus (the canvas's, or one of the native sections').
+    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -298,16 +304,17 @@ struct OrbitPrimePage: View {
         let rows = rows
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let offset = scroll(rows)
-        let shown = shownItem
         let onArrival = current == 0
         let onOriginals = rowIndex(of: current).map { rows.indices.contains($0) && rows[$0].kind == .originals } ?? false
 
         ZStack(alignment: .topLeading) {
             OrbitPrimeLayout.background
 
-            if let shown {
+            // (Native: the top follows the current row's own lead box — a press in a row redraws it.)
+            OrbitLeadReader(box: leads.box(rowIndex(of: current).flatMap { rows.indices.contains($0) ? rows[$0].id : nil } ?? "-")) { _ in
+            if let shown = shownItem {
                 OrbitPrimeTop(item: shown, meta: metaStore.meta(for: shown), line: rankLine(shown),
-                              onArrival: onArrival, buttonsLit: canvasFocused && current == 0,
+                              onArrival: onArrival, buttonsLit: pageFocused && current == 0,
                               count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                               trailerURL: current == 0 ? trailerURL(for: shown) : nil,
                               onTrailerFailure: { trailer.playbackFailed($0) },
@@ -320,16 +327,23 @@ struct OrbitPrimePage: View {
                     .opacity(onOriginals ? 0 : 1)
                     .animation(.easeInOut(duration: 0.3), value: onOriginals)
             }
+            }
 
 
+            if nativeHome {
+                nativeSections(rows)
+                    .disabled(search != nil)
+            } else {
             rowsLayer(rows)
                 .offset(y: -offset)
                 .animation(reduceMotion ? nil : OrbitPrimeLayout.vertical, value: offset)
+            }
 
             if rows.isEmpty, model.isLoading {
                 ProgressView().frame(width: W, height: H)
             }
 
+            if !nativeHome {
             Button(action: select) {
                 Color.clear
                     .frame(width: W, height: H - 110)
@@ -341,9 +355,10 @@ struct OrbitPrimePage: View {
             .onExitCommand(perform: exitAction())
             .offset(y: 110)
             .disabled(search != nil)
+            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
-                .disabled(search != nil || (canvasFocused && current > 0))
+                .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
@@ -390,7 +405,7 @@ struct OrbitPrimePage: View {
         .onChange(of: typeFilter) { _, _ in
             current = 0
             heroIndex = 0
-            leads = [:]
+            leads.reset()
             refreshAfterMove()
         }
     }
@@ -409,7 +424,7 @@ struct OrbitPrimePage: View {
                     let rowLead = lead(of: row)
                     let leadItem: MetaPreview? = row.items.indices.contains(rowLead) ? row.items[rowLead] : nil
                     OrbitPrimeRowView(row: row, lead: rowLead, isCurrent: i == currentRow,
-                                      focused: canvasFocused && i == currentRow,
+                                      focused: pageFocused && i == currentRow,
                                       trailerURL: i == currentRow && row.kind == .originals ? trailerURL(for: leadItem) : nil,
                                       onTrailerFailure: { trailer.playbackFailed($0) },
                                       onTrailerEnded: { trailer.playbackFinished() },
@@ -425,6 +440,43 @@ struct OrbitPrimePage: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
+    }
+
+    /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
+    /// the rows drawn as before) as real buttons the system moves.
+    private func nativeSections(_ rows: [OrbitPrimeRow]) -> some View {
+        OrbitNativeSections(
+            count: 1 + rows.count, hasHero: true,
+            height: { s in s == 0 ? OrbitPrimeLayout.rowsTopOnArrival - OrbitPrimeLayout.rowLine : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            topLine: OrbitPrimeLayout.rowLine, current: current, hidesAbove: true,
+            onFocus: { s in
+                withAnimation(.easeInOut(duration: 0.3)) { current = s }
+                refreshAfterMove()
+            },
+            onMove: { move($0) }, onSelect: select, onExit: exitAction(),
+            onFocusChange: { has in
+                nativeHasFocus = has
+                refreshAfterMove()
+            }
+        ) { s, focused in
+            if s == 0 {
+                Color.clear
+            } else if rows.indices.contains(s - 1) {
+                let row = rows[s - 1]
+                OrbitLeadReader(box: leads.box(row.id)) { _ in
+                    let rowLead = lead(of: row)
+                    let leadItem: MetaPreview? = row.items.indices.contains(rowLead) ? row.items[rowLead] : nil
+                    OrbitPrimeRowView(row: row, lead: rowLead, isCurrent: s == current,
+                                      focused: focused,
+                                      trailerURL: s == current && row.kind == .originals ? trailerURL(for: leadItem) : nil,
+                                      onTrailerFailure: { trailer.playbackFailed($0) },
+                                      onTrailerEnded: { trailer.playbackFinished() },
+                                      badges: Dictionary(row.items.map { ($0.id, badge($0) ?? "") },
+                                                         uniquingKeysWith: { a, _ in a }),
+                                      metaStore: metaStore)
+                }
+            }
+        }
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {
@@ -533,7 +585,7 @@ struct OrbitPrimePage: View {
         var target: MetaPreview?
         if current == 0 {
             target = heroItem
-        } else if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].kind == .originals, canvasFocused {
+        } else if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].kind == .originals, pageFocused {
             let row = rows[r]
             target = row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil
         }

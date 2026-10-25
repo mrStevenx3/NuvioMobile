@@ -87,11 +87,17 @@ struct OrbitAppleTVPage: View {
     /// 0: the carousel; then the rows.
     @State private var current = 0
     @State private var heroIndex = 0
-    @State private var leads: [String: Int] = [:]
+    /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
+    @State private var leads = OrbitLeadStore()
     /// Steven (as in the app): each row's first title on screen — the focus moves along a still row,
     /// which scrolls only when the focus would leave the screen.
-    @State private var firsts: [String: Int] = [:]
+    @State private var firsts = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
+    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
+    @State private var nativeHasFocus = false
+    /// The page holds the focus (the canvas's, or one of the native sections').
+    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -289,7 +295,7 @@ struct OrbitAppleTVPage: View {
 
             if let hero = heroItem {
                 OrbitAppleTVHero(item: hero, meta: metaStore.meta(for: hero), isNew: isNew(hero), line: rankLine(hero),
-                                 buttonLit: canvasFocused && onArrival,
+                                 buttonLit: pageFocused && onArrival,
                                  count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                                  trailerURL: onArrival ? trailerURL(for: hero) : nil,
                                  onTrailerFailure: { trailer.playbackFailed($0) },
@@ -303,13 +309,19 @@ struct OrbitAppleTVPage: View {
                     .opacity(onArrival ? 1 : 0)
             }
 
+            if nativeHome {
+                nativeSections(rows)
+                    .disabled(search != nil)
+            } else {
             rowsLayer(rows)
                 .offset(y: -offset)
+            }
 
             if rows.isEmpty, model.isLoading {
                 ProgressView().frame(width: W, height: H)
             }
 
+            if !nativeHome {
             Button(action: select) {
                 Color.clear
                     .frame(width: W, height: H - 110)
@@ -321,10 +333,11 @@ struct OrbitAppleTVPage: View {
             .onExitCommand(perform: exitAction())
             .offset(y: 110)
             .disabled(search != nil)
+            }
 
             // Steven: the app mixes films and series, with no Accueil / Films / Séries.
             CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false)
-                .disabled(search != nil || (canvasFocused && current > 0))
+                .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
@@ -375,8 +388,8 @@ struct OrbitAppleTVPage: View {
         .onChange(of: typeFilter) { _, _ in
             current = 0
             heroIndex = 0
-            leads = [:]
-            firsts = [:]
+            leads.reset()
+            firsts.reset()
             refreshAfterMove()
         }
     }
@@ -392,7 +405,7 @@ struct OrbitAppleTVPage: View {
                 ForEach(low...high, id: \.self) { i in
                     let row = rows[i]
                     OrbitAppleTVRowView(row: row, lead: lead(of: row), first: first(of: row), isCurrent: i == currentRow,
-                                        focused: canvasFocused && i == currentRow,
+                                        focused: pageFocused && i == currentRow,
                                         newIDs: Set(row.items.filter(isNew).map(\.id)),
                                         rankLine: { rankLine($0) },
                                         trailerURL: i == currentRow && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
@@ -406,6 +419,51 @@ struct OrbitAppleTVPage: View {
                 }
             }
         }
+    }
+
+    /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
+    /// the rows drawn as before) as real buttons the system moves.
+    private func nativeSections(_ rows: [OrbitAppleTVRow]) -> some View {
+        OrbitNativeSections(
+            count: 1 + rows.count, hasHero: true,
+            height: { s in s == 0 ? OrbitAppleTVLayout.rowsTopOnArrival - nativeLine(rows) : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            topLine: nativeLine(rows), current: current, hidesAbove: false,
+            onFocus: { s in
+                withAnimation(.easeInOut(duration: 0.3)) { current = s }
+                refreshAfterMove()
+            },
+            onMove: { move($0) }, onSelect: select, onExit: exitAction(),
+            onFocusChange: { has in
+                nativeHasFocus = has
+                refreshAfterMove()
+            }
+        ) { s, focused in
+            if s == 0 {
+                Color.clear
+            } else if rows.indices.contains(s - 1) {
+                let row = rows[s - 1]
+                OrbitLeadReader(box: leads.box(row.id)) { _ in
+                OrbitLeadReader(box: firsts.box(row.id)) { _ in
+                    OrbitAppleTVRowView(row: row, lead: lead(of: row), first: first(of: row), isCurrent: s == current,
+                                        focused: focused,
+                                        newIDs: Set(row.items.filter(isNew).map(\.id)),
+                                        rankLine: { rankLine($0) },
+                                        trailerURL: s == current && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
+                                        onTrailerFailure: { trailer.playbackFailed($0) },
+                                        onTrailerEnded: { trailer.playbackFinished() },
+                                        zoomSpace: zoomSpace,
+                                        metaStore: metaStore)
+                }
+                }
+            }
+        }
+    }
+
+    /// The line a focused row rests on (the row above half in view, its usual height).
+    private func nativeLine(_ rows: [OrbitAppleTVRow]) -> CGFloat {
+        let L = OrbitAppleTVLayout.self
+        let average = rows.isEmpty ? 0 : rows.map(\.height).reduce(0, +) / CGFloat(rows.count)
+        return L.firstRowLine + average * L.aboveRowShows
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {
@@ -514,7 +572,7 @@ struct OrbitAppleTVPage: View {
         var target: MetaPreview?
         if current == 0 {
             target = heroItem
-        } else if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].kind == .cards, canvasFocused {
+        } else if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].kind == .cards, pageFocused {
             let row = rows[r]
             target = row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil
         }

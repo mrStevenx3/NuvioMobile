@@ -88,8 +88,14 @@ struct OrbitParamountPage: View {
     /// 0: the arrival (the new titles in turn); then the rows.
     @State private var current = 0
     @State private var heroIndex = 0
-    @State private var leads: [String: Int] = [:]
+    /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
+    @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
+    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
+    @State private var nativeHasFocus = false
+    /// The page holds the focus (the canvas's, or one of the native sections').
+    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -267,15 +273,16 @@ struct OrbitParamountPage: View {
         let rows = rows
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let offset = scroll(rows)
-        let shown = shownItem
         let onArrival = current == 0
 
         ZStack(alignment: .topLeading) {
             OrbitParamountLayout.background
 
-            if let shown {
+            // (Native: the top follows the current row's own lead box — a press in a row redraws it.)
+            OrbitLeadReader(box: leads.box(rowIndex(of: current).flatMap { rows.indices.contains($0) ? rows[$0].id : nil } ?? "-")) { _ in
+            if let shown = shownItem {
                 OrbitParamountTop(item: shown, meta: metaStore.meta(for: shown), line: greenLine(shown),
-                                  onArrival: onArrival, buttonLit: canvasFocused && onArrival,
+                                  onArrival: onArrival, buttonLit: pageFocused && onArrival,
                                   count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                                   trailerURL: onArrival ? trailerURL(for: shown) : nil,
                                   onTrailerFailure: { trailer.playbackFailed($0) },
@@ -284,15 +291,22 @@ struct OrbitParamountPage: View {
                                       advanceHero()
                                   })
             }
+            }
 
+            if nativeHome {
+                nativeSections(rows)
+                    .disabled(search != nil)
+            } else {
             rowsLayer(rows)
                 .offset(y: -offset)
                 .animation(reduceMotion ? nil : OrbitParamountLayout.vertical, value: offset)
+            }
 
             if rows.isEmpty, model.isLoading {
                 ProgressView().frame(width: W, height: H)
             }
 
+            if !nativeHome {
             Button(action: select) {
                 Color.clear
                     .frame(width: W, height: H - 110)
@@ -304,9 +318,10 @@ struct OrbitParamountPage: View {
             .onExitCommand(perform: exitAction())
             .offset(y: 110)
             .disabled(search != nil)
+            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
-                .disabled(search != nil || (canvasFocused && current > 0))
+                .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
@@ -353,7 +368,7 @@ struct OrbitParamountPage: View {
         .onChange(of: typeFilter) { _, _ in
             current = 0
             heroIndex = 0
-            leads = [:]
+            leads.reset()
             refreshAfterMove()
         }
     }
@@ -371,7 +386,7 @@ struct OrbitParamountPage: View {
             if low <= high {
                 ForEach(Array(zip(low...high, rows[low...high])), id: \.1.id) { i, row in
                     OrbitParamountRowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
-                                          focused: canvasFocused && i == currentRow,
+                                          focused: pageFocused && i == currentRow,
                                           news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
                                           metaStore: metaStore)
                         .offset(y: tops[i])
@@ -383,6 +398,37 @@ struct OrbitParamountPage: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
+    }
+
+    /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
+    /// the rows drawn as before) as real buttons the system moves.
+    private func nativeSections(_ rows: [OrbitParamountRow]) -> some View {
+        OrbitNativeSections(
+            count: 1 + rows.count, hasHero: true,
+            height: { s in s == 0 ? OrbitParamountLayout.rowsTopOnArrival - OrbitParamountLayout.rowLine : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            topLine: OrbitParamountLayout.rowLine, current: current, hidesAbove: true,
+            onFocus: { s in
+                withAnimation(.easeInOut(duration: 0.3)) { current = s }
+                refreshAfterMove()
+            },
+            onMove: { move($0) }, onSelect: select, onExit: exitAction(),
+            onFocusChange: { has in
+                nativeHasFocus = has
+                refreshAfterMove()
+            }
+        ) { s, focused in
+            if s == 0 {
+                Color.clear
+            } else if rows.indices.contains(s - 1) {
+                let row = rows[s - 1]
+                OrbitLeadReader(box: leads.box(row.id)) { _ in
+                    OrbitParamountRowView(row: row, lead: lead(of: row), isCurrent: s == current,
+                                          focused: focused,
+                                          news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
+                                          metaStore: metaStore)
+                }
+            }
+        }
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {

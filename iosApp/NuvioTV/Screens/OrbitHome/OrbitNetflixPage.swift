@@ -106,8 +106,14 @@ struct OrbitNetflixPage: View {
     @State private var typeFilter: String? = nil
     /// 0: the billboard; then the rows.
     @State private var current = 0
-    @State private var leads: [String: Int] = [:]
+    /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
+    @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
+    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
+    @State private var nativeHasFocus = false
+    /// The page holds the focus (the canvas's, or one of the native sections').
+    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -241,11 +247,15 @@ struct OrbitNetflixPage: View {
         ZStack(alignment: .topLeading) {
             OrbitNetflixLayout.background
 
+            if nativeHome {
+                nativeSections(rows, billboard: billboard)
+                    .disabled(search != nil)
+            } else {
             ZStack(alignment: .topLeading) {
                 if let billboard {
                     OrbitNetflixBillboard(item: billboard, meta: metaStore.meta(for: billboard),
                                           rank: topRank(billboard), series: billboard.type != "movie",
-                                          focused: canvasFocused && current == 0,
+                                          focused: pageFocused && current == 0,
                                           trailerURL: current == 0 ? trailerURL(for: billboard) : nil,
                                           onTrailerFailure: { trailer.playbackFailed($0) },
                                           onTrailerEnded: { trailer.playbackFinished() })
@@ -260,6 +270,7 @@ struct OrbitNetflixPage: View {
             }
             .offset(y: -offset)
             .animation(reduceMotion ? nil : OrbitNetflixLayout.vertical, value: offset)
+            }
 
             // Under the bar: black, so the row above never shows through.
             LinearGradient(colors: [.black, .black.opacity(0.9), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
@@ -271,6 +282,7 @@ struct OrbitNetflixPage: View {
                 ProgressView().frame(width: W, height: H)
             }
 
+            if !nativeHome {
             Button(action: select) {
                 Color.clear
                     .frame(width: W, height: H - 110)
@@ -282,9 +294,10 @@ struct OrbitNetflixPage: View {
             .onExitCommand(perform: exitAction())
             .offset(y: 110)
             .disabled(search != nil)
+            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
-                .disabled(search != nil || (canvasFocused && current > 0))
+                .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
@@ -326,7 +339,7 @@ struct OrbitNetflixPage: View {
         }
         .onChange(of: typeFilter) { _, _ in
             current = 0
-            leads = [:]
+            leads.reset()
             refreshAfterMove()
         }
     }
@@ -345,7 +358,7 @@ struct OrbitNetflixPage: View {
                     let lead = lead(of: row)
                     let item: MetaPreview? = row.items.indices.contains(lead) ? row.items[lead] : nil
                     OrbitNetflixRowView(row: row, lead: lead, isCurrent: i == currentRow,
-                                        focused: canvasFocused && i == currentRow,
+                                        focused: pageFocused && i == currentRow,
                                         series: item.map { $0.type != "movie" } ?? series,
                                         rank: item.flatMap { topRank($0) },
                                         trailerURL: i == currentRow ? trailerURL(for: item) : nil,
@@ -361,6 +374,50 @@ struct OrbitNetflixPage: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
+    }
+
+    /// The native page: the billboard and the rows as sections the system moves.
+    private func nativeSections(_ rows: [OrbitNetflixRow], billboard: MetaPreview?) -> some View {
+        let L = OrbitNetflixLayout.self
+        return OrbitNativeSections(
+            count: 1 + rows.count, hasHero: true,
+            height: { s in s == 0 ? L.rowsTop - L.restTop : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            topLine: L.restTop, current: current,
+            onFocus: { s in
+                withAnimation(.easeInOut(duration: 0.3)) { current = s }
+                refreshAfterMove()
+            },
+            onMove: { move($0) }, onSelect: select, onExit: exitAction(),
+            onFocusChange: { has in
+                nativeHasFocus = has
+                refreshAfterMove()
+            }
+        ) { s, focused in
+            if s == 0 {
+                if let billboard {
+                    OrbitNetflixBillboard(item: billboard, meta: metaStore.meta(for: billboard),
+                                          rank: topRank(billboard), series: billboard.type != "movie",
+                                          focused: focused,
+                                          trailerURL: current == 0 ? trailerURL(for: billboard) : nil,
+                                          onTrailerFailure: { trailer.playbackFailed($0) },
+                                          onTrailerEnded: { trailer.playbackFinished() })
+                        .offset(x: L.margin, y: L.billboardTop - L.restTop)
+                }
+            } else if rows.indices.contains(s - 1) {
+                let row = rows[s - 1]
+                OrbitLeadReader(box: leads.box(row.id)) { _ in
+                    let lead = lead(of: row)
+                    let item: MetaPreview? = row.items.indices.contains(lead) ? row.items[lead] : nil
+                    OrbitNetflixRowView(row: row, lead: lead, isCurrent: s == current, focused: focused,
+                                        series: item.map { $0.type != "movie" } ?? series,
+                                        rank: item.flatMap { topRank($0) },
+                                        trailerURL: s == current ? trailerURL(for: item) : nil,
+                                        onTrailerFailure: { trailer.playbackFailed($0) },
+                                        onTrailerEnded: { trailer.playbackFinished() },
+                                        metaStore: metaStore)
+                }
+            }
+        }
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {
@@ -442,7 +499,7 @@ struct OrbitNetflixPage: View {
 
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, canvasFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+        guard trailersOn, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = focusedItem else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)

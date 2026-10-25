@@ -122,8 +122,14 @@ struct OrbitHBOPage: View {
     /// 0: the carousel; then the rows.
     @State private var current = 0
     @State private var heroIndex = 0
-    @State private var leads: [String: Int] = [:]
+    /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
+    @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
+    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
+    @State private var nativeHasFocus = false
+    /// The page holds the focus (the canvas's, or one of the native sections').
+    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -333,7 +339,7 @@ struct OrbitHBOPage: View {
 
             if let hero = heroItem {
                 OrbitHBOHero(item: hero, meta: metaStore.meta(for: hero), isNew: isNew(hero),
-                             buttonLit: canvasFocused && onArrival,
+                             buttonLit: pageFocused && onArrival,
                              count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                              trailerURL: onArrival ? trailerURL(for: hero) : nil,
                              onTrailerFailure: { trailer.playbackFailed($0) },
@@ -346,8 +352,13 @@ struct OrbitHBOPage: View {
                     .opacity(onArrival ? 1 : 0)
             }
 
+            if nativeHome {
+                nativeSections(rows)
+                    .disabled(search != nil)
+            } else {
             rowsLayer(rows)
                 .offset(y: -offset)
+            }
 
             // Under the bar: the night blue, so the row above fades out under it.
             LinearGradient(colors: [OrbitHBOLayout.background, OrbitHBOLayout.background.opacity(0.85),
@@ -361,6 +372,7 @@ struct OrbitHBOPage: View {
                 ProgressView().frame(width: W, height: H)
             }
 
+            if !nativeHome {
             Button(action: select) {
                 Color.clear
                     .frame(width: W, height: H - 110)
@@ -372,9 +384,10 @@ struct OrbitHBOPage: View {
             .onExitCommand(perform: exitAction())
             .offset(y: 110)
             .disabled(search != nil)
+            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, showsHBO: true)
-                .disabled(search != nil || (canvasFocused && current > 0))
+                .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
@@ -426,7 +439,7 @@ struct OrbitHBOPage: View {
         .onChange(of: typeFilter) { _, _ in
             current = 0
             heroIndex = 0
-            leads = [:]
+            leads.reset()
             refreshAfterMove()
         }
     }
@@ -443,7 +456,7 @@ struct OrbitHBOPage: View {
                 ForEach(low...high, id: \.self) { i in
                     let row = rows[i]
                     OrbitHBORowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
-                                    focused: canvasFocused && i == currentRow,
+                                    focused: pageFocused && i == currentRow,
                                     // Not on the Nouveautés rows themselves (every poster said it).
                                     news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
                                     metaStore: metaStore)
@@ -453,6 +466,44 @@ struct OrbitHBOPage: View {
                 }
             }
         }
+    }
+
+    /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
+    /// the rows drawn as before) as real buttons the system moves.
+    private func nativeSections(_ rows: [OrbitHBORow]) -> some View {
+        OrbitNativeSections(
+            count: 1 + rows.count, hasHero: true,
+            height: { s in s == 0 ? OrbitHBOLayout.rowsTopOnArrival - nativeLine(rows) : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            topLine: nativeLine(rows), current: current, hidesAbove: false,
+            onFocus: { s in
+                withAnimation(.easeInOut(duration: 0.3)) { current = s }
+                refreshAfterMove()
+            },
+            onMove: { move($0) }, onSelect: select, onExit: exitAction(),
+            onFocusChange: { has in
+                nativeHasFocus = has
+                refreshAfterMove()
+            }
+        ) { s, focused in
+            if s == 0 {
+                Color.clear
+            } else if rows.indices.contains(s - 1) {
+                let row = rows[s - 1]
+                OrbitLeadReader(box: leads.box(row.id)) { _ in
+                    OrbitHBORowView(row: row, lead: lead(of: row), isCurrent: s == current,
+                                    focused: focused,
+                                    news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
+                                    metaStore: metaStore)
+                }
+            }
+        }
+    }
+
+    /// The line a focused row rests on (the row above half in view, its usual height).
+    private func nativeLine(_ rows: [OrbitHBORow]) -> CGFloat {
+        let L = OrbitHBOLayout.self
+        let average = rows.isEmpty ? 0 : rows.map(\.height).reduce(0, +) / CGFloat(rows.count)
+        return L.firstRowLine + average * L.aboveRowShows
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {

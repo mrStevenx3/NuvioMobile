@@ -90,8 +90,14 @@ struct OrbitPlatformPage: View {
 
     @State private var typeFilter: String? = "movie"
     @State private var current = 0
-    @State private var leads: [String: Int] = [:]
+    /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
+    @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
+    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
+    @State private var nativeHasFocus = false
+    /// The page holds the focus (the canvas's, or one of the native sections').
+    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -172,10 +178,12 @@ struct OrbitPlatformPage: View {
     var body: some View {
         let rows = rows
         let index = min(current, max(0, rows.count - 1))
-        let item = focusedItem(rows)
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
 
         ZStack(alignment: .topLeading) {
+            // (Native: the stage follows the current row's own lead box — a press redraws only it.)
+            OrbitLeadReader(box: leads.box(rows.indices.contains(index) ? rows[index].id : "-")) { _ in
+            let item = focusedItem(rows)
             // The focused title, full screen.
             OrbitPlatformStage(item: item, meta: item.flatMap { metaStore.meta(for: $0) }, brand: brand,
                                trailerURL: trailerURL(for: item, rows: rows),
@@ -188,8 +196,15 @@ struct OrbitPlatformPage: View {
                     .offset(x: OrbitPlatformLayout.margin, y: OrbitPlatformLayout.infoTop)
             }
 
+            }
+
             // The rows.
+            if nativeHome {
+                nativeSections(rows)
+                    .disabled(search != nil)
+            } else {
             rowsLayer(rows, index: index)
+            }
 
             if rows.isEmpty, model.isLoading {
                 ProgressView()
@@ -197,6 +212,7 @@ struct OrbitPlatformPage: View {
             }
 
             // The page's one focusable stop, under the bar's band.
+            if !nativeHome {
             Button(action: select) {
                 Color.clear
                     .frame(width: W, height: H - 110)
@@ -208,10 +224,11 @@ struct OrbitPlatformPage: View {
             .onExitCommand(perform: exitAction(index: index))
             .offset(y: 110)
             .disabled(search != nil)
+            }
 
             // Search, Films, Séries — out of reach once the page has gone below its first row.
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch)
-                .disabled(search != nil || (canvasFocused && index > 0))
+                .disabled(search != nil || (pageFocused && index > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl, brand: brand)
@@ -253,7 +270,7 @@ struct OrbitPlatformPage: View {
         }
         .onChange(of: typeFilter) { _, _ in
             current = 0
-            leads = [:]
+            leads.reset()
             refreshAfterMove()
         }
         // A series-only folder does not open on an empty Films page.
@@ -289,7 +306,7 @@ struct OrbitPlatformPage: View {
             if !rows.isEmpty {
                 ForEach(Array(zip(window, rows[window])), id: \.1.id) { i, row in
                     OrbitPlatformRowView(row: row, lead: lead(of: row), isCurrent: i == index,
-                                         focused: i == index && canvasFocused)
+                                         focused: i == index && pageFocused)
                         .offset(y: L.rowLine + offsets[i])
                         .transition(.identity)
                 }
@@ -305,6 +322,33 @@ struct OrbitPlatformPage: View {
                 .init(color: .black, location: (L.rowLine - 30) / OrbitHomeLayout.screenHeight),
                 .init(color: .black, location: 1),
             ], startPoint: .top, endPoint: .bottom)
+        }
+    }
+
+    /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
+    /// the rows drawn as before) as real buttons the system moves.
+    private func nativeSections(_ rows: [OrbitPlatformRow]) -> some View {
+        OrbitNativeSections(
+            count: rows.count, hasHero: false,
+            height: { s in rows.indices.contains(s) ? rows[s].pitch : 0 },
+            topLine: OrbitPlatformLayout.rowLine, current: current, hidesAbove: true,
+            onFocus: { s in
+                withAnimation(.easeInOut(duration: 0.3)) { current = s }
+                refreshAfterMove()
+            },
+            onMove: { move($0) }, onSelect: select, onExit: exitAction(index: min(current, max(0, rows.count - 1))),
+            onFocusChange: { has in
+                nativeHasFocus = has
+                refreshAfterMove()
+            }
+        ) { s, focused in
+            if rows.indices.contains(s) {
+                let row = rows[s]
+                OrbitLeadReader(box: leads.box(row.id)) { _ in
+                    OrbitPlatformRowView(row: row, lead: lead(of: row), isCurrent: s == current,
+                                         focused: focused)
+                }
+            }
         }
     }
 
@@ -405,7 +449,7 @@ struct OrbitPlatformPage: View {
         dwellRetry?.cancel()
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, canvasFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+        guard trailersOn, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = focusedItem(rows) else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
@@ -416,7 +460,7 @@ struct OrbitPlatformPage: View {
             for _ in 0..<3 {
                 try? await Task.sleep(nanoseconds: 6_000_000_000)
                 guard !Task.isCancelled, trailerKey == key, trailer.playingURL == nil,
-                      canvasFocused, search == nil else { return }
+                      pageFocused, search == nil else { return }
                 trailer.focusChanged(true, item: item)
             }
         }
