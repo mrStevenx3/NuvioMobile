@@ -34,11 +34,22 @@ struct OrbitDiscoverPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var canvasFocused: Bool
     @State private var index = 0
+    /// Native grid (Steven, 2026-10-26: as fluid as Home): real buttons in a grid the system
+    /// scrolls (Settings ▸ Nouvel accueil off brings the drawn grid back).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
 
     private var items: [MetaPreview] { model.items }
     private var line: Int { index / OrbitDiscoverLayout.columns }
 
     var body: some View {
+        if nativeHome {
+            OrbitNativeDiscover(model: model, onOpen: onOpen, header: { header })
+        } else {
+            canvasBody
+        }
+    }
+
+    private var canvasBody: some View {
         let D = OrbitDiscoverLayout.self
         let L = OrbitHomeLayout.self
         let line = self.line
@@ -172,7 +183,7 @@ struct OrbitDiscoverPage: View {
 
     // MARK: Header
 
-    private var header: some View {
+    var header: some View {
         HStack(spacing: 18) {
             Text(headerTitle)
                 .font(.system(size: 46, weight: .heavy))
@@ -312,6 +323,123 @@ struct OrbitDiscoverTile: View {
         .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: 18, y: 10)
         // Steven: every tile shows its logo, not only the focused one (looked up once per title).
         .onAppear { metaStore.request([item]) }
+    }
+}
+
+/// Discover's grid, native: real buttons in a lazy grid the system scrolls, the selected title's
+/// colour behind the page (only the two tiles whose focus changed redraw on a press).
+private struct OrbitNativeDiscover<Header: View>: View {
+    @ObservedObject var model: DiscoverGridViewModel
+    let onOpen: (MetaPreview) -> Void
+    @ViewBuilder let header: () -> Header
+
+    @FocusState private var focused: Int?
+    @State private var shown: Int?
+    @State private var scrolled = false
+
+    var body: some View {
+        let D = OrbitDiscoverLayout.self
+        let L = OrbitHomeLayout.self
+        let items = model.items
+        let columns = Array(repeating: GridItem(.fixed(D.tileWidth), spacing: D.gap, alignment: .top), count: D.columns)
+        ZStack(alignment: .topLeading) {
+            L.background.ignoresSafeArea()
+            OrbitNativeDiscoverBackdrop(item: shown.flatMap { items.indices.contains($0) ? items[$0] : nil })
+
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 34) {
+                        header()
+                            .id("header")
+                        if model.selectedType == nil || model.phase != .loaded {
+                            status
+                        }
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: D.lineGap) {
+                            ForEach(items.indices, id: \.self) { i in
+                                Button {
+                                    onOpen(items[i])
+                                } label: {
+                                    OrbitNativeDiscoverTile(item: items[i])
+                                }
+                                .buttonStyle(OrbitPlainStyle())
+                                .focused($focused, equals: i)
+                                .id(i)
+                                .onAppear { model.itemAppeared(at: i) }
+                            }
+                        }
+                        .focusSection()
+                    }
+                    .padding(.horizontal, L.margin)
+                    .padding(.top, D.headerTop)
+                    .padding(.bottom, 200)
+                }
+                .scrollClipDisabled()
+                .onChange(of: model.gridKey) { _, _ in
+                    focused = nil
+                    shown = nil
+                    proxy.scrollTo("header", anchor: .top)
+                }
+            }
+        }
+        .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
+        .ignoresSafeArea()
+        // Menu: from the grid, back to its top (the pills); there, to the bar.
+        .onExitCommand(perform: focused == nil ? { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
+                                                : { focused = nil; NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) })
+        .onChange(of: focused) { _, new in
+            if let new {
+                shown = new
+                model.itemAppeared(at: min(model.items.count - 1, new + D.columns * 3))
+            }
+            let down = (new ?? 0) >= D.columns
+            if scrolled != down {
+                scrolled = down
+                OrbitBarLock.shared.set(down)
+            }
+        }
+        .onDisappear { OrbitBarLock.shared.set(false) }
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        switch model.phase {
+        case .failed:
+            HStack(spacing: 24) {
+                Text("Impossible de charger Découvrir.")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.7))
+                Button("Réessayer") { model.retry() }
+            }
+        case .empty:
+            if !model.isLoadingMore {
+                Text("Rien ici pour l'instant.")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.7))
+            }
+        default:
+            OrbitDiscoverSkeleton()
+        }
+    }
+}
+
+/// The colour behind Discover (its own view: a new colour redraws only it).
+private struct OrbitNativeDiscoverBackdrop: View {
+    let item: MetaPreview?
+
+    var body: some View {
+        OrbitFocusBackdrop(item: item)
+            .ignoresSafeArea()
+    }
+}
+
+/// One Discover tile, focused as its button is.
+private struct OrbitNativeDiscoverTile: View {
+    let item: MetaPreview
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        OrbitDiscoverTile(item: item, focused: isFocused)
+            .animation(.easeOut(duration: 0.16), value: isFocused)
     }
 }
 
