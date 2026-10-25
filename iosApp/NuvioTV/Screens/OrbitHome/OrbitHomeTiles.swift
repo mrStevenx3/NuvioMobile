@@ -196,7 +196,9 @@ struct OrbitTileFocus: ViewModifier {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(Color.white.opacity(focused ? 1 : 0.12), lineWidth: focused ? 4 : 1)
             }
-            .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 3)
+            // Fluidity (Steven, device: a slight hitch Left / Right): only the focused tile casts a
+            // shadow — a blurred shadow under every moving tile is an off-screen pass each frame.
+            .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
             .scaleEffect(focused ? 1.05 : 1, anchor: .leading)
             // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
@@ -388,14 +390,16 @@ enum OrbitDominantColor {
         return color
     }
 
+    /// One context for every poster (making one per poster was a cost on each step).
+    nonisolated(unsafe) private static let context = CIContext(options: [.workingColorSpace: NSNull()])
+
     nonisolated private static func average(_ cg: CGImage) -> Color? {
         let input = CIImage(cgImage: cg)
         guard let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: input,
                                                                        kCIInputExtentKey: CIVector(cgRect: input.extent)]),
               let output = filter.outputImage else { return nil }
         var pixel = [UInt8](repeating: 0, count: 4)
-        CIContext(options: [.workingColorSpace: NSNull()])
-            .render(output, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+        context.render(output, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
                     format: .RGBA8, colorSpace: nil)
         var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         UIColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)

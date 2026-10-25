@@ -456,6 +456,8 @@ struct OrbitHomeView: View {
             case .row(let row):
                 let lead = min(leads[row.id] ?? 0, row.cards.count - 1) + delta
                 guard row.cards.indices.contains(lead) else { return }
+                // TMDB's results wait for the slide to end (a redraw of every row mid-slide).
+                OrbitMetaStore.shared.holdPublishing(for: 0.3)
                 withAnimation(OrbitHomeLayout.horizontal) { leads[row.id] = lead }
             }
         @unknown default:
@@ -605,7 +607,10 @@ struct OrbitRowsBackdrop: View {
         .animation(.easeInOut(duration: 0.5), value: tone)
         .task(id: url ?? "-") {
             guard let url else { return }
-            if let color = await OrbitDominantColor.color(for: url) { tone = color }
+            // Steven (device: still a hitch Left / Right): the wash follows the title once the
+            // remote rests — a full-screen colour change animating under every step was part of it.
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled { tone = color }
         }
         .allowsHitTesting(false)
     }
