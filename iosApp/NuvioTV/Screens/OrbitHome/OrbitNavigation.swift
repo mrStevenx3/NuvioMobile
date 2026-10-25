@@ -23,13 +23,26 @@ extension EnvironmentValues {
 extension Notification.Name {
     /// Every tab's stack pops to its root, and the shell shows Home (Films).
     static let orbitGoHome = Notification.Name("orbit.goHome")
+    /// Back from the house (Steven, 2026-10-25: Menu there closed the app): the shown tab's stack
+    /// pops one page. `object`: the tab's index.
+    static let orbitGoBack = Notification.Name("orbit.goBack")
+}
+
+/// The shell's selected tab, for the house's Back (it lives outside every tab's stack).
+@MainActor
+enum OrbitShownTab {
+    static var index = 0
 }
 
 extension View {
     /// Pops this stack to its root on `orbitGoHome`. `delay`: the other tabs' stacks pop once Home
     /// is on screen (Steven: from a film opened in Search, the search page showed before Home).
-    func orbitPopsToRootOnGoHome(_ path: Binding<NavigationPath>, delay: TimeInterval = 0.5) -> some View {
-        onReceive(NotificationCenter.default.publisher(for: .orbitGoHome)) { _ in
+    func orbitPopsToRootOnGoHome(_ path: Binding<NavigationPath>, tab: Int, delay: TimeInterval = 0.5) -> some View {
+        onReceive(NotificationCenter.default.publisher(for: .orbitGoBack)) { note in
+            guard (note.object as? Int) == tab, !path.wrappedValue.isEmpty else { return }
+            path.wrappedValue.removeLast()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .orbitGoHome)) { _ in
             let pop = {
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
@@ -117,6 +130,13 @@ struct OrbitHomeButton: View {
         .focused($focused)
         .accessibilityLabel(Text("Accueil"))
         .disabled(!reachable)
+        // Steven: Back from the house goes back one page (it closed the app: the house is outside
+        // the tab's stack, so the system took Menu as leaving Orbit).
+        .onExitCommand {
+            requested = false
+            focused = false
+            NotificationCenter.default.post(name: .orbitGoBack, object: OrbitShownTab.index)
+        }
         .onMoveCommand { direction in
             guard direction == .down, host.mode == .onRequest else { return }
             requested = false

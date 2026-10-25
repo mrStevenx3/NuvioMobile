@@ -65,7 +65,7 @@ struct LibraryView: View {
             }
         }
         .environment(\.orbitPush, { path.append($0) })
-        .orbitPopsToRootOnGoHome($path)
+        .orbitPopsToRootOnGoHome($path, tab: 2)
         // A failed remove. The shared toast controller is a no-op on tvOS, so the screen says it.
         .alert(
             LibraryGridPolicy.removeFailedTitle(providerName: model.providerName),

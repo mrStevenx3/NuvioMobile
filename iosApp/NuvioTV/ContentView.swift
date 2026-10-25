@@ -507,6 +507,7 @@ struct MainTabView: View {
             }
         }
         .onChange(of: selectedTab) { _, tab in
+            OrbitShownTab.index = tab
             tabBarVisibility.setHomeTabSelected(tab == 0)
         }
         // The house (top left of a pushed page, or in a collection's bar): Home, on Films.

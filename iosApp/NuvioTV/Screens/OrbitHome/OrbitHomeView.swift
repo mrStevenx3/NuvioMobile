@@ -470,6 +470,12 @@ struct OrbitHomeView: View {
             })
             if let key = row.sectionKey { model.rowAppeared(sectionKey: key) }
         }
+        // Steven: the Top 10's details were late on each move — its ten titles are looked up all
+        // at once, as soon as the page has them (after the nearby ones).
+        for section in sections {
+            guard case .row(let row) = section, row.style == .ranked else { continue }
+            metaItems.append(contentsOf: row.cards.prefix(10).map(\.preview))
+        }
         OrbitMetaStore.shared.request(metaItems)
 
         // The trailer: re-armed on the current title, or stopped.

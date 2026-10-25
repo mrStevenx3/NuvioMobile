@@ -133,17 +133,25 @@ struct OrbitHomeTileRowView: View {
             // The focused title's details under the row (cards carry theirs).
             if style != .cards, row.cards.indices.contains(lead) {
                 let card = row.cards[lead]
-                let info = OrbitInfo.make(card.preview, meta: metaStore.meta(for: card.preview))
+                let saga = card.id.hasPrefix("saga:")
+                // A saga: its own count, years and overview (its card's meta is its first film's).
+                let info = OrbitInfo.make(card.preview, meta: saga ? nil : metaStore.meta(for: card.preview))
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 16) {
                         Text(card.preview.name)
                             .font(.system(size: 28, weight: .bold))
                             .foregroundStyle(Color.white)
                             .lineLimit(1)
-                        OrbitMetaLine(info: info, size: 24)
+                        if saga {
+                            Text(card.preview.releaseInfo ?? "")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(Color.white.opacity(0.9))
+                        } else {
+                            OrbitMetaLine(info: info, size: 24)
+                        }
                     }
                     .frame(height: 34)
-                    Text(info.synopsis)
+                    Text(saga ? (card.preview.description_ ?? "") : info.synopsis)
                         .font(.system(size: 23, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.85))
                         .lineSpacing(3)
@@ -474,6 +482,7 @@ final class OrbitHomeExtrasModel: ObservableObject {
     }
 
     nonisolated private static func sagas(apiKey: String, language: String) async -> [MetaPreview] {
+        let today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
         let found = await withTaskGroup(of: (Int, MetaPreview?).self) { group in
             for (index, id) in sagaIds.enumerated() {
                 group.addTask {
@@ -481,13 +490,22 @@ final class OrbitHomeExtrasModel: ObservableObject {
                           let (data, _) = try? await URLSession.shared.data(from: url),
                           let c = try? JSONDecoder().decode(CollectionResponse.self, from: data),
                           let name = c.name, let poster = c.poster_path,
-                          let first = (c.parts ?? []).filter({ !($0.release_date ?? "").isEmpty })
-                              .min(by: { ($0.release_date ?? "") < ($1.release_date ?? "") }) else { return (index, nil) }
+                          case let released = (c.parts ?? [])
+                              .filter({ let d = $0.release_date ?? ""; return !d.isEmpty && d <= today }),
+                          let first = released.min(by: { ($0.release_date ?? "") < ($1.release_date ?? "") }),
+                          let last = released.max(by: { ($0.release_date ?? "") < ($1.release_date ?? "") })
+                    else { return (index, nil) }
+                    // Steven: under the saga, the saga's own line ("9 films · 1977–2019") and
+                    // overview, not its first film's.
+                    let from = String((first.release_date ?? "").prefix(4))
+                    let to = String((last.release_date ?? "").prefix(4))
+                    let years = from == to ? from : "\(from)–\(to)"
+                    let line = String(localized: "\(released.count) films") + " · " + years
                     let preview = MetaPreview(id: "tmdb:\(first.id)", type: "movie", name: name,
                                               poster: "https://image.tmdb.org/t/p/w500\(poster)",
                                               banner: c.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                                               logo: nil, posterShape: .poster, description: c.overview,
-                                              releaseInfo: nil, rawReleaseDate: nil, popularity: nil, voteCount: nil,
+                                              releaseInfo: line, rawReleaseDate: nil, popularity: nil, voteCount: nil,
                                               imdbRating: nil, genres: [], rawPosterUrl: nil, landscapePoster: nil,
                                               rawLandscapePosterUrl: nil, customPosterApplied: false)
                     return (index, preview)

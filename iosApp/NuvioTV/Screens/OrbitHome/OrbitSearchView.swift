@@ -37,7 +37,7 @@ struct OrbitSearchView: View {
             }
         }
         .environment(\.orbitPush, { path.append($0) })
-        .orbitPopsToRootOnGoHome($path)
+        .orbitPopsToRootOnGoHome($path, tab: 1)
         .onAppear { model.start() }
         .onDisappear {
             model.stop()
