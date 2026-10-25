@@ -70,6 +70,10 @@ struct OrbitNativeSections<SectionContent: View>: View {
     var onUpFromTop: (() -> Void)? = nil
     /// The page holds the focus (or lost it: the bar, the search).
     var onFocusChange: ((Bool) -> Void)? = nil
+    /// The hero is the page's own view (a carousel of its own buttons), not a button of ours:
+    /// `focusHero` gives it the focus (Menu back to the top, the arrival).
+    var customHero = false
+    var focusHero: (() -> Void)? = nil
     @ViewBuilder let content: (Int, Bool) -> SectionContent
 
     @FocusState private var focus: Int?
@@ -80,6 +84,12 @@ struct OrbitNativeSections<SectionContent: View>: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(0..<count, id: \.self) { s in
+                    if customHero && s == 0 {
+                        content(0, false)
+                            .frame(width: W, height: height(0), alignment: .topLeading)
+                            .focusSection()
+                            .id(0)
+                    } else {
                     Button(action: onSelect) {
                         OrbitNativeSectionLabel(live: abs(s - current) <= 3) { focused in
                             content(s, focused)
@@ -98,6 +108,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
                         }
                     }
                     .id(s)
+                    }
                 }
             }
             .scrollTargetLayout()
@@ -108,7 +119,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
         .contentMargins(.top, topLine, for: .scrollContent)
         .scrollClipDisabled()
         .onExitCommand(perform: onExit)
-        .defaultFocus($focus, current, priority: .userInitiated)
+        .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
         .onChange(of: focus) { old, s in
             if (old == nil) != (s == nil) { onFocusChange?(s != nil) }
             guard let s else { return }
@@ -117,12 +128,16 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
         // The page moved its section itself (Menu back to the top, a filter reset).
         .onChange(of: current) { _, c in
-            if focus != nil, focus != c { focus = c }
+            if customHero && c == 0 {
+                if focus != nil { focusHero?() }
+            } else if focus != nil, focus != c { focus = c }
             if position != c { withAnimation(.easeInOut(duration: 0.34)) { position = c } }
         }
         .onAppear {
             position = current
-            DispatchQueue.main.async { if focus == nil { focus = current } }
+            DispatchQueue.main.async {
+                if customHero && current == 0 { focusHero?() } else if focus == nil { focus = current }
+            }
         }
     }
 }
