@@ -280,42 +280,6 @@ struct OrbitSourcesSection: View {
                            note: String(localized: "Lire lance la meilleure source arrivée, dans l'ordre de la liste : le français d'abord (MULTI, VFF), puis les liens prêts tout de suite, la résolution, le Dolby Vision, l'Atmos, puis le Remux. Si elle échoue, la suivante est essayée. Maintiens Lire pour choisir.")) {
             OrbitSettingsToggle(title: String(localized: "Lancer la meilleure source"),
                                 isOn: Binding(get: { model.autoPlayBestSource }, set: { model.setAutoPlayBestSource($0) }))
-            if model.autoPlayBestSource {
-                OrbitSettingsToggle(title: String(localized: "Uniquement les liens en cache"),
-                                    subtitle: String(localized: "Sinon, la liste des sources s'affiche."),
-                                    isOn: Binding(get: { model.autoPlayCachedOnly }, set: { model.setAutoPlayCachedOnly($0) }))
-            }
-        }
-
-        OrbitSettingsGroup(title: String(localized: "Filtres"),
-                           note: String(localized: "S'appliquent aux sources de tous les add-ons.")) {
-            OrbitSettingsChoice(title: String(localized: "Ordre des sources"),
-                                selection: Binding(get: { model.streamSortMode }, set: { model.setStreamSortMode($0) }),
-                                options: ["default", "quality", "sizeDesc", "sizeAsc"],
-                                label: { key in
-                                    switch key {
-                                    case "quality": return String(localized: "Qualité")
-                                    case "sizeDesc": return String(localized: "Plus gros d'abord")
-                                    case "sizeAsc": return String(localized: "Plus petits d'abord")
-                                    default: return String(localized: "Par défaut")
-                                    }
-                                })
-            OrbitSettingsChoice(title: String(localized: "Résolution minimale"),
-                                subtitle: String(localized: "Les sources sans résolution indiquée restent."),
-                                selection: Binding(get: { model.streamMinimumQuality }, set: { model.setStreamMinimumQuality($0) }),
-                                options: ["any", "720", "1080", "2160"],
-                                label: { $0 == "any" ? String(localized: "Toutes") : ($0 == "2160" ? "4K" : "\($0)p") })
-            OrbitSettingsChoice(title: String(localized: "Dolby Vision"),
-                                selection: Binding(get: { model.streamDolbyVisionFilter }, set: { model.setStreamDolbyVisionFilter($0) }),
-                                options: ["any", "only", "exclude"], label: Self.featureName)
-            OrbitSettingsChoice(title: String(localized: "HDR"),
-                                selection: Binding(get: { model.streamHdrFilter }, set: { model.setStreamHdrFilter($0) }),
-                                options: ["any", "only", "exclude"], label: Self.featureName)
-            if model.debridCanResolvePlayableLinks {
-                OrbitSettingsToggle(title: String(localized: "Uniquement les liens en cache"),
-                                    subtitle: String(localized: "Cache les sources que ton service debrid n'a pas en cache."),
-                                    isOn: Binding(get: { model.streamCachedOnly }, set: { model.setStreamCachedOnly($0) }))
-            }
         }
 
         OrbitSettingsGroup(title: String(localized: "Recherche"),
@@ -380,13 +344,6 @@ struct OrbitSourcesSection: View {
         }
     }
 
-    private static func featureName(_ key: String) -> String {
-        switch key {
-        case "only": return String(localized: "Uniquement")
-        case "exclude": return String(localized: "Exclure")
-        default: return String(localized: "Toutes")
-        }
-    }
 }
 
 // MARK: - Services connectés

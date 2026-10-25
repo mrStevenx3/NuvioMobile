@@ -62,6 +62,25 @@ enum OrbitSettingsPins {
         }
     }
 
+    private static let sourcesOnceKey = "orbit.sourcesOrder.v1"
+
+    /// Steven (2026-10-25): Orbit has one source order (French first, see `OrbitStreamRow.sorted`)
+    /// and the filters are gone from Réglages; any older choice is put back once, so no hidden
+    /// filter keeps hiding sources.
+    private static func resetSourceChoices(_ defaults: UserDefaults) {
+        guard !defaults.bool(forKey: sourcesOnceKey) else { return }
+        defaults.set(true, forKey: sourcesOnceKey)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            let debrid = DebridSettingsRepository.shared
+            debrid.setStreamSortMode(value: .default_)
+            debrid.setStreamMinimumQuality(value: DebridStreamMinimumQuality.any)
+            debrid.setStreamDolbyVisionFilter(value: DebridStreamFeatureFilter.any)
+            debrid.setStreamHdrFilter(value: DebridStreamFeatureFilter.any)
+            debrid.setStreamCachedOnly(enabled: false)
+            PlayerSettingsRepository.shared.setStreamAutoPlayCachedOnly(enabled: false)
+        }
+    }
+
     static func apply() {
         let defaults = UserDefaults.standard
         defaults.set(NavigationChrome.Style.orbit.rawValue, forKey: NavigationChrome.styleKey)
@@ -73,6 +92,7 @@ enum OrbitSettingsPins {
         defaults.set(previews, forKey: "inline_trailers_enabled")
 
         applyOrbitDefaults(defaults)
+        resetSourceChoices(defaults)
 
         guard !defaults.bool(forKey: onceKey) else { return }
         for key in defaults.dictionaryRepresentation().keys
