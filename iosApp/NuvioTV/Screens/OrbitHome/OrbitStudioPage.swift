@@ -790,7 +790,9 @@ private struct OrbitNativeStudioRow: View {
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $anchor, anchor: .leading)
             .contentMargins(.leading, L.margin, for: .scrollContent)
-            .contentMargins(.trailing, max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth), for: .scrollContent)
+            // A saga's shelf keeps its logo panel in view (Steven's video: the panel left, an empty band
+            // behind a few posters) — the system scrolls it only as far as needed.
+            .contentMargins(.trailing, saga ? L.margin : max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth), for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
             .frame(height: size.height)
@@ -841,7 +843,7 @@ private struct OrbitNativeStudioRow: View {
                 }
             }
             shown = new
-            if anchor != new { withAnimation(OrbitStudioLayout.horizontal) { anchor = new } }
+            if row.kind != .saga, anchor != new { withAnimation(OrbitStudioLayout.horizontal) { anchor = new } }
             let ahead = row.items[new..<min(row.items.count, new + 6)]
             OrbitMetaStore.shared.request(Array(ahead))
         }
@@ -1203,19 +1205,23 @@ private struct OrbitSagaBand: View {
     var body: some View {
         let W = OrbitHomeLayout.screenWidth
         let pair = colors ?? OrbitSagaPalette.cached(backdrop)
+        // Steven (2026-10-26: "une bande qui se fond vers le noir"): the saga's colours, strongest
+        // under its logo on the left, melting into the page's dark to the right and above / below.
         ZStack {
-            Color(white: 0.1)
             if let pair {
-                LinearGradient(colors: [pair.left, pair.right], startPoint: .leading, endPoint: .trailing)
+                LinearGradient(stops: [.init(color: pair.left, location: 0),
+                                       .init(color: pair.right.opacity(0.6), location: 0.5),
+                                       .init(color: pair.right.opacity(0), location: 1)],
+                               startPoint: .leading, endPoint: .trailing)
                     .transition(.opacity)
             }
-            LinearGradient(stops: [
-                .init(color: .black.opacity(0.35), location: 0),
-                .init(color: .black.opacity(0.1), location: 0.45),
-                .init(color: .clear, location: 1),
-            ], startPoint: .leading, endPoint: .trailing)
         }
         .frame(width: W, height: height)
+        .mask(LinearGradient(stops: [.init(color: .clear, location: 0),
+                                     .init(color: .black, location: 0.22),
+                                     .init(color: .black, location: 0.78),
+                                     .init(color: .clear, location: 1)],
+                             startPoint: .top, endPoint: .bottom))
         .animation(.easeInOut(duration: 0.4), value: pair?.left)
         .task(id: backdrop) {
             if colors == nil { colors = await OrbitSagaPalette.colors(for: backdrop) }
