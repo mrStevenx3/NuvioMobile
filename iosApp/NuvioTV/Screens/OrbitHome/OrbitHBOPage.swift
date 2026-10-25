@@ -801,12 +801,14 @@ private struct OrbitHBOGlassText: View {
             ForEach(offsets.indices, id: \.self) { i in
                 Text(text).font(font).foregroundStyle(rim).offset(offsets[i])
             }
-            Text(text).font(font).foregroundStyle(filled ? AnyShapeStyle(lit) : AnyShapeStyle(glass))
+            // Steven (device: the rank arrived offset, then filled): both fills drawn, the lit one
+            // faded in on the move's own curve (a style swap cannot animate; it jumped afterwards).
+            Text(text).font(font).foregroundStyle(glass)
+            Text(text).font(font).foregroundStyle(lit).opacity(filled ? 1 : 0)
         }
         .compositingGroup()
         .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
         .fixedSize()
-        .animation(.easeOut(duration: 0.2), value: filled)
     }
 }
 

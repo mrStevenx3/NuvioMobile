@@ -702,8 +702,13 @@ struct OrbitPlatformIntro: View {
         .allowsHitTesting(false)
         .onAppear {
             appearedAt = Date()
-            play()
+            // Steven (device: the collection showed before its logo): the screen stays black until
+            // the logo is ready (a second at most), then the intro plays with it.
+            if assetLogo != nil { play(); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { play() }
+            preload(logoUrl)
         }
+        .onChange(of: logoUrl) { _, url in preload(url) }
         .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
             // Steven: a press skips the intro (the page is used often) — not the press that opened
             // the page, which lands just after it appears (the catalogue showed before the intro).
@@ -739,6 +744,19 @@ struct OrbitPlatformIntro: View {
             .foregroundStyle(Color.white)
             .lineLimit(1)
             .minimumScaleFactor(0.4)
+    }
+
+    /// The logo fetched at its splash size, then the intro.
+    private func preload(_ url: String?) {
+        guard phase == .hidden, let url, !url.isEmpty, let address = URL(string: url) else { return }
+        let request = ArtworkDecodeRequest(size: .points(width: Self.logoSize.width * Self.splashScale,
+                                                         height: Self.logoSize.height * Self.splashScale),
+                                           fill: false, scale: UIScreen.main.scale)
+        if ArtworkStore.cached(address, decode: request) != nil { play(); return }
+        Task { @MainActor in
+            _ = try? await ArtworkStore.fetch(address, decode: request)
+            play()
+        }
     }
 
     private func play() {
