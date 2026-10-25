@@ -34,8 +34,9 @@ enum OrbitDisneyLayout {
     static let restTop: CGFloat = 160
     static let headingHeight: CGFloat = 54
     static let tile = CGSize(width: 400, height: 225)
-    /// Steven: the Top 10 a bit larger.
-    static let top10 = CGSize(width: 310, height: 465)
+    /// Measured on Steven's Disney+ 2026 video: wider and taller than the other posters.
+    static let top10 = CGSize(width: 385, height: 620)
+    static let top10Gap: CGFloat = 36
     /// Disney+ 2026 mixes 16:9 rows and portrait ones (posters with their title).
     static let poster = CGSize(width: 250, height: 375)
     static let gap: CGFloat = 26
@@ -674,7 +675,7 @@ private struct OrbitDisneyRowView: View {
                                 OrbitDisneyTile(item: item, meta: meta, focused: focused && index == lead)
                             }
                         }
-                        .offset(x: L.margin + CGFloat(index - lead) * (size.width + L.gap))
+                        .offset(x: L.margin + CGFloat(index - lead) * (size.width + (row.top10 ? L.top10Gap : L.gap)))
                         .opacity(index < lead ? 0 : 1)
                         .transition(.identity)
                     }
@@ -710,10 +711,10 @@ private struct OrbitDisneyTop10Card: View {
                 .fill(RadialGradient(colors: [Color(red: 0.03, green: 0.20, blue: 0.24).opacity(0.97),
                                               Color(red: 0.03, green: 0.20, blue: 0.24).opacity(0.85)],
                                      center: .center, startRadius: 0, endRadius: size.width * 0.6))
-                .frame(width: size.width * 1.1, height: size.width * 1.1)
-                .offset(x: -size.width * 0.62, y: -size.width * 0.62)
+                .frame(width: size.width * 0.9, height: size.width * 0.9)
+                .offset(x: -size.width * 0.52, y: -size.width * 0.52)
             Text("\(rank)")
-                .font(.system(size: 76, weight: .heavy, design: .rounded))
+                .font(.system(size: 84, weight: .heavy, design: .rounded))
                 .foregroundStyle(L.turquoise)
                 .padding(.leading, 18)
                 .padding(.top, 6)
