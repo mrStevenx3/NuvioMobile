@@ -24,11 +24,15 @@ struct OrbitHomeHeroView: View {
         let size = CGSize(width: L.heroWidth, height: L.heroHeight)
         ZStack(alignment: .topLeading) {
             L.background
+            // Steven's video: changing titles went through black. The art stays and swaps once the
+            // next one is ready (no fade through the page); only the details cross-fade.
+            if let item {
+                OrbitSwapImage(url: item.banner ?? metaStore.meta(for: item)?.backdrop, fallback: item.poster, size: size)
+            }
             if let item {
                 let meta = metaStore.meta(for: item)
                 let info = OrbitInfo.make(item, meta: meta)
                 ZStack(alignment: .topLeading) {
-                    OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster, size: size)
                     if let trailerURL {
                         TrailerHeroPlayer(urlString: trailerURL,
                                           onFailure: onTrailerFailure,
@@ -53,7 +57,7 @@ struct OrbitHomeHeroView: View {
 
                     VStack(alignment: .leading, spacing: 0) {
                         if let kind = OrbitPlatformBadgeKind.of(meta) {
-                            OrbitPlatformBadge(kind: kind, size: 22)
+                            OrbitPlatformBadge(kind: kind, size: 27)
                                 .padding(.bottom, 24)
                         }
                         OrbitTitleMark(name: item.name, logo: info.logo,
@@ -82,8 +86,7 @@ struct OrbitHomeHeroView: View {
                     .offset(x: L.margin)
                 }
                 .id("\(item.type):\(item.id)")
-                .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.4)),
-                                        removal: .opacity.animation(.linear(duration: 0.01).delay(0.4))))
+                .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
 
             if count > 1 {
