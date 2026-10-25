@@ -538,11 +538,14 @@ struct OrbitDetailView: View {
 
     /// The title (logo or name), in the hero or in the cinema corner: ONE matched view, so going
     /// into the trailer and back it glides and resizes between the two places.
-    private func titleMark(cinema corner: Bool) -> some View {
+    private func titleMark(cinema corner: Bool, hugs: Bool = false) -> some View {
         let size = corner ? Self.cinemaTitleSize : Self.heroTitleSize
-        return OrbitTitleMark(name: title, logo: logoURL, maxSize: size, textSize: corner ? 40 : 76,
-                              moreLogos: Array(logoCandidates.dropFirst()))
-            .frame(width: size.width, height: size.height, alignment: .bottomLeading)
+        // `hugs`: its own height (a tag sits on it), within the same box.
+        let tagged = hugs && !corner
+        return OrbitTitleMark(name: title, logo: logoURL, maxSize: tagged ? CGSize(width: size.width, height: size.height - 60) : size,
+                              textSize: corner ? 40 : 76,
+                              moreLogos: Array(logoCandidates.dropFirst()), hugsLogo: tagged)
+            .frame(width: size.width, height: tagged ? nil : size.height, alignment: .bottomLeading)
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
     }
 
@@ -641,15 +644,17 @@ struct OrbitDetailView: View {
     private var hero: some View {
         let L = OrbitDetailLayout.self
         return VStack(alignment: .leading, spacing: 0) {
-            // The platform's "original" tag above the title (N SÉRIE, prime, HBO ORIGINAL…).
-            if let own = platform?.own, !cinema {
-                OrbitDetailOwnTag(own: own, series: isSeries)
-                    .shadow(color: .black.opacity(0.5), radius: 6)
-                    .padding(.bottom, 16)
-            }
             Group {
                 if cinema {
                     Color.clear
+                } else if let own = platform?.own {
+                    // The platform's "original" tag right on top of the title (Steven: above the
+                    // title's box it floated high over a wide logo).
+                    VStack(alignment: .leading, spacing: 16) {
+                        OrbitDetailOwnTag(own: own, series: isSeries)
+                            .shadow(color: .black.opacity(0.5), radius: 6)
+                        titleMark(cinema: false, hugs: true)
+                    }
                 } else {
                     titleMark(cinema: false)
                 }
