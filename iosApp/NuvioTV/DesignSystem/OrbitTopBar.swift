@@ -55,11 +55,14 @@ private enum OrbitBarItem: Hashable, CaseIterable {
     case search, films, series, library, discover, services, studios, settings, profile
     /// Collections' bar only: back to Home in one press (Steven, 2026-10-25).
     case home
+    /// Collections' bar only (Prime Video): films and series together.
+    case everything
 
     var title: String? {
         switch self {
         case .films: return String(localized: "Films")
         case .series: return String(localized: "Séries")
+        case .everything: return String(localized: "Tout")
         case .services: return String(localized: "Plateformes")
         case .studios: return String(localized: "Studios")
         default: return nil
@@ -639,6 +642,8 @@ struct CollectionFilterBar: View {
     let onSearch: () -> Void
     /// Films / Séries (Disney+ mixes them: none there).
     var showsTypes = true
+    /// "Tout" before Films / Séries (Prime Video): the filter nil.
+    var showsAll = false
     /// Steven (Disney+, 2026-10-25): a second pill at the screen's centre ("Disney+ · Hulu").
     var switchItems: [String] = []
     var switchSelection: Binding<Int>? = nil
@@ -712,7 +717,7 @@ struct CollectionFilterBar: View {
 
     private var leftPill: some View {
         HStack(spacing: 4) {
-            ForEach(showsTypes ? [OrbitBarItem.home, .search, .films, .series] : [.home, .search], id: \.self) { item in
+            ForEach(items, id: \.self) { item in
                 Button { select(item) } label: {
                     OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
                 }
@@ -731,12 +736,13 @@ struct CollectionFilterBar: View {
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
         // Once: a pop back from Detail keeps its own restore.
         // Steven: the engine's first pick (Search, top-left) flashed before Films.
-        .defaultFocus($focused, isSelected(.series) && !isSelected(.films) ? .series : .films, priority: .userInitiated)
+        .defaultFocus($focused, entryItem, priority: .userInitiated)
         // Steven: Films / Séries switch on focus, no press (as Disney+ / Hulu), after a short rest.
         .onChange(of: focused) { _, item in
-            guard let item, let type = type(of: item) else { return }
+            guard let item, item == .everything || type(of: item) != nil else { return }
+            let wanted = self.type(of: item)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                if focused == item, filter != type { filter = type }
+                if focused == item, filter != wanted { filter = wanted }
             }
         }
         .onAppear {
@@ -748,13 +754,24 @@ struct CollectionFilterBar: View {
                 OrbitBarLaunchFocus.place { switchFocused = switchSelection?.wrappedValue ?? 0 }
                 return
             }
-            focused = isSelected(.series) && !isSelected(.films) ? .series : .films
+            focused = entryItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { searchReady = true }
             OrbitBarLaunchFocus.place {
-                let target: OrbitBarItem = isSelected(.series) && !isSelected(.films) ? .series : .films
+                let target: OrbitBarItem = entryItem
                 if focused != target { focused = target }
             }
         }
+    }
+
+    private var items: [OrbitBarItem] {
+        guard showsTypes else { return [.home, .search] }
+        return showsAll ? [.home, .search, .everything, .films, .series] : [.home, .search, .films, .series]
+    }
+
+    /// Where the cursor lands on entry: the page's current tab.
+    private var entryItem: OrbitBarItem {
+        if showsAll, filter == nil { return .everything }
+        return isSelected(.series) && !isSelected(.films) ? .series : .films
     }
 
     private func type(of item: OrbitBarItem) -> String? {
@@ -766,6 +783,7 @@ struct CollectionFilterBar: View {
     }
 
     private func isSelected(_ item: OrbitBarItem) -> Bool {
+        if item == .everything { return filter == nil }
         guard let type = type(of: item) else { return false }
         return filter == type
     }
@@ -773,6 +791,10 @@ struct CollectionFilterBar: View {
     private func select(_ item: OrbitBarItem) {
         if item == .home {
             NotificationCenter.default.post(name: .orbitGoHome, object: nil)
+            return
+        }
+        if item == .everything {
+            filter = nil
             return
         }
         guard let type = type(of: item) else { onSearch(); return }

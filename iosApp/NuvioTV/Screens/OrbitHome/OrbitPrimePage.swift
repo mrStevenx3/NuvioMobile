@@ -25,9 +25,8 @@ enum OrbitPrimeLayout {
     static let infoTop: CGFloat = 170
     static let logoSize = CGSize(width: 560, height: 190)
     static let synopsisWidth: CGFloat = 800
-    /// The pills on arrival, and the first row under them.
-    static let pillsTop: CGFloat = 770
-    static let rowsTopOnArrival: CGFloat = 860
+    /// The first row on arrival.
+    static let rowsTopOnArrival: CGFloat = 790
     /// Once in the rows: the current row's top (the title's details stay above it).
     static let rowLine: CGFloat = 580
     static let headingHeight: CGFloat = 50
@@ -114,7 +113,7 @@ struct OrbitPrimePage: View {
 
     /// nil: Tout; "movie"; "series".
     @State private var typeFilter: String? = nil
-    /// 0: the hero; 1: the pills; then the rows.
+    /// 0: the hero; then the rows. (Tout / Films / Séries: in the bar, Steven, as on Prime 2026.)
     @State private var current = 0
     @State private var heroIndex = 0
     @State private var leads: [String: Int] = [:]
@@ -124,7 +123,6 @@ struct OrbitPrimePage: View {
     @State private var search: OrbitPlatformSearchModel?
     @State private var heroClock: Task<Void, Never>?
 
-    private static let filters: [String?] = [nil, "movie", "series"]
 
     init(route: FolderRoute, push: @escaping (TitleRoute) -> Void) {
         self.route = route
@@ -258,9 +256,9 @@ struct OrbitPrimePage: View {
         return item.type == "movie" ? String(localized: "NOUVEAU FILM") : String(localized: "NOUVELLE SÉRIE")
     }
 
-    private var sectionCount: Int { 2 + rows.count }
+    private var sectionCount: Int { 1 + rows.count }
 
-    private func rowIndex(of section: Int) -> Int? { section >= 2 ? section - 2 : nil }
+    private func rowIndex(of section: Int) -> Int? { section >= 1 ? section - 1 : nil }
 
     private func rowTops(_ rows: [OrbitPrimeRow]) -> [CGFloat] {
         var y = OrbitPrimeLayout.rowsTopOnArrival
@@ -294,7 +292,7 @@ struct OrbitPrimePage: View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let offset = scroll(rows)
         let shown = shownItem
-        let onArrival = current <= 1
+        let onArrival = current == 0
         let onOriginals = rowIndex(of: current).map { rows.indices.contains($0) && rows[$0].kind == .originals } ?? false
 
         ZStack(alignment: .topLeading) {
@@ -316,13 +314,6 @@ struct OrbitPrimePage: View {
                     .animation(.easeInOut(duration: 0.3), value: onOriginals)
             }
 
-            if onArrival {
-                OrbitPrimePills(selected: Self.filters.firstIndex(of: typeFilter) ?? 0,
-                                lit: canvasFocused && current == 1)
-                    .frame(width: W)
-                    .offset(y: OrbitPrimeLayout.pillsTop)
-                    .transition(.opacity)
-            }
 
             rowsLayer(rows)
                 .offset(y: -offset)
@@ -344,7 +335,7 @@ struct OrbitPrimePage: View {
             .offset(y: 110)
             .disabled(search != nil)
 
-            CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false)
+            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
                 .disabled(search != nil || (canvasFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
@@ -390,6 +381,7 @@ struct OrbitPrimePage: View {
         }
         .onChange(of: heroItems.map(\.id)) { _, _ in refreshAfterMove() }
         .onChange(of: typeFilter) { _, _ in
+            current = 0
             heroIndex = 0
             leads = [:]
             refreshAfterMove()
@@ -446,11 +438,6 @@ struct OrbitPrimePage: View {
                 let n = heroItems.count
                 guard n > 1 else { return }
                 withAnimation(.easeInOut(duration: 0.3)) { heroIndex = (heroIndex + step + n) % n }
-            } else if current == 1 {
-                // The pills switch as the cursor moves along them.
-                let i = (Self.filters.firstIndex(of: typeFilter) ?? 0) + step
-                guard Self.filters.indices.contains(i) else { return }
-                withAnimation(.easeInOut(duration: 0.2)) { typeFilter = Self.filters[i] }
             } else if let r = rowIndex(of: current), rows.indices.contains(r) {
                 let row = rows[r]
                 let next = lead(of: row) + step
@@ -464,11 +451,6 @@ struct OrbitPrimePage: View {
     }
 
     private func select() {
-        if current == 1 {
-            withAnimation(reduceMotion ? nil : OrbitPrimeLayout.vertical) { current = 2 }
-            refreshAfterMove()
-            return
-        }
         if let shownItem { push(TitleRoute(preview: shownItem)) }
     }
 
@@ -737,34 +719,11 @@ private struct OrbitPrimeTop: View {
                 }
                 .animation(.easeInOut(duration: 0.3), value: index)
                 .frame(width: size.width)
-                .offset(y: L.pillsTop - 40)
+                .offset(y: L.rowsTopOnArrival - 70)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
-    }
-}
-
-/// "Tout · Films · Séries", centred under the hero.
-private struct OrbitPrimePills: View {
-    let selected: Int
-    let lit: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(Array([String(localized: "Tout"), String(localized: "Films"), String(localized: "Séries")].enumerated()),
-                    id: \.offset) { i, title in
-                let on = i == selected
-                Text(title)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(on && lit ? Color.black : Color.white.opacity(on ? 1 : 0.75))
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 9)
-                    .background(Capsule().fill(on ? (lit ? Color.white : Color.white.opacity(0.22)) : Color.clear))
-            }
-        }
-        .animation(.easeOut(duration: 0.18), value: selected)
-        .animation(.easeOut(duration: 0.18), value: lit)
     }
 }
 
