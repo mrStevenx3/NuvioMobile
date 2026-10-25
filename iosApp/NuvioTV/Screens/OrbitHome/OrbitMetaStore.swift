@@ -24,6 +24,12 @@ nonisolated struct OrbitMeta: Equatable, Sendable {
     var cleanPoster: String? = nil
     /// The French age rating ("TP", "12", "16"…), nil when TMDB has none.
     var certification: String? = nil
+    /// TMDB's poster in the user's language (with its title), for Netflix's portrait tiles.
+    var titledPoster: String? = nil
+    /// The production companies and networks (Netflix's "N" on its own titles).
+    var producers: [String] = []
+    /// Series: the number of seasons.
+    var seasons: Int? = nil
 }
 
 @MainActor
@@ -164,7 +170,11 @@ final class OrbitMetaStore: ObservableObject {
             }
             let results: [Rating]?
         }
+        nonisolated struct Named: Decodable { let name: String? }
         let poster_path: String?
+        let production_companies: [Named]?
+        let networks: [Named]?
+        let number_of_seasons: Int?
         let release_dates: ReleaseDates?
         let content_ratings: ContentRatings?
         let overview: String?
@@ -289,7 +299,10 @@ final class OrbitMetaStore: ObservableObject {
                          backdrop: d.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                          overviewEnglish: english,
                          cleanPoster: cleanPoster,
-                         certification: certification))
+                         certification: certification,
+                         titledPoster: d.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                         producers: ((d.production_companies ?? []) + (d.networks ?? [])).compactMap(\.name),
+                         seasons: d.number_of_seasons))
     }
 }
 
