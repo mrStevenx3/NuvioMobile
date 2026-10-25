@@ -110,6 +110,7 @@ struct OrbitHBOPage: View {
 
     @StateObject private var model: FolderDetailViewModel
     @StateObject private var extras = OrbitPlatformExtrasModel()
+    @StateObject private var originals = OrbitHBOOriginalsModel()
     @StateObject private var trailer = InlineTrailerCardModel()
     @ObservedObject private var metaStore = OrbitMetaStore.shared
     @Environment(\.tabBarVisibility) private var tabBarVisibility
@@ -202,6 +203,10 @@ struct OrbitHBOPage: View {
         let all = catalogs
         var out: [OrbitHBORow] = []
         if onHBO {
+            // Steven (rows of 4 titles): TMDB's own lists of the originals, full, when they arrived.
+            if !originals.rows.isEmpty {
+                return originals.rows.map { OrbitHBORow(id: $0.id, title: $0.title, items: $0.items, top10: false) }
+            }
             return all.map { OrbitHBORow(id: "hbo-\($0.id)", title: $0.heading, items: $0.items, top10: false) }
         }
         for c in all where c.fresh {
@@ -260,7 +265,9 @@ struct OrbitHBOPage: View {
     private func isNew(_ item: MetaPreview) -> Bool { freshIdentities.contains(Self.identity(item)) }
 
     private var heroItems: [MetaPreview] {
-        let fresh = catalogs.filter(\.fresh).map(\.items)
+        let fresh = onHBO && !originals.rows.isEmpty
+            ? originals.rows.filter { $0.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) }.map(\.items)
+            : catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
         // Steven (the HBO tab showed only documentaries): fiction first, documentaries after.
         let withArt = items.filter { $0.banner != nil }
@@ -386,6 +393,7 @@ struct OrbitHBOPage: View {
             model.buildsStripState = true
             model.start()
             extras.load(title: model.folderTitle)
+            originals.load()
             trailer.restSource = .custom(motion)
             startHeroClock()
             refreshAfterMove()
@@ -426,7 +434,7 @@ struct OrbitHBOPage: View {
                     OrbitHBORowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
                                     focused: canvasFocused && i == currentRow,
                                     // Not on the Nouveautés rows themselves (every poster said it).
-                                    news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
+                                    news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
                                     metaStore: metaStore)
                         .offset(y: tops[i])
                         .id(row.id)
@@ -890,5 +898,142 @@ private struct OrbitHBOFocus: ViewModifier {
             .shadow(color: .black.opacity(focused ? 0.6 : 0.25), radius: focused ? 18 : 6, y: focused ? 10 : 4)
             .scaleEffect(focused ? OrbitHBOLayout.focusScale : 1)
             .animation(.easeOut(duration: 0.18), value: focused)
+    }
+}
+
+/// The HBO tab's rows, straight from TMDB (Steven: the add-on's first pages left 4 originals per row):
+/// HBO's and HBO Max's networks for the series, HBO's companies for the films, on HBO Max in the
+/// viewer's region; the newest first, then the most watched by genre.
+@MainActor
+final class OrbitHBOOriginalsModel: ObservableObject {
+    struct Row: Equatable {
+        let id: String
+        let title: String
+        let items: [MetaPreview]
+        static func == (a: Row, b: Row) -> Bool { a.id == b.id && a.items.map(\.id) == b.items.map(\.id) }
+    }
+
+    nonisolated static let newPrefix = "hbo-orig-new"
+    /// HBO (49) and HBO Max (3186) on TMDB.
+    nonisolated private static let networks = "49|3186"
+    nonisolated private static let seriesGenres: [(Int, String)] = [
+        (18, "Drame"), (35, "Comédie"), (80, "Crime"), (10765, "Science-Fiction & Fantastique"),
+        (9648, "Mystère"), (99, "Documentaire"),
+    ]
+    nonisolated private static let genreNames: [Int: String] = [
+        28: "Action", 12: "Aventure", 16: "Animation", 35: "Comédie", 80: "Crime", 99: "Documentaire",
+        18: "Drame", 10751: "Familial", 14: "Fantastique", 36: "Histoire", 27: "Horreur", 10402: "Musique",
+        9648: "Mystère", 10749: "Romance", 878: "Science-Fiction", 53: "Thriller", 10752: "Guerre", 37: "Western",
+        10759: "Action & Aventure", 10764: "Téléréalité", 10765: "Science-Fiction & Fantastique", 10768: "Guerre & Politique",
+    ]
+
+    @Published private(set) var rows: [Row] = []
+    private var started = false
+
+    func load() {
+        guard !started else { return }
+        let key = TmdbSettingsRepository.shared.effectiveApiKey()
+        guard !key.isEmpty else { return }
+        started = true
+        let language = TmdbSettingsRepository.shared.snapshot().language
+        Task { [weak self] in
+            let built = await Self.build(apiKey: key, language: language.isEmpty ? "fr-FR" : language)
+            guard let self else { return }
+            if built.isEmpty { self.started = false } else { self.rows = built }
+        }
+    }
+
+    nonisolated private static func build(apiKey: String, language: String) async -> [Row] {
+        let region = OrbitPlatformExtrasModel.region(language: language)
+        let provider = 1899 // HBO Max on TMDB
+        let today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
+        let base = "&api_key=\(apiKey)&language=\(language)&watch_region=\(region)&with_watch_providers=\(provider)"
+            + "&with_watch_monetization_types=flatrate"
+        let companies = await hboCompanies(apiKey: apiKey)
+        var specs: [(id: String, title: String, tv: Bool, query: String)] = [
+            ("\(newPrefix)-tv", String(localized: "Nouvelles séries"), true,
+             "&with_networks=\(networks)&sort_by=first_air_date.desc&first_air_date.lte=\(today)"),
+            ("\(newPrefix)-movie", String(localized: "Nouveaux films"), false,
+             "&with_companies=\(companies)&sort_by=primary_release_date.desc&primary_release_date.lte=\(today)"),
+            ("hbo-orig-popular-tv", String(localized: "Les séries incontournables"), true,
+             "&with_networks=\(networks)&sort_by=popularity.desc"),
+        ]
+        for (genre, name) in seriesGenres {
+            specs.append(("hbo-orig-genre-\(genre)", name, true,
+                          "&with_networks=\(networks)&with_genres=\(genre)&sort_by=popularity.desc"))
+        }
+        specs.append(("hbo-orig-popular-movie", String(localized: "Films HBO"), false,
+                      "&with_companies=\(companies)&sort_by=popularity.desc"))
+        let lists = await withTaskGroup(of: (Int, [MetaPreview]).self) { group in
+            for (index, spec) in specs.enumerated() {
+                group.addTask {
+                    let address = "https://api.themoviedb.org/3/discover/\(spec.tv ? "tv" : "movie")?include_adult=false"
+                        + base + spec.query
+                    async let first = fetch(address + "&page=1", tv: spec.tv)
+                    async let second = fetch(address + "&page=2", tv: spec.tv)
+                    return (index, await first + second)
+                }
+            }
+            var out: [Int: [MetaPreview]] = [:]
+            for await (index, items) in group { out[index] = items }
+            return out
+        }
+        // A title shows once, in its first row (the genres after the newest and the essentials).
+        var shown = Set<String>()
+        return specs.enumerated().compactMap { index, spec in
+            let fresh = (lists[index] ?? []).filter { !shown.contains($0.id) }
+            guard fresh.count >= 5 else { return nil }
+            let kept = Array(fresh.prefix(24))
+            kept.forEach { shown.insert($0.id) }
+            return Row(id: spec.id, title: spec.title, items: kept)
+        }
+    }
+
+    /// HBO's production companies (HBO, HBO Films, HBO Documentary Films, HBO Max…), by name.
+    nonisolated private static func hboCompanies(apiKey: String) async -> String {
+        struct Found: Decodable { struct C: Decodable { let id: Int; let name: String? }; let results: [C]? }
+        let fallback = "3268|7429"
+        guard let url = URL(string: "https://api.themoviedb.org/3/search/company?api_key=\(apiKey)&query=HBO"),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let found = try? JSONDecoder().decode(Found.self, from: data) else { return fallback }
+        let ids = (found.results ?? []).filter { ($0.name ?? "").range(of: #"^HBO\b"#, options: [.regularExpression, .caseInsensitive]) != nil }
+            .map { String($0.id) }
+        return ids.isEmpty ? fallback : ids.joined(separator: "|")
+    }
+
+    nonisolated private struct Response: Decodable {
+        nonisolated struct Result: Decodable {
+            let id: Int
+            let title: String?
+            let name: String?
+            let overview: String?
+            let poster_path: String?
+            let backdrop_path: String?
+            let release_date: String?
+            let first_air_date: String?
+            let vote_average: Double?
+            let genre_ids: [Int]?
+        }
+        let results: [Result]?
+    }
+
+    /// One discover page as previews, with their genres (the carousel keeps documentaries after).
+    nonisolated private static func fetch(_ address: String, tv: Bool) async -> [MetaPreview] {
+        guard let url = URL(string: address),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let decoded = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
+        return (decoded.results ?? []).compactMap { r -> MetaPreview? in
+            guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path else { return nil }
+            let date = r.release_date ?? r.first_air_date
+            return MetaPreview(id: "tmdb:\(r.id)", type: tv ? "series" : "movie", name: name,
+                               poster: "https://image.tmdb.org/t/p/w500\(poster)",
+                               banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
+                               logo: nil, posterShape: .poster,
+                               description: r.overview ?? "", releaseInfo: date.map { String($0.prefix(4)) },
+                               rawReleaseDate: date, popularity: nil, voteCount: nil,
+                               imdbRating: r.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
+                               genres: (r.genre_ids ?? []).compactMap { genreNames[$0] }, rawPosterUrl: nil,
+                               landscapePoster: nil, rawLandscapePosterUrl: nil, customPosterApplied: false)
+        }
     }
 }
