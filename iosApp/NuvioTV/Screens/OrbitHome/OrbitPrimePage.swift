@@ -36,7 +36,9 @@ enum OrbitPrimeLayout {
     static let poster = CGSize(width: 292, height: 438)
     static var openWidth: CGFloat { poster.height * 16 / 9 }
     static let top10Tile = CGSize(width: 288, height: 162)
-    static let rankWidth: CGFloat = 96
+    static let rankWidth: CGFloat = 84
+    /// How far the rank runs under its tile.
+    static let rankTuck: CGFloat = 40
     static let rowGap: CGFloat = 44
     static let radius: CGFloat = 10
     static let horizontal = Animation.easeOut(duration: 0.24)
@@ -737,7 +739,7 @@ private struct OrbitPrimeRowView: View {
                                     OrbitPrimeRank(rank: index + 1)
                                     OrbitPrimeTile(item: item, meta: meta, badge: badge, grown: isLead,
                                                    focused: focused && isLead, size: L.top10Tile)
-                                        .padding(.leading, -L.rankWidth * 0.3)
+                                        .padding(.leading, -L.rankTuck)
                                 }
                             }
                         }
@@ -760,14 +762,15 @@ private struct OrbitPrimeRank: View {
 
     var body: some View {
         let L = OrbitPrimeLayout.self
+        // Steven's photo: Prime's ranks are a very wide, very heavy face, flat grey, about a third of
+        // the tile's height, a little above its middle, their right part under the tile.
         Text("\(rank)")
-            .font(.system(size: L.top10Tile.height * 0.78, weight: .black))
-            .kerning(rank == 10 ? -10 : 0)
-            .foregroundStyle(LinearGradient(colors: [Color(white: 0.62), Color(white: 0.42)],
-                                            startPoint: .top, endPoint: .bottom))
+            .font(.system(size: L.top10Tile.height * 0.5, weight: .black).width(.expanded))
+            .kerning(rank == 10 ? -4 : 0)
+            .foregroundStyle(Color(white: 0.55))
             .fixedSize()
-            .frame(width: L.rankWidth * 1.3, height: L.top10Tile.height, alignment: .trailing)
-            .offset(y: L.top10Tile.height * 0.12)
+            .frame(width: L.rankWidth + L.rankTuck, height: L.top10Tile.height, alignment: .trailing)
+            .offset(y: -L.top10Tile.height * 0.1)
     }
 }
 
