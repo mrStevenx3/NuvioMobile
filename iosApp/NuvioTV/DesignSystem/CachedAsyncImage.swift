@@ -165,8 +165,12 @@ struct CachedAsyncImage<Failure: View>: View {
     }
 
     private var baseBody: some View {
-        ZStack {
-            if let image = loader.image {
+        // Steven (device: a poster already shown went dark and came back each time its row slid it
+        // back in): a remounted tile draws its memory-cached image in its very first frame, instead
+        // of waiting for the loader's seed one body later.
+        let seeded: UIImage? = loader.image ?? (loader.failed ? nil : ArtworkStore.cached(candidateURLs.first, decode: chain.request))
+        return ZStack {
+            if let image = seeded {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
