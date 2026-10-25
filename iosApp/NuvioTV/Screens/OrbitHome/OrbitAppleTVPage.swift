@@ -344,7 +344,10 @@ struct OrbitAppleTVPage: View {
         .ignoresSafeArea()
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .animation(reduceMotion ? nil : OrbitAppleTVLayout.vertical, value: offset)
-        .animation(.easeInOut(duration: 0.3), value: onArrival)
+        // Steven (device, Apple TV: the first row's title ran over the carousel's poster while it
+        // faded): leaving, the carousel is gone before the rows reach it; coming back, it fades in
+        // once they have moved off it.
+        .animation(onArrival ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onArrival)
         .onAppear {
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
