@@ -155,9 +155,10 @@ struct OrbitHBOPage: View {
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             let top10 = heading.contains("top 10") || heading.contains("top10")
             if onHBO {
-                // HBO: no Top 10 (its ranks are everyone's), only HBO Originals.
+                // HBO: no Top 10 (its ranks are everyone's), only the originals (HBO and HBO Max:
+                // Steven, Paolo is an HBO Max Original).
                 guard !top10 else { return nil }
-                unique = unique.filter { OrbitHBOOwn.of($0) == .hbo }
+                unique = unique.filter { OrbitHBOOwn.of($0) != nil }
                 guard unique.count >= 3 else { return nil }
             }
             return Catalog(id: row.id, heading: row.heading, items: unique, top10: top10,
