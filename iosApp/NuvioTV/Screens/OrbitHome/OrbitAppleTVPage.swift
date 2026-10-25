@@ -521,7 +521,8 @@ private struct OrbitAppleTVCanvasStyle: ButtonStyle {
 
 // MARK: - Pieces
 
-/// tvOS 26's background: the shown title's art, blurred and dimmed, all over the page.
+/// tvOS 26's background (Steven checked: fixed, whatever the title): a slate blue warming to brown,
+/// from his videos of the app.
 private struct OrbitAppleTVAmbient: View {
     let item: MetaPreview?
     let meta: OrbitMeta?
@@ -529,22 +530,18 @@ private struct OrbitAppleTVAmbient: View {
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         ZStack {
-            Color(white: 0.06)
-            if let item {
-                OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster,
-                           size: CGSize(width: W / 4, height: H / 4))
-                    .frame(width: W / 4, height: H / 4)
-                    .scaleEffect(4.4)
-                    .blur(radius: 18)
-                    .saturation(0.9)
-                    .opacity(0.75)
-                    .id("\(item.type):\(item.id)")
-                    .transition(.opacity.animation(.easeInOut(duration: 0.6)))
-            }
-            LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.5)], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [
+                Color(red: 0.33, green: 0.31, blue: 0.25),
+                Color(red: 0.25, green: 0.28, blue: 0.29),
+                Color(red: 0.18, green: 0.23, blue: 0.30),
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+            RadialGradient(colors: [Color(red: 0.42, green: 0.47, blue: 0.48).opacity(0.55), .clear],
+                           center: UnitPoint(x: 0.45, y: 0.05), startRadius: 0, endRadius: 900)
+            RadialGradient(colors: [Color(red: 0.36, green: 0.27, blue: 0.18).opacity(0.45), .clear],
+                           center: UnitPoint(x: 0.0, y: 0.35), startRadius: 0, endRadius: 800)
+            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
         }
         .frame(width: W, height: H)
-        .clipped()
         .allowsHitTesting(false)
     }
 }
