@@ -168,8 +168,15 @@ struct OrbitDisneyPage: View {
             out.append(OrbitDisneyRow(id: "hulu-top10-movies", title: Self.top10Title(series: false),
                                       items: Array(popular.items.prefix(10)), top10: true))
         }
-        out += Self.alternate(hulu.seriesRows, hulu.movieRows).map {
-            OrbitDisneyRow(id: $0.id, title: $0.title, items: $0.items, top10: false, portrait: $0.id.contains("genre"))
+        // Steven: a title showed in two rows (The Bear in Drame and Comédie): each row leaves out the
+        // titles of the rows above; a row left with fewer than 6 is dropped.
+        var shown = Set<String>()
+        for row in Self.alternate(hulu.seriesRows, hulu.movieRows) {
+            let fresh = row.items.filter { !shown.contains(Self.identity($0)) }
+            guard fresh.count >= 6 else { continue }
+            fresh.forEach { shown.insert(Self.identity($0)) }
+            out.append(OrbitDisneyRow(id: row.id, title: row.title, items: fresh, top10: false,
+                                      portrait: row.id.contains("genre")))
         }
         return out
     }
@@ -779,6 +786,13 @@ private struct OrbitDisneyPoster: View {
         let size = L.poster
         ZStack {
             Color(red: 0.07, green: 0.08, blue: 0.12)
+            // Steven: an empty poster (its image did not load): the name under it, never a blank card.
+            Text(item.name)
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.8))
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .padding(20)
             OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
         }
         .frame(width: size.width, height: size.height)
