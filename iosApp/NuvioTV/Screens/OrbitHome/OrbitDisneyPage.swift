@@ -706,8 +706,9 @@ private struct OrbitDisneyTop10Card: View {
             // towards the corner, it is the poster's edge, not a disc over it).
             // Measured on the video: the corner spans almost half the card's width on both edges, a
             // blue-teal brighter in the corner, darker towards the poster.
-            LinearGradient(colors: [Color(red: 0.06, green: 0.42, blue: 0.54), Color(red: 0.04, green: 0.17, blue: 0.30)],
-                           startPoint: .topLeading, endPoint: UnitPoint(x: 0.35, y: 0.3))
+            // Colours read off the video's pixels: a deep blue (not teal) in the corner, near navy at the arc.
+            LinearGradient(colors: [Color(red: 0.02, green: 0.39, blue: 0.62), Color(red: 0.06, green: 0.14, blue: 0.25)],
+                           startPoint: .topLeading, endPoint: UnitPoint(x: 0.42, y: 0.32))
             Group {
                 if let poster = meta?.cleanPoster {
                     OrbitImage(url: poster, mode: .fill, size: size)

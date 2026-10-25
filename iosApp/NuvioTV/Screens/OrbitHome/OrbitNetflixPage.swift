@@ -30,7 +30,8 @@ enum OrbitNetflixLayout {
     static let headingHeight: CGFloat = 50
     static let tileHeight: CGFloat = 500
     static var openWidth: CGFloat { tileHeight * 16 / 9 }
-    static let posterWidth: CGFloat = 305
+    /// 2:3, the posters' own shape (narrower, their sides were cut: Friends' F).
+    static let posterWidth: CGFloat = 333
     static let gap: CGFloat = 16
     /// The open tile's meta line and synopsis.
     static let infoHeight: CGFloat = 170
@@ -671,15 +672,8 @@ private struct OrbitNetflixTile: View {
                         .padding(22)
                 }
             } else {
+                // His add-on's posters already carry Netflix's N: none added here.
                 OrbitImage(url: poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
-                if isNetflixOwn(meta) {
-                    Text("N")
-                        .font(.system(size: 34, weight: .black))
-                        .foregroundStyle(L.red)
-                        .padding(.leading, 12)
-                        .padding(.top, 6)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
