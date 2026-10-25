@@ -259,7 +259,7 @@ struct OrbitStudioPage: View {
                             if let sectionRow = row(at: s) {
                                 let row = sectionRow
                                 OrbitStudioRowView(row: row, lead: lead(of: row), isCurrent: s == index,
-                                                   focused: s == index && canvasFocused,
+                                                   focused: s == index && canvasFocused, accent: brand,
                                                    trailerURL: s == index && row.kind == .featured
                                                        ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil)
                                                        : nil,
@@ -748,6 +748,7 @@ private struct OrbitStudioRowView: View {
     let lead: Int
     let isCurrent: Bool
     let focused: Bool
+    var accent: Color? = nil
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -763,25 +764,16 @@ private struct OrbitStudioRowView: View {
         ZStack(alignment: .topLeading) {
             if row.kind == .ranked {
                 // Steven: Home's Top 10 band here too.
-                LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
-                                       .init(color: .black.opacity(0.30), location: 0.28),
-                                       .init(color: .black.opacity(0.30), location: 0.72),
-                                       .init(color: .black.opacity(0), location: 1)],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(width: OrbitHomeLayout.screenWidth, height: size.height + 140)
+                OrbitTop10Band(height: size.height + 140)
                     .offset(y: L.cardsTop - 70)
             }
             if row.kind == .saga {
                 OrbitSagaBand(backdrop: row.items.first?.banner, height: L.cardsTop + size.height + 60)
                     .offset(y: -30)
             } else {
-                Text(row.title)
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .opacity(isCurrent ? 1 : 0.55)
-                    .lineLimit(1)
-                    .frame(height: 40)
-                    .offset(x: L.margin + 4, y: -20)
+                // Steven: Home's headings here too, the bar in the studio's colour.
+                OrbitRowHeading(title: row.title, isCurrent: isCurrent, accent: accent)
+                    .offset(x: L.margin + 4, y: -24)
             }
 
             ZStack(alignment: .topLeading) {

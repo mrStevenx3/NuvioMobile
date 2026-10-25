@@ -182,6 +182,8 @@ struct OrbitPlatformTrendingRow: View {
     @ObservedObject var model = OrbitPlatformTrendingModel.shared
     /// The row the focus is in (nil: out of the rows), for the page to bring it to its line.
     var onRowFocus: (String?) -> Void = { _ in }
+    /// The focused platform's colour (the headings' bar).
+    var accent: Color? = nil
     @ObservedObject private var metaStore = OrbitMetaStore.shared
     @FocusState private var focused: String?
     /// When the focus last left the rows (the platforms keep their own landing when coming back up).
@@ -284,9 +286,8 @@ struct OrbitPlatformTrendingRow: View {
 
     private func row(heading: String, items: [MetaPreview], key: String, kind: Kind) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(heading)
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(Color.white)
+            // Steven: Home's headings here too, the bar in the platform's colour.
+            OrbitRowHeading(title: heading, isCurrent: true, accent: accent, size: 28)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: kind == .ranked ? 18 : Self.spacing) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in

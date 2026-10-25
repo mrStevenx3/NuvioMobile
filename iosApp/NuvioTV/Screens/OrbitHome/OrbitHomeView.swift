@@ -595,24 +595,52 @@ final class OrbitHomeTone: ObservableObject {
 struct OrbitRowHeading: View {
     let title: String
     let isCurrent: Bool
+    /// The bar's colour where the page has its own (a platform's, a studio's); else Home's wash.
+    var accent: Color? = nil
+    var size: CGFloat = 34
     @ObservedObject private var tone = OrbitHomeTone.shared
 
     var body: some View {
-        HStack(spacing: 14) {
+        let colour = accent ?? tone.color
+        HStack(spacing: size * 0.4) {
             Capsule()
-                .fill(tone.color ?? Color.white.opacity(0.8))
-                .frame(width: 6, height: 30)
-                .shadow(color: (tone.color ?? .white).opacity(0.6), radius: 6)
+                .fill(colour ?? Color.white.opacity(0.8))
+                .frame(width: max(5, size * 0.18), height: size * 0.88)
+                .shadow(color: (colour ?? .white).opacity(0.6), radius: 6)
             Text(title)
-                .font(.system(size: 34, weight: .heavy))
+                .font(.system(size: size, weight: .heavy))
                 .foregroundStyle(LinearGradient(colors: [.white, .white.opacity(0.78)],
                                                 startPoint: .top, endPoint: .bottom))
                 .lineLimit(1)
         }
         // The whole heading dimmed (not its colour): an emoji in a catalogue's name dims with it.
         .opacity(isCurrent ? 1 : 0.55)
-        .frame(height: 44, alignment: .center)
-        .animation(.easeInOut(duration: 0.5), value: tone.color)
+        .frame(height: size * 1.3, alignment: .center)
+        .animation(.easeInOut(duration: 0.5), value: colour)
+    }
+}
+
+/// The band behind a Top 10 (Steven: "une bande qui se fond"): a light frosted strip, solid in
+/// the middle and melting away above and below, that holds the ranks and posters together.
+struct OrbitTop10Band: View {
+    let height: CGFloat
+
+    var body: some View {
+        LinearGradient(stops: [.init(color: .white.opacity(0), location: 0),
+                               .init(color: .white.opacity(0.10), location: 0.2),
+                               .init(color: .white.opacity(0.10), location: 0.8),
+                               .init(color: .white.opacity(0), location: 1)],
+                       startPoint: .top, endPoint: .bottom)
+            .overlay {
+                // Two soft rims where the strip is solid.
+                VStack {
+                    Color.white.opacity(0.10).frame(height: 1).padding(.top, height * 0.2)
+                    Spacer()
+                    Color.white.opacity(0.10).frame(height: 1).padding(.bottom, height * 0.2)
+                }
+            }
+            .frame(width: OrbitHomeLayout.screenWidth, height: height)
+            .allowsHitTesting(false)
     }
 }
 

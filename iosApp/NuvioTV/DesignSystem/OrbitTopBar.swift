@@ -499,7 +499,7 @@ struct OrbitCollectionGrid: View {
                     // moves a row at a time — the focused row at its line, the platforms at the top.
                     OrbitPlatformTrendingRow(onRowFocus: { key in
                         if let key { scrollLine = "\(key)-line" }
-                    })
+                    }, accent: haloColor)
                         .padding(.top, 14)
                 }
                 .padding(.top, Self.top)

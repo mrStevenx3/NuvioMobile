@@ -96,14 +96,9 @@ struct OrbitHomeTileRowView: View {
             // Steven (device: the Top 10 looked empty, "une bande qui se fond"): a soft dark band
             // behind the ranks and posters, fading out above and below, that holds the row together.
             if style == .ranked {
-                LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
-                                       .init(color: .black.opacity(0.30), location: 0.28),
-                                       .init(color: .black.opacity(0.30), location: 0.72),
-                                       .init(color: .black.opacity(0), location: 1)],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(width: L.screenWidth, height: size.height + 140)
+                // (Steven, device: the dark band didn't show on the coloured wash — a light one.)
+                OrbitTop10Band(height: size.height + 140)
                     .offset(y: L.cardsTop - 70)
-                    .allowsHitTesting(false)
             }
 
             OrbitRowHeading(title: row.title, isCurrent: isCurrent)
