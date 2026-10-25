@@ -331,8 +331,8 @@ struct OrbitStreamBackground: View {
         ZStack {
             OrbitHomeLayout.background
             if let url, !url.isEmpty {
-                OrbitSwapImage(url: url, fallback: nil, size: size)
-                    .blur(radius: 30, opaque: true)
+                // Blurred once, not live on every frame (fluidity).
+                OrbitPreBlurred(url: url, radius: 30)
                     .scaleEffect(1.06)
                 Color.black.opacity(0.62)
             }

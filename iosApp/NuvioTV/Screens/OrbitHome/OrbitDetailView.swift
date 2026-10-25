@@ -993,17 +993,21 @@ private struct OrbitDetailBackground: View {
         let size = CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         ZStack {
             OrbitHomeLayout.background
-            OrbitSwapImage(url: url, fallback: nil, size: size)
-                .blur(radius: dimmed ? 26 : 0, opaque: true)
-                .scaleEffect(dimmed ? 1.06 : (cinema ? 1.05 : 1))
+            // Fluidity: the dimmed art is a pre-blurred copy cross-faded in (an animated live blur of
+            // the whole screen made the move to the sections stutter).
+            ZStack {
+                OrbitSwapImage(url: url, fallback: nil, size: size)
+                OrbitPreBlurred(url: url, radius: 26)
+                    .opacity(dimmed ? 1 : 0)
+            }
+            .scaleEffect(dimmed ? 1.06 : (cinema ? 1.05 : 1))
             // Steven: the bottom of the art melts into a blur (Apple TV style), under the
             // synopsis and the credits. On the still art only (a live blur over the trailer costs
             // the Apple TV too much): the trailer covers it as it fades in, and it is back when
             // the art returns. Gone in cinema and under the sections.
             // A little darkened and desaturated, so a bright art (Pixar) melts into the shade
             // instead of smearing its colours.
-            OrbitSwapImage(url: url, fallback: nil, size: size)
-                .blur(radius: 40, opaque: true)
+            OrbitPreBlurred(url: url, radius: 40)
                 .saturation(0.75)
                 .overlay(Color.black.opacity(0.3))
                 .mask(LinearGradient(stops: [

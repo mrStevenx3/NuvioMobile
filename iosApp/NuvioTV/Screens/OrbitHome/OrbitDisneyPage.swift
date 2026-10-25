@@ -909,7 +909,6 @@ final class OrbitHuluRowsModel: ObservableObject {
                 m = await Self.rows(tv: false, filter: "&with_companies=\(companies)", apiKey: key, lang: lang)
             }
             let s = await series
-            NSLog("%@", "[OrbitHulu] companies=\(companies) seriesRows=\(s.count) movieRows=\(m.count)")
             guard let self else { return }
             self.seriesRows = s
             self.movieRows = m

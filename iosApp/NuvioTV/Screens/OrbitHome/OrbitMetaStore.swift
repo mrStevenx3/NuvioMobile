@@ -54,7 +54,26 @@ final class OrbitMetaStore: ObservableObject {
     private static let maxConcurrent = 6
     private static let retryDelays: [TimeInterval] = [2, 8, 30]
 
+    /// Fluidity (Steven, 2026-10-25, before the IPA): every title found used to publish on its own,
+    /// re-rendering every row on screen once per title while the remote was moving. The results
+    /// arriving within a short beat are published together.
+    private var pending: [String: OrbitMeta] = [:]
+    private var flushScheduled = false
+
     private init() {}
+
+    private func publish(_ meta: OrbitMeta, for key: String) {
+        pending[key] = meta
+        guard !flushScheduled else { return }
+        flushScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            self.flushScheduled = false
+            guard !self.pending.isEmpty else { return }
+            self.metas.merge(self.pending) { _, new in new }
+            self.pending.removeAll()
+        }
+    }
 
     func meta(for item: MetaPreview) -> OrbitMeta? { metas[Self.key(item)] }
 
@@ -65,7 +84,7 @@ final class OrbitMetaStore: ObservableObject {
         var front: [(key: String, ref: Reference)] = []
         for item in items {
             let key = Self.key(item)
-            guard metas[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
+            guard metas[key] == nil, pending[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
             if let retry = retries[key], retry.after > Date() { continue }
             guard let ref = Self.reference(for: item) else { failed.insert(key); continue }
             queue.removeAll { $0.key == key }
@@ -78,7 +97,7 @@ final class OrbitMetaStore: ObservableObject {
     private func pump() {
         while inFlight.count < Self.maxConcurrent, !queue.isEmpty {
             let (key, ref) = queue.removeFirst()
-            guard metas[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
+            guard metas[key] == nil, pending[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
             inFlight.insert(key)
             let apiKey = TmdbSettingsRepository.shared.effectiveApiKey()
             let language = TmdbSettingsRepository.shared.snapshot().language
@@ -88,7 +107,7 @@ final class OrbitMetaStore: ObservableObject {
                 switch outcome {
                 case .found(let meta):
                     self.retries[key] = nil
-                    self.metas[key] = meta
+                    self.publish(meta, for: key)
                 case .missing:
                     self.failed.insert(key)
                 case .transient:

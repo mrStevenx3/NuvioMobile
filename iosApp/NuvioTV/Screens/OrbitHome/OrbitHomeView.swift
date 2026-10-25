@@ -136,7 +136,38 @@ struct OrbitHomeView: View {
     /// tiles; his catalogs alternating the classic frame, large cards and smaller posters (his Top
     /// 10 keep the classic frame); the Top 10 across the platforms after the first catalog; each
     /// platform's new titles in landscape tiles, one every two catalogs.
+    /// Fluidity (Steven, 2026-10-25, before the IPA): the rows were rebuilt — every card of every
+    /// row, through the Kotlin lists — several times per remote press. They are rebuilt only when
+    /// what they are made of changed (a cheap signature of the catalogs, Reprendre and the extras).
+    @State private var rowsCache = OrbitRowsCache()
+
     private var rows: [OrbitRow] {
+        let key = rowsSignature()
+        if rowsCache.key == key { return rowsCache.rows }
+        let built = buildRows()
+        rowsCache.key = key
+        rowsCache.rows = built
+        return built
+    }
+
+    private func rowsSignature() -> String {
+        var k = series ? "s|" : "m|"
+        for e in model.continueWatching { k += "\(e.videoId):\(e.lastUpdatedEpochMs)," }
+        k += "|"
+        let because = series ? extras.becauseSeries : extras.becauseMovie
+        for extra in (series ? extras.seriesRows : extras.movieRows) + [because].compactMap({ $0 }) {
+            k += "\(extra.id)#\(extra.items.count)#\(extra.items.first?.id ?? ""),"
+        }
+        k += "|"
+        for row in model.rows {
+            guard case .catalog(let section) = row else { continue }
+            let items = section.items
+            k += "\(section.key)#\(items.count)#\(items.first?.id ?? "")#\(items.last?.id ?? ""),"
+        }
+        return k
+    }
+
+    private func buildRows() -> [OrbitRow] {
         var out: [OrbitRow] = []
         var seen = Set<String>()
         let entries = model.continueWatching.filter { series ? $0.parentMetaType != "movie" : $0.parentMetaType == "movie" }
@@ -192,19 +223,26 @@ struct OrbitHomeView: View {
         if rowId.hasPrefix("orbit-sagas") {
             card = OrbitCard(id: "saga:\(item.id)", preview: item, poster: item.poster, landscape: card.landscape)
         }
-        if rowId.hasPrefix("orbit-soon"), let raw = item.rawReleaseDate, raw.count >= 10 {
-            let parser = DateFormatter()
-            parser.dateFormat = "yyyy-MM-dd"
-            parser.locale = Locale(identifier: "en_US_POSIX")
-            if let date = parser.date(from: String(raw.prefix(10))) {
-                let out = DateFormatter()
-                out.locale = Locale(identifier: "fr_FR")
-                out.dateFormat = "d MMM"
-                card.badge = String(localized: "Le \(out.string(from: date))")
-            }
+        if rowId.hasPrefix("orbit-soon"), let raw = item.rawReleaseDate, raw.count >= 10,
+           let date = Self.isoDay.date(from: String(raw.prefix(10))) {
+            card.badge = String(localized: "Le \(Self.shortDay.string(from: date))")
         }
         return card
     }
+
+    // Made once (a DateFormatter is costly to create).
+    private static let isoDay: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+    private static let shortDay: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "d MMM"
+        return f
+    }()
 
     /// "Parce que vous avez regardé": the last title watched of the page's kind — finished (his
     /// watched list) or in progress (Reprendre), the more recent of the two.
@@ -272,9 +310,8 @@ struct OrbitHomeView: View {
         let heroItem = heroItems.isEmpty ? nil : heroItems[heroIndex % heroItems.count]
 
         ZStack(alignment: .topLeading) {
-            OrbitAmbient(url: heroItem?.banner, visible: sections.first == .hero && index == 0)
-                .ignoresSafeArea()
-
+            // (The blurred ambient behind the hero is gone: the full-screen hero covers it, it was
+            // fetched and blurred for nothing on every title.)
             // Steven (2026-10-25, pass 2: the rows left the screen half black): the focused title's
             // art fills the top right behind the rows, fading to the left and down.
             OrbitRowsBackdrop(url: rowsBackdropURL(sections: sections, index: index))
@@ -551,4 +588,11 @@ struct OrbitRowsBackdrop: View {
         .clipped()
         .allowsHitTesting(false)
     }
+}
+
+/// Orbit Home's last built rows and what they were built from (a reference: updating it never
+/// re-renders the page).
+final class OrbitRowsCache {
+    var key: String?
+    var rows: [OrbitRow] = []
 }

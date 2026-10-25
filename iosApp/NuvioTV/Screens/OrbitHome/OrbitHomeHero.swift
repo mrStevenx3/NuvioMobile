@@ -179,39 +179,42 @@ struct OrbitGenreChip: View {
     }
 }
 
-// MARK: - Ambient
+// MARK: - Pre-blurred art
 
-/// The page behind the hero: the hero title's backdrop, tiny and blurred once, darkened; black
-/// below the hero (the rows' page). Never blurred per frame.
-struct OrbitAmbient: View {
+/// Fluidity (Steven, 2026-10-25, before the IPA): a blurred copy of an art, blurred ONCE on a
+/// small copy off the main thread and drawn scaled up — instead of a live full-screen `.blur`,
+/// which the Apple TV recomputes on every frame anything above it moves. `radius` is in screen
+/// points (as `.blur`'s).
+struct OrbitPreBlurred: View {
     let url: String?
-    let visible: Bool
+    let radius: CGFloat
+
     @State private var image: UIImage?
     @State private var shown: String?
 
+    /// The small copy's width: blurring it at radius / scale gives the same look full screen.
+    private static let width: CGFloat = 480
+
     var body: some View {
         ZStack {
-            OrbitHomeLayout.background
             if let image {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .opacity(visible ? 0.75 : 0)
                     .id(shown ?? "-")
                     .transition(.opacity)
-                Color.black.opacity(0.35)
-                    .opacity(visible ? 1 : 0)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         .clipped()
-        .animation(.easeInOut(duration: 0.5), value: shown)
-        .task(id: url ?? "-") {
-            guard let url, let address = URL(string: url) else { return }
-            guard let full = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(320), fill: true, scale: 1)),
-                  let cg = full.cgImage else { return }
-            let blurred = await Task.detached(priority: .utility) { () -> UIImage? in
-                OrbitAmbient.blur(cg)
+        .animation(.easeInOut(duration: 0.35), value: shown)
+        .task(id: "\(url ?? "-")|\(radius)") {
+            guard let url, let address = URL(string: url) else { image = nil; shown = nil; return }
+            guard let small = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(Int(Self.width)), fill: true, scale: 1)),
+                  let cg = small.cgImage else { return }
+            let pixels = radius * Self.width / OrbitHomeLayout.screenWidth
+            let blurred = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+                OrbitPreBlurred.blur(cg, radius: pixels)
             }.value
             guard !Task.isCancelled, let blurred else { return }
             image = blurred
@@ -221,11 +224,11 @@ struct OrbitAmbient: View {
         .accessibilityHidden(true)
     }
 
-    nonisolated static func blur(_ cg: CGImage) -> UIImage? {
+    nonisolated static func blur(_ cg: CGImage, radius: CGFloat) -> UIImage? {
         let input = CIImage(cgImage: cg)
         guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
         filter.setValue(input.clampedToExtent(), forKey: kCIInputImageKey)
-        filter.setValue(18, forKey: kCIInputRadiusKey)
+        filter.setValue(radius, forKey: kCIInputRadiusKey)
         guard let output = filter.outputImage?.cropped(to: input.extent),
               let rendered = CIContext(options: [.useSoftwareRenderer: false]).createCGImage(output, from: input.extent)
         else { return nil }
