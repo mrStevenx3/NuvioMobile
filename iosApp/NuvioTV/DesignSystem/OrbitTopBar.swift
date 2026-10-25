@@ -451,17 +451,12 @@ struct OrbitCollectionGrid: View {
 
     /// The focused platform's colour (the halo), nil for a grey cover.
     @State private var haloColor: Color?
-    @ObservedObject private var trending = OrbitPlatformTrendingModel.shared
 
     var body: some View {
         let entries = entries
         ZStack(alignment: .topLeading) {
             OrbitHomeLayout.background.ignoresSafeArea()
-            // Steven (2026-10-25): the platform's number one (or the focused title) faded in top
-            // right, as on Home, under the platform's colour.
-            OrbitRowsBackdrop(url: trending.spotlight, opaque: false)
-                .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.4), value: trending.spotlight)
+            // (Steven, device: no title art behind the platforms — only their colour, the halo.)
             // The halo: the focused platform's colour, soft, from the top left.
             if let haloColor {
                 RadialGradient(colors: [haloColor.opacity(0.55), haloColor.opacity(0.18), .clear],
@@ -630,7 +625,7 @@ struct OrbitPlatformTile: View {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : 0.08), lineWidth: focused ? 5 : 1.5)
         }
-        .scaleEffect(focused ? 1.06 : 1)
+        // Steven (device): no zoom on focus — it jumped before the GIF started. The frame says it.
         .shadow(color: .black.opacity(focused ? 0.6 : 0.25), radius: focused ? 26 : 10, y: focused ? 14 : 6)
         .animation(.easeOut(duration: 0.16), value: focused)
         .accessibilityLabel(folder.title)

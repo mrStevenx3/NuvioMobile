@@ -305,10 +305,12 @@ struct TrailerHeroPlayer: UIViewRepresentable {
             // Seed with the shared preference's current value (rather than always hardcoding muted)
             // so re-attaching (e.g. returning to a title after unmuting) doesn't flash muted first.
             let audioState = HeroTrailerAudioState.shared
-            queue.isMuted = (audioState.muted.value_ as? KotlinBoolean)?.boolValue ?? true
+            // Orbit: "Son des aperçus" (Réglages › Lecture) plays the previews with their sound.
+            let withSound = UserDefaults.standard.bool(forKey: OrbitHomeSetting.trailerSoundKey)
+            queue.isMuted = ((audioState.muted.value_ as? KotlinBoolean)?.boolValue ?? true) && !withSound
             audioWatcher = FlowWatcherKt.watch(audioState.muted) { [weak self] emitted in
                 guard let self, let boxed = emitted as? KotlinBoolean else { return }
-                self.player?.isMuted = boxed.boolValue
+                self.player?.isMuted = boxed.boolValue && !UserDefaults.standard.bool(forKey: OrbitHomeSetting.trailerSoundKey)
             }
 
             if loops {

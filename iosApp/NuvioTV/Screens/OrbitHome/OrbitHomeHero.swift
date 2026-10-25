@@ -29,32 +29,34 @@ struct OrbitHomeHeroView: View {
             if let item {
                 OrbitSwapImage(url: item.banner ?? metaStore.meta(for: item)?.backdrop, fallback: item.poster, size: size)
             }
+            if let item, let trailerURL {
+                TrailerHeroPlayer(urlString: trailerURL,
+                                  onFailure: onTrailerFailure,
+                                  zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                  loops: false,
+                                  onPlaybackEnded: onTrailerEnded,
+                                  cornerRadius: 0)
+                    .frame(width: size.width, height: size.height)
+                    .id("\(item.type):\(item.id)")
+                    .transition(.opacity.animation(.easeOut(duration: 0.5)))
+            }
+            // Steven (device: the art flashed lighter, then darkened, on each change): the shades
+            // stay put; only the title's details cross-fade.
+            LinearGradient(stops: [
+                .init(color: L.background.opacity(0.88), location: 0),
+                .init(color: L.background.opacity(0.45), location: 0.38),
+                .init(color: .clear, location: 0.64),
+            ], startPoint: .leading, endPoint: .trailing)
+            LinearGradient(stops: [
+                .init(color: .black.opacity(0.45), location: 0),
+                .init(color: .clear, location: 0.16),
+                .init(color: .clear, location: 0.6),
+                .init(color: L.background, location: 0.97),
+            ], startPoint: .top, endPoint: .bottom)
             if let item {
                 let meta = metaStore.meta(for: item)
                 let info = OrbitInfo.make(item, meta: meta)
                 ZStack(alignment: .topLeading) {
-                    if let trailerURL {
-                        TrailerHeroPlayer(urlString: trailerURL,
-                                          onFailure: onTrailerFailure,
-                                          zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
-                                          loops: false,
-                                          onPlaybackEnded: onTrailerEnded,
-                                          cornerRadius: 0)
-                            .frame(width: size.width, height: size.height)
-                            .transition(.opacity.animation(.easeOut(duration: 0.5)))
-                    }
-                    LinearGradient(stops: [
-                        .init(color: L.background.opacity(0.88), location: 0),
-                        .init(color: L.background.opacity(0.45), location: 0.38),
-                        .init(color: .clear, location: 0.64),
-                    ], startPoint: .leading, endPoint: .trailing)
-                    LinearGradient(stops: [
-                        .init(color: .black.opacity(0.45), location: 0),
-                        .init(color: .clear, location: 0.16),
-                        .init(color: .clear, location: 0.6),
-                        .init(color: L.background, location: 0.97),
-                    ], startPoint: .top, endPoint: .bottom)
-
                     VStack(alignment: .leading, spacing: 0) {
                         if let kind = OrbitPlatformBadgeKind.of(meta) {
                             OrbitPlatformBadge(kind: kind, size: 27)

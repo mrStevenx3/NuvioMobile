@@ -95,6 +95,7 @@ struct OrbitAccountSection: View {
 struct OrbitPlaybackSection: View {
     @ObservedObject var model: SettingsViewModel
     @AppStorage(OrbitHomeSetting.trailersKey) private var previews = true
+    @AppStorage(OrbitHomeSetting.trailerSoundKey) private var previewSound = false
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
     @AppStorage(TrailerStartDelay.storageKey) private var previewDelay = TrailerStartDelay.automatic.rawValue
     @AppStorage(OrbitPlayerSettings.objectAudioKey) private var objectAudio = true
@@ -127,6 +128,9 @@ struct OrbitPlaybackSection: View {
                                     UserDefaults.standard.set(on, forKey: "inline_trailers_enabled")
                                 }))
             if previews {
+                OrbitSettingsToggle(title: String(localized: "Son des aperçus"),
+                                    subtitle: String(localized: "Les bandes-annonces qui démarrent toutes seules jouent avec le son."),
+                                    isOn: $previewSound)
                 // Steven: when a trailer starts once the cursor stops on a title.
                 OrbitSettingsChoice(title: String(localized: "Délai avant la lecture"),
                                     subtitle: String(localized: "Automatique : une seconde après l'arrêt du défilement."),

@@ -248,6 +248,9 @@ struct OrbitNetflixPage: View {
                                           onTrailerFailure: { trailer.playbackFailed($0) },
                                           onTrailerEnded: { trailer.playbackFinished() })
                         .offset(x: OrbitNetflixLayout.margin, y: OrbitNetflixLayout.billboardTop)
+                        // Steven (taller billboard): its bottom showed under the bar once scrolled.
+                        .opacity(current == 0 ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.3), value: current == 0)
                         .opacity(current <= 1 ? 1 : 0)
                 }
                 rowsLayer(rows)
@@ -482,7 +485,9 @@ struct OrbitDriftImage: View {
     var body: some View {
         let zoom: CGFloat = 1.1
         let travel = size.width * (zoom - 1) / 2
-        OrbitImage(url: url, fallback: fallback, size: CGSize(width: size.width * zoom, height: size.height * zoom))
+        // Steven (device: one image for a second, then another): the art stays until the next one
+        // is ready, then cross-fades (never an empty or interim frame).
+        OrbitSwapImage(url: url, fallback: fallback, size: CGSize(width: size.width * zoom, height: size.height * zoom))
             .offset(x: drifting ? -travel : travel)
             .frame(width: size.width, height: size.height)
             .clipped()
@@ -577,7 +582,6 @@ private struct OrbitNetflixBillboard: View {
             Color(white: 0.08)
             // Netflix (Steven's video): the billboard's still drifts slowly to the left until its trailer.
             OrbitDriftImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
-                .id("\(item.type):\(item.id)")
             if let trailerURL {
                 TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                   zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),

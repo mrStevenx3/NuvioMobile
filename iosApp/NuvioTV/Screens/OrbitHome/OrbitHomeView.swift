@@ -21,6 +21,8 @@ import SwiftUI
 nonisolated enum OrbitHomeSetting {
     static let enabledKey = "orbit_home_enabled"
     static let trailersKey = "orbit_home_trailers"
+    /// Steven (2026-10-25): the previews that start on their own play with their sound.
+    static let trailerSoundKey = "orbit_trailer_sound"
 }
 
 extension Notification.Name {
@@ -77,17 +79,21 @@ struct OrbitHomeSwitch: View {
 
     var body: some View {
         let filter = contentFilter.filter
-        if filter == .services || filter == .studios {
-            OrbitSpacesPage(model: model, studios: filter == .studios, cover: cover)
-                .id(filter)
-                .transition(.opacity)
-                .onAppear { OrbitBarLock.shared.set(false) }
-        } else {
-            OrbitHomeView(model: model, series: filter == .series, actions: actions, pushGenre: pushGenre,
-                          isScrolledDown: $isScrolledDown)
-                .id(filter)
-                .transition(.opacity)
+        ZStack {
+            if filter == .services || filter == .studios {
+                OrbitSpacesPage(model: model, studios: filter == .studios, cover: cover)
+                    .id(filter)
+                    .transition(.opacity)
+                    .onAppear { OrbitBarLock.shared.set(false) }
+            } else {
+                OrbitHomeView(model: model, series: filter == .series, actions: actions, pushGenre: pushGenre,
+                              isScrolledDown: $isScrolledDown)
+                    .id(filter)
+                    .transition(.opacity)
+            }
         }
+        // Steven (device: Films ↔ Séries arrived at once): the pages cross-fade.
+        .animation(.easeInOut(duration: 0.35), value: filter)
     }
 }
 
