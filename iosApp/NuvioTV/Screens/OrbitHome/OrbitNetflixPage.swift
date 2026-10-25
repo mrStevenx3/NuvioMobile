@@ -29,17 +29,18 @@ enum OrbitNetflixLayout {
     /// The current row's heading once the billboard has gone.
     static let restTop: CGFloat = 118
     static let headingHeight: CGFloat = 50
-    static let tileHeight: CGFloat = 500
+    /// Steven (device, 2026-10-25): the rows 15 % smaller — one row filled the screen.
+    static let tileHeight: CGFloat = 425
     static var openWidth: CGFloat { tileHeight * 16 / 9 }
     /// 2:3, the posters' own shape (narrower, their sides were cut: Friends' F).
-    static let posterWidth: CGFloat = 333
+    static let posterWidth: CGFloat = 283
     static let gap: CGFloat = 16
     /// The open tile's meta line and synopsis.
     static let infoHeight: CGFloat = 170
     static let rowGap: CGFloat = 40
     static let radius: CGFloat = 8
-    static let rankWidth: CGFloat = 170
-    static let rankWidthTen: CGFloat = 360
+    static let rankWidth: CGFloat = 145
+    static let rankWidthTen: CGFloat = 306
     static let horizontal = Animation.easeOut(duration: 0.26)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -758,7 +759,8 @@ private struct OrbitNetflixTile: View {
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.09)
             if open {
-                OrbitImage(url: banner ?? meta?.backdrop, fallback: poster, size: size)
+                // (Steven, device: a grey box while the landscape art loaded): the poster stands in.
+                OrbitImage(url: banner ?? meta?.backdrop, fallback: poster, size: size, placeholder: poster)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -769,9 +771,9 @@ private struct OrbitNetflixTile: View {
                 LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 8) {
                     if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
-                    OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 380, height: 120), textSize: 40,
+                    OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 330, height: 104), textSize: 36,
                                    fallbackLogo: info.logoFallback, hugsLogo: true)
-                        .frame(width: 380, alignment: .leading)
+                        .frame(width: 330, alignment: .leading)
                 }
                 .padding(.leading, 24)
                 .padding(.bottom, 22)
