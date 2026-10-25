@@ -701,20 +701,13 @@ private struct OrbitNetflixTile: View {
         let size = CGSize(width: open ? L.openWidth : L.posterWidth, height: L.tileHeight)
         let info = OrbitInfo.make(item, meta: meta)
         let banner: String? = item.banner
-        // Steven: the catalog's posters were often in English (Le Pacte des innocentes showed "The
-        // Night Everything Changed"): TMDB's French poster first. His Top 10 images carry their own
-        // numbers: TMDB's poster there too.
-        // The portrait art (Steven: his posters were often English, Le Pacte des innocentes showed
-        // "The Night Everything Changed"): TMDB's French poster; else, when TMDB has a French logo,
-        // its title-less art with that logo; else his poster (his N already on it). His Top 10 images
-        // carry their numbers: never those.
+        // The portrait art: TMDB's French poster when there is one (Steven: his posters were often
+        // English), else his poster (his N already on it). His Top 10 images carry their numbers:
+        // TMDB's poster there.
         let french: String? = meta?.localPoster
-        // (A backdrop cropped to portrait was tried: Steven found it distorted. With no French and no
-        // title-less poster on TMDB, his poster stays.)
-        let composed: String? = french == nil && meta?.logoIsLocal == true ? meta?.textlessPoster : nil
-        let poster: String? = french ?? composed ?? (top10 ? meta?.titledPoster : item.poster)
+        let poster: String? = french ?? (top10 ? meta?.titledPoster : item.poster)
         // TMDB's art has no N: his N, drawn as his add-on draws it.
-        let drawsN = (french != nil || composed != nil || top10) && isNetflixOwn(item, meta)
+        let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.09)
             if open {
@@ -742,13 +735,6 @@ private struct OrbitNetflixTile: View {
                 }
             } else {
                 OrbitImage(url: poster, fallback: top10 ? nil : item.poster, mode: .fill, size: size)
-                if composed != nil {
-                    LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: UnitPoint(x: 0.5, y: 0.55), endPoint: .bottom)
-                    OrbitTitleMark(name: item.name, logo: info.logo,
-                                   maxSize: CGSize(width: size.width * 0.82, height: size.height * 0.2), textSize: 30)
-                        .frame(width: size.width, height: size.height * 0.24, alignment: .bottom)
-                        .padding(.bottom, size.height * 0.05)
-                }
                 if drawsN { OrbitNetflixPosterN(size: size) }
             }
         }

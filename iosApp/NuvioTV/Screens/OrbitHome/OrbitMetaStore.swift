@@ -26,10 +26,6 @@ nonisolated struct OrbitMeta: Equatable, Sendable {
     var certification: String? = nil
     /// TMDB's poster in the user's language (with its title), for Netflix's portrait tiles.
     var titledPoster: String? = nil
-    /// The poster without any title (nil when TMDB has none).
-    var textlessPoster: String? = nil
-    /// The logo is in the user's language (not the English fallback).
-    var logoIsLocal = false
     /// A poster in the user's language exactly (nil when TMDB has none: the catalog's stays).
     var localPoster: String? = nil
     /// The production companies and networks (Netflix's "N" on its own titles).
@@ -307,8 +303,6 @@ final class OrbitMetaStore: ObservableObject {
                          cleanPoster: cleanPoster,
                          certification: certification,
                          titledPoster: d.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
-                         textlessPoster: textless.map { "https://image.tmdb.org/t/p/w500\($0)" },
-                         logoIsLocal: logos.contains { $0.iso_639_1 == short },
                          localPoster: d.images?.posters?.first { $0.iso_639_1 == short }?.file_path
                              .map { "https://image.tmdb.org/t/p/w500\($0)" },
                          producers: ((d.production_companies ?? []) + (d.networks ?? [])).compactMap(\.name),
