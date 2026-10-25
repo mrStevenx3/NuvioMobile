@@ -31,13 +31,34 @@ nonisolated enum OrbitPlatformBadgeKind: CaseIterable {
         }
     }
 
-    /// The first platform the title is on (in TMDB's order), nil when on none.
+    /// The platform shown for a title: among those it is on in France, its own network's first
+    /// (Steven: Love & Death, an HBO series also on Netflix, showed NETFLIX), else TMDB's first.
+    /// Nil when it is on none.
     static func of(_ meta: OrbitMeta?) -> OrbitPlatformBadgeKind? {
-        guard let ids = meta?.platforms, !ids.isEmpty else { return nil }
-        for id in ids {
-            if let kind = allCases.first(where: { $0.providerIds.contains(id) }) { return kind }
+        guard let meta, !meta.platforms.isEmpty else { return nil }
+        var available: [OrbitPlatformBadgeKind] = []
+        for id in meta.platforms {
+            if let kind = allCases.first(where: { $0.providerIds.contains(id) }), !available.contains(kind) {
+                available.append(kind)
+            }
         }
-        return nil
+        if available.count > 1 {
+            let makers = meta.producers.map { $0.lowercased() }
+            if let own = available.first(where: { kind in makers.contains { kind.isMaker($0) } }) { return own }
+        }
+        return available.first
+    }
+
+    /// The production company or network is this platform's own.
+    private func isMaker(_ name: String) -> Bool {
+        switch self {
+        case .netflix: return name.contains("netflix")
+        case .disney: return name.contains("disney+") || name == "disney plus"
+        case .prime: return name.contains("amazon") || name.contains("prime video")
+        case .hbo: return name.contains("hbo") || name == "max"
+        case .paramount: return name.contains("paramount+") || name.contains("paramount plus")
+        case .appletv: return name.contains("apple tv")
+        }
     }
 }
 
