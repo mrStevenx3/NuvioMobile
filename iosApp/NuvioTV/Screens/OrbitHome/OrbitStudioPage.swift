@@ -176,6 +176,16 @@ struct OrbitStudioPage: View {
     /// When a title was last opened from a studio page (its disappearance then is a push, not a close).
     @MainActor private static var pushedAt: TimeInterval = 0
 
+    // Native page (Steven, 2026-10-25: as fluid as Home): real rows of real buttons, moved by the
+    // system (Settings ▸ Nouvel accueil off brings the canvas page back).
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
+    @FocusState private var nativeHeroFocus: Int?
+    @State private var nativeHeroPage = 0
+    @State private var nativeOnHero = true
+    @State private var nativePosition: String? = "hero"
+    @State private var nativeRow: String?
+    private static let nativeTop: CGFloat = 120
+
     init(route: OrbitStudioRoute) {
         self.route = route
         _model = StateObject(wrappedValue: OrbitStudioModel(route: route))
@@ -239,6 +249,9 @@ struct OrbitStudioPage: View {
         ZStack(alignment: .topLeading) {
             OrbitStudioBackground(brand: brand)
 
+            if nativeHome {
+                nativeContent
+            } else {
             ZStack(alignment: .topLeading) {
                 if hasHero {
                     OrbitStudioHero(item: heroItem, meta: heroItem.flatMap { metaStore.meta(for: $0) },
@@ -312,6 +325,7 @@ struct OrbitStudioPage: View {
             .focused($canvasFocused)
             .onMoveCommand(perform: move)
             .onExitCommand(perform: exitAction(index: index))
+            }
 
             // The studio's opening, over everything from the first frame (the catalogue never
             // shows before it).
@@ -333,7 +347,10 @@ struct OrbitStudioPage: View {
             OrbitHomeButtonHost.shared.enter(.onRequest)
             model.start()
             trailer.restSource = .custom(motion)
-            DispatchQueue.main.async { canvasFocused = true }
+            DispatchQueue.main.async {
+                if nativeHome { if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = nativeHeroPage } }
+                else { canvasFocused = true }
+            }
             refreshAfterMove()
         }
         .onDisappear {
@@ -375,6 +392,118 @@ struct OrbitStudioPage: View {
         ArtworkColorStore.shared.color(for: [raw], use: .wash) { color in
             if let color { withAnimation(.easeInOut(duration: 0.5)) { tint = color } }
         }
+    }
+
+    // MARK: Native page
+
+    @ViewBuilder
+    private var nativeContent: some View {
+        let L = OrbitStudioLayout.self
+        ZStack(alignment: .topLeading) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 44) {
+                    if hasHero {
+                        nativeHero
+                            .id("hero")
+                    } else {
+                        OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: nil)
+                            .padding(.leading, L.margin)
+                            .frame(height: 360 - Self.nativeTop, alignment: .topLeading)
+                            .id("header")
+                    }
+                    ForEach(rows) { row in
+                        OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id, accent: brand,
+                                             onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) })
+                            .id(row.id)
+                    }
+                }
+                .scrollTargetLayout()
+                .padding(.bottom, 300)
+            }
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $nativePosition, anchor: .top)
+            .contentMargins(.top, Self.nativeTop, for: .scrollContent)
+            .scrollClipDisabled()
+
+            // Off the banner, the band under the top is the page's dark.
+            LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(width: OrbitHomeLayout.screenWidth, height: Self.nativeTop + 20)
+                .opacity(nativeOnHero ? 0 : 1)
+                .animation(.easeInOut(duration: 0.25), value: nativeOnHero)
+                .allowsHitTesting(false)
+
+            if sectionCount == 0 {
+                Group {
+                    if model.loading {
+                        ProgressView()
+                    } else {
+                        Text(String(localized: "Aucun film trouvé pour \(model.name)."))
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                }
+                .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+            }
+        }
+        .onExitCommand(perform: nativeExit)
+        .onChange(of: nativeHeroFocus) { _, page in
+            guard let page else { return }
+            nativeHeroPage = page
+            nativeRow = nil
+            nativeOnHero = true
+            if nativePosition != "hero" { withAnimation(.easeInOut(duration: 0.32)) { nativePosition = "hero" } }
+            if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
+        }
+    }
+
+    /// The banner: a carousel of buttons the system slides (Left / Right); Up goes to the house.
+    private var nativeHero: some View {
+        let count = heroItems.count
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(Array(heroItems.enumerated()), id: \.offset) { index, item in
+                    Button {
+                        nativeOpen(item)
+                    } label: {
+                        OrbitNativeStudioHeroPage(item: item, meta: metaStore.meta(for: item),
+                                                  studioName: model.name, studioLogo: model.logo ?? route.logo,
+                                                  showsStudioLogo: introDone, statsLine: model.statsLine,
+                                                  count: count, index: index,
+                                                  live: abs(index - nativeHeroPage) <= 1)
+                    }
+                    .buttonStyle(OrbitPlainStyle())
+                    .focused($nativeHeroFocus, equals: index)
+                    .onMoveCommand { direction in
+                        if direction == .up { NotificationCenter.default.post(name: .orbitHomeButtonFocus, object: nil) }
+                    }
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollClipDisabled()
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop)
+        .focusSection()
+        .defaultFocus($nativeHeroFocus, nativeHeroPage, priority: .userInitiated)
+    }
+
+    /// Menu: from a row, back to the banner; on the banner (or with none), the page closes.
+    private var nativeExit: (() -> Void)? {
+        guard hasHero, !nativeOnHero else { return nil }
+        return { nativeHeroFocus = nativeHeroPage }
+    }
+
+    private func nativeEnter(_ rowID: String) {
+        nativeRow = rowID
+        nativeOnHero = false
+        if nativePosition != rowID { withAnimation(.easeInOut(duration: 0.32)) { nativePosition = rowID } }
+    }
+
+    private func nativeOpen(_ item: MetaPreview) {
+        // A saga opens its first film, as that film (its own name and art, not the saga's).
+        let route = TitleRoute(preview: model.sagaFilms[item.id] ?? item)
+        Self.pushedAt = ProcessInfo.processInfo.systemUptime
+        if let orbitPush { orbitPush(route) } else { opening = route }
     }
 
     // MARK: Input
@@ -576,6 +705,219 @@ struct OrbitStudioIntro: View {
         }
         // 2.4 s: the page's own logo takes over (same place, same size).
         at(2.4) { onDone() }
+    }
+}
+
+// MARK: - Native page's parts
+
+/// One banner page of the native studio page, focused as its button is (drawn from the top).
+private struct OrbitNativeStudioHeroPage: View {
+    let item: MetaPreview
+    let meta: OrbitMeta?
+    let studioName: String
+    let studioLogo: String?
+    let showsStudioLogo: Bool
+    let statsLine: String?
+    let count: Int
+    let index: Int
+    let live: Bool
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        let top: CGFloat = 120
+        ZStack(alignment: .top) {
+            if live {
+                OrbitStudioHero(item: item, meta: meta, studioName: studioName, studioLogo: studioLogo,
+                                showsStudioLogo: showsStudioLogo, statsLine: statsLine, focused: isFocused,
+                                count: count, index: index, trailerURL: nil,
+                                onTrailerFailure: { _ in }, onTrailerEnded: {})
+                    .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight)
+                    .offset(y: -top)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - top, alignment: .top)
+    }
+}
+
+/// A row of the native studio page: real buttons the system slides, the focused one at the margin.
+private struct OrbitNativeStudioRow: View {
+    let row: OrbitStudioRow
+    let isCurrent: Bool
+    let accent: Color?
+    let onEnter: () -> Void
+    let onOpen: (MetaPreview) -> Void
+
+    @FocusState private var focused: Int?
+    @State private var holds = false
+    @State private var shown: Int?
+    @State private var anchor: Int?
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
+
+    /// The title opened from a studio page (row, place): the focus goes back to it.
+    @MainActor static var reopen: (row: String, index: Int)?
+
+    var body: some View {
+        let L = OrbitStudioLayout.self
+        let size = row.cardSize
+        let saga = row.kind == .saga
+        let lastWidth = row.kind == .ranked ? size.width + OrbitTileLayout.rankWidth * OrbitStudioRow.rankedScale : size.width
+        VStack(alignment: .leading, spacing: 14) {
+            if !saga {
+                OrbitRowHeading(title: row.title, isCurrent: isCurrent, accent: accent)
+                    .padding(.leading, L.margin + 4)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .bottom, spacing: row.gap) {
+                    // By place, not id: a saga's panel carries its first film's id.
+                    ForEach(row.items.indices, id: \.self) { index in
+                        let item = row.items[index]
+                        Button {
+                            Self.reopen = (row.id, index)
+                            onOpen(item)
+                        } label: {
+                            OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item))
+                        }
+                        .buttonStyle(OrbitPlainStyle())
+                        .focused($focused, equals: index)
+                        .onAppear { OrbitMetaStore.shared.request([item]) }
+                    }
+                }
+                .scrollTargetLayout()
+                .padding(.vertical, 34)
+            }
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $anchor, anchor: .leading)
+            .contentMargins(.leading, L.margin, for: .scrollContent)
+            .contentMargins(.trailing, max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth), for: .scrollContent)
+            .scrollClipDisabled()
+            .padding(.vertical, -34)
+            .frame(height: size.height)
+
+            if row.showsInfo {
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    details(isCurrent ? shown.flatMap { row.items.indices.contains($0) ? row.items[$0] : nil } : nil)
+                }
+                .frame(width: 1200, height: 112, alignment: .topLeading)
+                .clipped()
+                .padding(.top, 12)
+                .padding(.leading, L.margin + 6)
+            }
+        }
+        .padding(.top, saga ? 30 : 0)
+        .background(alignment: .topLeading) {
+            if saga {
+                OrbitSagaBand(backdrop: row.items.first?.banner, height: size.height + 104)
+            }
+        }
+        .focusSection()
+        .defaultFocus($focused, 0, priority: .userInitiated)
+        .onAppear { restoreIfReturning() }
+        .onChange(of: focused) { _, new in
+            guard let new else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    if focused == nil, holds { holds = false }
+                }
+                return
+            }
+            if !holds {
+                holds = true
+                onEnter()
+                // Entering a row lands on its first title (asked again while it builds).
+                if Self.reopen?.row != row.id, new != 0 {
+                    shown = 0
+                    withAnimation(OrbitStudioLayout.horizontal) { anchor = 0 }
+                    let entered = ProcessInfo.processInfo.systemUptime
+                    for delay in [0.0, 0.12, 0.25, 0.4] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            guard holds, focused != nil, focused != 0,
+                                  !ViewerInputClock.shared.hasInput(since: entered + 0.05) else { return }
+                            focused = 0
+                        }
+                    }
+                    return
+                }
+            }
+            shown = new
+            if anchor != new { withAnimation(OrbitStudioLayout.horizontal) { anchor = new } }
+            let ahead = row.items[new..<min(row.items.count, new + 6)]
+            OrbitMetaStore.shared.request(Array(ahead))
+        }
+    }
+
+    private func restoreIfReturning() {
+        guard let target = Self.reopen, target.row == row.id else { return }
+        let appeared = ProcessInfo.processInfo.systemUptime
+        shown = target.index
+        anchor = target.index
+        for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard Self.reopen?.index == target.index, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                if focused != target.index { focused = target.index }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if Self.reopen?.index == target.index { Self.reopen = nil }
+        }
+    }
+
+    @ViewBuilder
+    private func details(_ item: MetaPreview?) -> some View {
+        if let item {
+            let info = OrbitInfo.make(item, meta: metaStore.meta(for: item))
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 16) {
+                    Text(item.name)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                    OrbitMetaLine(info: info, size: 24)
+                }
+                .frame(height: 34)
+                Text(info.synopsis)
+                    .font(.system(size: 23, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .lineSpacing(3)
+                    .lineLimit(2)
+                    .frame(width: 1100, alignment: .topLeading)
+            }
+            .id(item.id)
+            .transition(.opacity.animation(.easeInOut(duration: 0.18)))
+        }
+    }
+}
+
+/// One tile of a native studio row, focused as its button is.
+private struct OrbitNativeStudioTile: View {
+    let row: OrbitStudioRow
+    let item: MetaPreview
+    let index: Int
+    let meta: OrbitMeta?
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        let size = row.cardSize
+        Group {
+            switch row.kind {
+            case .saga where index == 0:
+                OrbitSagaPanel(saga: item, meta: meta,
+                               size: CGSize(width: OrbitStudioRow.sagaPanelWidth, height: size.height), focused: isFocused)
+            case .saga:
+                OrbitStudioPoster(item: item, size: size, transparent: false, focused: isFocused)
+            case .featured:
+                OrbitStudioCard(item: item, meta: meta, size: size, focused: isFocused,
+                                trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
+            case .posters(let transparent):
+                OrbitStudioPoster(item: item, size: size, transparent: transparent, focused: isFocused)
+            case .ranked:
+                OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                meta: meta, rank: index + 1, focused: isFocused, showsBadge: false,
+                                scale: OrbitStudioRow.rankedScale)
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
 
