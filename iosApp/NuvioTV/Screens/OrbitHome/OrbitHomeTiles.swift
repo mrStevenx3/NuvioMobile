@@ -26,6 +26,8 @@ enum OrbitTileLayout {
     /// Steven: the Top 10 more prominent — larger posters, larger ranks.
     static let rankedPoster = CGSize(width: 300, height: 450)
     static let rankWidth: CGFloat = 190
+    /// The extra room for "10" (the last title: nothing after it moves).
+    static let tenExtra: CGFloat = 110
     static let infoGap: CGFloat = 26
 
     static func size(_ style: OrbitRowStyle) -> CGSize {
@@ -314,7 +316,8 @@ private struct OrbitRankedTile: View {
                 .shadow(color: .black.opacity(0.7), radius: 14, y: 4)
                 .lineLimit(1)
                 .fixedSize()
-                .frame(width: T.rankWidth + 34, alignment: .trailing)
+                // "10" is wider: its own room, so it no longer runs over the 9's poster (Steven).
+                .frame(width: T.rankWidth + 34 + (rank >= 10 ? T.tenExtra : 0), alignment: .trailing)
                 .offset(y: size.height * 0.12)
                 .animation(.easeInOut(duration: 0.4), value: tone)
             ZStack(alignment: .bottom) {
@@ -328,7 +331,7 @@ private struct OrbitRankedTile: View {
             .frame(width: size.width, height: size.height)
             .modifier(OrbitTileFocus(focused: focused, radius: 12))
         }
-        .frame(width: T.rankWidth + size.width, height: size.height, alignment: .bottomLeading)
+        .frame(width: T.rankWidth + size.width + (rank >= 10 ? T.tenExtra : 0), height: size.height, alignment: .bottomLeading)
         .task(id: poster ?? "-") {
             guard let poster else { return }
             tone = await OrbitDominantColor.color(for: poster)
@@ -406,15 +409,15 @@ final class OrbitHomeExtrasModel: ObservableObject {
         let media = tv ? "tv" : "movie"
         let region = OrbitPlatformExtrasModel.region(language: language)
         let kinds = OrbitPlatformBadgeKind.allCases
-        let all = kinds.compactMap { $0.providerIds.min() }.map(String.init).joined(separator: "|")
         let since = String(ISO8601DateFormatter().string(from: Date().addingTimeInterval(-150 * 86_400)).prefix(10))
         let dateKey = tv ? "first_air_date" : "primary_release_date"
         let base = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(language)"
             + "&watch_region=\(region)&with_watch_monetization_types=flatrate&include_adult=false"
         var specs: [(id: String, title: String, style: OrbitRowStyle, address: String, limit: Int)] = [
-            ("orbit-top-\(media)", tv ? String(localized: "Top 10 des séries sur vos plateformes")
-                                      : String(localized: "Top 10 des films sur vos plateformes"),
-             .ranked, base + "&with_watch_providers=\(all)&sort_by=popularity.desc", 10),
+            // Steven: the Top 10 of everything, on a platform or not (TMDB's titles of the day).
+            ("orbit-top-\(media)", tv ? String(localized: "Top 10 des séries aujourd'hui")
+                                      : String(localized: "Top 10 des films aujourd'hui"),
+             .ranked, "https://api.themoviedb.org/3/trending/\(media)/day?api_key=\(apiKey)&language=\(language)", 10),
         ]
         for kind in kinds {
             guard let id = kind.providerIds.min() else { continue }
@@ -424,7 +427,10 @@ final class OrbitHomeExtrasModel: ObservableObject {
         let lists = await withTaskGroup(of: (Int, [MetaPreview]).self) { group in
             for (index, spec) in specs.enumerated() {
                 group.addTask {
-                    (index, await OrbitPlatformExtrasModel.fetch(spec.address + "&page=1", tv: tv))
+                    // The Top 10: two pages, room for the titles without art or synopsis left out.
+                    let first = await OrbitPlatformExtrasModel.fetch(spec.address + "&page=1", tv: tv)
+                    guard spec.style == .ranked else { return (index, first) }
+                    return (index, first + (await OrbitPlatformExtrasModel.fetch(spec.address + "&page=2", tv: tv)))
                 }
             }
             var out: [Int: [MetaPreview]] = [:]
