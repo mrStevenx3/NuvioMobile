@@ -16,13 +16,15 @@ import UIKit
 // margin; the focused title's meta line and synopsis show under the row (on the card for cards).
 
 nonisolated enum OrbitRowStyle: Equatable {
-    case classic, landscape, cards, posters, ranked
+    case classic, landscape, cards, posters, ranked, sagas
 }
 
 enum OrbitTileLayout {
     static let landscape = CGSize(width: 456, height: 256)
     static let card = CGSize(width: 400, height: 560)
     static let poster = CGSize(width: 248, height: 372)
+    /// Steven: the sagas' posters larger (their art is the point of the row).
+    static let sagaPoster = CGSize(width: 340, height: 510)
     /// Steven: the Top 10 more prominent — larger posters, larger ranks.
     static let rankedPoster = CGSize(width: 300, height: 450)
     static let rankWidth: CGFloat = 190
@@ -36,6 +38,7 @@ enum OrbitTileLayout {
         case .cards: return card
         case .posters: return poster
         case .ranked: return rankedPoster
+        case .sagas: return sagaPoster
         case .classic: return CGSize(width: OrbitHomeLayout.posterWidth, height: OrbitHomeLayout.cardHeight)
         }
     }
@@ -46,6 +49,7 @@ enum OrbitTileLayout {
         case .cards: return 30
         case .posters: return 22
         case .ranked: return 18
+        case .sagas: return 26
         case .classic: return OrbitHomeLayout.gap
         }
     }
@@ -62,6 +66,7 @@ enum OrbitTileLayout {
         case .landscape: return OrbitHomeLayout.cardsTop + landscape.height + infoGap + 150
         case .posters: return OrbitHomeLayout.cardsTop + poster.height + infoGap + 150
         case .ranked: return OrbitHomeLayout.cardsTop + rankedPoster.height + infoGap + 150
+        case .sagas: return OrbitHomeLayout.cardsTop + sagaPoster.height + infoGap + 150
         }
     }
 }
@@ -112,6 +117,8 @@ struct OrbitHomeTileRowView: View {
                                 OrbitRankedTile(card: card, meta: meta, rank: index + 1, focused: lit)
                             case .posters, .classic:
                                 OrbitSmallPoster(card: card, meta: meta, focused: lit)
+                            case .sagas:
+                                OrbitSmallPoster(card: card, meta: meta, focused: lit, size: OrbitTileLayout.sagaPoster)
                             }
                         }
                         .offset(x: L.margin + CGFloat(index - lead) * slot)
@@ -272,9 +279,9 @@ private struct OrbitSmallPoster: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let focused: Bool
+    var size: CGSize = OrbitTileLayout.poster
 
     var body: some View {
-        let size = OrbitTileLayout.poster
         ZStack(alignment: .topTrailing) {
             Color(white: 0.1)
             // A saga keeps its own poster (its card opens its first film, whose meta is not the saga's).
@@ -574,7 +581,7 @@ final class OrbitHomeExtrasModel: ObservableObject {
         if !tv {
             let sagas = await sagas(apiKey: apiKey, language: language)
             if sagas.count >= 6 {
-                out.append(Extra(id: "orbit-sagas", title: String(localized: "Les grandes sagas"), items: sagas, style: .posters))
+                out.append(Extra(id: "orbit-sagas", title: String(localized: "Les grandes sagas"), items: sagas, style: .sagas))
             }
         }
         return out
