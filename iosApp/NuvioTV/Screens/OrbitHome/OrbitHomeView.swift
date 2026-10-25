@@ -47,6 +47,8 @@ final class OrbitBarLock: ObservableObject {
 final class OrbitHomeMotion: RowRestSignal {
     private var last = ProcessInfo.processInfo.systemUptime
     func stamp() { last = ProcessInfo.processInfo.systemUptime }
+    /// Home's last Up/Down (its rows' window settles once no other came after it).
+    var verticalStamp: TimeInterval = 0
     var restPending: Bool { false }
     var secondsSinceMotion: TimeInterval { ProcessInfo.processInfo.systemUptime - last }
 }
@@ -109,6 +111,10 @@ struct OrbitHomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var current = 0
+    /// Steven (device, still a hitch on Up/Down): the rows mounted follow the row the page last
+    /// settled on, not the one it is moving to — the row coming into the window is built once the
+    /// move is over, not in the frame the move starts.
+    @State private var settled = 0
     @State private var leads: [String: Int] = [:]
     @State private var heroIndex = 0
     @FocusState private var canvasFocused: Bool
@@ -312,7 +318,9 @@ struct OrbitHomeView: View {
         let anchors = anchors(sections)
         let index = min(current, max(0, sections.count - 1))
         let scroll = sections.isEmpty ? 0 : screenLine(sections[index]) - anchors[index]
-        let window = max(0, index - 1)...max(max(0, index - 1), min(sections.count - 1, index + 2))
+        let base = abs(settled - index) <= 1 ? settled : index
+        let low = max(0, min(base - 1, index))
+        let window = low...max(low, min(sections.count - 1, max(base + 2, index + 1)))
         let heroItem = heroItems.isEmpty ? nil : heroItems[heroIndex % heroItems.count]
 
         ZStack(alignment: .topLeading) {
@@ -370,6 +378,7 @@ struct OrbitHomeView: View {
         }
         .onChange(of: sections.map(\.id)) { _, _ in
             if current >= sections.count { current = max(0, sections.count - 1) }
+            if settled >= sections.count { settled = max(0, sections.count - 1) }
             refreshAfterMove()
         }
     }
@@ -428,9 +437,11 @@ struct OrbitHomeView: View {
         case .down:
             guard index + 1 < sections.count else { return }
             withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = index + 1 }
+            settleLater()
         case .up:
             guard index > 0 else { return }   // the bar takes it (unlocked at the top)
             withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = index - 1 }
+            settleLater()
         case .left, .right:
             let delta = direction == .right ? 1 : -1
             switch sections[index] {
@@ -483,7 +494,20 @@ struct OrbitHomeView: View {
         return { goTop() }
     }
 
+    /// Once no vertical move has come for the length of one: the window catches up (idle).
+    private func settleLater() {
+        // TMDB's results wait for the move to end (a redraw of every row mid-move is the hitch).
+        OrbitMetaStore.shared.holdPublishing(for: 0.45)
+        let stamp = ProcessInfo.processInfo.systemUptime
+        motion.verticalStamp = stamp
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            guard motion.verticalStamp == stamp, settled != current else { return }
+            settled = current
+        }
+    }
+
     private func goTop() {
+        settled = 0
         withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = 0 }
         refreshAfterMove()
     }

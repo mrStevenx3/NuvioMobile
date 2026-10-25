@@ -93,6 +93,19 @@ struct OrbitHomeTileRowView: View {
         let visible = Int(L.screenWidth / slot) + 2
         let window = max(0, lead - 2)...max(max(0, lead - 2), min(row.cards.count - 1, lead + visible))
         ZStack(alignment: .topLeading) {
+            // Steven (device: the Top 10 looked empty, "une bande qui se fond"): a soft dark band
+            // behind the ranks and posters, fading out above and below, that holds the row together.
+            if style == .ranked {
+                LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
+                                       .init(color: .black.opacity(0.30), location: 0.28),
+                                       .init(color: .black.opacity(0.30), location: 0.72),
+                                       .init(color: .black.opacity(0), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(width: L.screenWidth, height: size.height + 140)
+                    .offset(y: L.cardsTop - 70)
+                    .allowsHitTesting(false)
+            }
+
             Text(row.title)
                 .font(.system(size: L.headingFont, weight: .bold))
                 .foregroundStyle(Color.white)

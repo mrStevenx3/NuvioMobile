@@ -9,7 +9,7 @@ import SwiftUI
 // details with images, in the user's TMDB language. Results stay in memory for the session.
 
 /// What Orbit Home shows about one title, beyond its catalog preview.
-nonisolated struct OrbitMeta: Equatable, Sendable {
+nonisolated struct OrbitMeta: Equatable, Sendable, Codable {
     var percent: Int?
     var year: String?
     var genre: String?
@@ -60,19 +60,79 @@ final class OrbitMetaStore: ObservableObject {
     private var pending: [String: OrbitMeta] = [:]
     private var flushScheduled = false
 
-    private init() {}
+    /// Steven (2026-10-25, device: the posters turned from English to French before his eyes): what
+    /// TMDB said is kept on disk, so a title known from an earlier launch shows its French poster,
+    /// logo and line at once. Those are looked up again quietly once per session (`stale`), and
+    /// published only when something changed.
+    private var stale = Set<String>()
+    private var saveScheduled = false
+    private static let cacheFile: URL? = FileManager.default
+        .urls(for: .cachesDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("orbit-meta-v1.json")
+    private static let cacheLimit = 4000
+
+    private init() {
+        if let file = Self.cacheFile, let data = try? Data(contentsOf: file),
+           let saved = try? JSONDecoder().decode([String: OrbitMeta].self, from: data) {
+            metas = saved
+            stale = Set(saved.keys)
+        }
+    }
+
+    private func scheduleSave() {
+        guard !saveScheduled, let file = Self.cacheFile else { return }
+        saveScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self else { return }
+            self.saveScheduled = false
+            var snapshot = self.metas
+            if snapshot.count > Self.cacheLimit {
+                // The ones of this session first (already looked up again), then any others.
+                let keep = snapshot.keys.filter { !self.stale.contains($0) } + snapshot.keys.filter { self.stale.contains($0) }
+                snapshot = Dictionary(uniqueKeysWithValues: keep.prefix(Self.cacheLimit).map { ($0, snapshot[$0]!) })
+            }
+            Task.detached(priority: .utility) {
+                guard let data = try? JSONEncoder().encode(snapshot) else { return }
+                try? data.write(to: file, options: .atomic)
+            }
+        }
+    }
+
+    /// Not known yet, or known only from an earlier launch (looked up again once).
+    private func wanted(_ key: String) -> Bool {
+        (metas[key] == nil || stale.contains(key)) && pending[key] == nil && !inFlight.contains(key) && !failed.contains(key)
+    }
+
+    /// Results wait while a page is moving (Home's Up/Down): published once it is still.
+    private var holdUntil: TimeInterval = 0
+    func holdPublishing(for seconds: TimeInterval) {
+        holdUntil = max(holdUntil, ProcessInfo.processInfo.systemUptime + seconds)
+    }
 
     private func publish(_ meta: OrbitMeta, for key: String) {
+        // Unchanged since the earlier launch: nothing to redraw.
+        if metas[key] == meta { return }
         pending[key] = meta
         guard !flushScheduled else { return }
+        scheduleFlush(after: 0.15)
+    }
+
+    private func scheduleFlush(after delay: TimeInterval) {
         flushScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
             self.flushScheduled = false
-            guard !self.pending.isEmpty else { return }
-            self.metas.merge(self.pending) { _, new in new }
-            self.pending.removeAll()
+            let wait = self.holdUntil - ProcessInfo.processInfo.systemUptime
+            if wait > 0, !self.pending.isEmpty { self.scheduleFlush(after: wait); return }
+            self.flushNow()
         }
+    }
+
+    private func flushNow() {
+        guard !pending.isEmpty else { return }
+        metas.merge(pending) { _, new in new }
+        pending.removeAll()
+        scheduleSave()
     }
 
     func meta(for item: MetaPreview) -> OrbitMeta? { metas[Self.key(item)] }
@@ -84,7 +144,7 @@ final class OrbitMetaStore: ObservableObject {
         var front: [(key: String, ref: Reference)] = []
         for item in items {
             let key = Self.key(item)
-            guard metas[key] == nil, pending[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
+            guard wanted(key) else { continue }
             if let retry = retries[key], retry.after > Date() { continue }
             guard let ref = Self.reference(for: item) else { failed.insert(key); continue }
             queue.removeAll { $0.key == key }
@@ -97,13 +157,16 @@ final class OrbitMetaStore: ObservableObject {
     private func pump() {
         while inFlight.count < Self.maxConcurrent, !queue.isEmpty {
             let (key, ref) = queue.removeFirst()
-            guard metas[key] == nil, pending[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
+            guard wanted(key) else { continue }
             inFlight.insert(key)
             let apiKey = TmdbSettingsRepository.shared.effectiveApiKey()
             let language = TmdbSettingsRepository.shared.snapshot().language
             Task {
                 let outcome = await Self.load(ref: ref, apiKey: apiKey, language: language)
                 self.inFlight.remove(key)
+                // A title known from an earlier launch keeps what it had if the new look-up fails.
+                let wasStale = self.stale.remove(key) != nil
+                if wasStale, case .transient = outcome { self.pump(); return }
                 switch outcome {
                 case .found(let meta):
                     self.retries[key] = nil
@@ -119,7 +182,7 @@ final class OrbitMetaStore: ObservableObject {
                         self.retries[key] = (count, Date().addingTimeInterval(delay))
                         // Retried on its own: the tile may already be on screen and ask no more.
                         DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.1) {
-                            guard self.metas[key] == nil, !self.failed.contains(key) else { return }
+                            guard self.wanted(key) else { return }
                             self.queue.append((key, ref))
                             self.pump()
                         }
