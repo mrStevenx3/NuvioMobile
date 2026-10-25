@@ -647,6 +647,8 @@ struct OrbitPlatformIntro: View {
     let brand: Color
     /// Steven (Paramount+): the folder's logo drawn in white (its own blue sank into the dark page).
     var white = false
+    /// Steven (Apple TV): a logo of the app's own instead of the folder's image.
+    var assetLogo: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .hidden
@@ -705,7 +707,14 @@ struct OrbitPlatformIntro: View {
 
     @ViewBuilder
     private var logo: some View {
-        if let logoUrl, !logoUrl.isEmpty {
+        if let assetLogo {
+            Image(assetLogo)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(Color.white)
+                .padding(.vertical, Self.logoSize.height * 0.18)
+        } else if let logoUrl, !logoUrl.isEmpty {
             CachedAsyncImage(string: logoUrl, contentMode: .fit,
                              decodeSize: .points(width: Self.logoSize.width * Self.splashScale,
                                                  height: Self.logoSize.height * Self.splashScale),

@@ -55,6 +55,8 @@ struct HomeView: View {
                     OrbitHBOPage(route: route, push: { homePath.append($0) })
                 } else if OrbitParamountPage.handles(route) {
                     OrbitParamountPage(route: route, push: { homePath.append($0) })
+                } else if OrbitAppleTVPage.handles(route) {
+                    OrbitAppleTVPage(route: route, push: { homePath.append($0) })
                 } else {
                     OrbitPlatformPage(route: route, push: { homePath.append($0) })
                 }
