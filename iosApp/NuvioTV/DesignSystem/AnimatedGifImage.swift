@@ -140,6 +140,13 @@ private struct AnimatedUIImageView: UIViewRepresentable {
         view.contentMode = contentMode == .fill ? .scaleAspectFill : .scaleAspectFit
         view.clipsToBounds = true
         view.isUserInteractionEnabled = false
+        // Steven (device: the platform tile "zoomed" as its GIF came in): a UIImageView asks for
+        // its image's own size, so the representable grew past the tile (clipped: a zoom on its
+        // middle). It takes the tile's size, whatever the image.
+        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        view.setContentHuggingPriority(.defaultLow, for: .vertical)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         apply(to: view)
         return view
     }
@@ -162,6 +169,10 @@ private struct AnimatedUIImageView: UIViewRepresentable {
             // this tile is a `startAnimating()` call, not a fresh download+decode.
             view.stopAnimating()
         }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIImageView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
     }
 
     static func dismantleUIView(_ uiView: UIImageView, coordinator: ()) {
@@ -1153,6 +1164,13 @@ private struct StreamingGifView: UIViewRepresentable {
         view.contentMode = contentMode == .fill ? .scaleAspectFill : .scaleAspectFit
         view.clipsToBounds = true
         view.isUserInteractionEnabled = false
+        // Steven (device: the platform tile "zoomed" as its GIF came in): a UIImageView asks for
+        // its image's own size, so the representable grew past the tile (clipped: a zoom on its
+        // middle). It takes the tile's size, whatever the image.
+        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        view.setContentHuggingPriority(.defaultLow, for: .vertical)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         return view
     }
 
@@ -1208,6 +1226,10 @@ private struct StreamingGifView: UIViewRepresentable {
             view.image = nil
         }
         view.isHidden = !isAnimating
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIImageView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
     }
 
     static func dismantleUIView(_ view: UIImageView, coordinator: Coordinator) {

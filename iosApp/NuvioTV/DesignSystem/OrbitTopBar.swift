@@ -511,6 +511,9 @@ struct OrbitCollectionGrid: View {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
                 return
             }
+            // Back from a title of the rows below: the system's landing on a tile is passing (the
+            // rows take the focus back) — the rows must not switch platform under it.
+            if OrbitPlatformTrendingRow.restorePending { return }
             // Steven: coming down from the bar, the focus goes to the first platform (far left),
             // not the one under the bar's button. Not on a return from a folder, nor coming back
             // up from the trending row.
@@ -543,10 +546,32 @@ struct OrbitCollectionGrid: View {
             let now = ProcessInfo.processInfo.systemUptime
             Self.leftWithFocus = focused != nil || now - Self.lostAt < 1.0
             if Self.leftWithFocus { Self.notePush() }
+            // A title opened from the rows below: they give the focus back, not the platforms.
+            OrbitPlatformTrendingRow.notePushIfFromRows()
+            if OrbitPlatformTrendingRow.restorePending { Self.leftWithFocus = false; Self.pushedFrom = nil }
         }
     }
 
+    /// Steven (device: every platform's background had gone black — their covers are animated GIFs
+    /// the colour reader can't read): the known platforms' own colours, straight away.
+    private static func brandColor(_ title: String) -> Color? {
+        let t = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .replacingOccurrences(of: " ", with: "")
+        if t.contains("netflix") { return Color(red: 0.85, green: 0.05, blue: 0.10) }
+        if t.contains("disney") { return Color(red: 0.10, green: 0.30, blue: 0.95) }
+        if t.contains("prime") || t.contains("amazon") { return Color(red: 0.0, green: 0.62, blue: 0.95) }
+        if t.contains("hbo") || t == "max" { return Color(red: 0.45, green: 0.20, blue: 0.95) }
+        if t.contains("paramount") { return Color(red: 0.05, green: 0.40, blue: 1.0) }
+        if t.contains("apple") { return Color(white: 0.55) }
+        if t.contains("canal") { return Color(white: 0.6) }
+        return nil
+    }
+
     private func updateHalo(_ entry: Entry) {
+        if let brand = Self.brandColor(entry.folder.title) {
+            haloColor = brand
+            return
+        }
         let url = OrbitPlatformTile.coverURL(entry.folder, collectionBackdropUrl: entry.collection.backdropImageUrl)
         if let cached = ArtworkColorStore.shared.cachedColor(for: [url], use: .wash) {
             haloColor = cached

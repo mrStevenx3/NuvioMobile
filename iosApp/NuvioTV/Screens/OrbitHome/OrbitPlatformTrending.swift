@@ -184,6 +184,22 @@ struct OrbitPlatformTrendingRow: View {
     @FocusState private var focused: String?
     /// When the focus last left the rows (the platforms keep their own landing when coming back up).
     @MainActor static var lostAt: TimeInterval = 0
+    /// Steven (device: back from a title opened in these rows, the focus went to the platform's
+    /// tile): the title it was opened from, given the focus back on the return.
+    @MainActor private static var lastFocused: String?
+    @MainActor private static var restore: String?
+    @MainActor private static var restoreUntil: TimeInterval = 0
+    @MainActor static var restorePending: Bool {
+        restore != nil && ProcessInfo.processInfo.systemUptime < restoreUntil
+    }
+
+    /// The page went away just after the focus left these rows: a title of theirs was opened.
+    @MainActor static func notePushIfFromRows() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lostAt < 1.0, let lastFocused else { return }
+        restore = lastFocused
+        restoreUntil = now + 4
+    }
 
     static let posterWidth: CGFloat = 220
     static let posterHeight: CGFloat = 330
@@ -208,12 +224,15 @@ struct OrbitPlatformTrendingRow: View {
                 }
             }
         }
+        .onAppear { restoreFocus() }
         .onChange(of: focused) { old, id in
             guard let id else {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
                 model.resetSpotlight()
                 return
             }
+            Self.lastFocused = id
+            if id == Self.restore { Self.restore = nil }
             let rowKey = String(id.prefix { $0 != "/" })
             let items = items(rowKey)
             // The page's art follows the focused title.
@@ -223,9 +242,25 @@ struct OrbitPlatformTrendingRow: View {
             // Steven: coming into a row (down from the platforms, or from the other row) lands on
             // its first title, far left, not the one under the previous focus.
             let oldRow = old.map { String($0.prefix { $0 != "/" }) }
+            guard old != nil || !Self.restorePending else { return }
             guard oldRow != rowKey, let first = items.first else { return }
             let target = "\(rowKey)/\(first.id)"
             if id != target { focused = target }
+        }
+    }
+
+    /// Back from a title: its poster, asked a few times (the system's own landing comes late).
+    private func restoreFocus() {
+        guard Self.restorePending, let target = Self.restore else { return }
+        let appeared = ProcessInfo.processInfo.systemUptime
+        for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard Self.restore == target, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                if focused != target { focused = target }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            if Self.restore == target { Self.restore = nil }
         }
     }
 

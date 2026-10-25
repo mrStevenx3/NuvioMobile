@@ -125,6 +125,8 @@ struct OrbitDetailView: View {
     @State private var rowOffsets = OrbitRowOffsets()
     /// While one of the page's own scrolls runs (the hold below leaves it alone).
     @State private var anchoringUntil = Date.distantPast
+    /// The page's scroll offset, written on every scroll frame (a box: never a page update).
+    @State private var scrollBox = OrbitDetailScrollBox()
     /// TMDB's logo for the title (`OrbitMetaStore`), kept apart so the store's other titles never
     /// redraw the page.
     @State private var tmdbLogo: String?
@@ -257,7 +259,14 @@ struct OrbitDetailView: View {
             }
             // The section the focus entered comes to the top on one curve; the hero, to the top.
             .onChange(of: section) { _, target in
+                let startY = scrollBox.y
                 anchor(proxy, target, duration: 0.4)
+                // Steven (device: the FIRST Down from the hero stood still, then jumped): that first
+                // scroll is dropped while the sections below build. Seen at once (the page has not
+                // moved a moment later), it is asked again on the rest of the curve — no wait.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) {
+                    if section == target, abs(scrollBox.y - startY) < 1 { anchor(proxy, target, duration: 0.33) }
+                }
                 // Steven (device: the first Down dimmed the art but the page stayed): the first
                 // scroll can be dropped while the page settles — placed again once the curve ends.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
@@ -274,6 +283,7 @@ struct OrbitDetailView: View {
             // when the focus first lands on Lire). On the hero the page stays at its top: any
             // move the page did not ask for is undone at once.
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
+                scrollBox.y = y
                 guard section == .hero, (focus?.section ?? .hero) == .hero, !cinema,
                       abs(y) > 0.5, Date() > anchoringUntil else { return }
                 var still = Transaction()
@@ -1334,6 +1344,11 @@ private struct OrbitPlayButton: View {
         }
         .buttonStyle(OrbitPlainStyle())
     }
+}
+
+/// The detail page's scroll offset (see `scrollBox`).
+final class OrbitDetailScrollBox {
+    var y: CGFloat = 0
 }
 
 /// A round icon that widens into a capsule with its name when focused.
