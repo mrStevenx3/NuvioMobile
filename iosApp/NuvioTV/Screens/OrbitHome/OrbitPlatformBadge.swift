@@ -88,7 +88,7 @@ enum OrbitPlatformLogos {
 }
 
 /// The badge: each platform's mark in its colours, on a small dark pill. Steven (2026-10-25, after
-/// trying logos and no pill): Netflix, Prime Video, HBO Max and Paramount+ back as they first were.
+/// trying logos and no pill): every badge back as it first was.
 struct OrbitPlatformBadge: View {
     let kind: OrbitPlatformBadgeKind
     var size: CGFloat = 20
@@ -107,15 +107,7 @@ struct OrbitPlatformBadge: View {
         case .netflix:
             netflixText
         case .disney:
-            if let logo = OrbitPlatformLogos.url(.disney) {
-                CachedAsyncImage(string: logo, contentMode: .fit,
-                                 decodeSize: .points(width: size * 8, height: size * 3),
-                                 loading: { Color.clear }, failure: { disneyText })
-                    // Steven: it looked small next to NETFLIX or HBO max.
-                    .frame(width: size * 4.6, height: size * 1.5)
-            } else {
-                disneyText
-            }
+            disneyText
         case .prime:
             primeText
         case .hbo:

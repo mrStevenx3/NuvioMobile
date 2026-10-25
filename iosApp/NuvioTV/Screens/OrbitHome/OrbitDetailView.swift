@@ -1355,7 +1355,11 @@ private struct OrbitActionButton: View {
                         .fixedSize()
                         // Steven (device: the words slid in from the left, over the buttons
                         // beside): they fade in inside the pill as it opens.
-                        .transition(.opacity.animation(.easeOut(duration: 0.14).delay(0.06)))
+                        // Steven (device: "Ajouter à ma liste" still came in from the right): the
+                        // button itself slides left while the pill before it closes — its words wait
+                        // for that slide (0.18 s) to end, then fade in where they stay.
+                        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.14).delay(0.17)),
+                                                removal: .opacity.animation(.easeOut(duration: 0.08))))
                 }
             }
             .foregroundStyle(focused ? Color.black : Color.white)
