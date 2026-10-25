@@ -225,6 +225,12 @@ final class OrbitMetaStore: ObservableObject {
         NSLog("%@", "[OrbitMeta] \(line)")
     }
 
+    /// Steven (La Femme de ménage, Crystal Lake: their logo stayed text): many new TMDB logos are
+    /// SVG, which the Apple TV cannot decode; TMDB serves a PNG of them at any sized rendition.
+    nonisolated static func decodable(_ path: String) -> String {
+        path.lowercased().hasSuffix(".svg") ? String(path.dropLast(4)) + ".png" : path
+    }
+
     nonisolated private static func load(ref: Reference, apiKey: String, language: String) async -> Outcome {
         let lang = language.isEmpty ? "en" : language
         let short = String(lang.prefix(2))
@@ -311,7 +317,7 @@ final class OrbitMetaStore: ObservableObject {
                          genre: d.genres?.first?.name,
                          runtime: runtime,
                          overview: overview,
-                         logo: logo.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                         logo: logo.map { "https://image.tmdb.org/t/p/w500\(Self.decodable($0))" },
                          backdrop: d.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                          overviewEnglish: english,
                          cleanPoster: cleanPoster,

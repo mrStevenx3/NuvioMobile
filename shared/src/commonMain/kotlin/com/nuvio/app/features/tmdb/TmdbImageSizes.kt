@@ -18,6 +18,9 @@ object TmdbImageSizes {
 
 /** The one place a TMDB image URL is built; `TmdbMetadataService` and `TmdbCollectionSourceResolver` delegate here. */
 internal fun tmdbImageUrl(path: String?, size: String): String? {
-    val clean = path?.trim()?.takeIf(String::isNotBlank) ?: return null
+    var clean = path?.trim()?.takeIf(String::isNotBlank) ?: return null
+    // Steven (La Femme de ménage, Crystal Lake: their logo stayed text): many new logos are SVG,
+    // which the Apple TV cannot decode. TMDB serves a PNG of them at any sized rendition.
+    if (size != "original" && clean.lowercase().endsWith(".svg")) clean = clean.dropLast(4) + ".png"
     return "https://image.tmdb.org/t/p/$size$clean"
 }

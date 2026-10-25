@@ -1065,7 +1065,7 @@ final class OrbitStudioModel: ObservableObject {
                 let entity: EntityResponse? = await Self.decode(
                     "https://api.themoviedb.org/3/\(route.isNetwork ? "network" : "company")/\(firstId)?api_key=\(key)")
                 if let path = entity?.logo_path, self?.logo == nil {
-                    self?.logo = "https://image.tmdb.org/t/p/w500\(path)"
+                    self?.logo = "https://image.tmdb.org/t/p/w500\(OrbitMetaStore.decodable(path))"
                 }
             }
             let found = await Self.load(ids: ids, network: route.isNetwork, apiKey: key, language: language)
@@ -1394,7 +1394,7 @@ final class OrbitStudioModel: ObservableObject {
         rows = mixed + sagaRows
 
         let since = oldestValue.items.first?.rawReleaseDate.map { String($0.prefix(4)) }
-        return (entityValue?.logo_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+        return (entityValue?.logo_path.map { "https://image.tmdb.org/t/p/w500\(OrbitMetaStore.decodable($0))" },
                 popularValue.total, since, rows, sagaFilms)
     }
 

@@ -128,7 +128,7 @@ final class StageTrendingHeroModel: ObservableObject {
             return MetaPreview(id: imdb ?? "tmdb:\(d.id)", type: tv ? "series" : "movie", name: title,
                                poster: d.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
                                banner: "https://image.tmdb.org/t/p/original\(backdrop)",
-                               logo: logo.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                               logo: logo.map { "https://image.tmdb.org/t/p/w500\(OrbitMetaStore.decodable($0))" },
                                posterShape: .poster,
                                description: d.overview, releaseInfo: date.map { String($0.prefix(4)) },
                                rawReleaseDate: date,
