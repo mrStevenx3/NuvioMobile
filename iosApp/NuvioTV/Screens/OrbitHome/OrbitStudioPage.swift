@@ -185,6 +185,8 @@ struct OrbitStudioPage: View {
     @State private var nativeOnHero = true
     @State private var nativePosition: String? = "hero"
     @State private var nativeRow: String?
+    /// The native page's trailer (banner, featured cards) — a reference, never observed by the page.
+    @State private var nativeTrailers = OrbitNativeTrailerHost()
     private static let nativeTop: CGFloat = 120
 
     init(route: OrbitStudioRoute) {
@@ -358,6 +360,7 @@ struct OrbitStudioPage: View {
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.onRequest)
             trailer.reset(abortStages: true)
+            nativeTrailers.stop(abort: true)
             // Steven (device: entering a studio, its page showed — with its logo — before the
             // opening): the system can show a closed page's view again for a moment on the next
             // visit. Closed (not covered by a title), it goes back to its black opening.
@@ -413,7 +416,7 @@ struct OrbitStudioPage: View {
                             .id("header")
                     }
                     ForEach(rows) { row in
-                        OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id, accent: brand,
+                        OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id, accent: brand, trailers: nativeTrailers,
                                              onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) })
                             .id(row.id)
                     }
@@ -448,7 +451,16 @@ struct OrbitStudioPage: View {
         }
         .onExitCommand(perform: nativeExit)
         .onChange(of: nativeHeroFocus) { _, page in
-            guard let page else { return }
+            guard let page else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    if nativeHeroFocus == nil, nativeRow == nil { nativeTrailers.stop() }
+                }
+                return
+            }
+            if heroItems.indices.contains(page) {
+                let item = heroItems[page]
+                nativeTrailers.arm("hero|\(item.type):\(item.id)", item: item, reduceMotion: reduceMotion)
+            }
             nativeHeroPage = page
             nativeRow = nil
             nativeOnHero = true
@@ -466,7 +478,7 @@ struct OrbitStudioPage: View {
                     Button {
                         nativeOpen(item)
                     } label: {
-                        OrbitNativeStudioHeroPage(item: item, meta: metaStore.meta(for: item),
+                        OrbitNativeStudioHeroPage(item: item, meta: metaStore.meta(for: item), trailers: nativeTrailers,
                                                   studioName: model.name, studioLogo: model.logo ?? route.logo,
                                                   showsStudioLogo: introDone, statsLine: model.statsLine,
                                                   count: count, index: index,
@@ -715,6 +727,7 @@ struct OrbitStudioIntro: View {
 private struct OrbitNativeStudioHeroPage: View {
     let item: MetaPreview
     let meta: OrbitMeta?
+    let trailers: OrbitNativeTrailerHost
     let studioName: String
     let studioLogo: String?
     let showsStudioLogo: Bool
@@ -728,10 +741,13 @@ private struct OrbitNativeStudioHeroPage: View {
         let top: CGFloat = 120
         ZStack(alignment: .top) {
             if live {
-                OrbitStudioHero(item: item, meta: meta, studioName: studioName, studioLogo: studioLogo,
-                                showsStudioLogo: showsStudioLogo, statsLine: statsLine, focused: isFocused,
-                                count: count, index: index, trailerURL: nil,
-                                onTrailerFailure: { _ in }, onTrailerEnded: {})
+                OrbitNativeTrailerReader(host: trailers, key: "hero|\(item.type):\(item.id)") { url in
+                    OrbitStudioHero(item: item, meta: meta, studioName: studioName, studioLogo: studioLogo,
+                                    showsStudioLogo: showsStudioLogo, statsLine: statsLine, focused: isFocused,
+                                    count: count, index: index, trailerURL: url,
+                                    onTrailerFailure: { trailers.model.playbackFailed($0) },
+                                    onTrailerEnded: { trailers.model.playbackFinished() })
+                }
                     .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight)
                     .offset(y: -top)
             } else {
@@ -747,6 +763,7 @@ private struct OrbitNativeStudioRow: View {
     let row: OrbitStudioRow
     let isCurrent: Bool
     let accent: Color?
+    let trailers: OrbitNativeTrailerHost
     let onEnter: () -> Void
     let onOpen: (MetaPreview) -> Void
 
@@ -778,7 +795,8 @@ private struct OrbitNativeStudioRow: View {
                             Self.reopen = (row.id, index)
                             onOpen(item)
                         } label: {
-                            OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item))
+                            OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
+                                                  trailers: trailers)
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
@@ -846,6 +864,13 @@ private struct OrbitNativeStudioRow: View {
                 }
             }
             shown = new
+            // The trailer plays in the featured cards only.
+            if row.kind == .featured, row.items.indices.contains(new) {
+                let item = row.items[new]
+                trailers.arm("\(row.id)|\(item.type):\(item.id)", item: item)
+            } else {
+                trailers.stop()
+            }
             if row.kind != .saga, anchor != new { withAnimation(OrbitStudioLayout.horizontal) { anchor = new } }
             let ahead = row.items[new..<min(row.items.count, new + 6)]
             OrbitMetaStore.shared.request(Array(ahead))
@@ -900,6 +925,7 @@ private struct OrbitNativeStudioTile: View {
     let item: MetaPreview
     let index: Int
     let meta: OrbitMeta?
+    let trailers: OrbitNativeTrailerHost
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
@@ -912,8 +938,12 @@ private struct OrbitNativeStudioTile: View {
             case .saga:
                 OrbitStudioPoster(item: item, size: size, transparent: false, focused: isFocused)
             case .featured:
-                OrbitStudioCard(item: item, meta: meta, size: size, focused: isFocused,
-                                trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
+                OrbitNativeTrailerReader(host: trailers, key: "\(row.id)|\(item.type):\(item.id)") { url in
+                    OrbitStudioCard(item: item, meta: meta, size: size, focused: isFocused,
+                                    trailerURL: url,
+                                    onTrailerFailure: { trailers.model.playbackFailed($0) },
+                                    onTrailerEnded: { trailers.model.playbackFinished() })
+                }
             case .posters(let transparent):
                 OrbitStudioPoster(item: item, size: size, transparent: transparent, focused: isFocused)
             case .ranked:

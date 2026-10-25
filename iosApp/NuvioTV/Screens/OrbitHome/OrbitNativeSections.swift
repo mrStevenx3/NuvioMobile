@@ -156,3 +156,56 @@ private struct OrbitNativeSectionLabel<Content: View>: View {
         }
     }
 }
+
+// MARK: - Trailers on native pages
+
+/// The native pages' trailer (Steven, 2026-10-26: back on Home and the studios). Kept out of the
+/// pages' own state: arming it, or the trailer starting, redraws only the few views that play it
+/// (`OrbitNativeTrailerReader`), never a whole page.
+@MainActor
+final class OrbitNativeTrailerHost: ObservableObject {
+    let model = InlineTrailerCardModel()
+    let motion = OrbitHomeMotion()
+    @Published private(set) var key: String?
+    private var relay: AnyCancellable?
+
+    init() {
+        model.restSource = .custom(motion)
+        relay = model.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+    }
+
+    /// The focus stopped on a title that plays its trailer here (after the usual rest).
+    func arm(_ key: String, item: MetaPreview, reduceMotion: Bool = false) {
+        motion.stamp()
+        guard self.key != key else { return }
+        model.reset()
+        self.key = nil
+        guard UserDefaults.standard.object(forKey: OrbitHomeSetting.trailersKey) as? Bool ?? true,
+              UIAccessibility.isVideoAutoplayEnabled else { return }
+        model.prefersReducedMotion = reduceMotion
+        model.restSource = .custom(motion)
+        self.key = key
+        model.focusChanged(true, item: item)
+    }
+
+    /// The focus left for a title without one, or the page went away.
+    func stop(abort: Bool = false) {
+        motion.stamp()
+        guard key != nil || abort else { return }
+        model.reset(abortStages: abort)
+        key = nil
+    }
+
+    func url(for key: String) -> String? {
+        self.key == key ? model.playingURL : nil
+    }
+}
+
+/// Hands its content the trailer playing for `key` (nil: none), redrawn alone as it changes.
+struct OrbitNativeTrailerReader<Content: View>: View {
+    @ObservedObject var host: OrbitNativeTrailerHost
+    let key: String
+    @ViewBuilder let content: (String?) -> Content
+
+    var body: some View { content(host.url(for: key)) }
+}

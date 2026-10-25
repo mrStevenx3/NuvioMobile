@@ -33,6 +33,9 @@ struct OrbitNativeHome: View {
     @Binding var isScrolledDown: Bool
 
     @FocusState private var heroFocus: Int?
+    /// The trailer (hero, classic frame, large cards) — a reference, never observed by the page.
+    @State private var trailers = OrbitNativeTrailerHost()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The hero page last focused (Menu comes back to it).
     @State private var heroPage = 0
     /// The page is on its hero (else on a row): the wash shows, the bar locks, Menu goes up.
@@ -69,7 +72,7 @@ struct OrbitNativeHome: View {
                             .id("hero")
                     }
                     ForEach(rows) { row in
-                        OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions,
+                        OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
                                        onEnter: { enter(row.id) })
                             .id(row.id)
                     }
@@ -100,7 +103,17 @@ struct OrbitNativeHome: View {
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
         .onChange(of: heroFocus) { _, page in
-            guard let page else { return }
+            guard let page else {
+                // Gone up to the bar (not down to a row): the hero's trailer stops.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    if heroFocus == nil, currentRow == nil { trailers.stop() }
+                }
+                return
+            }
+            if heroItems.indices.contains(page) {
+                let item = heroItems[page]
+                trailers.arm("hero|\(item.type):\(item.id)", item: item, reduceMotion: reduceMotion)
+            }
             heroPage = page
             currentRow = nil
             setOnHero(true)
@@ -111,7 +124,10 @@ struct OrbitNativeHome: View {
             OrbitBarLock.shared.set(!onHero)
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
         }
-        .onDisappear { OrbitBarLock.shared.set(false) }
+        .onDisappear {
+            OrbitBarLock.shared.set(false)
+            trailers.stop(abort: true)
+        }
     }
 
     // MARK: Hero
@@ -130,7 +146,7 @@ struct OrbitNativeHome: View {
                         actions.push(TitleRoute(preview: item))
                     } label: {
                         OrbitNativeHeroPage(item: item, count: count, index: index,
-                                            live: abs(index - heroPage) <= 1)
+                                            live: abs(index - heroPage) <= 1, trailers: trailers)
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($heroFocus, equals: index)
@@ -177,13 +193,18 @@ private struct OrbitNativeHeroPage: View {
     let index: Int
     /// Next to the shown page: drawn (the others are empty frames until they come close).
     let live: Bool
+    let trailers: OrbitNativeTrailerHost
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
         ZStack(alignment: .top) {
             if live {
-                OrbitHomeHeroView(item: item, focused: isFocused, count: count, index: index,
-                                  trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
+                OrbitNativeTrailerReader(host: trailers, key: "hero|\(item.type):\(item.id)") { url in
+                    OrbitHomeHeroView(item: item, focused: isFocused, count: count, index: index,
+                                      trailerURL: url,
+                                      onTrailerFailure: { trailers.model.playbackFailed($0) },
+                                      onTrailerEnded: { trailers.model.playbackFinished() })
+                }
                     .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
                     .offset(y: -OrbitNativeHome.topLine)
             } else {
@@ -214,6 +235,7 @@ struct OrbitNativeRow: View {
     /// Steven (device: the headings still blinked): lit by the page, not by the row's own focus.
     let isCurrent: Bool
     let actions: StageHomeActions
+    let trailers: OrbitNativeTrailerHost
     /// The focus came into this row (from outside it).
     let onEnter: () -> Void
 
@@ -254,9 +276,11 @@ struct OrbitNativeRow: View {
                         } label: {
                             if classic {
                                 OrbitNativeClassicTile(card: card, meta: metaStore.meta(for: card.preview),
+                                                       trailers: trailers, trailerKey: "\(row.id)|\(card.id)",
                                                        open: card.id == lead)
                             } else {
-                                OrbitNativeTile(card: card, meta: metaStore.meta(for: card.preview), style: style, rank: index + 1)
+                                OrbitNativeTile(card: card, meta: metaStore.meta(for: card.preview), style: style, rank: index + 1,
+                                                trailers: trailers, trailerKey: "\(row.id)|\(card.id)")
                             }
                         }
                         .buttonStyle(OrbitPlainStyle())
@@ -334,6 +358,12 @@ struct OrbitNativeRow: View {
             if anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
+            // The trailer plays in the classic frame and in the large cards only.
+            if row.style == .classic || row.style == .cards {
+                trailers.arm("\(row.id)|\(card.id)", item: card.preview)
+            } else {
+                trailers.stop()
+            }
             OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
             let ahead = row.cards[index..<min(row.cards.count, index + 6)].map(\.preview)
             OrbitMetaStore.shared.request(Array(ahead))
@@ -407,13 +437,18 @@ struct OrbitNativeRow: View {
 private struct OrbitNativeClassicTile: View {
     let card: OrbitCard
     let meta: OrbitMeta?
+    let trailers: OrbitNativeTrailerHost
+    let trailerKey: String
     let open: Bool
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
         if open {
-            OrbitLeadFrame(card: card, meta: meta, focused: isFocused, trailerURL: nil,
-                           onTrailerFailure: { _ in }, onTrailerEnded: {})
+            OrbitNativeTrailerReader(host: trailers, key: trailerKey) { url in
+                OrbitLeadFrame(card: card, meta: meta, focused: isFocused, trailerURL: url,
+                               onTrailerFailure: { trailers.model.playbackFailed($0) },
+                               onTrailerEnded: { trailers.model.playbackFinished() })
+            }
                 .shadow(color: .black.opacity(isFocused ? 0.55 : 0), radius: isFocused ? 18 : 0, y: isFocused ? 10 : 0)
                 .animation(.easeOut(duration: 0.18), value: isFocused)
                 .transition(.opacity)
@@ -430,6 +465,8 @@ private struct OrbitNativeTile: View {
     let meta: OrbitMeta?
     let style: OrbitRowStyle
     let rank: Int
+    let trailers: OrbitNativeTrailerHost
+    let trailerKey: String
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
@@ -438,8 +475,12 @@ private struct OrbitNativeTile: View {
             case .landscape, .classic:
                 OrbitLandscapeTile(card: card, meta: meta, focused: isFocused)
             case .cards:
-                OrbitBigCard(card: card, meta: meta, focused: isFocused,
-                             trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
+                OrbitNativeTrailerReader(host: trailers, key: trailerKey) { url in
+                    OrbitBigCard(card: card, meta: meta, focused: isFocused,
+                                 trailerURL: url,
+                                 onTrailerFailure: { trailers.model.playbackFailed($0) },
+                                 onTrailerEnded: { trailers.model.playbackFinished() })
+                }
             case .ranked:
                 OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused)
             case .posters:
