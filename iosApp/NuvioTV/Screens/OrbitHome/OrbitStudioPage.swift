@@ -31,6 +31,18 @@ struct OrbitStudioRoute: Hashable {
     let logo: String?
     let collectionId: String?
     let folderId: String?
+    /// Each opening is its own page (see `FolderRoute.openedAt`); not part of the identity.
+    var openedAt: TimeInterval = ProcessInfo.processInfo.systemUptime
+
+    static func == (a: OrbitStudioRoute, b: OrbitStudioRoute) -> Bool {
+        a.name == b.name && a.companies == b.companies && a.isNetwork == b.isNetwork && a.logo == b.logo
+            && a.collectionId == b.collectionId && a.folderId == b.folderId
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(name); hasher.combine(companies); hasher.combine(isNetwork)
+        hasher.combine(collectionId); hasher.combine(folderId)
+    }
 
     static func folder(collectionId: String, folder: CollectionFolder) -> OrbitStudioRoute {
         let logo: String? = folder.titleLogoUrl

@@ -50,8 +50,10 @@ struct HomeView: View {
             }
             .navigationDestination(for: OrbitStudioRoute.self) { route in
                 OrbitStudioPage(route: route)
+                    .id(route.openedAt)
             }
             .navigationDestination(for: FolderRoute.self) { route in
+                Group {
                 if OrbitDisneyPage.handles(route) {
                     OrbitDisneyPage(route: route, push: { homePath.append($0) })
                 } else if OrbitNetflixPage.handles(route) {
@@ -70,6 +72,8 @@ struct HomeView: View {
                 } else {
                     OrbitPlatformPage(route: route, push: { homePath.append($0) })
                 }
+                }
+                .id(route.openedAt)
             }
             .navigationDestination(for: OrbitGenreRoute.self) { route in
                 OrbitGenrePage(genre: route.genre)

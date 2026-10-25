@@ -260,7 +260,8 @@ struct OrbitDetailView: View {
                     Color.clear
                 }
                 .frame(height: OrbitHomeLayout.screenHeight, alignment: .top)
-                .animation(.easeInOut(duration: 0.3), value: section)
+                // Fluidity (Steven: the first Down still jerked): the mask switches at once — an
+                // animated mask redrew the whole page off screen on every frame of the move.
                 .ignoresSafeArea()
             }
             // The section the focus entered comes to the top on one curve; the hero, to the top.
@@ -1369,22 +1370,20 @@ private struct OrbitActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: focused ? 12 : 0) {
                 Image(systemName: icon)
                     .font(.system(size: 30, weight: .semibold))
-                if focused {
-                    Text(label)
-                        .font(.system(size: 28, weight: .semibold))
-                        .lineLimit(1)
-                        .fixedSize()
-                        // Steven (device: the words slid in from the left, over the buttons
-                        // beside): they fade in inside the pill as it opens.
-                        // Steven (device: "Ajouter à ma liste" still came in from the right): the
-                        // button itself slides left while the pill before it closes — its words wait
-                        // for that slide (0.18 s) to end, then fade in where they stay.
-                        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.14).delay(0.17)),
-                                                removal: .opacity.animation(.easeOut(duration: 0.08))))
-                }
+                // Steven (device, three times: the words came in from the side): they are never
+                // inserted any more — always laid out, in a box that opens with the pill from the
+                // icon's side, so they are uncovered where they stay instead of travelling in.
+                Text(label)
+                    .font(.system(size: 28, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(width: focused ? nil : 0, alignment: .leading)
+                    .clipped()
+                    .opacity(focused ? 1 : 0)
+                    .animation(focused ? .easeOut(duration: 0.16).delay(0.06) : .easeOut(duration: 0.08), value: focused)
             }
             .foregroundStyle(focused ? Color.black : Color.white)
             .padding(.horizontal, focused ? 30 : 0)

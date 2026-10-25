@@ -30,12 +30,17 @@ struct FolderRoute: Hashable {
     /// drawn on this page (round three, reporter: "if we keep the background image inside, it
     /// makes the text unreadable depending on the image") — it belongs to the Home hero.
     let titleLogoUrl: String?
+    /// Steven (device: entering a platform, its page showed — intro already done — before the
+    /// intro): each opening is its own page (`.id(openedAt)` on the destination), never the last
+    /// visit's view shown again. Not part of the identity (==/hash).
+    let openedAt: TimeInterval
 
     init(collectionId: String, folder: CollectionFolder) {
         self.collectionId = collectionId
         self.folderId = folder.id
         self.folderTitle = folder.title
         self.titleLogoUrl = folder.titleLogoUrl.nonBlankTrimmed
+        self.openedAt = ProcessInfo.processInfo.systemUptime
     }
 
     static func == (lhs: FolderRoute, rhs: FolderRoute) -> Bool {
