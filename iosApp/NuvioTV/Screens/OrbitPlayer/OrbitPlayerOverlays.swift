@@ -4,52 +4,6 @@ import SwiftUI
 // What Orbit draws over Apple's player (Steven's mockup, 2026-10-25). None of it is focusable or
 // hit-tested: the remote always reaches the player underneath.
 
-/// While the source opens: black, the backdrop faint behind, the title's logo breathing.
-struct OrbitPlayerLoading: View {
-    let context: PlaybackContext
-    @State private var breathing = false
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            if let backdrop = context.background, !backdrop.isEmpty {
-                CachedAsyncImage(string: backdrop, contentMode: .fill,
-                                 decodeSize: .points(width: 960, height: 540))
-                    .ignoresSafeArea()
-                    .opacity(0.22)
-                    .blur(radius: 30)
-            }
-            VStack(spacing: 28) {
-                title
-                    .opacity(breathing ? 1 : 0.55)
-                if let line = OrbitPlayerText.episodeLine(context) {
-                    Text(line)
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.7))
-                }
-            }
-        }
-        .allowsHitTesting(false)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { breathing = true }
-        }
-    }
-
-    @ViewBuilder
-    private var title: some View {
-        if let logo = context.logo, !logo.isEmpty {
-            CachedAsyncImage(string: logo, contentMode: .fit, decodeSize: .points(width: 640, height: 260))
-                .frame(maxWidth: 640, maxHeight: 260)
-        } else {
-            Text(context.title)
-                .font(.system(size: 64, weight: .heavy))
-                .foregroundStyle(Color.white)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 1200)
-        }
-    }
-}
-
 /// Paused: the title's logo top left, its details, the picture and sound formats, the end time.
 struct OrbitPauseCard: View {
     let context: PlaybackContext

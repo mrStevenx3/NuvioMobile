@@ -63,7 +63,7 @@ struct PlayerScreen: View {
             }
 
             if !session.firstFrameShown {
-                OrbitPlayerLoading(context: context)
+                OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background)
                     .transition(.opacity)
             }
         }

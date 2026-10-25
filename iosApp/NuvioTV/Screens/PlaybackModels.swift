@@ -173,35 +173,6 @@ enum PlaybackFailureKind: String, Equatable, Sendable {
     }
 }
 
-/// Startup stage shown by the loading overlay (P4, B24). Declared here so the native coordinator
-/// can publish it; `Screens/Player/PlayerLoadingOverlay.swift` adds the views and status text.
-enum PlayerLoadingStage: Equatable {
-    /// `PlayerScreen` `.deciding` (MediaProbe).
-    case checking
-    /// Native: remux opening. mpv: loadfile → FILE_LOADED.
-    case connecting
-    /// Native: signaling known, waiting for map / init / first segment.
-    case preparing(dolbyVision: Bool)
-    /// Native: holding for the add-on subtitle fetch.
-    case subtitles
-    /// Native: item not playing yet. mpv: FILE_LOADED → first PLAYBACK_RESTART.
-    case buffering(percent: Int?)
-    /// The overlay fades out.
-    case started
-
-    /// Short token for logs and the DEBUG history label (`buffering(42)`, `preparing(dv)`).
-    var logToken: String {
-        switch self {
-        case .checking: "checking"
-        case .connecting: "connecting"
-        case .preparing(let dv): dv ? "preparing(dv)" : "preparing"
-        case .subtitles: "subtitles"
-        case .buffering(let p): p.map { "buffering(\($0))" } ?? "buffering"
-        case .started: "started"
-        }
-    }
-}
-
 /// The pure decisions behind next-link failover (orivio batch item 2). The picker and the Up Next
 /// engine act on these; `PlaybackFailoverPolicyTests` pins them.
 enum PlaybackFailoverPolicy {

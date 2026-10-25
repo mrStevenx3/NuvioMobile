@@ -1,200 +1,101 @@
-import SwiftUI
 import SharedCore
+import SwiftUI
 
-/// Presented when the user taps Play. Resolves streams for the title, lists the playable ones
-/// grouped by addon, and opens the native player on selection.
-///
-/// Debrid: torrent/`clientResolve` results from installed addons (no direct URL) are listed when
-/// in-app debrid resolution is enabled, and resolve to a direct link at click time through the
-/// shared `DirectDebridPlaybackResolver` (mobile parity: `App.kt:2157`, `StreamsScreen.kt:363`).
-/// Failures surface as a transient toast using the same wording as the shared `toastMessage()`.
-///
-/// Badges: rows render imported badge-pack chips, the file-size chip, TOP/BOTTOM placement, the
-/// optional addon logo and the "- <Provider> Instant" cached suffix (mobile `StreamCard` parity).
-///
-/// Grouping: each addon's streams sit under a collapsed-by-default, focusable header (name,
-/// stream count, per-addon loading spinner). Rows only build while their group is expanded — a
-/// `LazyVStack` throughout — so the picker no longer lags while addons are still resolving
-/// (previously every addon's rows were built eagerly in one long always-expanded list). A lone
-/// addon auto-expands; anything past that stays collapsed until picked, and never
-/// auto-collapses/re-expands as later addons stream in.
-///
-/// Focus: rows and group headers carry stable focus keys. Initial focus lands on the first
-/// stream row when there's a single, auto-expanded group, otherwise on the first group's header.
-/// Collapsing a group that holds focus retargets focus to that group's header first. (Previously
-/// the dev test-stream button at the bottom was the only focusable view while loading, so focus
-/// landed — and stayed — at the bottom of the list.)
-///
-/// Auto-Play Best Source (orivio batch item 1): with the "first stream" auto-play mode on and the
-/// picker not forced manual, a visit opens in auto mode — `FirstPlayAutoPlayController` walks the
-/// shared repository's settled candidates under a full-screen "Finding the best source…" overlay
-/// and opens the player itself; Back from that player dismisses the picker too. With an external
-/// default player (Settings → Player → Default Player) the first auto pick is handed to it and
-/// the picker closes; failover always plays in the built-in player. Menu on the overlay
-/// drops to the list. Failover (item 2): a presented playback that fails is remembered
-/// (`RejectedStreamLinks`) and, by `PlaybackContext.launchSource`, swaps in the next auto
-/// candidate, opens a picker for the Up Next episode that failed, or offers "Try Next Source".
+// Orbit's source page (Steven's fork, 2026-10-25), rewritten from scratch.
+//
+// Opened by Play. It lists the sources the add-ons return, best first, and plays the one chosen:
+// a direct link at once, a debrid one once the service has prepared it, a YouTube-only one once it
+// is extracted on the device. With Settings › Lecture automatique on, the page starts the best
+// source by itself (`OrbitAutoPlay`) under Orbit's loading screen, so the list never shows.
+//
+// Players: Orbit's own, or Infuse / Native Player (Settings › Lecteur par défaut; hold a source to
+// open it in the other one). A playback that fails is remembered against its link for a while and,
+// depending on who started it, the next automatic source takes over in place, the next episode's
+// own page opens, or an alert offers "Essayer la source suivante".
+//
+// Closing the player closes the page too (Back lands where Play was pressed), under the plain
+// loading screen, so the list never flashes on the way out.
+
 struct StreamPickerView: View {
     let type: String
     let videoId: String
     let title: String
-
     let parentMetaId: String
     let season: Int?
     let episode: Int?
-    /// All episodes of the parent series (from `MetaDetails.videos`); enables next-episode
-    /// autoplay in the player. Empty for movies or launch paths without the series meta.
+    /// The series' episodes (next-episode playback); fetched here when the caller has none.
     let episodes: [MetaVideo]
-    /// Info-tab header inputs (optional; launch paths without meta at hand pass nil and the header
-    /// omits them). `poster` is the catalog/series poster (also persisted as the parent artwork by
-    /// the progress recorder); `episodeStill` is the 16:9 episode image shown in preference to it.
     let poster: String?
     let episodeStill: String?
     let synopsis: String?
-    /// Title-level facts for the player's Info tab chips (nil when the caller has no meta).
     let meta: PlaybackMeta?
-    /// FEAT-42: the title's configured logo (series/movie `MetaDetails.logo`), shown in place of
-    /// the plain text heading when it loads — mobile parity for the stream picker screen. `nil`
-    /// on launch paths with no meta at hand (Home continue-watching, Top Shelf).
     let logoUrl: String?
-    /// Orbit Sources: the title's backdrop, blurred behind the list (nil: the plain background).
     let backdrop: String?
-    /// Never auto-start, whatever the auto-play setting says ("Choose Source…", "Play Manually").
+    /// Never start automatically ("Choisir la source").
     let forceManual: Bool
-    /// "Start Over": every playback this picker starts ignores saved progress.
+    /// "Reprendre du début": the playbacks this page starts ignore the saved position.
     let startFromBeginning: Bool
-    /// A toast shown when the picker opens on its list (the Up Next failover picker's explanation).
+    /// A message shown when the page opens on its list (the next episode's source failed).
     let notice: String?
-    /// P5 B22: set by presenters that push a Detail page once the picker closes; forwarded to the
-    /// player's post-play More Like This row.
+    /// Kept for the call sites.
     let onOpenTitle: ((MetaPreview) -> Void)?
-    /// P5 B22: the post-play poster the viewer picked, held until the picker itself closes.
-    @State private var postPlayPick: MetaPreview?
 
     @StateObject private var model: StreamsViewModel
-    @StateObject private var autoPlay: FirstPlayAutoPlayController
-    /// First-play auto mode for this visit. BUG-183 (Steven rc7): decided in `init` (a synchronous
-    /// settings read, like `PlayerLoadingOverlaySetting`), so the loading cover is up from the
-    /// picker's first frame instead of after `onAppear` armed the controller (the list flashed for
-    /// about a second). The controller itself is still armed once, at the first appearance. Cleared
-    /// when the controller plays, gives up or is cancelled, so every later load — the debrid-Stale
-    /// reload — asks for the plain list (`manualSelection`).
-    @State private var autoPlayArmed: Bool
-    @State private var autoPlayEvaluated = false
-    /// BUG-174/183 (Steven rc7): the loading cover stays over the list — while an auto pick's player
-    /// is being presented and up (the controller's `.done` alone hid it a beat too early), while
-    /// the Up Next failover picker is up, and while the picker closes after a player (the list
-    /// must not show on the way out).
-    @State private var coverHold = false
-    /// BUG-185 (Steven rc9, D6): the held cover is the close-time hold (the picker is leaving after
-    /// a player or a hand-off), drawn as plain black: the title logo is for starts only.
-    @State private var coverIsCloseHold = false
-    /// BUG-185: when the viewer's close of the player reached the cover binding, for the
-    /// setter → `onDismiss` timing line (under 100 ms reads as an instant dismiss).
-    @State private var playerCloseRequestedAt: CFAbsoluteTime?
-    /// BUG-174: the player closed onto something the viewer needs to see on the list (an auto walk
-    /// that ended with nothing during a failover). Read once, by `handlePlayerDismissed`.
-    @State private var keepListAfterPlayer = false
-    /// Review r1 (P2): an external hand-off is waiting for the add-on subtitles (D5).
-    @State private var externalHandOffInFlight = false
-    /// Up Next failover: the picker for the episode whose source failed, presented once the player
-    /// has closed (`pendingFailoverTarget` waits for that).
-    @State private var failoverTarget: FailoverTarget?
-    @State private var pendingFailoverTarget: FailoverTarget?
-    /// Manual-pick failure alert, raised once the player has closed.
-    @State private var manualFailureAlert: ManualFailureAlert?
-    @State private var pendingManualFailureAlert: ManualFailureAlert?
-    /// The list as it was when the viewer picked a row: "Try Next Source" walks this order.
-    @State private var manualFailoverList: [StreamItem] = []
-    /// Keys of links that failed recently for this title (row caption), re-read at the moments
-    /// they can change — `RejectedStreamLinks` itself keeps no cache.
-    @State private var rejectedKeys: Set<String> = []
-    /// A "Start Over" playback from this picker has played five minutes: the request is honoured,
-    /// so a later failover or retry resumes from the saved position instead of starting over again.
-    @State private var startOverHonoured = false
+    @StateObject private var autoPlay: OrbitAutoPlay
+
+    /// The automatic start is working (the loading screen is up).
+    @State private var autoMode: Bool
+    /// The loading screen stays up while an automatic pick's player opens.
+    @State private var holdCover = false
+    /// The page is leaving: the loading screen, plain black.
+    @State private var closing = false
+    @State private var started = false
+
     @State private var selected: PlaybackContext?
-    /// Episodes fetched on demand when a series launch path didn't supply them (Home
-    /// continue-watching, Detail's primary Play). Filled from `MetaDetailsRepository.fetch`
-    /// (cache-first, side-effect free) so next-episode autoplay works from every path.
-    @State private var fetchedEpisodes: [MetaVideo] = []
-    /// Row key currently mid debrid-resolve (drives the row spinner; one resolve at a time).
     @State private var resolvingKey: String?
-    /// False once the picker left the screen (a Menu press during a resolve): a late result must
-    /// not hand a link to an external player from a view that is gone (batch D review r1).
-    @State private var pickerOnScreen = false
-    /// Batch D review r2 P3-2: the YouTube resolve in flight, by request. `resolvingKey == rowKey`
-    /// was no guard at all (only the owning completion ever reset it), and `selected == nil`
-    /// missed a playback that started AND ended inside the resolve window (an auto-play pick or
-    /// a failover dismissed within the 30 s). The token is minted when a resolve starts and
-    /// dropped the moment any playback starts (`selected` set, see `onChange`) or the picker
-    /// leaves the screen; a completion whose token is no longer current does nothing.
-    @State private var youTubeResolveToken: UUID?
-    /// The resolve's Task (review r2 P3-3): cancelled with the token, so a superseded or abandoned
-    /// resolve stops the extractor instead of running to the 30 s timeout in the background.
-    @State private var youTubeResolveTask: Task<Void, Never>?
-    /// Transient failure message (debrid resolve errors), auto-dismissed after a few seconds.
+    @State private var resolveTask: Task<Void, Never>?
     @State private var toast: String?
     @FocusState private var focusedRow: String?
-    /// Orbit Sources: the filter picked above the list.
     @State private var filter: OrbitStreamFilter = .all
-    /// Each source's tags, read once (the list redraws on every focus move).
     @State private var tagCache = OrbitStreamTagCache()
-    /// External players installed on this Apple TV (FEAT-5). Probed once per appearance via the
-    /// shared `ExternalPlayerPlatform` — `canOpenURL` only returns true for schemes declared in
-    /// Info.plist's `LSApplicationQueriesSchemes` (Infuse, VLC, Outplayer, VidHub as of FEAT-21,
-    /// SenPlayer as of FEAT-56),
-    /// so testers without any of them installed never see the handoff option at all. Empty ⇒ no
-    /// menu is attached.
     @State private var externalPlayers: [ExternalPlayerApp] = []
-    /// User-chosen default player (Settings → Player → Default Player). Empty = built-in.
-    /// Same device-local key `DefaultPlayerRow` writes; validated against the live probe below
-    /// so an uninstalled default silently reverts to built-in instead of dead-ending playback.
-    @AppStorage("default_external_player_id") private var defaultExternalPlayerId = ""
+    @AppStorage("default_external_player_id") private var defaultPlayerId = ""
+
+    /// What the closing player leads to (set by a failure before the player closes).
+    @State private var afterPlayer: AfterPlayer = .closePage
+    @State private var alertQueued: FailureAlert?
+    @State private var nextEpisodeQueued: NextEpisodePage?
+    @State private var failureAlert: FailureAlert?
+    @State private var nextEpisodePage: NextEpisodePage?
+    /// The list as shown when the viewer chose: "Essayer la source suivante" walks it.
+    @State private var chosenFromList: [StreamItem] = []
+    @State private var rejectedKeys: Set<String> = []
+    /// A "Reprendre du début" playback has run long enough: later tries resume normally.
+    @State private var startOverDone = false
+    @State private var fetchedEpisodes: [MetaVideo] = []
     @Environment(\.dismiss) private var dismiss
 
-    private static let testRowKey = "test-stream"
-    /// Spinner key for a "Try Next Source" resolve (its row may be collapsed or off-screen).
-    private static let failoverRowKey = "failover-next"
-    /// Spinner key while an external hand-off waits for the add-on subtitles (D5) with no row of
-    /// its own (the auto path).
-    private static let handOffRowKey = "external-handoff"
-    /// `ExternalPlayerApp.id`s of the external players that report the stop position back over an
-    /// x-callback return (`ExternalPlaybackReturn`): Infuse (7.6.2+, `x-success` with `position`)
-    /// and, FEAT-56 (GitHub #5), SenPlayer (6.1.1+ returns the current playback time on exit; the
-    /// query parameter name is unverified on hardware — the `debug.extPlayerProbe` print in
-    /// `ContentView.handleDeepLink` shows what it sends). Every other player gets no callback URLs.
-    static let returnReportingPlayerIds: Set<String> = ["infuse", "senplayer", "nativeplayer"]
-    private let testStreamURL = URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8")!
+    private enum AfterPlayer: Equatable {
+        case closePage, showList, alert, nextEpisodePage
+    }
 
-    init(
-        type: String,
-        videoId: String,
-        title: String,
-        parentMetaId: String? = nil,
-        season: Int? = nil,
-        episode: Int? = nil,
-        episodes: [MetaVideo] = [],
-        poster: String? = nil,
-        episodeStill: String? = nil,
-        synopsis: String? = nil,
-        meta: PlaybackMeta? = nil,
-        logoUrl: String? = nil,
-        backdrop: String? = nil,
-        forceManual: Bool = false,
-        startFromBeginning: Bool = false,
-        notice: String? = nil,
-        onOpenTitle: ((MetaPreview) -> Void)? = nil
-    ) {
-        self.onOpenTitle = onOpenTitle
-        self.meta = meta
-        self.logoUrl = logoUrl
-        self.backdrop = backdrop
-        self.forceManual = forceManual
-        self.startFromBeginning = startFromBeginning
-        self.notice = notice
-        self.poster = poster
-        self.episodeStill = episodeStill
-        self.synopsis = synopsis
+    init(type: String,
+         videoId: String,
+         title: String,
+         parentMetaId: String? = nil,
+         season: Int? = nil,
+         episode: Int? = nil,
+         episodes: [MetaVideo] = [],
+         poster: String? = nil,
+         episodeStill: String? = nil,
+         synopsis: String? = nil,
+         meta: PlaybackMeta? = nil,
+         logoUrl: String? = nil,
+         backdrop: String? = nil,
+         forceManual: Bool = false,
+         startFromBeginning: Bool = false,
+         notice: String? = nil,
+         onOpenTitle: ((MetaPreview) -> Void)? = nil) {
         self.type = type
         self.videoId = videoId
         self.title = title
@@ -202,309 +103,145 @@ struct StreamPickerView: View {
         self.season = season
         self.episode = episode
         self.episodes = episodes
-        // BUG-183: decided here, not in `onAppear` — the cover must be in the first frame.
-        _autoPlayArmed = State(initialValue: !forceManual && Self.firstStreamAutoPlayOn())
-        _model = StateObject(wrappedValue: StreamsViewModel(
-            type: type, videoId: videoId, parentMetaId: parentMetaId, season: season, episode: episode
-        ))
-        _autoPlay = StateObject(wrappedValue: FirstPlayAutoPlayController(
-            titleKey: videoId,
-            dependencies: .live(type: type, videoId: videoId, season: season, episode: episode)
-        ))
+        self.poster = poster
+        self.episodeStill = episodeStill
+        self.synopsis = synopsis
+        self.meta = meta
+        self.logoUrl = logoUrl
+        self.backdrop = backdrop
+        self.forceManual = forceManual
+        self.startFromBeginning = startFromBeginning
+        self.notice = notice
+        self.onOpenTitle = onOpenTitle
+        // Decided here, so the loading screen is up from the very first frame.
+        _autoMode = State(initialValue: !forceManual && OrbitAutoPlay.isEnabled)
+        _model = StateObject(wrappedValue: StreamsViewModel(type: type, videoId: videoId,
+                                                            parentMetaId: parentMetaId, season: season, episode: episode))
+        _autoPlay = StateObject(wrappedValue: OrbitAutoPlay(type: type, videoId: videoId, season: season, episode: episode))
     }
 
-    /// `listedStream` is the stream as the list shows it (pre-resolve) and `streamKey` its
-    /// `playbackStreamKey`; both empty for the test stream. "Start Over" carries over until a
-    /// playback has honoured it (`startOverHonoured`).
-    private func context(url: URL, stream: StreamItem?, listedStream: StreamItem? = nil, streamKey: String = "",
-                         launchSource: PlaybackLaunchSource = .manual, attempt: Int = 0) -> PlaybackContext {
-        PlaybackContext(
-            url: url,
-            title: title,
-            contentType: type,
-            parentMetaId: parentMetaId,
-            videoId: videoId,
-            season: season,
-            episode: episode,
-            poster: poster,
-            background: nil,
-            providerName: stream?.addonName,
-            providerAddonId: stream?.addonId,
-            streamTitle: stream.map { $0.streamLabel },
-            streamSubtitle: { let s: String? = stream?.description_; return s }(),
-            externalSubtitles: (stream?.externalSubtitles ?? []).map { sub in
-                SubtitleFile(url: sub.url, language: sub.language, name: { let n: String? = sub.name; return n }())
-            },
-            bingeGroup: { let bg: String? = stream?.behaviorHints.bingeGroup; return bg }(),
-            episodes: episodes.isEmpty ? fetchedEpisodes : episodes,
-            synopsis: synopsis,
-            episodeStill: episodeStill,
-            logo: logoUrl,
-            meta: meta,
-            fileSizeBytes: { let n: Int64? = stream?.behaviorHints.videoSize?.int64Value; return n }(),
-            streamAudioDelayMs: { let n: Int? = stream?.behaviorHints.audioDelayMs?.intValue; return n }(),
-            requestHeaders: StreamModelsKt.sanitizePlaybackHeaders(
-                headers: stream?.behaviorHints.proxyHeaders?.request),
-            launchSource: launchSource,
-            streamKey: streamKey,
-            startFromBeginning: startsOver,
-            attempt: attempt,
-            listedStream: listedStream,
-            // Batch D U2: a ytId-only stream plays a link resolved on this device that expires
-            // within hours — never persisted as the entry's last source URL.
-            sessionOnlySourceUrl: Self.isYouTubeResolved(listedStream)
-        )
-    }
-
-    /// Series launch paths that don't carry the episode list (Home continue-watching, Detail's
-    /// primary Play) get it fetched here so the player can offer next-episode autoplay. No-op for
-    /// movies and for paths that already passed `episodes` (EpisodesSection).
-    private func fetchEpisodesIfNeeded() {
-        guard episodes.isEmpty, fetchedEpisodes.isEmpty,
-              ["series", "tv", "show", "tvshow"].contains(type.lowercased()) else { return }
-        // The `@Throws` twin: a Kotlin exception out of the plain suspend export aborts the process.
-        Task { @MainActor in
-            do {
-                let details = try await MetaDetailsRepository.shared.fetchChecked(
-                    type: type, id: parentMetaId, cacheResult: true
-                )
-                let videos = details?.videos ?? []
-                guard !videos.isEmpty else { return }
-                fetchedEpisodes = videos
-            } catch {
-                print("[StreamPicker] episode list fetch failed: \(error)")
-            }
-        }
-    }
+    // MARK: - Body
 
     var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                sourcesList
-                    .padding(.horizontal, OrbitHomeLayout.margin)
-                    .padding(.top, 70)
-                    .padding(.bottom, 120)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // Under the loading cover nothing in the list may take focus or a Select.
-                    .disabled(loadingCoverVisible)
-            }
-            .scrollClipDisabled()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(OrbitStreamBackground(url: backdrop ?? episodeStill ?? poster))
-            .overlay(alignment: .bottom) {
-                if let toast {
-                    Text(toast)
-                        .font(Theme.Font.body)
-                        .foregroundStyle(Theme.Palette.textPrimary)
-                        .padding(.horizontal, Theme.Spacing.lg)
-                        .padding(.vertical, Theme.Spacing.md)
-                        .background(Theme.Surface.overlay, in: Capsule())
-                        .padding(.bottom, Theme.Spacing.xl)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .overlay {
-                // BUG-182/183: the player's own loading look, no fade of its own (a swap to the
-                // player's overlay must be invisible).
-                if loadingCoverVisible { loadingCover }
-            }
-            .onReceive(model.$autoPlayFeed) { feed in autoPlay.ingest(feed) }
-            .onReceive(autoPlay.events) { event in handleAutoPlayEvent(event) }
-            .alert(
-                "Couldn\u{2019}t play this source",
-                isPresented: Binding(
-                    get: { manualFailureAlert != nil },
-                    set: { if !$0 { manualFailureAlert = nil } }
-                ),
-                presenting: manualFailureAlert
-            ) { alert in
-                if let next = alert.next {
-                    Button("Try Next Source") {
-                        manualFailureAlert = nil
-                        // Let the alert finish dismissing before the player cover presents.
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            internalPlay(next, rowKey: Self.failoverRowKey, attempt: alert.attempt)
-                        }
+        ScrollView(.vertical, showsIndicators: false) {
+            list
+                .padding(.horizontal, OrbitHomeLayout.margin)
+                .padding(.top, 70)
+                .padding(.bottom, 120)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .disabled(coverShown)
+        }
+        .scrollClipDisabled()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(OrbitStreamBackground(url: backdropUrl))
+        .overlay(alignment: .bottom) { toastView }
+        .overlay { if coverShown { cover } }
+        .onReceive(model.$autoPlayFeed) { autoPlay.ingest($0) }
+        .onReceive(autoPlay.events) { handle($0) }
+        .onChange(of: rows.first?.key) { _, first in
+            // The best source takes the focus when the list arrives, unless the viewer moved it.
+            guard let first, !coverShown, focusedRow == nil else { return }
+            DispatchQueue.main.async { focusedRow = first }
+        }
+        .onAppear(perform: appear)
+        .onDisappear {
+            resolveTask?.cancel()
+            model.stop()
+        }
+        .alert("Impossible de lire cette source",
+               isPresented: Binding(get: { failureAlert != nil }, set: { if !$0 { failureAlert = nil } }),
+               presenting: failureAlert) { alert in
+            if let next = alert.next {
+                Button("Essayer la source suivante") {
+                    failureAlert = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        playInOrbit(next, rowKey: Self.retryRowKey, attempt: alert.attempt)
                     }
                 }
-                Button("Back to Sources", role: .cancel) {
-                    manualFailureAlert = nil
-                }
-            } message: { alert in
-                Text(alert.reason)
             }
-            // The first (best) source takes the focus once the list arrives, never after the
-            // viewer has moved it, never under the auto-play cover (`focusListAfterAutoPlay`).
-            .onChange(of: sourceRows.first?.key) { _, first in
-                guard let first, !loadingCoverVisible else { return }
-                guard focusedRow == nil || focusedRow == Self.testRowKey else { return }
-                DispatchQueue.main.async { focusedRow = first }
-            }
-            .onAppear {
-                pickerOnScreen = true
-                // Main-thread only (UIApplication.canOpenURL); cheap enough to re-probe every
-                // appearance so an Infuse install mid-session is picked up next time the picker
-                // opens instead of requiring an app relaunch. First, so an auto-play start already
-                // knows the viewer's default player.
-                externalPlayers = ExternalPlayerPlatform.shared.availablePlayers()
-                if !autoPlayEvaluated {
-                    autoPlayEvaluated = true
-                    // `autoPlayArmed` was decided in `init` (BUG-183).
-                    if autoPlayArmed {
-                        autoPlay.arm()
-                    } else if let notice {
-                        showToast(notice)
-                    }
-                }
-                rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
-                model.start(forceManual: !autoPlayArmed)
-                fetchEpisodesIfNeeded()
-                // Head start for the player: addon subtitles for this title begin fetching while
-                // the user is still choosing a stream, so the native path's pre-master window
-                // (and the mpv side-load) see results instead of racing the network. The player's
-                // own fetch call deduplicates against this one.
-                SubtitleRepository.shared.fetchAddonSubtitles(type: type, videoId: videoId)
-            }
-            .onDisappear {
-                pickerOnScreen = false
-                invalidateYouTubeResolve()
-                model.stop()
-            }
-            // Review r2 P3-2: every playback start (a row, "Try Next Source", auto-play, the Up
-            // Next hand-off — every `selected = …` site) supersedes a YouTube resolve in flight.
-            .onChange(of: selected?.id) { _, playing in
-                if playing != nil {
-                    coverIsCloseHold = false
-                    invalidateYouTubeResolve()
-                } else {
-                    // BUG-174: the player is closing. Cover the list before its slide-down reveals
-                    // it when the picker closes too; drop the cover when the list has to show.
-                    prepareForPlayerClose()
-                }
-            }
-            .fullScreenCover(item: playerCoverBinding, onDismiss: handlePlayerDismissed) { ctx in
-                // `.id(ctx.id)` forces a full player rebuild when autoplay swaps in the next
-                // episode's context (a same-position cover would otherwise keep the old libmpv
-                // controller and just ignore the new context). Failover swaps in place the same
-                // way (`PlaybackContext.attempt` keeps two candidates' ids apart).
-                PlayerScreen(
-                    context: ctx,
-                    onPlayNext: { next in selected = next },
-                    onPlaybackFailed: { failure in handlePlaybackFailure(failure, context: ctx) },
-                    onPlaybackHealthy: { seconds in handlePlaybackHealthy(seconds, context: ctx) },
-                    onOpenTitle: onOpenTitle == nil ? nil : { postPlayPick = $0 }
-                )
+            Button("Retour aux sources", role: .cancel) { failureAlert = nil }
+        } message: { alert in
+            Text(alert.reason)
+        }
+        .fullScreenCover(item: playerBinding, onDismiss: playerClosed) { context in
+            PlayerScreen(context: context,
+                         onPlayNext: { next in selected = next },
+                         onPlaybackFailed: { failure in playbackFailed(failure, context: context) },
+                         onPlaybackHealthy: { seconds in playbackHealthy(seconds, context: context) })
                 .ignoresSafeArea()
-                .id(ctx.id)
-            }
+                .id(context.id)
         }
-        // Up Next failover: a picker for the episode whose source failed. Attached to the stack,
-        // not beside the player cover, so the two presentations never share a view.
-        .fullScreenCover(item: $failoverTarget, onDismiss: handleFailoverPickerDismissed) { target in
-            StreamPickerView(
-                type: target.context.contentType,
-                videoId: target.context.videoId,
-                title: target.context.title,
-                parentMetaId: target.context.parentMetaId,
-                season: target.context.season,
-                episode: target.context.episode,
-                episodes: target.context.episodes,
-                poster: target.context.poster,
-                episodeStill: target.context.episodeStill,
-                synopsis: target.context.synopsis,
-                meta: target.context.meta,
-                logoUrl: logoUrl,
-                backdrop: backdrop,
-                forceManual: target.forceManual,
-                startFromBeginning: false,
-                notice: String(localized: "The next episode\u{2019}s source failed. Choose one below.")
-            )
+        .fullScreenCover(item: $nextEpisodePage, onDismiss: closePage) { page in
+            StreamPickerView(type: page.context.contentType,
+                             videoId: page.context.videoId,
+                             title: page.context.title,
+                             parentMetaId: page.context.parentMetaId,
+                             season: page.context.season,
+                             episode: page.context.episode,
+                             episodes: page.context.episodes,
+                             poster: page.context.poster,
+                             episodeStill: page.context.episodeStill,
+                             synopsis: page.context.synopsis,
+                             meta: page.context.meta,
+                             logoUrl: logoUrl,
+                             backdrop: backdrop,
+                             forceManual: page.forceManual,
+                             notice: String(localized: "La source de l'épisode suivant n'a pas pu démarrer. Choisis-en une."))
         }
     }
 
-    /// "Start Over" still applies to the next playback this picker starts.
-    private var startsOver: Bool { startFromBeginning && !startOverHonoured }
-
-    /// The loading cover is up (BUG-183): auto mode is armed or working (not while a failover
-    /// resolves behind the open player), or `coverHold` keeps it.
-    private var loadingCoverVisible: Bool {
-        StreamPickerCoverPolicy.showsCover(armed: autoPlayArmed, phase: autoPlay.phase,
-                                           isFailoverWalk: autoPlay.isFailoverWalk, held: coverHold)
-    }
-
-    /// BUG-182/183: the cover itself, out of `body` so the type checker stays fast.
-    private var loadingCover: some View {
-        let cancel: (() -> Void)? = loadingCoverCancels ? { cancelAutoPlay() } : nil
-        let line: String? = PlayerLoadingOverlay.episodeLine(
-            season: season, episode: episode,
-            episodes: episodes.isEmpty ? fetchedEpisodes : episodes)
-        return FirstPlayAutoPlayOverlay(
-            title: title,
-            parentMetaId: parentMetaId,
-            logoUrl: logoUrl,
-            episodeLine: line,
-            pulseKey: videoId,
-            message: loadingCoverMessage,
-            onCancel: cancel,
-            showsLogo: !coverIsCloseHold
-        )
-    }
-
-    /// BUG-185 (Steven rc9, D6): the player cover's binding. When the viewer closes the player and
-    /// the picker is going to close too (`.closePicker`), the nil is written with animations
-    /// disabled, so the player cover leaves without its slide-down and `handlePlayerDismissed`
-    /// closes the picker straight after: Back lands on the opener in one pass. Every other close
-    /// (the alert, the failover picker, the list) keeps the animated dismiss.
-    private var playerCoverBinding: Binding<PlaybackContext?> {
-        Binding(
-            get: { selected },
-            set: { newValue in
-                guard newValue == nil, selected != nil, afterPlayerOutcome == .closePicker else {
-                    selected = newValue
-                    return
-                }
-                playerCloseRequestedAt = CFAbsoluteTimeGetCurrent()
-                if StreamPickerCloseAnimation.uiKitFallback {
-                    StreamPickerCloseAnimation.suspendUIKitAnimations()
-                }
-                var instant = Transaction()
-                instant.disablesAnimations = true
-                withTransaction(instant) { selected = nil }
+    private func appear() {
+        externalPlayers = ExternalPlayerPlatform.shared.availablePlayers()
+        rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
+        if !started {
+            started = true
+            if autoMode {
+                autoPlay.start()
+            } else if let notice {
+                showToast(notice)
             }
-        )
+        }
+        model.start(forceManual: !autoMode)
+        fetchEpisodesIfNeeded()
+        // The add-on subtitles start fetching while the viewer chooses.
+        SubtitleRepository.shared.fetchAddonSubtitles(type: type, videoId: videoId)
     }
 
-    /// The cover's spoken label while auto mode works; nil while it is only held.
-    private var loadingCoverMessage: String? {
-        StreamPickerCoverPolicy.message(armed: autoPlayArmed, phase: autoPlay.phase,
-                                        isFailoverWalk: autoPlay.isFailoverWalk)
+    // MARK: - Loading screen
+
+    private var coverShown: Bool { autoMode || holdCover || closing }
+
+    /// Orbit's loading screen. Menu cancels the automatic start (the list shows); while it only
+    /// holds (a player opening, the page leaving) Menu does nothing.
+    private var cover: some View {
+        OrbitLoadingView(title: title, logoUrl: logoUrl, backdropUrl: backdropUrl, plain: closing)
+            .overlay(OrbitCoverFocus(onMenu: autoMode && !holdCover ? { cancelAutoPlay() } : nil))
     }
 
-    /// Menu on the cover cancels auto mode only while auto mode is working; a held cover swallows it.
-    private var loadingCoverCancels: Bool { loadingCoverMessage != nil }
+    private var backdropUrl: String? { backdrop ?? episodeStill ?? poster }
 
-    // MARK: - Orbit Sources (the list)
+    // MARK: - List
 
-    /// Every source, best first (see `OrbitStreamRow.sorted`).
-    private var sourceRows: [OrbitStreamRow] {
-        var rows: [OrbitStreamRow] = []
+    private var allEpisodes: [MetaVideo] { episodes.isEmpty ? fetchedEpisodes : episodes }
+
+    /// Every source, best first.
+    private var rows: [OrbitStreamRow] {
+        var out: [OrbitStreamRow] = []
         var order = 0
         for group in model.groups {
             for (key, stream) in zip(group.rowKeys, group.streams) {
-                rows.append(OrbitStreamRow(key: key, stream: stream, tags: tagCache.tags(key, stream), order: order))
+                out.append(OrbitStreamRow(key: key, stream: stream, tags: tagCache.tags(key, stream), order: order))
                 order += 1
             }
         }
-        return OrbitStreamRow.sorted(rows)
+        return OrbitStreamRow.sorted(out)
     }
 
-    private static func filterKey(_ filter: OrbitStreamFilter) -> String { "filter:\(filter.rawValue)" }
-
     @ViewBuilder
-    private var sourcesList: some View {
-        let all = sourceRows
+    private var list: some View {
+        let all = rows
         let shown = all.filter { filter.matches($0.tags) }
-        // A filter shows only when it filters something (not "Instantané 10" of 10).
+        // A filter shows only when it filters something.
         let filters = OrbitStreamFilter.allCases.filter { f in
             if f == .all { return true }
             let n = all.filter { f.matches($0.tags) }.count
@@ -513,15 +250,9 @@ struct StreamPickerView: View {
         let showsInstant = all.contains { !$0.tags.instant }
         VStack(alignment: .leading, spacing: 34) {
             OrbitStreamHeader(title: title, logoUrl: logoUrl,
-                              episodeLine: PlayerLoadingOverlay.episodeLine(
-                                season: season, episode: episode,
-                                episodes: episodes.isEmpty ? fetchedEpisodes : episodes),
-                              count: all.count,
-                              loading: model.isLoading)
-
+                              episodeLine: Self.episodeLine(season: season, episode: episode, episodes: allEpisodes),
+                              count: all.count, loading: model.isLoading)
             if let warning = model.credentialWarning {
-                // The debrid account failed its sign-in on a recent call (every resolve fails
-                // while Settings still says "Connected").
                 Label(warning, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 23, weight: .semibold))
                     .foregroundStyle(Color.white)
@@ -529,15 +260,12 @@ struct StreamPickerView: View {
                     .padding(.vertical, 14)
                     .background(RoundedRectangle(cornerRadius: 16).fill(Color.yellow.opacity(0.18)))
             }
-
             if filters.count > 1 {
                 HStack(spacing: 16) {
                     ForEach(filters) { f in
-                        let key = Self.filterKey(f)
-                        OrbitStreamFilterChip(label: f.label,
-                                              count: all.filter { f.matches($0.tags) }.count,
-                                              selected: filter == f,
-                                              focused: focusedRow == key) {
+                        let key = "filter:\(f.rawValue)"
+                        OrbitStreamFilterChip(label: f.label, count: all.filter { f.matches($0.tags) }.count,
+                                              selected: filter == f, focused: focusedRow == key) {
                             withAnimation(.easeInOut(duration: 0.2)) { filter = f }
                         }
                         .focused($focusedRow, equals: key)
@@ -545,17 +273,13 @@ struct StreamPickerView: View {
                 }
                 .focusSection()
             }
-
             LazyVStack(alignment: .leading, spacing: 18) {
-                ForEach(shown) { row in
-                    sourceCard(row, list: shown, showsInstant: showsInstant)
-                }
+                ForEach(shown) { row in card(row, list: shown, showsInstant: showsInstant) }
                 if all.isEmpty, model.isLoading {
                     ForEach(0..<4, id: \.self) { _ in OrbitStreamPlaceholder() }
                 }
             }
             .focusSection()
-
             if let reason = model.emptyReason {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(reason)
@@ -568,801 +292,481 @@ struct StreamPickerView: View {
                     }
                 }
             }
-
-            // Dev / diagnostics: only when there is nothing real to play.
-            if model.groups.isEmpty && !model.isLoading {
-                Button {
-                    selected = context(url: testStreamURL, stream: nil)
-                } label: {
-                    Label(String(localized: "Flux de test (Apple HLS)"), systemImage: "play.circle")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(focusedRow == Self.testRowKey ? Color.black : Color.white)
-                        .padding(.horizontal, 26)
-                        .frame(height: 60)
-                        .background(Capsule().fill(focusedRow == Self.testRowKey ? Color.white : Color.white.opacity(0.14)))
-                }
-                .buttonStyle(OrbitPlainStyle())
-                .focused($focusedRow, equals: Self.testRowKey)
-            }
         }
     }
 
-    private func sourceCard(_ row: OrbitStreamRow, list: [OrbitStreamRow], showsInstant: Bool) -> some View {
-        let key = row.key
+    private func card(_ row: OrbitStreamRow, list: [OrbitStreamRow], showsInstant: Bool) -> some View {
         let stream = row.stream
         return OrbitStreamCard(stream: stream, tags: row.tags,
-                               focused: focusedRow == key,
-                               resolving: resolvingKey == key,
-                               failedRecently: !rejectedKeys.isEmpty && rejectedKeys.contains(stream.playbackStreamKey),
+                               focused: focusedRow == row.key,
+                               resolving: resolvingKey == row.key,
+                               failedRecently: rejectedKeys.contains(stream.playbackStreamKey),
                                fromYouTube: Self.isYouTubeResolved(stream),
                                showsInstant: showsInstant) {
-            // "Try Next Source" walks the list in the order shown.
-            manualFailoverList = list.map(\.stream)
-            play(stream, rowKey: key)
+            chosenFromList = list.map(\.stream)
+            choose(stream, rowKey: row.key)
         }
-        .focused($focusedRow, equals: key)
-        // FEAT-5: long-press → the OTHER player(s) (Infuse, VLC…, or the built-in one when an
-        // external player is the default). Skipped when none is installed.
-        .modifier(ExternalPlayMenu(
-            players: externalPlayers,
-            defaultPlayerId: activeDefaultExternalPlayer?.id,
-            onExternal: { player in
-                externalPlay(stream, rowKey: key, playerId: player.id)
-            },
-            onBuiltIn: {
-                manualFailoverList = list.map(\.stream)
-                internalPlay(stream, rowKey: key)
-            }
-        ))
+        .focused($focusedRow, equals: row.key)
+        .modifier(OrbitOtherPlayerMenu(players: externalPlayers, defaultPlayerId: defaultPlayer?.id,
+                                       onExternal: { player in playExternally(stream, rowKey: row.key, playerId: player.id) },
+                                       onOrbit: {
+                                           chosenFromList = list.map(\.stream)
+                                           playInOrbit(stream, rowKey: row.key)
+                                       }))
     }
 
-    // MARK: - Playback / debrid resolve
+    // MARK: - Choosing a source
 
-    /// The validated default external player, or nil for built-in. Membership in the probed
-    /// `externalPlayers` list is required — a stale stored id (player uninstalled since it was
-    /// chosen) must not hijack every Select into a failed handoff.
-    private var activeDefaultExternalPlayer: ExternalPlayerApp? {
-        guard !defaultExternalPlayerId.isEmpty else { return nil }
-        return externalPlayers.first { $0.id == defaultExternalPlayerId }
+    /// The default external player, when it is still installed.
+    private var defaultPlayer: ExternalPlayerApp? {
+        guard !defaultPlayerId.isEmpty else { return nil }
+        return externalPlayers.first { $0.id == defaultPlayerId }
     }
 
-    /// Select on a stream row. Routes to the user's default player (Settings → Player):
-    /// external default ⇒ hand off (with automatic fallback to the built-in player if the
-    /// handoff fails), otherwise the built-in pipeline.
-    private func play(_ stream: StreamItem, rowKey: String) {
-        if let defaultPlayer = activeDefaultExternalPlayer {
-            externalPlay(stream, rowKey: rowKey, playerId: defaultPlayer.id, fallbackToInternal: true)
-            return
+    private func choose(_ stream: StreamItem, rowKey: String) {
+        if let player = defaultPlayer {
+            playExternally(stream, rowKey: rowKey, playerId: player.id, orbitIfFails: true)
+        } else {
+            playInOrbit(stream, rowKey: rowKey)
         }
-        internalPlay(stream, rowKey: rowKey)
     }
 
-    /// A built-in-player playback the viewer chose (a row, the long-press menu, "Try Next Source",
-    /// whose `attempt` counts the failed tries before it). Always `.manual`.
-    private func internalPlay(_ stream: StreamItem, rowKey: String, attempt: Int = 0) {
-        let streamKey = stream.playbackStreamKey
+    /// Plays in Orbit's player once the link is ready. Always the viewer's own choice.
+    private func playInOrbit(_ stream: StreamItem, rowKey: String, attempt: Int = 0) {
+        ready(stream, rowKey: rowKey) { resolved, url in
+            NextEpisodeEngine.consecutiveAutoPlays = 0
+            selected = context(url: url, stream: resolved, listed: stream, source: .manual, attempt: attempt)
+        }
+    }
+
+    /// The source's playable link: as is, extracted (YouTube) or prepared by the debrid service.
+    /// One at a time; the row shows a spinner meanwhile.
+    private func ready(_ stream: StreamItem, rowKey: String, then play: @escaping (StreamItem, URL) -> Void) {
         let direct: String? = stream.playableDirectUrl
         if let direct, !direct.isEmpty, let url = URL(string: direct) {
-            // A manual stream pick is user interaction — reset the Still Watching run.
-            NextEpisodeEngine.consecutiveAutoPlays = 0
-            selected = context(url: url, stream: stream, listedStream: stream, streamKey: streamKey,
-                               launchSource: .manual, attempt: attempt)
+            play(stream, url)
             return
         }
-
-        // Batch D U2 (upstream 94976222): the add-on gave only a YouTube video id — resolve it on
-        // the device to one playable URL (HLS master, else progressive), then play that exactly
-        // like a direct link. The listed stream stays the identity (`streamKey`, `listedStream`):
-        // the resolved link expires within hours.
-        if Self.isYouTubeResolved(stream) {
-            guard resolvingKey == nil else { return }
-            let token = beginYouTubeResolve(rowKey: rowKey)
-            youTubeResolveTask = resolveYouTube(stream) { resolved in
-                // Review r1 / r2 P3-2: only the request the token belongs to may act; a playback
-                // the viewer started since (another row, "Try Next Source", an auto-play pick,
-                // even one already dismissed again) dropped the token, and so did leaving the
-                // picker (a Menu press during the resolve).
-                guard youTubeResolveToken == token else {
-                    print("[StreamPicker] YouTube resolve landed after another playback started — dropped")
-                    return
-                }
-                finishYouTubeResolve()
-                guard selected == nil, pickerOnScreen else { return }
-                let resolvedUrl: String? = resolved?.playableDirectUrl
-                guard let resolved, let resolvedUrl, !resolvedUrl.isEmpty, let url = URL(string: resolvedUrl) else {
-                    showToast(Self.youTubeResolveFailedMessage)
-                    return
-                }
-                NextEpisodeEngine.consecutiveAutoPlays = 0
-                selected = context(url: url, stream: resolved, listedStream: stream, streamKey: streamKey,
-                                   launchSource: .manual, attempt: attempt)
-            }
-            return
-        }
-
-        // Torrent / clientResolve result → resolve through the in-app debrid connection.
         guard resolvingKey == nil else { return }
-        guard DirectDebridPlaybackResolver.shared.shouldResolveToPlayableStream(stream: stream) else {
-            showToast(String(localized: "This stream needs a debrid account. Connect one in Settings \u{2192} Services \u{2192} Debrid."))
+        let youTube = Self.isYouTubeResolved(stream)
+        if !youTube, !DirectDebridPlaybackResolver.shared.shouldResolveToPlayableStream(stream: stream) {
+            showToast(String(localized: "Cette source demande un compte debrid. Connecte-en un dans Réglages › Services."))
             return
         }
         resolvingKey = rowKey
         let kotlinSeason = season.map { KotlinInt(int: Int32($0)) }
         let kotlinEpisode = episode.map { KotlinInt(int: Int32($0)) }
-        // The `@Throws` twin: a Kotlin exception out of the plain suspend export aborts the process.
-        Task { @MainActor in
-            let result: DirectDebridPlayableResult?
-            do {
-                result = try await DirectDebridPlaybackResolver.shared.resolveToPlayableStreamChecked(
-                    stream: stream, season: kotlinSeason, episode: kotlinEpisode
-                )
-            } catch {
-                print("[StreamPicker] debrid resolve threw: \(error)")
-                result = nil
-            }
-            resolvingKey = nil
-            if let success = result as? DirectDebridPlayableResult.Success {
-                let resolvedUrl: String? = success.stream.playableDirectUrl
-                if let resolvedUrl, !resolvedUrl.isEmpty, let url = URL(string: resolvedUrl) {
-                    NextEpisodeEngine.consecutiveAutoPlays = 0
-                    selected = context(url: url, stream: success.stream, listedStream: stream, streamKey: streamKey,
-                                       launchSource: .manual, attempt: attempt)
-                    return
-                }
-            }
-            showToast(Self.resolveFailureMessage(result))
-            // The toast promises a refresh — deliver it: stale cached links mean the whole
-            // result set is old, so re-fetch (focus is preserved; see onChange guard).
-            if result is DirectDebridPlayableResult.Stale {
-                model.reload(forceManual: !autoPlayArmed)
-            }
-        }
-    }
-
-    // MARK: - YouTube resolve (batch D U2)
-
-    /// True when the add-on gave this stream only a YouTube video id (shared `youTubeIdToResolve`).
-    /// nil → false, so callers can pass an optional listed stream. Pure and `nonisolated`: the
-    /// Up Next engine's stream predicates and `PlaybackFailoverPolicy` call it off the main actor.
-    nonisolated static func isYouTubeResolved(_ stream: StreamItem?) -> Bool {
-        let youTubeId: String? = stream?.youTubeIdToResolve
-        return !(youTubeId ?? "").isEmpty
-    }
-
-    static var youTubeResolveFailedMessage: String { String(localized: "Could not load this YouTube video.") }
-
-    /// Resolves a ytId-only stream to a copy carrying one playable URL through the shared
-    /// `YouTubeStreamResolver` (the trailer extractor; HLS master playlist, else progressive). The
-    /// shared function maps every failure to nil and rethrows only cancellation (review r1 F3),
-    /// which `try?` also turns into nil — so a nil is "could not resolve" unless this Task itself
-    /// was cancelled, in which case nobody is told anything. Runs on the main actor throughout
-    /// (the async export, not the completion-handler twin, so no `@Sendable` hop is needed).
-    @discardableResult
-    private func resolveYouTube(_ stream: StreamItem, completion: @escaping @MainActor (StreamItem?) -> Void) -> Task<Void, Never> {
-        Task { @MainActor in
-            let resolved: StreamItem? = try? await YouTubeStreamResolver.shared.resolve(stream: stream)
-            guard !Task.isCancelled else { return }
-            completion(resolved)
-        }
-    }
-
-    /// Starts a YouTube resolve for `rowKey`: the row spinner (`resolvingKey`, which also keeps
-    /// resolves one at a time) plus a fresh request token (review r2 P3-2). Returns the token the
-    /// completion must still hold to act.
-    private func beginYouTubeResolve(rowKey: String) -> UUID {
-        let token = UUID()
-        resolvingKey = rowKey
-        youTubeResolveToken = token
-        return token
-    }
-
-    /// The owning completion is done (either way): clears the spinner and the token.
-    private func finishYouTubeResolve() {
-        resolvingKey = nil
-        youTubeResolveToken = nil
-        youTubeResolveTask = nil
-    }
-
-    /// Supersedes the YouTube resolve in flight, if any: its completion will find a stale token,
-    /// its Task is cancelled (review r2 P3-3), and the spinner it owned is cleared so the
-    /// one-at-a-time guard reopens. A debrid resolve's spinner (no token) is left alone.
-    private func invalidateYouTubeResolve() {
-        guard youTubeResolveToken != nil else { return }
-        youTubeResolveToken = nil
-        youTubeResolveTask?.cancel()
-        youTubeResolveTask = nil
-        resolvingKey = nil
-    }
-
-    // MARK: - External player handoff (FEAT-5)
-
-    /// Hands the stream to an installed external player (Infuse today) instead of the in-app
-    /// player — reached from a row long-press, or from plain Select when that player is the
-    /// user's default. Mirrors `internalPlay(_:rowKey:)`'s two branches — direct URLs open
-    /// immediately; torrent/clientResolve results go through the same debrid resolve first,
-    /// reusing `resolvingKey` so the row spinner and the one-at-a-time guard behave identically
-    /// for both destinations.
-    ///
-    /// `fallbackToInternal` is set on the default-player route only: a failed handoff there
-    /// would strand a user whose Select no longer plays anything, so it degrades to the built-in
-    /// player. The explicit long-press route keeps the honest failure toast instead — the user
-    /// asked for Infuse specifically, silently playing elsewhere would be surprising.
-    private func externalPlay(_ stream: StreamItem, rowKey: String, playerId: String, fallbackToInternal: Bool = false) {
-        let direct: String? = stream.playableDirectUrl
-        if let direct, !direct.isEmpty {
-            openExternally(urlString: direct, stream: stream, listed: stream, playerId: playerId,
-                           rowKey: rowKey, fallbackToInternal: fallbackToInternal)
-            return
-        }
-
-        // Batch D U2: a ytId-only stream resolves on the device first (see `internalPlay`), then
-        // the resolved link is handed off like a direct one.
-        if Self.isYouTubeResolved(stream) {
-            guard resolvingKey == nil else { return }
-            let token = beginYouTubeResolve(rowKey: rowKey)
-            youTubeResolveTask = resolveYouTube(stream) { resolved in
-                // Review r1 / r2 P3-2: same token guard as `internalPlay` — a Menu press during
-                // the resolve must not launch an external player from a view that is gone.
-                guard youTubeResolveToken == token else {
-                    print("[StreamPicker] YouTube resolve landed after the picker moved on — dropped")
-                    return
-                }
-                finishYouTubeResolve()
-                guard selected == nil, pickerOnScreen else { return }
-                let resolvedUrl: String? = resolved?.playableDirectUrl
-                guard let resolved, let resolvedUrl, !resolvedUrl.isEmpty else {
+        resolveTask = Task { @MainActor in
+            defer { if resolvingKey == rowKey { resolvingKey = nil } }
+            if youTube {
+                let resolved: StreamItem? = try? await YouTubeStreamResolver.shared.resolve(stream: stream)
+                guard !Task.isCancelled, selected == nil else { return }
+                let link: String? = resolved?.playableDirectUrl
+                guard let resolved, let link, !link.isEmpty, let url = URL(string: link) else {
                     showToast(Self.youTubeResolveFailedMessage)
                     return
                 }
-                openExternally(urlString: resolvedUrl, stream: resolved, listed: stream, playerId: playerId,
-                               rowKey: rowKey, fallbackToInternal: fallbackToInternal)
-            }
-            return
-        }
-
-        guard resolvingKey == nil else { return }
-        guard DirectDebridPlaybackResolver.shared.shouldResolveToPlayableStream(stream: stream) else {
-            showToast(String(localized: "This stream needs a debrid account. Connect one in Settings \u{2192} Services \u{2192} Debrid."))
-            return
-        }
-        resolvingKey = rowKey
-        let kotlinSeason = season.map { KotlinInt(int: Int32($0)) }
-        let kotlinEpisode = episode.map { KotlinInt(int: Int32($0)) }
-        // The `@Throws` twin: a Kotlin exception out of the plain suspend export aborts the process.
-        Task { @MainActor in
-            let result: DirectDebridPlayableResult?
-            do {
-                result = try await DirectDebridPlaybackResolver.shared.resolveToPlayableStreamChecked(
-                    stream: stream, season: kotlinSeason, episode: kotlinEpisode
-                )
-            } catch {
-                print("[StreamPicker] debrid resolve threw: \(error)")
-                result = nil
-            }
-            resolvingKey = nil
-            if let success = result as? DirectDebridPlayableResult.Success {
-                let resolvedUrl: String? = success.stream.playableDirectUrl
-                if let resolvedUrl, !resolvedUrl.isEmpty {
-                    openExternally(
-                        urlString: resolvedUrl,
-                        stream: success.stream,
-                        listed: stream,
-                        playerId: playerId,
-                        rowKey: rowKey,
-                        fallbackToInternal: fallbackToInternal
-                    )
-                    return
-                }
-            }
-            showToast(Self.resolveFailureMessage(result))
-            if result is DirectDebridPlayableResult.Stale {
-                model.reload(forceManual: !autoPlayArmed)
-            }
-        }
-    }
-
-    /// Builds the shared playback request and opens the target player via its x-callback-url
-    /// scheme. Title/season/episode feed `buildPlayerTitle()` so Infuse shows
-    /// "Show — S02E05" instead of a bare debrid CDN filename. Must run on the main thread
-    /// (UIApplication.open under the hood).
-    ///
-    /// FEAT-21 (beta.12): the handoff now carries what the internal player would use —
-    /// `resumePositionMs` from the same `progressForVideo` lookup MPV's resume path runs (same
-    /// >10s floor, completed entries excluded), and the stream's addon subtitles, so players
-    /// whose URL builders consume `sub`/`position` (VidHub `/play`, Infuse, VLC) resume and
-    /// subtitle like the built-in player instead of starting cold.
-    ///
-    /// Orivio batch item 5: a handoff to a player that reports back (`returnReportingPlayerIds`:
-    /// Infuse, SenPlayer since FEAT-56, Native Player since FEAT-78) first prepares a shared external-playback session and
-    /// passes the player its x-success / x-error callback URLs on this install's own URL scheme, so
-    /// the position it reports back is recorded (`ExternalPlaybackReturn`). A handoff that does not
-    /// open drops that session again. `listed` is the stream as the list shows it (pre-resolve).
-    ///
-    /// `autoAttempt` (1-based) marks the first-play auto start handing its pick to the viewer's
-    /// external default: its built-in fallback is then an auto start too (`.autoPlay`, the walk
-    /// continues on a failure).
-    ///
-    /// D5 (Steven rc7): the request also carries the add-on subtitles this picker fetched
-    /// (`SubtitleRepository`, prefetched since the picker opened), the stream's own first, then the
-    /// viewer's preferred subtitle language first (`ExternalSubtitleHandOff`). When that fetch has
-    /// not finished, the hand-off waits for it at most `ExternalSubtitleHandOff.waitSeconds`
-    /// (row spinner on, one hand-off at a time) and then sends what has arrived.
-    ///
-    /// BUG-174 (Steven rc7): a hand-off that opened closes the picker, manual picks included (the
-    /// auto path always did), so coming back from the external player lands on the page the viewer
-    /// started from.
-    private func openExternally(urlString: String, stream: StreamItem, listed: StreamItem, playerId: String,
-                                rowKey: String? = nil, fallbackToInternal: Bool = false, autoAttempt: Int? = nil) {
-        // Review r1 (P2): one hand-off at a time. The subtitle wait makes this asynchronous, so a
-        // second Select during it would otherwise open the external player twice.
-        guard !externalHandOffInFlight else { return }
-        externalHandOffInFlight = true
-        let spinnerKey = rowKey ?? Self.handOffRowKey
-        resolvingKey = spinnerKey
-        let type = type
-        let videoId = videoId
-        Task { @MainActor in
-            let addonSubtitles = await ExternalSubtitleHandOff.liveAddonSubtitles(type: type, videoId: videoId)
-            externalHandOffInFlight = false
-            if resolvingKey == spinnerKey { resolvingKey = nil }
-            // The viewer left the picker, or something else started playing, while it waited.
-            guard pickerOnScreen, selected == nil else {
-                print("[StreamPicker] external hand-off dropped: the picker moved on while subtitles loaded")
+                play(resolved, url)
                 return
             }
-            openExternallyNow(urlString: urlString, stream: stream, listed: listed, playerId: playerId,
-                              addonSubtitles: addonSubtitles, fallbackToInternal: fallbackToInternal,
-                              autoAttempt: autoAttempt)
-        }
-    }
-
-    /// `openExternally` once the add-on subtitles are in hand.
-    private func openExternallyNow(urlString: String, stream: StreamItem, listed: StreamItem, playerId: String,
-                                   addonSubtitles: [AddonSubtitle], fallbackToInternal: Bool, autoAttempt: Int?) {
-        let progress = WatchProgressRepository.shared.progressForVideo(
-            videoId: videoId,
-            parentMetaId: parentMetaId,
-            seasonNumber: season.map { KotlinInt(int: Int32($0)) },
-            episodeNumber: episode.map { KotlinInt(int: Int32($0)) }
-        )
-        // Percentage-only rows (Simkl/Trakt) stay 0 here: the real duration is unknown before the
-        // file opens, and scaling by the show runtime is the bug being avoided. "Start Over" sends 0.
-        let resumeMs: Int64 = {
-            guard !startsOver else { return 0 }
-            guard let progress, !progress.isCompleted, progress.lastPositionMs > 10_000 else { return 0 }
-            return progress.lastPositionMs
-        }()
-        var launchSessionId: String?
-        var callbackSuccessUrl: String?
-        var callbackErrorUrl: String?
-        if Self.returnReportingPlayerIds.contains(playerId), let sourceURL = URL(string: urlString) {
-            let session = ExternalPlaybackReturn.shared.prepare(
-                playerId: playerId,
-                sourceUrl: urlString,
-                // `listedStream: listed` so a ytId-only stream's session stores no expiring link.
-                playbackSession: PlaybackProgressRecorder.playbackSession(
-                    for: context(url: sourceURL, stream: stream, listedStream: listed)),
-                durationMs: externalDurationMs(progress: progress).map { KotlinLong(value: $0) }
-            )
-            let callbacks = ExternalPlaybackCallbacks.shared.build(
-                scheme: AppCallbackScheme.value, playerId: playerId, sessionId: session.id
-            )
-            launchSessionId = session.id
-            callbackSuccessUrl = callbacks.first.map { $0 as String }
-            callbackErrorUrl = callbacks.second.map { $0 as String }
-        }
-        let subtitles = ExternalSubtitleHandOff.requestSubtitles(stream: stream, addonSubtitles: addonSubtitles)
-        print("[StreamPicker] external hand-off player=\(playerId) subtitles=\(subtitles.count) (stream=\(stream.externalSubtitles.count) addon=\(addonSubtitles.count))")
-        let request = ExternalPlayerPlaybackRequest(
-            sourceUrl: urlString,
-            title: title,
-            streamTitle: nil,
-            sourceHeaders: [:],
-            resumePositionMs: resumeMs,
-            // Each player's builder keeps its own rules (VLC/VidHub take the first; Native
-            // Player keeps http(s) SRT only), so the order here is what decides.
-            subtitles: subtitles,
-            season: season.map { KotlinInt(int: Int32($0)) },
-            episode: episode.map { KotlinInt(int: Int32($0)) },
-            episodeTitle: nil,
-            skipSegmentsJson: nil,
-            // Infuse and SenPlayer only (nil for every other player): where the player reports the
-            // stop position.
-            callbackSuccessUrl: callbackSuccessUrl,
-            callbackErrorUrl: callbackErrorUrl
-        )
-        // BUG-185 (Steven rc9, D6): build the URL, close the picker FIRST, then leave the app, so
-        // coming back from the external player lands on the opener with no loading cover to flash
-        // (the old order opened the player while the picker, under its cover, was still up).
-        let intent = ExternalPlayerPlatform.shared.buildIntent(request: request, playerId: playerId)
-        if let success = intent as? ExternalPlayerIntentResultSuccess, let url = success.intent as? URL {
-            if UserDefaults.standard.bool(forKey: "debug.extPlayerProbe") {
-                // Knob-gated, console-only (the shared `open` rule): the URL embeds debrid tokens.
-                NSLog("%@", "[ExtPlayerProbe] open player=\(playerId) url=\(url.absoluteString)")
+            let result: DirectDebridPlayableResult?
+            do {
+                result = try await DirectDebridPlaybackResolver.shared.resolveToPlayableStreamChecked(
+                    stream: stream, season: kotlinSeason, episode: kotlinEpisode)
+            } catch {
+                result = nil
             }
-            // BUG-174: handed off — the picker leaves (manual picks too); Back from the external
-            // player returns to the page that opened it.
-            closePicker()
-            let sessionId = launchSessionId
-            // Not capturing the view: the picker is dismissing by the time this runs.
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(100))
-                UIApplication.shared.open(url, options: [:]) { opened in
-                    // Upstream 99ced26a (as `ExternalPlayerPlatform.apple.kt`'s `open`): a launch
-                    // that carried a return callback but never opened drops its pending session
-                    // (`cancelLaunch(sessionId:)` only drops it if it is still this one).
-                    if !opened, let sessionId {
-                        print("[StreamPicker] external player did not open; dropping its return session")
-                        ExternalPlaybackReturn.shared.cancelLaunch(sessionId: sessionId)
-                    }
+            guard !Task.isCancelled, selected == nil else { return }
+            if let success = result as? DirectDebridPlayableResult.Success {
+                let link: String? = success.stream.playableDirectUrl
+                if let link, !link.isEmpty, let url = URL(string: link) {
+                    play(success.stream, url)
+                    return
                 }
             }
-            return
-        }
-        if let launchSessionId {
-            // Nothing was handed off: drop the pending return session (only if it is still this one).
-            ExternalPlaybackReturn.shared.cancelLaunch(sessionId: launchSessionId)
-        }
-        if fallbackToInternal, let url = URL(string: urlString) {
-            showToast(String(localized: "Couldn\u{2019}t open the external player \u{2014} playing in NuvioTV."))
-            NextEpisodeEngine.consecutiveAutoPlays = 0
-            if let autoAttempt {
-                autoPlayLog("[AutoPlay] external player \(playerId) did not open — attempt #\(autoAttempt) plays in NuvioTV")
-                selected = context(url: url, stream: stream, listedStream: listed, streamKey: listed.playbackStreamKey,
-                                   launchSource: .autoPlay, attempt: autoAttempt - 1)
-            } else {
-                selected = context(url: url, stream: stream, listedStream: listed, streamKey: listed.playbackStreamKey,
-                                   launchSource: .manual)
-            }
-        } else {
-            // An auto pick's cover was held for the hand-off: the list shows with the toast.
-            coverHold = false
-            showToast(String(localized: "Couldn\u{2019}t open the external player."))
+            showToast(Self.debridFailure(result))
+            // An expired result set: fetch it again.
+            if result is DirectDebridPlayableResult.Stale { model.reload(forceManual: true) }
         }
     }
 
-    /// Duration for the external-player return: the stored progress entry's, else the episode's
-    /// runtime, else the title's catalog runtime. nil = unknown (the shared side then records the
-    /// position without a tracker scrobble).
-    private func externalDurationMs(progress: WatchProgressEntry?) -> Int64? {
-        if let progress, progress.durationMs > 0 { return progress.durationMs }
-        let all = episodes.isEmpty ? fetchedEpisodes : episodes
+    // MARK: - External players
+
+    /// Infuse / Native Player. From the default-player route, a hand-off that does not open plays
+    /// in Orbit instead; asked for explicitly (hold), it says so.
+    private func playExternally(_ stream: StreamItem, rowKey: String, playerId: String,
+                                orbitIfFails: Bool = false, autoAttempt: Int? = nil) {
+        ready(stream, rowKey: rowKey) { resolved, url in
+            handOff(resolved, listed: stream, url: url, playerId: playerId,
+                    orbitIfFails: orbitIfFails, autoAttempt: autoAttempt)
+        }
+    }
+
+    private func handOff(_ stream: StreamItem, listed: StreamItem, url: URL, playerId: String,
+                         orbitIfFails: Bool, autoAttempt: Int?) {
+        let request = OrbitExternalHandOff.Request(
+            url: url.absoluteString, stream: stream, title: title, type: type, videoId: videoId,
+            season: season, episode: episode, resumeMs: resumeMs(),
+            session: PlaybackProgressRecorder.playbackSession(for: context(url: url, stream: stream, listed: listed)),
+            durationMs: durationMs())
+        resolvingKey = Self.handOffRowKey
+        Task { @MainActor in
+            let prepared = await OrbitExternalHandOff.prepare(request, playerId: playerId)
+            if resolvingKey == Self.handOffRowKey { resolvingKey = nil }
+            guard selected == nil else { return }
+            if let prepared {
+                // Back from the player lands where Play was pressed.
+                closePage()
+                OrbitExternalHandOff.open(prepared.url, sessionId: prepared.sessionId)
+                return
+            }
+            if orbitIfFails {
+                showToast(String(localized: "Le lecteur externe n'a pas pu s'ouvrir : lecture dans Orbit."))
+                NextEpisodeEngine.consecutiveAutoPlays = 0
+                selected = context(url: url, stream: stream, listed: listed,
+                                   source: autoAttempt == nil ? .manual : .autoPlay,
+                                   attempt: max(0, (autoAttempt ?? 1) - 1))
+            } else {
+                holdCover = false
+                showToast(String(localized: "Le lecteur externe n'a pas pu s'ouvrir."))
+            }
+        }
+    }
+
+    /// The saved position for an external player (0 for "Reprendre du début" or a finished title).
+    private func resumeMs() -> Int64 {
+        guard !startsOver, let progress = savedProgress(), !progress.isCompleted, progress.lastPositionMs > 10_000 else { return 0 }
+        return progress.lastPositionMs
+    }
+
+    /// The title's length for the external return: the saved one, the episode's, the film's.
+    private func durationMs() -> Int64? {
+        if let progress = savedProgress(), progress.durationMs > 0 { return progress.durationMs }
         if let season, let episode,
-           let video = all.first(where: { $0.season?.intValue == season && $0.episode?.intValue == episode }),
+           let video = allEpisodes.first(where: { $0.season?.intValue == season && $0.episode?.intValue == episode }),
            let minutes = video.runtime?.intValue, minutes > 0 {
             return Int64(minutes) * 60_000
         }
-        if let minutes = PlaybackMeta.runtimeMinutes(meta?.runtime), minutes > 0 {
-            return Int64(minutes) * 60_000
-        }
+        if let minutes = PlaybackMeta.runtimeMinutes(meta?.runtime), minutes > 0 { return Int64(minutes) * 60_000 }
         return nil
     }
 
-    // MARK: - First-play auto mode (orivio batch item 1)
-
-    /// "Auto-Play Best Source" is the shared FIRST_STREAM auto-play mode.
-    private static func firstStreamAutoPlayOn() -> Bool {
-        PlayerSettingsRepository.shared.ensureLoaded()
-        let settings = PlayerSettingsRepository.shared.uiState.value_ as? PlayerSettingsUiState
-        return settings?.streamAutoPlayMode == StreamAutoPlayMode.firstStream
+    private func savedProgress() -> WatchProgressEntry? {
+        WatchProgressRepository.shared.progressForVideo(
+            videoId: videoId, parentMetaId: parentMetaId,
+            seasonNumber: season.map { KotlinInt(int: Int32($0)) },
+            episodeNumber: episode.map { KotlinInt(int: Int32($0)) })
     }
 
-    private func handleAutoPlayEvent(_ event: FirstPlayAutoPlayController.Event) {
+    // MARK: - Automatic start
+
+    private func handle(_ event: OrbitAutoPlay.Event) {
         switch event {
-        case let .play(candidate, resolved, url, attempt, isFailover):
-            if isFailover, selected == nil {
-                // The viewer closed the failed player while the next candidate resolved.
-                autoPlayLog("[AutoPlay] failover result after the player closed — dropped")
-                return
-            }
-            // BUG-183: the cover stays up while the player is presented (`.done` alone would hide
-            // it and show the list for a beat before the player's cover is up).
-            coverHold = true
-            autoPlayArmed = false
+        case .play(let pick):
+            // The viewer closed the failed player while the next source was being prepared.
+            if pick.isFailover, selected == nil { return }
+            holdCover = true
+            autoMode = false
             NextEpisodeEngine.consecutiveAutoPlays = 0
-            if case let .external(playerId) = FirstPlayAutoPlayController.Policy.startDestination(
-                isFailover: isFailover, defaultExternalPlayerId: activeDefaultExternalPlayer?.id
-            ) {
-                // The viewer's default player is external: the auto pick goes there, as Select on a
-                // row would. Handed off, the picker leaves too (`openExternally`, BUG-174); a
-                // handoff that does not open plays in NuvioTV as this same auto start.
-                autoPlayLog("[AutoPlay] attempt #\(attempt) to external player \(playerId) key=\(candidate.streamKey)")
-                openExternally(urlString: url.absoluteString, stream: resolved, listed: candidate.stream,
-                               playerId: playerId, fallbackToInternal: true, autoAttempt: attempt)
+            // The first start follows the default player; a retry always stays in Orbit (an
+            // external player reports no failure back).
+            if !pick.isFailover, let player = defaultPlayer {
+                handOff(pick.resolved, listed: pick.listed, url: pick.url, playerId: player.id,
+                        orbitIfFails: true, autoAttempt: pick.attempt)
                 return
             }
-            // Set straight from the event: during a failover this swaps the open player in place.
-            selected = context(url: url, stream: resolved, listedStream: candidate.stream,
-                               streamKey: candidate.streamKey, launchSource: .autoPlay, attempt: attempt - 1)
-        case let .gaveUp(reason, duringFailover):
-            autoPlayArmed = false
+            selected = context(url: pick.url, stream: pick.resolved, listed: pick.listed,
+                               source: .autoPlay, attempt: pick.attempt - 1)
+        case .gaveUp(let duringFailover):
+            autoMode = false
             rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
             if duringFailover {
-                // The viewer already left the player: nothing to explain. Review r1 (P3): the cover
-                // stays, the picker is closing behind the player.
-                guard selected != nil else {
-                    autoPlayLog("[AutoPlay] walk ended (\(reason)) after the player had closed — nothing shown, rejected=\(rejectedKeys.count)")
-                    return
-                }
-                // BUG-174: this close shows the list (with the toast below), not the opener.
-                keepListAfterPlayer = true
+                guard selected != nil else { return }   // the viewer already left the player
+                afterPlayer = .showList
                 selected = nil
             }
-            coverHold = false
-            let listedStreams = model.groups.reduce(0) { $0 + $1.streams.count }
-            autoPlayLog("[AutoPlay] walk ended (\(reason)) — showing the list: groups=\(model.groups.count) streams=\(listedStreams) rejected=\(rejectedKeys.count) failover=\(duringFailover)")
+            holdCover = false
             if duringFailover || !model.groups.isEmpty {
-                showToast(String(localized: "No source could start. Choose one below."))
+                showToast(String(localized: "Aucune source n'a pu démarrer. Choisis-en une."))
             }
-            focusListAfterAutoPlay()
+            focusList()
         }
     }
 
-    /// Menu on the overlay: stop auto mode and show the list; the picker stays.
+    /// Menu on the loading screen: stop and show the list.
     private func cancelAutoPlay() {
-        autoPlay.cancel(why: "Menu on the overlay")
-        autoPlayArmed = false
-        coverHold = false
-        focusListAfterAutoPlay()
+        autoPlay.cancel()
+        autoMode = false
+        holdCover = false
+        focusList()
     }
 
-    /// Initial focus for the list once the overlay lifts (same targets as the first-groups rule).
-    private func focusListAfterAutoPlay() {
+    private func focusList() {
         DispatchQueue.main.async {
-            guard focusedRow == nil || focusedRow == Self.testRowKey else { return }
-            if let first = sourceRows.first?.key { focusedRow = first }
+            if focusedRow == nil, let first = rows.first?.key { focusedRow = first }
         }
     }
 
-    // MARK: - Failover (orivio batch item 2)
+    // MARK: - After a playback
 
-    /// A playback this picker presented failed. The link is remembered when it never got going,
-    /// then the launch source decides: swap in the next auto candidate, open a picker for the Up
-    /// Next episode, or close to the "Try Next Source" alert.
-    private func handlePlaybackFailure(_ failure: PlaybackFailure, context ctx: PlaybackContext) {
-        guard selected?.id == ctx.id else {
-            print("[Failover] failure for a context no longer presented — ignored")
-            return
-        }
-        print("[Failover] failure source=\(ctx.launchSource) attempt=\(ctx.attempt) played=\(Int(failure.secondsPlayed))s key=\(ctx.streamKey) kind=\(failure.kind.rawValue) http=\(failure.httpStatus.map(String.init) ?? "-") reason=\(failure.reason)")
+    private func playbackFailed(_ failure: PlaybackFailure, context ctx: PlaybackContext) {
+        guard selected?.id == ctx.id else { return }
         if PlaybackFailoverPolicy.shouldKeep(secondsPlayed: failure.secondsPlayed), ctx.videoId == videoId {
-            startOverHonoured = true
-        }
-        if !failure.kind.remembersLink, failure.secondsPlayed < PlaybackFailoverPolicy.healthySeconds {
-            // BUG-143: the link is fine (network / offline / cancelled / our own engine), and its
-            // debrid resolve is still good: neither remembered nor invalidated.
-            print("[Failover] reject key=\(ctx.streamKey) kind=\(failure.kind.rawValue) transient=1 skipped")
+            startOverDone = true
         }
         if PlaybackFailoverPolicy.shouldReject(failure) {
             RejectedStreamLinks.reject(ctx.streamKey, title: ctx.videoId)
             if let listed = ctx.listedStream, listed.isAddonDebridCandidate {
-                // The resolver would hand the same dead link back for 15 minutes.
                 DirectDebridPlaybackResolver.shared.invalidate(
                     stream: listed,
                     season: ctx.season.map { KotlinInt(int: Int32($0)) },
-                    episode: ctx.episode.map { KotlinInt(int: Int32($0)) }
-                )
+                    episode: ctx.episode.map { KotlinInt(int: Int32($0)) })
             }
         }
         rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
 
         var response = PlaybackFailoverPolicy.response(for: ctx.launchSource)
-        if response == .manualAlert, ctx.videoId != videoId {
-            // An in-player source switch on a later episode failed: this picker's list is the
-            // wrong title, so open that episode's own picker on its list instead.
-            response = .nextEpisodePicker
-        }
+        // A source switched from inside the player for a later episode: that episode's own page.
+        if response == .manualAlert, ctx.videoId != videoId { response = .nextEpisodePicker }
         switch response {
         case .autoFailover:
-            if !autoPlay.failover(afterFailureOf: ctx.streamKey, addonId: ctx.providerAddonId) {
-                handleAutoPlayEvent(.gaveUp(.allFailed, duringFailover: true))
+            if !autoPlay.continueAfterFailure(of: ctx.streamKey, addonId: ctx.providerAddonId) {
+                handle(.gaveUp(duringFailover: true))
             }
         case .nextEpisodePicker:
-            let forceManual = ctx.launchSource == .manual || !Self.firstStreamAutoPlayOn()
-            pendingFailoverTarget = FailoverTarget(context: ctx, forceManual: forceManual)
+            let manual = ctx.launchSource == .manual || !OrbitAutoPlay.isEnabled
+            nextEpisodeQueued = NextEpisodePage(context: ctx, forceManual: manual)
+            afterPlayer = .nextEpisodePage
             selected = nil
         case .manualAlert:
-            pendingManualFailureAlert = ManualFailureAlert(
-                reason: failure.reason,
-                next: nextManualStream(after: ctx),
-                attempt: ctx.attempt + 1
-            )
+            alertQueued = FailureAlert(reason: failure.reason, next: nextSource(after: ctx), attempt: ctx.attempt + 1)
+            afterPlayer = .alert
             selected = nil
         }
     }
 
-    /// The link played long enough to count as healthy: forget an earlier failure of it.
-    private func handlePlaybackHealthy(_ seconds: Double, context ctx: PlaybackContext) {
+    private func playbackHealthy(_ seconds: Double, context ctx: PlaybackContext) {
         guard PlaybackFailoverPolicy.shouldKeep(secondsPlayed: seconds) else { return }
         RejectedStreamLinks.keep(ctx.streamKey, title: ctx.videoId)
         if ctx.videoId == videoId {
-            startOverHonoured = true
+            startOverDone = true
             rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
         }
     }
 
-    /// The stream "Try Next Source" plays after `ctx`'s: the list as it was when the viewer picked
-    /// (falling back to the live list), after the failed one, same add-on first, failed links skipped.
-    private func nextManualStream(after ctx: PlaybackContext) -> StreamItem? {
-        let list = manualFailoverList.isEmpty ? model.groups.flatMap(\.streams) : manualFailoverList
+    /// "Essayer la source suivante": the list as it was when chosen, after the failed one, the same
+    /// add-on first, failed links skipped.
+    private func nextSource(after ctx: PlaybackContext) -> StreamItem? {
+        let list = chosenFromList.isEmpty ? model.groups.flatMap(\.streams) : chosenFromList
         guard let index = PlaybackFailoverPolicy.nextManualIndex(
-            streams: list,
-            failedKey: ctx.streamKey,
-            failedAddonId: ctx.providerAddonId,
-            rejected: RejectedStreamLinks.rejected(for: videoId)
-        ) else { return nil }
+            streams: list, failedKey: ctx.streamKey, failedAddonId: ctx.providerAddonId,
+            rejected: RejectedStreamLinks.rejected(for: videoId)) else { return nil }
         return list[index]
     }
 
-    /// What the closing player leads to (BUG-174): the queued alert, the queued Up Next failover
-    /// picker, the list (an auto walk that ended with nothing), or — everything else, manual picks
-    /// included — closing the picker so Back lands on the page that opened it.
-    private var afterPlayerOutcome: StreamPickerExitPolicy.AfterPlayer {
-        StreamPickerExitPolicy.afterPlayerClosed(
-            alertQueued: pendingManualFailureAlert != nil,
-            failoverPickerQueued: pendingFailoverTarget != nil,
-            listRequested: keepListAfterPlayer
+    /// The player's cover. When the page is going to close behind it, the plain loading screen goes
+    /// up first and the player leaves without its slide, so the list never shows.
+    private var playerBinding: Binding<PlaybackContext?> {
+        Binding(
+            get: { selected },
+            set: { newValue in
+                guard newValue == nil, selected != nil, afterPlayer == .closePage else {
+                    selected = newValue
+                    return
+                }
+                var instant = Transaction()
+                instant.disablesAnimations = true
+                withTransaction(instant) {
+                    closing = true
+                    selected = nil
+                }
+            }
         )
     }
 
-    /// `selected` went nil (the player is closing; its slide-down has not revealed the list yet).
-    /// BUG-174: when the picker closes too (or the Up Next failover picker takes over), the loading
-    /// cover goes over the list first, with no animation, so the list never shows on the way out;
-    /// when the list has to show (the alert, an ended walk), the cover drops.
-    private func prepareForPlayerClose() {
-        var instant = Transaction()
-        instant.disablesAnimations = true
-        withTransaction(instant) {
-            switch afterPlayerOutcome {
-            case .closePicker:
-                coverHold = true
-                coverIsCloseHold = true
-            case .openFailoverPicker:
-                coverHold = true
-                coverIsCloseHold = false
-            case .raiseAlert, .keepList:
-                coverHold = false
-                coverIsCloseHold = false
-            }
-        }
-    }
-
-    /// The player cover closed. A context swap (failover, Up Next) re-presents instead and leaves
-    /// `selected` set; a real close raises whatever the failure queued — never in the same runloop
-    /// as the dismissal — or closes the picker as well (BUG-174, Steven rc7: Back from a player
-    /// returns to the page you started from, manual picks included; D1).
-    private func handlePlayerDismissed() {
-        StreamPickerCloseAnimation.resumeUIKitAnimations()
-        if let requestedAt = playerCloseRequestedAt {
-            playerCloseRequestedAt = nil
-            let ms = Int((CFAbsoluteTimeGetCurrent() - requestedAt) * 1000)
-            print("[StreamPicker] BUG-185 player close: setter \u{2192} onDismiss \(ms) ms uiKitFallback=\(StreamPickerCloseAnimation.uiKitFallback ? 1 : 0)")
-        }
-        guard selected == nil else { return }
-        // P5 B22 review r1 (P3-1): a post-play pick is handed to the presenter only when this
-        // close also closes the picker; any other outcome drops it, so it never fires on a later Back.
-        let pick = postPlayPick
-        postPlayPick = nil
+    private func playerClosed() {
+        guard selected == nil else { return }   // a context swap (next episode, retry) re-presents
         rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
-        let outcome = afterPlayerOutcome
-        // Review r1 (P3): read once per close, so it never carries to the next one.
-        keepListAfterPlayer = false
+        let outcome = afterPlayer
+        afterPlayer = .closePage
         switch outcome {
-        case .raiseAlert:
-            guard let pending = pendingManualFailureAlert else { return }
-            pendingManualFailureAlert = nil
-            coverHold = false
-            coverIsCloseHold = false
-            DispatchQueue.main.async { manualFailureAlert = pending }
-        case .openFailoverPicker:
-            guard let pending = pendingFailoverTarget else { return }
-            pendingFailoverTarget = nil
-            // The nested picker's own close closes this one too: the cover keeps the list hidden
-            // under it and on the way out.
-            coverHold = true
-            coverIsCloseHold = false
-            DispatchQueue.main.async { failoverTarget = pending }
-        case .keepList:
-            keepListAfterPlayer = false
-            coverHold = false
-            coverIsCloseHold = false
-            autoPlay.cancel(why: "player closed")
-        case .closePicker:
-            // A failover still resolving behind the closed player must not reopen it.
-            autoPlay.cancel(why: "player closed")
-            if let pick { onOpenTitle?(pick) }
-            closePicker()
+        case .alert:
+            holdCover = false
+            closing = false
+            let alert = alertQueued
+            alertQueued = nil
+            DispatchQueue.main.async { failureAlert = alert }
+        case .nextEpisodePage:
+            holdCover = true
+            let page = nextEpisodeQueued
+            nextEpisodeQueued = nil
+            DispatchQueue.main.async { nextEpisodePage = page }
+        case .showList:
+            holdCover = false
+            closing = false
+            autoPlay.cancel()
+        case .closePage:
+            autoPlay.cancel()
+            closePage()
         }
     }
 
-    /// The Up Next failover picker closed (Back from its list, or its own player closed it).
-    /// BUG-174: this picker's list is for the episode before, so the picker closes as well and
-    /// Back lands on the page that opened it.
-    private func handleFailoverPickerDismissed() {
-        closePicker()
-    }
-
-    /// BUG-174: closes the picker without the list showing — the cover goes up and both changes
-    /// run without animation (the picker's own slide-down would otherwise reveal the list).
-    private func closePicker() {
+    /// Leaves without the list showing.
+    private func closePage() {
         var instant = Transaction()
         instant.disablesAnimations = true
-        // BUG-185: the close-time hold is plain black (no logo flash on the way out).
-        withTransaction(instant) {
-            coverHold = true
-            coverIsCloseHold = true
-        }
-        // Not gated on `pickerOnScreen`: the player's full-screen cover can take the picker off
-        // screen (`onDisappear`) until after this runs.
-        DispatchQueue.main.async {
-            withTransaction(instant) { dismiss() }
+        withTransaction(instant) { closing = true }
+        DispatchQueue.main.async { withTransaction(instant) { dismiss() } }
+    }
+
+    // MARK: - Playback context
+
+    private var startsOver: Bool { startFromBeginning && !startOverDone }
+
+    private func context(url: URL, stream: StreamItem, listed: StreamItem,
+                         source: PlaybackLaunchSource = .manual, attempt: Int = 0) -> PlaybackContext {
+        PlaybackContext(
+            url: url,
+            title: title,
+            contentType: type,
+            parentMetaId: parentMetaId,
+            videoId: videoId,
+            season: season,
+            episode: episode,
+            poster: poster,
+            background: backdropUrl,
+            providerName: stream.addonName,
+            providerAddonId: stream.addonId,
+            streamTitle: stream.streamLabel,
+            streamSubtitle: { let s: String? = stream.description_; return s }(),
+            externalSubtitles: stream.externalSubtitles.map { sub in
+                SubtitleFile(url: sub.url, language: sub.language, name: { let n: String? = sub.name; return n }())
+            },
+            bingeGroup: { let g: String? = stream.behaviorHints.bingeGroup; return g }(),
+            episodes: allEpisodes,
+            synopsis: synopsis,
+            episodeStill: episodeStill,
+            logo: logoUrl,
+            meta: meta,
+            fileSizeBytes: { let n: Int64? = stream.behaviorHints.videoSize?.int64Value; return n }(),
+            streamAudioDelayMs: { let n: Int? = stream.behaviorHints.audioDelayMs?.intValue; return n }(),
+            requestHeaders: StreamModelsKt.sanitizePlaybackHeaders(headers: stream.behaviorHints.proxyHeaders?.request),
+            launchSource: source,
+            streamKey: listed.playbackStreamKey,
+            startFromBeginning: startsOver,
+            attempt: attempt,
+            listedStream: listed,
+            // A YouTube link expires within hours: never saved as the title's last source.
+            sessionOnlySourceUrl: Self.isYouTubeResolved(listed))
+    }
+
+    /// Series paths that come without the episode list get it here (next-episode playback).
+    private func fetchEpisodesIfNeeded() {
+        guard episodes.isEmpty, fetchedEpisodes.isEmpty,
+              ["series", "tv", "show", "tvshow"].contains(type.lowercased()) else { return }
+        Task { @MainActor in
+            let details = try? await MetaDetailsRepository.shared.fetchChecked(type: type, id: parentMetaId, cacheResult: true)
+            let videos = details?.videos ?? []
+            if !videos.isEmpty { fetchedEpisodes = videos }
         }
     }
 
-    /// Mirrors the shared `DirectDebridPlayableResult.toastMessage()` wording (tvOS renders the
-    /// English fallbacks; matching locally avoids depending on the ext-fun's bridged name).
-    /// BUG-21: `Error` now carries a step-specific diagnostic ("TorBox: adding the item failed
-    /// (HTTP 403 · BAD_TOKEN: …)") built shared-side — show it verbatim so a tester's toast
-    /// names the exact failing call instead of the old catch-all.
-    private static func resolveFailureMessage(_ result: DirectDebridPlayableResult?) -> String {
-        switch result {
-        case is DirectDebridPlayableResult.MissingApiKey:
-            return String(localized: "Connect an account in Settings \u{2192} Services \u{2192} Debrid.")
-        case is DirectDebridPlayableResult.NotCached:
-            return String(localized: "Not cached on your debrid service.")
-        case is DirectDebridPlayableResult.Stale:
-            return String(localized: "This link expired. Refreshing results.")
-        case let error as DirectDebridPlayableResult.Error:
-            return error.message ?? String(localized: "Could not open this link.")
-        default:
-            return String(localized: "Could not open this link.")
+    // MARK: - Toast
+
+    @ViewBuilder
+    private var toastView: some View {
+        if let toast {
+            Text(toast)
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 18)
+                .background(Capsule().fill(.ultraThinMaterial))
+                .padding(.bottom, 60)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
     private func showToast(_ message: String) {
         withAnimation { toast = message }
-        let shown = message
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-            if toast == shown {
-                withAnimation { toast = nil }
-            }
+            if toast == message { withAnimation { toast = nil } }
         }
     }
 
-    /// The Up Next episode (or other foreign video) whose playback failed, for the nested picker.
-    private struct FailoverTarget: Identifiable {
+    // MARK: - Helpers
+
+    private static let retryRowKey = "retry-next"
+    private static let handOffRowKey = "external-handoff"
+
+    /// The add-on gave only a YouTube video id (resolved on the device when chosen).
+    nonisolated static func isYouTubeResolved(_ stream: StreamItem?) -> Bool {
+        let id: String? = stream?.youTubeIdToResolve
+        return !(id ?? "").isEmpty
+    }
+
+    static var youTubeResolveFailedMessage: String { String(localized: "Impossible de charger cette vidéo YouTube.") }
+
+    /// "S2 · É5 · Titre de l'épisode".
+    static func episodeLine(season: Int?, episode: Int?, episodes: [MetaVideo]) -> String? {
+        guard let season, let episode else { return nil }
+        let marker = "S\(season) · É\(episode)"
+        let name: String? = episodes.first { $0.season?.intValue == season && $0.episode?.intValue == episode }?.title
+        guard let name, !name.isEmpty else { return marker }
+        return "\(marker) · \(name)"
+    }
+
+    private static func debridFailure(_ result: DirectDebridPlayableResult?) -> String {
+        switch result {
+        case is DirectDebridPlayableResult.MissingApiKey:
+            return String(localized: "Connecte un compte debrid dans Réglages › Services.")
+        case is DirectDebridPlayableResult.NotCached:
+            return String(localized: "Pas en cache sur ton service debrid.")
+        case is DirectDebridPlayableResult.Stale:
+            return String(localized: "Ce lien a expiré. Actualisation des sources.")
+        case let error as DirectDebridPlayableResult.Error:
+            return error.message ?? String(localized: "Impossible d'ouvrir ce lien.")
+        default:
+            return String(localized: "Impossible d'ouvrir ce lien.")
+        }
+    }
+
+    private struct NextEpisodePage: Identifiable {
         let id = UUID()
         let context: PlaybackContext
-        /// Open on the list (auto-play off, or the failed link was the viewer's own pick).
         let forceManual: Bool
     }
 
-    /// "Couldn't play this source": the engine's reason and the stream "Try Next Source" plays.
-    private struct ManualFailureAlert: Identifiable {
+    private struct FailureAlert: Identifiable {
         let id = UUID()
         let reason: String
         let next: StreamItem?
-        /// `PlaybackContext.attempt` for the next try.
         let attempt: Int
     }
 }
 
-/// Attaches the "play somewhere else" context menu only when at least one supported external
-/// player is installed (FEAT-5). A conditional modifier rather than an inline `.contextMenu` so
-/// the no-players case adds NOTHING to the row — an empty context menu would still swallow the
-/// long-press and show a blank platter, which reads as broken.
-///
-/// The menu always offers the destinations plain Select does NOT: with the built-in player as
-/// default it lists the external players; with an external default it lists "Play in NuvioTV
-/// Player" first (the escape hatch back) plus any other installed externals. The default player
-/// itself is omitted — Select already goes there, and a menu entry duplicating Select reads as
-/// two different actions.
-private struct ExternalPlayMenu: ViewModifier {
+/// Holds the focus while the loading screen is up (so Menu reaches it, never the list or the page)
+/// and turns Menu into "show the list" while the automatic start works.
+private struct OrbitCoverFocus: View {
+    let onMenu: (() -> Void)?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .focusable()
+            .focused($focused)
+            .onExitCommand { onMenu?() }
+            .onAppear { DispatchQueue.main.async { focused = true } }
+    }
+}
+
+/// Hold a source: the other player(s). Only when Infuse or Native Player is installed.
+private struct OrbitOtherPlayerMenu: ViewModifier {
     let players: [ExternalPlayerApp]
-    /// The validated default external player id, or nil when the built-in player is default.
     let defaultPlayerId: String?
     let onExternal: (ExternalPlayerApp) -> Void
-    let onBuiltIn: () -> Void
+    let onOrbit: () -> Void
 
     func body(content: Content) -> some View {
         if players.isEmpty {
@@ -1370,177 +774,14 @@ private struct ExternalPlayMenu: ViewModifier {
         } else {
             content.contextMenu {
                 if defaultPlayerId != nil {
-                    Button {
-                        onBuiltIn()
-                    } label: {
-                        Label("Lire dans Orbit", systemImage: "play.tv")
-                    }
+                    Button(action: onOrbit) { Label("Lire dans Orbit", systemImage: "play.tv") }
                 }
                 ForEach(players.filter { $0.id != defaultPlayerId }, id: \.id) { player in
-                    Button {
-                        onExternal(player)
-                    } label: {
+                    Button { onExternal(player) } label: {
                         Label("Ouvrir dans \(player.name)", systemImage: "arrow.up.forward.app")
                     }
                 }
             }
         }
-    }
-}
-
-/// BUG-185 (Steven rc9): the fallback if a disabled-animations Transaction on the cover binding
-/// still lets the player cover slide down. `-debug.pickerCloseUIKitNoAnim YES` (read per close,
-/// any build) also turns UIKit animations off from the binding's setter until the player cover's
-/// `onDismiss`, with a 1 s watchdog so a dismiss that never reports cannot leave the whole app
-/// unanimated.
-@MainActor
-enum StreamPickerCloseAnimation {
-    static var uiKitFallback: Bool { UserDefaults.standard.bool(forKey: "debug.pickerCloseUIKitNoAnim") }
-
-    private static var suspended = false
-    private static var generation = 0
-
-    static func suspendUIKitAnimations() {
-        suspended = true
-        generation += 1
-        let mine = generation
-        UIView.setAnimationsEnabled(false)
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            guard suspended, generation == mine else { return }
-            print("[StreamPicker] BUG-185 UIKit animation watchdog fired (no onDismiss within 1 s)")
-            resumeUIKitAnimations()
-        }
-    }
-
-    static func resumeUIKitAnimations() {
-        guard suspended else { return }
-        suspended = false
-        UIView.setAnimationsEnabled(true)
-    }
-}
-
-/// BUG-174 / BUG-183 (Steven rc7): the stream picker's loading cover and what a closing player
-/// leads to. Pure, so `StreamPickerExitPolicyTests` pins every case.
-enum StreamPickerCoverPolicy {
-    typealias Phase = FirstPlayAutoPlayController.Phase
-
-    /// The cover is over the list: held (an auto pick's player being presented or up, the Up Next
-    /// failover picker up, the picker closing), auto mode armed but not started yet (the first
-    /// frame, before `onAppear` arms the controller), or auto mode working — except a failover
-    /// walk, which resolves behind the open player.
-    static func showsCover(armed: Bool, phase: Phase, isFailoverWalk: Bool, held: Bool) -> Bool {
-        if held { return true }
-        return message(armed: armed, phase: phase, isFailoverWalk: isFailoverWalk) != nil
-    }
-
-    /// The cover's spoken label while auto mode works ("Finding the best source…"); nil otherwise.
-    static func message(armed: Bool, phase: Phase, isFailoverWalk: Bool) -> String? {
-        if phase == .idle { return armed ? FirstPlayAutoPlayController.Policy.overlayMessage(for: .searching) : nil }
-        guard !isFailoverWalk else { return nil }
-        return FirstPlayAutoPlayController.Policy.overlayMessage(for: phase)
-    }
-}
-
-enum StreamPickerExitPolicy {
-    enum AfterPlayer: Equatable {
-        /// "Couldn't play this source" (a manual pick failed): the picker stays on its list.
-        case raiseAlert
-        /// The Up Next episode's source failed: its own picker opens over this one.
-        case openFailoverPicker
-        /// An auto walk ended with nothing during a failover: the list shows with a toast.
-        case keepList
-        /// D1: everything else — the picker closes with the player.
-        case closePicker
-    }
-
-    static func afterPlayerClosed(alertQueued: Bool, failoverPickerQueued: Bool, listRequested: Bool) -> AfterPlayer {
-        if alertQueued { return .raiseAlert }
-        if failoverPickerQueued { return .openFailoverPicker }
-        if listRequested { return .keepList }
-        return .closePicker
-    }
-}
-
-/// D5 (Steven rc7): the subtitles an external player is handed — the stream's own first, then the
-/// add-on subtitles this app fetched, the viewer's preferred subtitle language(s) first, each URL
-/// once, at most `cap`. The players' URL builders apply their own rules after this
-/// (`ExternalPlayerPlatform.apple.kt`: VLC and VidHub take the first, Native Player keeps http(s)
-/// SRT only), so the order is what matters.
-enum ExternalSubtitleHandOff {
-    struct Item: Equatable {
-        let url: String
-        let name: String
-        let lang: String
-    }
-
-    static let cap = 10
-    /// The longest a hand-off waits for an add-on subtitle fetch that has not finished.
-    static let waitSeconds: TimeInterval = 1.5
-
-    /// Pure. `matches(trackLanguage, target)` is the shared `languageMatchesPreference` live.
-    static func merge(own: [Item], addon: [Item], preferredTargets: [String],
-                      matches: (String, String) -> Bool, cap: Int = cap) -> [Item] {
-        func rank(_ lang: String) -> Int {
-            preferredTargets.firstIndex { matches(lang, $0) } ?? preferredTargets.count
-        }
-        struct Ranked { let offset: Int; let item: Item; let rank: Int }
-        var ranked: [Ranked] = []
-        for (offset, item) in addon.enumerated() {
-            ranked.append(Ranked(offset: offset, item: item, rank: rank(item.lang)))
-        }
-        ranked.sort { lhs, rhs in
-            lhs.rank != rhs.rank ? lhs.rank < rhs.rank : lhs.offset < rhs.offset
-        }
-        let rankedAddon: [Item] = ranked.map { $0.item }
-        var seen = Set<String>()
-        var out: [Item] = []
-        for item in own + rankedAddon {
-            guard out.count < cap else { break }
-            let key = item.url.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !key.isEmpty, seen.insert(key).inserted else { continue }
-            out.append(item)
-        }
-        return out
-    }
-
-    /// The add-on subtitles for this title: the picker's prefetch (`fetchAddonSubtitles` is a no-op
-    /// when that fetch already covers it), waited for at most `waitSeconds` when still running,
-    /// then whatever has arrived. "Show only preferred languages" applies, as in both players.
-    @MainActor
-    static func liveAddonSubtitles(type: String, videoId: String) async -> [AddonSubtitle] {
-        let repository = SubtitleRepository.shared
-        repository.fetchAddonSubtitles(type: type, videoId: videoId)
-        let key = repository.requestKey(type: type, videoId: videoId)
-        let deadline = Date().addingTimeInterval(waitSeconds)
-        while (repository.completedRequest.value_ as? String) != key, Date() < deadline {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-        let subtitles = repository.addonSubtitles.value_ as? [AddonSubtitle] ?? []
-        guard let settings = playerSettings() else { return subtitles }
-        return PlayerTrackSelectionKt.filterAddonSubtitlesForSettings(subtitles: subtitles, settings: settings)
-    }
-
-    /// The request's `subtitles` for `stream` plus `addonSubtitles`, ordered by the viewer's
-    /// subtitle language preference (the targets both players resolve).
-    @MainActor
-    static func requestSubtitles(stream: StreamItem, addonSubtitles: [AddonSubtitle]) -> [SubtitleInput] {
-        let own = stream.externalSubtitles.map { sub in
-            Item(url: sub.url, name: { let n: String? = sub.name; return n }() ?? sub.language, lang: sub.language)
-        }
-        let addon = addonSubtitles.map { Item(url: $0.url, name: $0.display, lang: $0.language) }
-        let targets: [String] = playerSettings().map {
-            PlayerTrackSelectionKt.preferredSubtitleTargetsForSettings(settings: $0)
-        } ?? []
-        return merge(own: own, addon: addon, preferredTargets: targets) { track, target in
-            PlayerLanguagePreferencesKt.languageMatchesPreference(trackLanguage: track, targetLanguage: target)
-        }
-        .map { SubtitleInput(url: $0.url, name: $0.name, lang: $0.lang) }
-    }
-
-    @MainActor
-    private static func playerSettings() -> PlayerSettingsUiState? {
-        PlayerSettingsRepository.shared.ensureLoaded()
-        return PlayerSettingsRepository.shared.uiState.value_ as? PlayerSettingsUiState
     }
 }

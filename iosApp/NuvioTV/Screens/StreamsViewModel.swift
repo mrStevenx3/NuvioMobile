@@ -53,9 +53,9 @@ final class StreamsViewModel: ObservableObject {
     /// when the user reconnects (the shared health object is the source of truth).
     @Published private(set) var credentialWarning: String?
     /// The shared repository's auto-play fields for the current request (orivio batch item 1),
-    /// read by the picker's `FirstPlayAutoPlayController`. Unfiltered: the playability filter in
+    /// read by the source page's `OrbitAutoPlay`. Unfiltered: the playability filter in
     /// `apply(_:)` shapes the visible list only. Republished only when a field actually changes.
-    @Published private(set) var autoPlayFeed = FirstPlayAutoPlayFeed.empty
+    @Published private(set) var autoPlayFeed = OrbitAutoPlayFeed.empty
 
     private var watcher: FlowWatcher?
     private var badgeWatcher: FlowWatcher?
@@ -255,7 +255,7 @@ final class StreamsViewModel: ObservableObject {
         // shown first (instant, definition, source, range, size), not the add-on's first.
         let candidates = OrbitStreamRow.best(state.autoPlayCandidates)
         let autoStream: StreamItem? = repoStream == nil ? nil : (candidates.first ?? repoStream)
-        let feed = FirstPlayAutoPlayFeed(
+        let feed = OrbitAutoPlayFeed(
             requestToken: token,
             autoPlayStream: autoStream,
             autoPlayCandidates: candidates,
