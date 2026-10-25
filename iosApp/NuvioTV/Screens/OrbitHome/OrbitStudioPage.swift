@@ -269,6 +269,7 @@ struct OrbitStudioPage: View {
         }
         .onAppear {
             tabBarVisibility.pushImmersive()
+            OrbitHomeButtonHost.shared.enter(.onRequest)
             model.start()
             trailer.restSource = .custom(motion)
             DispatchQueue.main.async { canvasFocused = true }
@@ -276,7 +277,12 @@ struct OrbitStudioPage: View {
         }
         .onDisappear {
             tabBarVisibility.popImmersive()
+            OrbitHomeButtonHost.shared.leave(.onRequest)
             trailer.reset(abortStages: true)
+        }
+        // Down from the house: back on the page.
+        .onReceive(NotificationCenter.default.publisher(for: .orbitHomeButtonLeave)) { _ in
+            canvasFocused = true
         }
         .onChange(of: canvasFocused) { _, _ in refreshAfterMove() }
         .onChange(of: rows.map(\.id) + heroItems.map(\.id)) { _, _ in
@@ -314,7 +320,11 @@ struct OrbitStudioPage: View {
             guard index + 1 < count else { return }
             withAnimation(reduceMotion ? nil : OrbitStudioLayout.vertical) { current = index + 1 }
         case .up:
-            guard index > 0 else { return }
+            guard index > 0 else {
+                // At the top: the house (top left).
+                NotificationCenter.default.post(name: .orbitHomeButtonFocus, object: nil)
+                return
+            }
             withAnimation(reduceMotion ? nil : OrbitStudioLayout.vertical) { current = index - 1 }
         case .left, .right:
             let delta = direction == .right ? 1 : -1

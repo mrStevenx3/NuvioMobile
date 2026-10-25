@@ -483,7 +483,7 @@ struct MainTabView: View {
         }
         // Steven: a house top left on pushed pages, back to Home in one press.
         .overlay(alignment: .topLeading) {
-            OrbitHomeButton(tabBarVisibility: tabBarVisibility, selectedTab: $selectedTab)
+            OrbitHomeButton(tabBarVisibility: tabBarVisibility)
         }
         // FEAT-25: keep the "is Home frontmost" signal current from OUTSIDE the kept-alive tab
         // subtrees — this closure runs on the always-visible shell, so the hero trailer's
@@ -508,6 +508,11 @@ struct MainTabView: View {
         }
         .onChange(of: selectedTab) { _, tab in
             tabBarVisibility.setHomeTabSelected(tab == 0)
+        }
+        // The house (top left of a pushed page, or in a collection's bar): Home, on Films.
+        .onReceive(NotificationCenter.default.publisher(for: .orbitGoHome)) { _ in
+            HomeContentFilterModel.shared.set(.movies)
+            selectedTab = 0
         }
     }
 }

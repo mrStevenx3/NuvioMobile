@@ -120,6 +120,9 @@ struct OrbitDetailView: View {
     @State private var rowOffsets = OrbitRowOffsets()
     /// While one of the page's own scrolls runs (the hold below leaves it alone).
     @State private var anchoringUntil = Date.distantPast
+    /// TMDB's logo for the title (`OrbitMetaStore`), kept apart so the store's other titles never
+    /// redraw the page.
+    @State private var tmdbLogo: String?
 
     init(preview: MetaPreview) {
         self.preview = preview
@@ -138,10 +141,15 @@ struct OrbitDetailView: View {
         let text: String? = meta?.description_ ?? preview.description_
         return (text ?? "").isEmpty ? nil : text
     }
-    private var logoURL: String? {
+    /// Steven (2026-10-25: Crystal Lake's logo in Search, none on its page): TMDB's logo first (in
+    /// French when there is one, as Search and Home show it), then the add-on's.
+    private var logoURL: String? { tmdbLogo ?? addonLogoURL }
+    private var addonLogoURL: String? {
         let logo: String? = meta?.logo ?? preview.logo
         return (logo ?? "").isEmpty ? nil : logo
     }
+    /// The add-on's logo, tried when TMDB's does not load.
+    private var logoFallbackURL: String? { tmdbLogo == nil ? nil : addonLogoURL }
     private var posterURL: String? { meta?.poster ?? preview.poster }
     private var backdropURL: String? {
         let raw: String? = meta?.background ?? preview.banner ?? preview.poster
@@ -365,6 +373,10 @@ struct OrbitDetailView: View {
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }
         .animation(.easeInOut(duration: 0.3), value: model.trailerNotice)
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
+        .onReceive(OrbitMetaStore.shared.$metas.map { [key = OrbitMetaStore.key(preview)] in $0[key]?.logo }.removeDuplicates()) { logo in
+            if tmdbLogo != logo { tmdbLogo = logo }
+        }
+        .onAppear { OrbitMetaStore.shared.request([preview]) }
         .onAppear {
             if let back = resumeFocus {
                 // The engine restores late and more than once: the card is asked again a few
@@ -498,7 +510,8 @@ struct OrbitDetailView: View {
     /// into the trailer and back it glides and resizes between the two places.
     private func titleMark(cinema corner: Bool) -> some View {
         let size = corner ? Self.cinemaTitleSize : Self.heroTitleSize
-        return OrbitTitleMark(name: title, logo: logoURL, maxSize: size, textSize: corner ? 40 : 76)
+        return OrbitTitleMark(name: title, logo: logoURL, maxSize: size, textSize: corner ? 40 : 76,
+                              fallbackLogo: logoFallbackURL)
             .frame(width: size.width, height: size.height, alignment: .bottomLeading)
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
     }

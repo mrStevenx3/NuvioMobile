@@ -240,10 +240,12 @@ struct OrbitTitleMark: View {
     let logo: String?
     let maxSize: CGSize
     let textSize: CGFloat
+    /// Tried when `logo` does not load (Steven, 2026-10-25: titles with a logo showed their name).
+    var fallbackLogo: String? = nil
 
     var body: some View {
-        if let logo, !logo.isEmpty {
-            CachedAsyncImage(string: logo, contentMode: .fit,
+        if let logo = [logo, fallbackLogo].compactMap({ $0 }).first(where: { !$0.isEmpty }) {
+            CachedAsyncImage(string: logo, fallback: logo == fallbackLogo ? nil : fallbackLogo, contentMode: .fit,
                              decodeSize: .points(width: maxSize.width, height: maxSize.height),
                              loading: { Color.clear }, failure: { nameText })
             .frame(maxWidth: maxSize.width, maxHeight: maxSize.height, alignment: .bottomLeading)

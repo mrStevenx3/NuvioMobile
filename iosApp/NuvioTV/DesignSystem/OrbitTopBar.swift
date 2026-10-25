@@ -53,6 +53,8 @@ final class HomeContentFilterModel: ObservableObject {
 
 private enum OrbitBarItem: Hashable, CaseIterable {
     case search, films, series, library, discover, services, studios, settings, profile
+    /// Collections' bar only: back to Home in one press (Steven, 2026-10-25).
+    case home
 
     var title: String? {
         switch self {
@@ -67,6 +69,7 @@ private enum OrbitBarItem: Hashable, CaseIterable {
     var systemImage: String? {
         switch self {
         case .search: return "magnifyingglass"
+        case .home: return "house"
         case .library: return "books.vertical"
         case .discover: return "safari"
         case .settings: return "gearshape"
@@ -77,6 +80,7 @@ private enum OrbitBarItem: Hashable, CaseIterable {
     var accessibilityName: String {
         switch self {
         case .search: return String(localized: "Search")
+        case .home: return String(localized: "Accueil")
         case .library: return String(localized: "Library")
         case .discover: return String(localized: "Discover")
         case .settings: return String(localized: "Settings")
@@ -640,14 +644,14 @@ struct CollectionFilterBar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach([OrbitBarItem.search, .films, .series], id: \.self) { item in
+            ForEach([OrbitBarItem.home, .search, .films, .series], id: \.self) { item in
                 Button { select(item) } label: {
                     OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
                 }
                 .buttonStyle(OrbitBarButtonStyle())
                 .focused($focused, equals: item)
                 // Steven: Search flashed before Films on entry; out of reach until Films has focus.
-                .disabled(item == .search && !searchReady)
+                .disabled((item == .search || item == .home) && !searchReady)
                 .accessibilityLabel(item.accessibilityName)
             }
         }
@@ -696,6 +700,10 @@ struct CollectionFilterBar: View {
     }
 
     private func select(_ item: OrbitBarItem) {
+        if item == .home {
+            NotificationCenter.default.post(name: .orbitGoHome, object: nil)
+            return
+        }
         guard let type = type(of: item) else { onSearch(); return }
         filter = type
     }

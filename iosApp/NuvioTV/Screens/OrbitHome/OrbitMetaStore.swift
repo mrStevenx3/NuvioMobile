@@ -213,6 +213,8 @@ nonisolated struct OrbitInfo: Equatable {
     var parts: [String]
     var synopsis: String
     var logo: String?
+    /// The catalog's own logo, when TMDB's is the one shown (tried if TMDB's does not load).
+    var logoFallback: String? = nil
 
     static func make(_ item: MetaPreview, meta: OrbitMeta?) -> OrbitInfo {
         let rating: Int? = meta?.percent ?? item.imdbRating.flatMap { Double($0) }.map { Int(($0 * 10).rounded()) }
@@ -226,7 +228,8 @@ nonisolated struct OrbitInfo: Equatable {
         let logo: String? = item.logo
         return OrbitInfo(percent: rating, parts: parts,
                          synopsis: meta?.overview ?? (own?.isEmpty == false ? own : nil) ?? meta?.overviewEnglish ?? "",
-                         logo: meta?.logo ?? ((logo?.isEmpty ?? true) ? nil : logo))
+                         logo: meta?.logo ?? ((logo?.isEmpty ?? true) ? nil : logo),
+                         logoFallback: meta?.logo == nil || (logo?.isEmpty ?? true) ? nil : logo)
     }
 }
 

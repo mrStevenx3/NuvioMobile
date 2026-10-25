@@ -281,7 +281,8 @@ struct OrbitDiscoverTile: View {
                        fallback: item.poster, size: size, placeholder: item.poster)
             LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
             OrbitTitleMark(name: item.name, logo: info.logo,
-                           maxSize: CGSize(width: size.width * 0.7, height: size.height * 0.32), textSize: 22)
+                           maxSize: CGSize(width: size.width * 0.7, height: size.height * 0.32), textSize: 22,
+                           fallbackLogo: info.logoFallback)
                 .padding(.leading, 12)
                 .padding(.bottom, 10)
         }

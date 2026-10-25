@@ -222,6 +222,7 @@ struct OrbitPlatformPage: View {
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .onAppear {
             tabBarVisibility.pushImmersive()
+            OrbitHomeButtonHost.shared.enter(.ownBar)   // the house is in the page's own bar
             model.buildsStripState = true
             model.start()
             extras.load(title: model.folderTitle)
@@ -230,6 +231,7 @@ struct OrbitPlatformPage: View {
         }
         .onDisappear {
             tabBarVisibility.popImmersive()
+            OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
             // Keeps the folder's state (a pushed title only covers the page; `initialize` on the
             // way back finds the same rows).
