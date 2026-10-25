@@ -731,8 +731,10 @@ private struct OrbitAppleTVRowView: View {
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
-        let low = max(0, first - 1)
-        let window = low...max(low, min(row.items.count - 1, first + row.visibleCount + 1))
+        // Steven's video (gaps while the row slid): titles already drawn off screen on both sides,
+        // so they slide in with the others instead of fading in at their place.
+        let low = max(0, first - 3)
+        let window = low...max(low, min(row.items.count - 1, first + row.visibleCount + 3))
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 26, weight: .semibold))
@@ -769,6 +771,7 @@ private struct OrbitAppleTVRowView: View {
                         .offset(x: L.margin + CGFloat(index - first) * row.slot)
                         .opacity(index < first ? 0 : 1)
                         .zIndex(lit ? 1 : 0)
+                        .transition(.identity)
                     }
                 }
             }
