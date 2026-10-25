@@ -46,8 +46,7 @@ struct HomeView: View {
             }
             .navigationDestination(for: FolderRoute.self) { route in
                 if OrbitDisneyPage.handles(route) {
-                    OrbitDisneyPage(route: route, push: { homePath.append($0) },
-                                    pushStudio: { homePath.append($0) })
+                    OrbitDisneyPage(route: route, push: { homePath.append($0) })
                 } else {
                     OrbitPlatformPage(route: route, push: { homePath.append($0) })
                 }

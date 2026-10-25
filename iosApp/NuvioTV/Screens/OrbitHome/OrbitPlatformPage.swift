@@ -841,14 +841,15 @@ final class OrbitPlatformExtrasModel: ObservableObject {
     }
 
     /// One TMDB discover page as previews (the Disney+ page's Hulu rows use it too).
-    nonisolated static func fetch(_ address: String, tv: Bool) async -> [MetaPreview] {
+    nonisolated static func fetch(_ address: String, tv: Bool, requiresOverview: Bool = true) async -> [MetaPreview] {
         guard let url = URL(string: address),
               let (data, _) = try? await URLSession.shared.data(from: url),
               let decoded = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
         return (decoded.results ?? []).compactMap { r -> MetaPreview? in
             // Steven: the rows this page adds keep only titles with a synopsis in his language.
-            guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path,
-                  let overview = r.overview, !overview.isEmpty else { return nil }
+            guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path else { return nil }
+            let overview = r.overview ?? ""
+            if requiresOverview, overview.isEmpty { return nil }
             let date = r.release_date ?? r.first_air_date
             return MetaPreview(id: "tmdb:\(r.id)", type: tv ? "series" : "movie", name: name,
                                poster: "https://image.tmdb.org/t/p/w500\(poster)",

@@ -9,11 +9,10 @@ import SwiftUI
 //  - A near-black navy page. The hero: a carousel of the new titles, its art full width fading
 //    into the page, the logo, "TP · 2025 · Animation · 1 h 40", two lines of synopsis, DÉTAILS and
 //    the dots. Left / Right go through it; it moves on by itself after a trailer or a long rest.
-//  - Under it, Disney+'s brand tiles (Disney, Pixar, Marvel, Star Wars, 20th Century Studios): each
-//    opens the studio's Orbit page (Steven's studio folder when he has one).
+//    (Steven, pass 2: no brand tiles, as in Disney+'s 2026 app.)
 //  - Then the rows: the Top 10 as Disney+'s own cards (the rank in turquoise on a dark arc, the
 //    poster without its title, the logo, the rating and the year under it), the others as 16:9
-//    tiles with the title's logo.
+//    tiles with the title's logo, its name and "TP · 2025 · Animation" under them.
 //  - At the top centre, "Disney+ · Hulu": Hulu shows the Hulu titles of Disney+ (TMDB: Hulu's
 //    network for the series, its companies for the films).
 
@@ -27,14 +26,10 @@ enum OrbitDisneyLayout {
     static let infoTop: CGFloat = 200
     static let logoSize = CGSize(width: 620, height: 190)
     static let synopsisWidth: CGFloat = 820
-    /// The brand tiles (on the first screen, under the hero's text).
-    static let brandsTop: CGFloat = 790
-    static let brandSize = CGSize(width: 320, height: 180)
-    static let brandGap: CGFloat = 28
-    /// The first row when there are no brand tiles (Hulu).
-    static let rowsTopWithoutBrands: CGFloat = 800
-    /// Under the brand tiles.
-    static let rowsTopAfterBrands: CGFloat = 1030
+    /// The first row's top: its heading and the top of its cards on the first screen.
+    static let rowsTop: CGFloat = 800
+    /// A tile's name and meta line under it.
+    static let labelHeight: CGFloat = 76
     /// Where the current row's top rests once the hero has gone.
     static let restTop: CGFloat = 160
     static let headingHeight: CGFloat = 54
@@ -59,21 +54,14 @@ struct OrbitDisneyRow: Identifiable, Equatable {
     }
 
     var cardSize: CGSize { top10 ? OrbitDisneyLayout.top10 : OrbitDisneyLayout.tile }
-    var height: CGFloat { OrbitDisneyLayout.headingHeight + cardSize.height + OrbitDisneyLayout.rowGap }
-}
-
-/// A brand tile: its name, the studio page it opens.
-struct OrbitDisneyBrand: Identifiable, Equatable {
-    let id: String
-    let name: String
-    let logo: String?
-    let route: OrbitStudioRoute
+    var height: CGFloat {
+        OrbitDisneyLayout.headingHeight + cardSize.height + (top10 ? 0 : OrbitDisneyLayout.labelHeight) + OrbitDisneyLayout.rowGap
+    }
 }
 
 struct OrbitDisneyPage: View {
     let route: FolderRoute
     let push: (TitleRoute) -> Void
-    let pushStudio: (OrbitStudioRoute) -> Void
 
     /// A Disney+ folder (not the Disney studio).
     static func handles(_ route: FolderRoute) -> Bool {
@@ -94,10 +82,9 @@ struct OrbitDisneyPage: View {
     @State private var typeFilter: String? = "movie"
     /// 0: Disney+, 1: Hulu.
     @State private var mode = 0
-    /// 0: the hero; then the brand tiles (Disney+ only); then the rows.
+    /// 0: the hero; then the rows.
     @State private var current = 0
     @State private var heroIndex = 0
-    @State private var brandIndex = 0
     @State private var leads: [String: Int] = [:]
     @FocusState private var canvasFocused: Bool
     @State private var motion = OrbitHomeMotion()
@@ -105,10 +92,9 @@ struct OrbitDisneyPage: View {
     @State private var search: OrbitPlatformSearchModel?
     @State private var heroClock: Task<Void, Never>?
 
-    init(route: FolderRoute, push: @escaping (TitleRoute) -> Void, pushStudio: @escaping (OrbitStudioRoute) -> Void) {
+    init(route: FolderRoute, push: @escaping (TitleRoute) -> Void) {
         self.route = route
         self.push = push
-        self.pushStudio = pushStudio
         _model = StateObject(wrappedValue: FolderDetailViewModel(route: route))
     }
 
@@ -173,29 +159,18 @@ struct OrbitDisneyPage: View {
         return Array(items.filter { $0.banner != nil }.prefix(6))
     }
 
-    private var brands: [OrbitDisneyBrand] {
-        isHulu ? [] : OrbitDisneyBrands.all()
-    }
+    private var sectionCount: Int { 1 + rows.count }
 
-    private var sectionCount: Int { 1 + (brands.isEmpty ? 0 : 1) + rows.count }
-
-    /// The row a section shows (nil: the hero or the brand tiles).
-    private func rowIndex(of section: Int) -> Int? {
-        let first = brands.isEmpty ? 1 : 2
-        return section >= first ? section - first : nil
-    }
-
-    private var rowsTop: CGFloat {
-        brands.isEmpty ? OrbitDisneyLayout.rowsTopWithoutBrands : OrbitDisneyLayout.rowsTopAfterBrands
-    }
+    /// The row a section shows (nil: the hero).
+    private func rowIndex(of section: Int) -> Int? { section >= 1 ? section - 1 : nil }
 
     /// Each row's top in the page.
     private func rowTops(_ rows: [OrbitDisneyRow]) -> [CGFloat] {
-        var y = rowsTop
+        var y = OrbitDisneyLayout.rowsTop
         return rows.map { row in defer { y += row.height }; return y }
     }
 
-    /// How far the page has moved up: none on the hero and the tiles, else the current row at its rest.
+    /// How far the page has moved up: none on the hero, else the current row at its rest.
     private func scroll(_ rows: [OrbitDisneyRow]) -> CGFloat {
         guard let r = rowIndex(of: current), rows.indices.contains(r) else { return 0 }
         return rowTops(rows)[r] - OrbitDisneyLayout.restTop
@@ -238,11 +213,6 @@ struct OrbitDisneyPage: View {
                                     advanceHero()
                                 })
 
-                if !brands.isEmpty {
-                    OrbitDisneyBrandRow(brands: brands, focusedIndex: canvasFocused && current == 1 ? brandIndex : nil)
-                        .offset(y: OrbitDisneyLayout.brandsTop)
-                }
-
                 rowsLayer(rows)
             }
             .offset(y: -offset)
@@ -256,8 +226,16 @@ struct OrbitDisneyPage: View {
                 .animation(.easeInOut(duration: 0.3), value: offset > 0)
                 .allowsHitTesting(false)
 
-            if rows.isEmpty, model.isLoading || hulu.isLoading {
-                ProgressView().frame(width: W, height: H)
+            if rows.isEmpty {
+                if model.isLoading || hulu.isLoading {
+                    ProgressView().frame(width: W, height: H)
+                } else if isHulu {
+                    Text(series ? String(localized: "Aucune série Hulu trouvée sur Disney+ en France.")
+                                : String(localized: "Aucun film Hulu trouvé sur Disney+ en France."))
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                        .frame(width: W, height: H)
+                }
             }
 
             // The page's one focusable stop, under the bar's band.
@@ -323,7 +301,11 @@ struct OrbitDisneyPage: View {
             refreshAfterMove()
         }
         .onChange(of: typeFilter) { _, _ in resetPage() }
-        .onChange(of: mode) { _, _ in resetPage() }
+        .onChange(of: mode) { _, _ in
+            // Hulu's films are rarely credited to Hulu on TMDB: its series when it has no films.
+            if isHulu, typeFilter == "movie", hulu.movieRows.isEmpty, !hulu.seriesRows.isEmpty { typeFilter = "series" }
+            resetPage()
+        }
     }
 
     @ViewBuilder
@@ -371,10 +353,6 @@ struct OrbitDisneyPage: View {
                 let n = heroItems.count
                 guard n > 1 else { return }
                 withAnimation(.easeInOut(duration: 0.3)) { heroIndex = (heroIndex + step + n) % n }
-            } else if current == 1, !brands.isEmpty {
-                let next = brandIndex + step
-                guard brands.indices.contains(next) else { return }
-                withAnimation(OrbitDisneyLayout.horizontal) { brandIndex = next }
             } else if let r = rowIndex(of: current), rows.indices.contains(r) {
                 let row = rows[r]
                 let next = lead(of: row) + step
@@ -401,8 +379,6 @@ struct OrbitDisneyPage: View {
     private func select() {
         if current == 0 {
             if let heroItem { push(TitleRoute(preview: heroItem)) }
-        } else if current == 1, brands.indices.contains(brandIndex) {
-            pushStudio(brands[brandIndex].route)
         } else if let r = rowIndex(of: current), rows.indices.contains(r) {
             let row = rows[r]
             guard row.items.indices.contains(lead(of: row)) else { return }
@@ -413,7 +389,6 @@ struct OrbitDisneyPage: View {
     private func resetPage() {
         current = 0
         heroIndex = 0
-        brandIndex = 0
         leads = [:]
         refreshAfterMove()
     }
@@ -623,98 +598,6 @@ private struct OrbitDisneyRating: View {
     }
 }
 
-// MARK: - Brands
-
-/// Disney+'s brands, each opening the studio's Orbit page: Steven's studio folder when he has one
-/// (his catalogs, his logo), else TMDB's company.
-@MainActor
-enum OrbitDisneyBrands {
-    private static let list: [(id: String, name: String, keys: [String], companies: String)] = [
-        ("disney", "Disney", ["disney"], "2|6125"),
-        ("pixar", "Pixar", ["pixar"], "3"),
-        ("marvel", "Marvel", ["marvel"], "420"),
-        ("starwars", "Star Wars", ["lucasfilm", "starwars"], "1"),
-        ("20th", "20th Century Studios", ["20th", "century"], "25|127928"),
-    ]
-
-    static func all() -> [OrbitDisneyBrand] {
-        let collections = CollectionRepository.shared.collections.value_ as? [NuvioCollection] ?? []
-        let studios = collections.filter { HomeContentFilter.isStudiosCollection(title: $0.title) }
-        return list.map { entry in
-            for collection in studios {
-                if let folder = collection.folders.first(where: { folder in
-                    let t = folder.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-                        .replacingOccurrences(of: " ", with: "")
-                    // "Disney" only: not "Disney+".
-                    return entry.keys.contains { t.contains($0) } && !t.contains("+")
-                }) {
-                    let route = OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)
-                    return OrbitDisneyBrand(id: entry.id, name: entry.name, logo: route.logo, route: route)
-                }
-            }
-            return OrbitDisneyBrand(id: entry.id, name: entry.name, logo: nil,
-                                    route: OrbitStudioRoute(name: entry.name, companies: entry.companies, isNetwork: false,
-                                                            logo: nil, collectionId: nil, folderId: nil))
-        }
-    }
-}
-
-private struct OrbitDisneyBrandRow: View {
-    let brands: [OrbitDisneyBrand]
-    let focusedIndex: Int?
-
-    var body: some View {
-        let L = OrbitDisneyLayout.self
-        HStack(spacing: L.brandGap) {
-            ForEach(Array(brands.enumerated()), id: \.element.id) { index, brand in
-                OrbitDisneyBrandTile(brand: brand, focused: focusedIndex == index)
-            }
-        }
-        .padding(.leading, L.margin)
-        .allowsHitTesting(false)
-    }
-}
-
-private struct OrbitDisneyBrandTile: View {
-    let brand: OrbitDisneyBrand
-    let focused: Bool
-
-    var body: some View {
-        let L = OrbitDisneyLayout.self
-        ZStack {
-            RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                .fill(LinearGradient(colors: [Color(red: 0.17, green: 0.19, blue: 0.26), Color(red: 0.09, green: 0.10, blue: 0.15)],
-                                     startPoint: .top, endPoint: .bottom))
-            if let logo = brand.logo {
-                CachedAsyncImage(string: logo, contentMode: .fit,
-                                 decodeSize: .points(width: L.brandSize.width * 0.62, height: L.brandSize.height * 0.5),
-                                 loading: { Color.clear }, failure: { name })
-                    .frame(width: L.brandSize.width * 0.62, height: L.brandSize.height * 0.5)
-            } else {
-                name
-            }
-        }
-        .frame(width: L.brandSize.width, height: L.brandSize.height)
-        .overlay {
-            RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 1 : 0.14), lineWidth: focused ? 4 : 1.5)
-        }
-        .scaleEffect(focused ? 1.07 : 1)
-        .shadow(color: .black.opacity(focused ? 0.6 : 0.3), radius: focused ? 22 : 8, y: focused ? 12 : 4)
-        .animation(.easeOut(duration: 0.18), value: focused)
-    }
-
-    private var name: some View {
-        Text(brand.name.uppercased())
-            .font(.system(size: 28, weight: .heavy))
-            .kerning(2)
-            .foregroundStyle(Color.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.5)
-            .padding(.horizontal, 20)
-    }
-}
-
 // MARK: - Rows
 
 /// A row: its heading, its cards from the focused one (at the margin) onwards.
@@ -836,19 +719,37 @@ private struct OrbitDisneyTile: View {
         let size = L.tile
         let info = OrbitInfo.make(item, meta: meta)
         let banner: String? = item.banner
-        ZStack(alignment: .bottomLeading) {
-            Color(red: 0.10, green: 0.11, blue: 0.16)
-            OrbitImage(url: banner ?? meta?.backdrop, fallback: item.poster, size: size, placeholder: item.poster)
-            LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
-            OrbitTitleMark(name: item.name, logo: info.logo,
-                           maxSize: CGSize(width: size.width * 0.6, height: size.height * 0.34), textSize: 24,
-                           fallbackLogo: info.logoFallback)
-                .padding(.leading, 16)
-                .padding(.bottom, 14)
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                Color(red: 0.10, green: 0.11, blue: 0.16)
+                OrbitImage(url: banner ?? meta?.backdrop, fallback: item.poster, size: size, placeholder: item.poster)
+                LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
+                OrbitTitleMark(name: item.name, logo: info.logo,
+                               maxSize: CGSize(width: size.width * 0.6, height: size.height * 0.34), textSize: 24,
+                               fallbackLogo: info.logoFallback)
+                    .padding(.leading, 16)
+                    .padding(.bottom, 14)
+            }
+            .frame(width: size.width, height: size.height)
+            .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+            .modifier(OrbitDisneyFocus(focused: focused))
+            // Disney+ 2026: the name and "TP · 2025 · Animation" under the tile.
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.name)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(focused ? 1 : 0.85))
+                    .lineLimit(1)
+                HStack(spacing: 10) {
+                    if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 15) }
+                    Text(info.parts.prefix(2).joined(separator: " · "))
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+            }
+            .padding(.top, 14)
+            .frame(width: size.width, height: L.labelHeight, alignment: .topLeading)
         }
-        .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-        .modifier(OrbitDisneyFocus(focused: focused))
     }
 }
 
@@ -909,6 +810,7 @@ final class OrbitHuluRowsModel: ObservableObject {
                 m = await Self.rows(tv: false, filter: "&with_companies=\(companies)", apiKey: key, lang: lang)
             }
             let s = await series
+            NSLog("%@", "[OrbitHulu] companies=\(companies) seriesRows=\(s.count) movieRows=\(m.count)")
             guard let self else { return }
             self.seriesRows = s
             self.movieRows = m
@@ -952,8 +854,9 @@ final class OrbitHuluRowsModel: ObservableObject {
                     let address = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(lang)"
                         + "&watch_region=\(region)&with_watch_providers=337&with_watch_monetization_types=flatrate"
                         + filter + spec.query
-                    async let first = OrbitPlatformExtrasModel.fetch(address + "&page=1", tv: tv)
-                    async let second = OrbitPlatformExtrasModel.fetch(address + "&page=2", tv: tv)
+                    // Hulu's titles are often not translated on TMDB: kept without a French synopsis.
+                    async let first = OrbitPlatformExtrasModel.fetch(address + "&page=1", tv: tv, requiresOverview: false)
+                    async let second = OrbitPlatformExtrasModel.fetch(address + "&page=2", tv: tv, requiresOverview: false)
                     return (index, await first + second)
                 }
             }
