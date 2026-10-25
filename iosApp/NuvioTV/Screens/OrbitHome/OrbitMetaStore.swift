@@ -320,7 +320,7 @@ final class OrbitMetaStore: ObservableObject {
         }
         if logo == nil { log("no TMDB logo for \(media)/\(tmdbId)") }
         let textless = d.images?.posters?.first { $0.iso_639_1 == nil }?.file_path
-        let cleanPoster = (textless ?? d.poster_path).map { "https://image.tmdb.org/t/p/w500\($0)" }
+        let cleanPoster = (textless ?? d.poster_path).map { "https://image.tmdb.org/t/p/w780\($0)" }
         let region = "FR"
         let rawRating: String? = tv
             ? d.content_ratings?.results?.first { $0.iso_3166_1 == region }?.rating
@@ -341,9 +341,9 @@ final class OrbitMetaStore: ObservableObject {
                          overviewEnglish: english,
                          cleanPoster: cleanPoster,
                          certification: certification,
-                         titledPoster: d.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                         titledPoster: d.poster_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
                          localPoster: d.images?.posters?.first { $0.iso_639_1 == short }?.file_path
-                             .map { "https://image.tmdb.org/t/p/w500\($0)" },
+                             .map { "https://image.tmdb.org/t/p/w780\($0)" },
                          producers: ((d.production_companies ?? []) + (d.networks ?? [])).compactMap(\.name),
                          seasons: d.number_of_seasons,
                          platforms: ((try? JSONDecoder().decode(ProvidersOnly.self, from: body))?.providers?.results?[region]?

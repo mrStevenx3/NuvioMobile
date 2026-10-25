@@ -1072,7 +1072,7 @@ final class OrbitHBOOriginalsModel: ObservableObject {
             guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path else { return nil }
             let date = r.release_date ?? r.first_air_date
             return MetaPreview(id: "tmdb:\(r.id)", type: tv ? "series" : "movie", name: name,
-                               poster: "https://image.tmdb.org/t/p/w500\(poster)",
+                               poster: "https://image.tmdb.org/t/p/w780\(poster)",
                                banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                                logo: nil, posterShape: .poster,
                                description: r.overview ?? "", releaseInfo: date.map { String($0.prefix(4)) },

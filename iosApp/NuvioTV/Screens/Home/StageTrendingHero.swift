@@ -126,7 +126,7 @@ final class StageTrendingHeroModel: ObservableObject {
             let imdb = (d.imdb_id ?? d.external_ids?.imdb_id).flatMap { $0.hasPrefix("tt") ? $0 : nil }
             let date = d.release_date ?? d.first_air_date
             return MetaPreview(id: imdb ?? "tmdb:\(d.id)", type: tv ? "series" : "movie", name: title,
-                               poster: d.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                               poster: d.poster_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
                                banner: "https://image.tmdb.org/t/p/original\(backdrop)",
                                logo: logo.map { "https://image.tmdb.org/t/p/w500\(OrbitMetaStore.decodable($0))" },
                                posterShape: .poster,

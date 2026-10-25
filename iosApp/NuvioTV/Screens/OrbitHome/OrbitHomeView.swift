@@ -559,39 +559,30 @@ private struct OrbitCanvasButtonStyle: ButtonStyle {
 /// and down (as on Prime's and Paramount+'s pages), dimmed so the rows stay in front.
 struct OrbitRowsBackdrop: View {
     let url: String?
-    /// The page's black under it (off where the page has its own ground: Plateformes).
+    /// The page's black under it (off where the page has its own ground).
     var opaque = true
+
+    /// Steven (device: the art behind the rows looked overloaded): no image any more — a soft wash
+    /// of the focused title's dominant colour from the top right, fading into the page (as the
+    /// Top 10's ranks take their poster's colour).
+    @State private var tone: Color?
 
     var body: some View {
         let L = OrbitHomeLayout.self
-        let size = CGSize(width: 1400, height: 788)
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             if opaque { L.background }
-            if let url {
-                // Steven: the art showed as a sharp rectangle. It now melts into the page itself
-                // (its own transparency, not a coloured shade): to the left, down, and a little at
-                // the top and right edges too.
-                OrbitSwapImage(url: url, fallback: nil, size: size)
-                    .frame(width: size.width, height: size.height)
-                    .mask(LinearGradient(stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: .black.opacity(0.45), location: 0.3),
-                        .init(color: .black, location: 0.62),
-                        .init(color: .black, location: 0.92),
-                        .init(color: .black.opacity(0.7), location: 1),
-                    ], startPoint: .leading, endPoint: .trailing))
-                    .mask(LinearGradient(stops: [
-                        .init(color: .black.opacity(0.75), location: 0),
-                        .init(color: .black, location: 0.12),
-                        .init(color: .black, location: 0.4),
-                        .init(color: .black.opacity(0.35), location: 0.72),
-                        .init(color: .clear, location: 1),
-                    ], startPoint: .top, endPoint: .bottom))
-                    .opacity(0.55)
+            if let tone {
+                RadialGradient(colors: [tone.opacity(0.38), tone.opacity(0.14), .clear],
+                               center: UnitPoint(x: 0.82, y: 0.08), startRadius: 0, endRadius: 1500)
+                    .transition(.opacity)
             }
         }
-        .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topTrailing)
-        .clipped()
+        .frame(width: L.screenWidth, height: L.screenHeight)
+        .animation(.easeInOut(duration: 0.5), value: tone)
+        .task(id: url ?? "-") {
+            guard let url else { return }
+            if let color = await OrbitDominantColor.color(for: url) { tone = color }
+        }
         .allowsHitTesting(false)
     }
 }

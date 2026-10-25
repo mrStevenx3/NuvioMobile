@@ -399,9 +399,13 @@ struct OrbitSwapImage: View {
                                           fill: true, scale: displayScale)
         let main = url.flatMap(URL.init(string:))
         let backup = fallback.flatMap(URL.init(string:))
-        if let main, let image = ArtworkStore.cached(main, decode: frame) { show(image); return }
-        if shown == nil, let backup, let image = ArtworkStore.cached(backup, decode: poster) { show(image) }
-        for candidate in [main, backup].compactMap({ $0 }) {
+        // Steven (device: the best images): a full-screen art is TMDB's original, not its 1280 px
+        // copy (soft on a 4K TV); the 1280 one if the original fails.
+        let best = main.flatMap { ArtworkURLUpgrade.upgraded($0, role: .backdrop) }
+        if let best, let image = ArtworkStore.cached(best, decode: frame) { show(image); return }
+        if let main, let image = ArtworkStore.cached(main, decode: frame) { show(image) }
+        else if shown == nil, let backup, let image = ArtworkStore.cached(backup, decode: poster) { show(image) }
+        for candidate in [best, main, backup].compactMap({ $0 }) {
             if let image = try? await ArtworkStore.fetch(candidate, decode: frame) {
                 guard !Task.isCancelled else { return }
                 show(image)

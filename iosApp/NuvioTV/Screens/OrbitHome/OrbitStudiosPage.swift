@@ -579,7 +579,7 @@ final class OrbitStudioFilmsModel: ObservableObject {
     nonisolated private static func preview(_ r: Response.Result) -> MetaPreview? {
         guard let name = r.title, !name.isEmpty, let poster = r.poster_path else { return nil }
         return MetaPreview(id: "tmdb:\(r.id)", type: "movie", name: name,
-                           poster: "https://image.tmdb.org/t/p/w500\(poster)",
+                           poster: "https://image.tmdb.org/t/p/w780\(poster)",
                            banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                            logo: nil, posterShape: .poster,
                            description: r.overview, releaseInfo: r.release_date.map { String($0.prefix(4)) },

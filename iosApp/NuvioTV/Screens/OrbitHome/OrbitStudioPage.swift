@@ -1293,7 +1293,7 @@ final class OrbitStudioModel: ObservableObject {
                             return (index, nil)
                         }
                         return (index, MetaPreview(id: film.id, type: "movie", name: name,
-                                                   poster: saga.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" } ?? film.poster,
+                                                   poster: saga.poster_path.map { "https://image.tmdb.org/t/p/w780\($0)" } ?? film.poster,
                                                    banner: saga.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" } ?? film.banner,
                                                    logo: nil, posterShape: .landscape,
                                                    description: film.description_, releaseInfo: film.releaseInfo,
@@ -1325,7 +1325,7 @@ final class OrbitStudioModel: ObservableObject {
                         guard let title = part.title, !title.isEmpty else { return nil }
                         let date = part.release_date
                         return MetaPreview(id: "tmdb:\(part.id)", type: "movie", name: title,
-                                                   poster: part.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                                                   poster: part.poster_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
                                                    banner: part.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                                                    logo: nil, posterShape: .poster,
                                                    description: part.overview, releaseInfo: date.map { String($0.prefix(4)) },
@@ -1411,7 +1411,7 @@ final class OrbitStudioModel: ObservableObject {
                   let backdrop = r.backdrop_path else { return nil }
             let date = r.release_date ?? r.first_air_date
             return MetaPreview(id: "tmdb:\(r.id)", type: tv ? "series" : "movie", name: name,
-                               poster: "https://image.tmdb.org/t/p/w500\(poster)",
+                               poster: "https://image.tmdb.org/t/p/w780\(poster)",
                                banner: "https://image.tmdb.org/t/p/w1280\(backdrop)",
                                logo: nil, posterShape: .landscape,
                                description: r.overview, releaseInfo: date.map { String($0.prefix(4)) },

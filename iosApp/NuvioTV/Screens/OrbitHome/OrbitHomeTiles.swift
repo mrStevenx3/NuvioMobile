@@ -510,7 +510,7 @@ final class OrbitHomeExtrasModel: ObservableObject {
                     let years = from == to ? from : "\(from)–\(to)"
                     let line = String(localized: "\(released.count) films") + " · " + years
                     let preview = MetaPreview(id: "tmdb:\(first.id)", type: "movie", name: name,
-                                              poster: "https://image.tmdb.org/t/p/w500\(poster)",
+                                              poster: "https://image.tmdb.org/t/p/w780\(poster)",
                                               banner: c.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
                                               logo: nil, posterShape: .poster, description: c.overview,
                                               releaseInfo: line, rawReleaseDate: nil, popularity: nil, voteCount: nil,
