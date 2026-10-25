@@ -62,7 +62,7 @@ private enum OrbitBarItem: Hashable, CaseIterable {
         switch self {
         case .films: return String(localized: "Films")
         case .series: return String(localized: "Séries")
-        case .everything: return String(localized: "Tout")
+        case .everything: return String(localized: "Accueil")
         case .services: return String(localized: "Plateformes")
         case .studios: return String(localized: "Studios")
         default: return nil
@@ -642,7 +642,7 @@ struct CollectionFilterBar: View {
     let onSearch: () -> Void
     /// Films / Séries (Disney+ mixes them: none there).
     var showsTypes = true
-    /// "Tout" before Films / Séries (Prime Video): the filter nil.
+    /// "Accueil" before Films / Séries (Prime Video): the filter nil.
     var showsAll = false
     /// Steven (Disney+, 2026-10-25): a second pill at the screen's centre ("Disney+ · Hulu").
     var switchItems: [String] = []
@@ -715,23 +715,13 @@ struct CollectionFilterBar: View {
         }
     }
 
+    /// Steven (2026-10-25): Orbit's house alone in its own pill, then the platform's own pill
+    /// (Search · Accueil · Films · Séries), so the platform's "Accueil" never reads as Orbit's.
     private var leftPill: some View {
-        HStack(spacing: 4) {
-            ForEach(items, id: \.self) { item in
-                Button { select(item) } label: {
-                    OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
-                }
-                .buttonStyle(OrbitBarButtonStyle())
-                .focused($focused, equals: item)
-                // Steven: Search flashed before Films on entry; out of reach until Films has focus.
-                .disabled((item == .search || item == .home) && !searchReady)
-                .accessibilityLabel(item.accessibilityName)
-            }
+        HStack(spacing: 14) {
+            pill(for: [.home])
+            pill(for: items.filter { $0 != .home })
         }
-        .padding(OrbitBarMetrics.pillPadding)
-        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
         // Once: a pop back from Detail keeps its own restore.
@@ -761,6 +751,25 @@ struct CollectionFilterBar: View {
                 if focused != target { focused = target }
             }
         }
+    }
+
+    private func pill(for group: [OrbitBarItem]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(group, id: \.self) { item in
+                Button { select(item) } label: {
+                    OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
+                }
+                .buttonStyle(OrbitBarButtonStyle())
+                .focused($focused, equals: item)
+                // Steven: Search flashed before Films on entry; out of reach until Films has focus.
+                .disabled((item == .search || item == .home) && !searchReady)
+                .accessibilityLabel(item.accessibilityName)
+            }
+        }
+        .padding(OrbitBarMetrics.pillPadding)
+        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
     }
 
     private var items: [OrbitBarItem] {
