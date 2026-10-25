@@ -266,9 +266,9 @@ private struct OrbitBigCard: View {
                 if let kind = OrbitPlatformBadgeKind.of(meta) {
                     OrbitPlatformBadge(kind: kind, size: 16)
                 }
-                OrbitTitleMark(name: card.preview.name, logo: info.logo, maxSize: CGSize(width: 330, height: 110),
+                OrbitTitleMark(name: card.preview.name, logo: info.logo, maxSize: CGSize(width: 290, height: 100),
                                textSize: 36, fallbackLogo: info.logoFallback, hugsLogo: true)
-                    .frame(width: 330, alignment: .leading)
+                    .frame(width: 290, alignment: .leading)
                 OrbitMetaLine(info: info, size: 20)
                 Text(info.synopsis)
                     .font(.system(size: 18, weight: .medium))
