@@ -47,7 +47,10 @@ struct OrbitNativeHome: View {
     static let topLine: CGFloat = 120
     /// The hero's own height in the column. Steven: the hero takes the whole screen (no sliver of
     /// the first row under it).
-    static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine }
+    /// (Steven: then Down no longer left the hero — the lazy column never built a first row wholly
+    /// off screen, so the focus had nowhere to go. Its top edge stays on the screen's last points,
+    /// where nothing of it shows.)
+    static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine - sectionGap - 2 }
     static let sectionGap: CGFloat = 56
 
     var body: some View {
