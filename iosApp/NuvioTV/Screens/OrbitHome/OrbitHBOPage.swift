@@ -920,6 +920,8 @@ final class OrbitHBOOriginalsModel: ObservableObject {
         (18, "Drame"), (35, "Comédie"), (80, "Crime"), (10765, "Science-Fiction & Fantastique"),
         (9648, "Mystère"), (99, "Documentaire"),
     ]
+    /// A series genre's film counterpart (TMDB numbers them apart for science fiction).
+    nonisolated private static let movieGenre: [Int: Int] = [18: 18, 35: 35, 80: 80, 10765: 878, 9648: 9648, 99: 99]
     nonisolated private static let genreNames: [Int: String] = [
         28: "Action", 12: "Aventure", 16: "Animation", 35: "Comédie", 80: "Crime", 99: "Documentaire",
         18: "Drame", 10751: "Familial", 14: "Fantastique", 36: "Histoire", 27: "Horreur", 10402: "Musique",
@@ -958,9 +960,14 @@ final class OrbitHBOOriginalsModel: ObservableObject {
             ("hbo-orig-popular-tv", String(localized: "Les séries incontournables"), true,
              "&with_networks=\(networks)&sort_by=popularity.desc"),
         ]
+        // Steven: films and series together in a genre (the films' genre beside the series' one).
         for (genre, name) in seriesGenres {
             specs.append(("hbo-orig-genre-\(genre)", name, true,
                           "&with_networks=\(networks)&with_genres=\(genre)&sort_by=popularity.desc"))
+            if let movieGenre = movieGenre[genre] {
+                specs.append(("hbo-orig-genre-\(genre)-movie", name, false,
+                              "&with_companies=\(companies)&with_genres=\(movieGenre)&sort_by=popularity.desc"))
+            }
         }
         specs.append(("hbo-orig-popular-movie", String(localized: "Films HBO"), false,
                       "&with_companies=\(companies)&sort_by=popularity.desc"))
@@ -978,15 +985,37 @@ final class OrbitHBOOriginalsModel: ObservableObject {
             for await (index, items) in group { out[index] = items }
             return out
         }
-        // A title shows once, in its first row (the genres after the newest and the essentials).
+        // A title shows once, in its first row (the genres after the newest and the essentials); a
+        // genre's films join its series, in turn.
         var shown = Set<String>()
-        return specs.enumerated().compactMap { index, spec in
-            let fresh = (lists[index] ?? []).filter { !shown.contains($0.id) }
-            guard fresh.count >= 5 else { return nil }
-            let kept = Array(fresh.prefix(24))
-            kept.forEach { shown.insert($0.id) }
-            return Row(id: spec.id, title: spec.title, items: kept)
+        var out: [Row] = []
+        var byTitle: [String: Int] = [:]
+        for (index, spec) in specs.enumerated() {
+            let fresh = (lists[index] ?? []).filter { !shown.contains("\($0.type):\($0.id)") }
+            let isGenre = spec.id.hasPrefix("hbo-orig-genre-")
+            if isGenre, let at = byTitle[spec.title] {
+                let kept = Array(fresh.prefix(12))
+                kept.forEach { shown.insert("\($0.type):\($0.id)") }
+                let row = out[at]
+                out[at] = Row(id: row.id, title: row.title, items: alternate(row.items, kept))
+                continue
+            }
+            guard fresh.count >= (isGenre ? 3 : 5) else { continue }
+            let kept = Array(fresh.prefix(isGenre ? 16 : 24))
+            kept.forEach { shown.insert("\($0.type):\($0.id)") }
+            if isGenre { byTitle[spec.title] = out.count }
+            out.append(Row(id: spec.id, title: spec.title, items: kept))
         }
+        return out.filter { $0.items.count >= 5 }
+    }
+
+    nonisolated private static func alternate(_ a: [MetaPreview], _ b: [MetaPreview]) -> [MetaPreview] {
+        var out: [MetaPreview] = []
+        for i in 0..<max(a.count, b.count) {
+            if i < a.count { out.append(a[i]) }
+            if i < b.count { out.append(b[i]) }
+        }
+        return out
     }
 
     /// HBO's production companies (HBO, HBO Films, HBO Documentary Films, HBO Max…), by name.
