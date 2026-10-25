@@ -28,11 +28,15 @@ enum OrbitHBOLayout {
     static let firstRowLine: CGFloat = 130
     static let aboveRowShows: CGFloat = 0.55
     static let headingHeight: CGFloat = 48
-    /// The Top 10's own heading (the TV app's outlined "TOP 10", "FILMS / AUJOURD'HUI" beside it).
-    static let top10HeadingHeight: CGFloat = 110
+    /// The Top 10's own heading (HBO Max 2026: "TOP 10" in dark glass, "DES SÉRIES / DU JOUR" beside it).
+    static let top10HeadingHeight: CGFloat = 116
     static let poster = CGSize(width: 240, height: 360)
-    /// His Top 10 images (2:3, the poster on the right 72 %, the rank behind it): the poster at a poster's height.
-    static var top10Image: CGSize { CGSize(width: poster.height / 0.72 * 2 / 3, height: poster.height / 0.72) }
+    /// The Top 10's rank, drawn by Orbit (it fills when focused, as in the TV app), the poster over its right.
+    static let rankWidth: CGFloat = 112
+    static let rankWidthTen: CGFloat = 190
+    static let rankUnderPoster: CGFloat = 34
+    /// Steven (official screenshots): some rows are wide tiles (the genres here).
+    static let tile = CGSize(width: 400, height: 225)
     static let gap: CGFloat = 24
     static let rowGap: CGFloat = 44
     static let radius: CGFloat = 6
@@ -46,16 +50,33 @@ struct OrbitHBORow: Identifiable, Equatable {
     let title: String
     let items: [MetaPreview]
     let top10: Bool
+    var wide: Bool = false
 
     static func == (a: OrbitHBORow, b: OrbitHBORow) -> Bool {
-        a.id == b.id && a.top10 == b.top10 && a.items.map(\.id) == b.items.map(\.id)
+        a.id == b.id && a.top10 == b.top10 && a.wide == b.wide && a.items.map(\.id) == b.items.map(\.id)
     }
 
-    /// The Top 10 too: only its poster's band (his image's transparent top and bottom cut).
-    var cardHeight: CGFloat { OrbitHBOLayout.poster.height }
+    var cardHeight: CGFloat { wide ? OrbitHBOLayout.tile.height : OrbitHBOLayout.poster.height }
     var headingHeight: CGFloat { top10 ? OrbitHBOLayout.top10HeadingHeight : OrbitHBOLayout.headingHeight }
     var height: CGFloat { headingHeight + cardHeight + OrbitHBOLayout.rowGap }
-    var slot: CGFloat { (top10 ? OrbitHBOLayout.top10Image.width : OrbitHBOLayout.poster.width) + OrbitHBOLayout.gap }
+
+    private func rankWidth(_ index: Int) -> CGFloat {
+        guard top10 else { return 0 }
+        return (index == 9 ? OrbitHBOLayout.rankWidthTen : OrbitHBOLayout.rankWidth) - OrbitHBOLayout.rankUnderPoster
+    }
+
+    func slot(_ index: Int) -> CGFloat {
+        let L = OrbitHBOLayout.self
+        return rankWidth(index) + (wide ? L.tile.width : L.poster.width) + L.gap
+    }
+
+    /// From the focused one (at the margin).
+    func x(of index: Int, lead: Int) -> CGFloat {
+        guard index > lead else { return index == lead ? 0 : -slot(index) }
+        var x: CGFloat = 0
+        for i in lead..<index { x += slot(i) }
+        return x
+    }
 }
 
 /// HBO's own title: Steven's add-on marks it in its image address ("/h/v11/…" HBO Original,
@@ -152,7 +173,8 @@ struct OrbitHBOPage: View {
         }
         // Steven: "À la une sur HBO" repeated the Nouveautés: only HBO's own not already above.
         var seen = Set(out.flatMap { $0.items.map(Self.identity) })
-        let own = all.flatMap(\.items).filter { OrbitHBOOwn.of($0) != nil && seen.insert(Self.identity($0)).inserted }
+        // Not from the Top 10 (Steven: its ranked images showed in this row).
+        let own = all.filter { !$0.top10 }.flatMap(\.items).filter { OrbitHBOOwn.of($0) != nil && seen.insert(Self.identity($0)).inserted }
         if own.count >= 4 {
             out.append(OrbitHBORow(id: "hbo-originals-\(typeFilter ?? "all")",
                                    title: String(localized: "À la une sur HBO"), items: Array(own.prefix(20)), top10: false))
@@ -179,10 +201,10 @@ struct OrbitHBOPage: View {
             if let i = merged[extra.title] {
                 // Accueil: one row per genre, its films and series in turn.
                 let row = out[i]
-                out[i] = OrbitHBORow(id: row.id, title: row.title, items: Self.alternate(row.items, kept), top10: false)
+                out[i] = OrbitHBORow(id: row.id, title: row.title, items: Self.alternate(row.items, kept), top10: false, wide: true)
             } else {
                 merged[extra.title] = out.count
-                out.append(OrbitHBORow(id: extra.id, title: extra.title, items: kept, top10: false))
+                out.append(OrbitHBORow(id: extra.id, title: extra.title, items: kept, top10: false, wide: true))
             }
         }
         return out
@@ -650,13 +672,16 @@ private struct OrbitHBORowView: View {
                         let lit = focused && index == lead
                         Group {
                             if row.top10 {
-                                OrbitHBOTop10Image(item: item, focused: lit)
+                                OrbitHBOTop10Card(item: item, meta: metaStore.meta(for: item), rank: index + 1, focused: lit)
+                            } else if row.wide {
+                                OrbitHBOTile(item: item, meta: metaStore.meta(for: item),
+                                             isNew: news.contains(item.id), focused: lit)
                             } else {
                                 OrbitHBOPoster(item: item, meta: metaStore.meta(for: item),
                                                isNew: news.contains(item.id), focused: lit)
                             }
                         }
-                        .offset(x: L.margin + CGFloat(index - lead) * row.slot)
+                        .offset(x: L.margin + row.x(of: index, lead: lead))
                         .opacity(index < lead ? 0 : 1)
                         .zIndex(lit ? 1 : 0)
                     }
@@ -670,46 +695,117 @@ private struct OrbitHBORowView: View {
     }
 }
 
-/// HBO Max's Top 10 heading: "TOP 10" in a thin blue neon outline, "FILMS" / "AUJOURD'HUI" spaced beside it.
+/// HBO Max's Top 10 heading (2026, Steven's screenshot): "TOP 10" in dark glass with a silver rim,
+/// "DES SÉRIES" / "DU JOUR" beside it.
 private struct OrbitHBOTop10Heading: View {
     let series: Bool
 
     var body: some View {
         HStack(alignment: .center, spacing: 22) {
-            OrbitHBOOutlined(text: "TOP 10", size: 76)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(series ? String(localized: "SÉRIES") : String(localized: "FILMS"))
-                Text(String(localized: "AUJOURD'HUI"))
+            OrbitHBOGlassText(text: "TOP 10", size: 80, filled: false)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(series ? String(localized: "DES SÉRIES") : String(localized: "DES FILMS"))
+                Text(String(localized: "DU JOUR"))
             }
-            .font(.system(size: 21, weight: .medium))
-            .kerning(7)
-            .foregroundStyle(Color.white)
+            .font(.system(size: 25, weight: .medium))
+            .kerning(1.5)
+            .foregroundStyle(Color.white.opacity(0.92))
         }
     }
 }
 
-/// Text drawn as an outline: the blue copies around, the night blue in the middle, a soft glow.
-private struct OrbitHBOOutlined: View {
+/// HBO Max's glass lettering: a thin silver rim around dark glass; filled (the focused rank), light
+/// silver all through.
+private struct OrbitHBOGlassText: View {
     let text: String
     let size: CGFloat
+    let filled: Bool
 
     var body: some View {
         let font = Font.system(size: size, weight: .medium)
-        let w = max(1.5, size * 0.03)
+        let w = max(1.5, size * 0.022)
         let offsets: [CGSize] = (0..<16).map { i in
             let a = Double(i) / 16 * 2 * .pi
             return CGSize(width: cos(a) * w, height: sin(a) * w)
         }
+        let rim = LinearGradient(colors: [Color(white: 0.97), Color(white: 0.55), Color(white: 0.3), Color(white: 0.85)],
+                                 startPoint: .bottomLeading, endPoint: .topTrailing)
+        let glass = LinearGradient(colors: [Color(red: 0.03, green: 0.04, blue: 0.06), Color(red: 0.15, green: 0.17, blue: 0.24)],
+                                   startPoint: .top, endPoint: .bottom)
+        let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         ZStack {
             ForEach(offsets.indices, id: \.self) { i in
-                Text(text).font(font).foregroundStyle(OrbitHBOLayout.blue).offset(offsets[i])
+                Text(text).font(font).foregroundStyle(rim).offset(offsets[i])
             }
-            Text(text).font(font).foregroundStyle(OrbitHBOLayout.background)
+            Text(text).font(font).foregroundStyle(filled ? AnyShapeStyle(lit) : AnyShapeStyle(glass))
         }
-        .kerning(-size * 0.02)
         .compositingGroup()
-        .shadow(color: OrbitHBOLayout.blue.opacity(0.7), radius: 8)
+        .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
         .fixedSize()
+        .animation(.easeOut(duration: 0.2), value: filled)
+    }
+}
+
+/// A Top 10 title: its rank drawn by Orbit on the left (filled when focused, as in the TV app), the
+/// poster over its right part (TMDB's, in French when it has one; never his ranked image).
+private struct OrbitHBOTop10Card: View {
+    let item: MetaPreview
+    let meta: OrbitMeta?
+    let rank: Int
+    let focused: Bool
+
+    var body: some View {
+        let L = OrbitHBOLayout.self
+        let rankW = rank == 10 ? L.rankWidthTen : L.rankWidth
+        let poster: String? = meta?.titledPoster ?? meta?.localPoster ?? meta?.cleanPoster
+        ZStack(alignment: .bottomLeading) {
+            OrbitHBOGlassText(text: String(rank), size: L.poster.height * 0.52, filled: focused)
+                .frame(width: rankW, alignment: .trailing)
+                .offset(y: L.poster.height * 0.1)
+            ZStack {
+                Color(red: 0.08, green: 0.10, blue: 0.20)
+                if let poster {
+                    OrbitImage(url: poster, fallback: nil, mode: .fill, size: L.poster)
+                }
+            }
+            .frame(width: L.poster.width, height: L.poster.height)
+            .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+            .modifier(OrbitHBOFocus(focused: focused))
+            .offset(x: rankW - L.rankUnderPoster)
+        }
+        .frame(width: rankW - L.rankUnderPoster + L.poster.width, height: L.poster.height, alignment: .bottomLeading)
+    }
+}
+
+/// A wide tile (the genre rows): TMDB's backdrop, the French logo, the blue tag.
+private struct OrbitHBOTile: View {
+    let item: MetaPreview
+    let meta: OrbitMeta?
+    let isNew: Bool
+    let focused: Bool
+
+    var body: some View {
+        let L = OrbitHBOLayout.self
+        let size = L.tile
+        let info = OrbitInfo.make(item, meta: meta)
+        ZStack(alignment: .bottomLeading) {
+            Color(red: 0.08, green: 0.10, blue: 0.20)
+            OrbitImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: size)
+            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .center, endPoint: .bottom)
+            OrbitTitleMark(name: item.name, logo: info.logo,
+                           maxSize: CGSize(width: size.width * 0.55, height: size.height * 0.4), textSize: 26,
+                           fallbackLogo: info.logoFallback)
+                .padding(.leading, 16)
+                .padding(.bottom, 14)
+            if isNew {
+                OrbitHBONewTag(size: 13)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(8)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+        .modifier(OrbitHBOFocus(focused: focused))
     }
 }
 
@@ -724,10 +820,13 @@ private struct OrbitHBOPoster: View {
     var body: some View {
         let L = OrbitHBOLayout.self
         let size = L.poster
-        let url: String? = OrbitHBOOwn.of(item) != nil ? item.poster : (meta?.localPoster ?? item.poster)
+        // His ranked Top 10 image ("/poster/v…") is never a poster here.
+        let ranked = (item.poster ?? "").contains("/poster/v")
+        let url: String? = ranked ? (meta?.titledPoster ?? meta?.localPoster)
+            : OrbitHBOOwn.of(item) != nil ? item.poster : (meta?.localPoster ?? item.poster)
         ZStack(alignment: .topLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
-            OrbitImage(url: url, fallback: item.rawPosterUrl, mode: .fill, size: size)
+            if let url { OrbitImage(url: url, fallback: ranked ? nil : item.rawPosterUrl, mode: .fill, size: size) }
             if isNew {
                 OrbitHBONewTag(size: 13)
                     .padding(8)
@@ -736,33 +835,6 @@ private struct OrbitHBOPoster: View {
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         .modifier(OrbitHBOFocus(focused: focused))
-    }
-}
-
-/// His Top 10 image as it is (the thin rank on the left, the poster on the right); focused, a white
-/// frame around the poster only.
-private struct OrbitHBOTop10Image: View {
-    let item: MetaPreview
-    let focused: Bool
-
-    var body: some View {
-        let L = OrbitHBOLayout.self
-        let size = L.top10Image
-        let band = (size.height - L.poster.height) / 2
-        let card = CGRect(x: size.width * 0.28, y: 0, width: size.width * 0.72, height: L.poster.height)
-        // Only the poster's band shows (the rank sits on its bottom), at a poster's height.
-        OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
-            .frame(width: size.width, height: size.height)
-            .offset(y: -band)
-            .frame(width: size.width, height: L.poster.height, alignment: .topLeading)
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 4)
-                    .frame(width: card.width, height: card.height)
-                    .offset(x: card.minX, y: card.minY)
-            }
-            .scaleEffect(focused ? L.focusScale : 1, anchor: UnitPoint(x: 0.64, y: 0.5))
-            .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
 
