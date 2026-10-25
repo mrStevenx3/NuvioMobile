@@ -324,7 +324,9 @@ struct OrbitPrimePage: View {
                               })
                     // On the Amazon Original row, its large posters take the screen (the trailer
                     // plays in the opened one).
-                    .opacity(onOriginals ? 0 : 1)
+                    // (Native: the Amazon Original row sits on the rows' line — the top stays, its
+                    // art the focused title's: Steven, the row showed no image above it.)
+                    .opacity(onOriginals && !nativeHome ? 0 : 1)
                     .animation(.easeInOut(duration: 0.3), value: onOriginals)
             }
             }

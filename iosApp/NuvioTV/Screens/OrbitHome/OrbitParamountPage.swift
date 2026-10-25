@@ -689,7 +689,10 @@ private struct OrbitParamountRowView: View {
     var body: some View {
         let L = OrbitParamountLayout.self
         let low = max(0, lead - 1)
-        let window = low...max(low, min(row.items.count - 1, lead + 9))
+        // Steven (device: at the right, a tile appeared under the next one before the row moved):
+        // the window reaches past the screen's edge, so tiles come and go off screen.
+        let ahead = Int(OrbitHomeLayout.screenWidth / row.slot) + 2
+        let window = low...max(low, min(row.items.count - 1, lead + ahead))
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 25, weight: .bold))
@@ -712,6 +715,7 @@ private struct OrbitParamountRowView: View {
                         .offset(x: L.margin + CGFloat(index - lead) * row.slot)
                         .opacity(index < lead ? 0 : 1)
                         .zIndex(lit ? 1 : 0)
+                        .transition(.identity)
                     }
                 }
             }
