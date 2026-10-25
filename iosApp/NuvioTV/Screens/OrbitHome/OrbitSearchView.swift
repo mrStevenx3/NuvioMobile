@@ -140,6 +140,9 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
         let up = UITapGestureRecognizer(target: self, action: #selector(upPressed))
         up.allowedPressTypes = [NSNumber(value: UIPress.PressType.upArrow.rawValue)]
         up.delegate = self
+        // Steven (device: Up from the keyboard's second line, to "a", went to the bar): the press
+        // also reaches the focus engine; the bar is asked only if the focus could not go up.
+        up.cancelsTouchesInView = false
         view.addGestureRecognizer(up)
         upRecognizer = up
     }
@@ -187,8 +190,19 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
 
     /// Up from the keyboard: the Orbit bar (the system sent it to the hidden tab bar: no way up).
     @objc private func upPressed() {
-        NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
+        let before = upFocusedBefore
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            guard let self else { return }
+            let now = self.view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+            // Still on the same key: nothing above it on the keyboard — up to the Orbit bar.
+            if let before, now === before {
+                NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
+            }
+        }
     }
+
+    /// The key focused when the Up press arrived (to see whether the keyboard moved it).
+    private weak var upFocusedBefore: UIView?
 
     private func move(to target: UIFocusEnvironment) {
         focusTarget = target
@@ -202,6 +216,7 @@ private final class OrbitSearchHostController: UIViewController, UIGestureRecogn
         guard recognizer === upRecognizer else { return true }
         let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
         guard let focused, let results else { return true }
+        upFocusedBefore = focused
         return !focused.isDescendant(of: results.view)
     }
 }
