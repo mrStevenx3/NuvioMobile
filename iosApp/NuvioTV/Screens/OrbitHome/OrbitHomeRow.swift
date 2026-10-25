@@ -54,6 +54,8 @@ struct OrbitRow: Identifiable, Equatable {
     let cards: [OrbitCard]
     /// The catalog section (localization warm-up), nil for Continue Watching.
     var sectionKey: String?
+    /// Steven (pass 3): the kind of tiles (the classic frame and posters, landscape, cards…).
+    var style: OrbitRowStyle = .classic
 }
 
 struct OrbitHomeRowView: View {

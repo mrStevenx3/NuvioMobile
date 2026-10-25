@@ -41,6 +41,31 @@ enum OrbitPlatformBadgeKind: CaseIterable {
     }
 }
 
+/// The platforms' logos from Steven's collection (its folders' title logos), for the badges that
+/// have no mark of their own in the app (Disney+: Steven, "reprends notre logo").
+@MainActor
+enum OrbitPlatformLogos {
+    private(set) static var urls: [OrbitPlatformBadgeKind: String] = [:]
+
+    static func update() {
+        guard let collections = CollectionRepository.shared.collections.value_ as? [NuvioCollection] else { return }
+        var found: [OrbitPlatformBadgeKind: String] = [:]
+        for folder in collections.flatMap(\.folders) {
+            let title = folder.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                .replacingOccurrences(of: " ", with: "")
+            guard let logo = folder.titleLogoUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !logo.isEmpty else { continue }
+            if title.contains("disney"), found[.disney] == nil { found[.disney] = logo }
+        }
+        urls = found
+    }
+
+    /// The logo for a platform (looked up again while none is known: the collection loads late).
+    static func url(_ kind: OrbitPlatformBadgeKind) -> String? {
+        if urls.isEmpty { update() }
+        return urls[kind]
+    }
+}
+
 /// The badge: each platform's mark in its colours, on a small dark pill.
 struct OrbitPlatformBadge: View {
     let kind: OrbitPlatformBadgeKind
@@ -62,9 +87,14 @@ struct OrbitPlatformBadge: View {
                 .font(.system(size: size, weight: .black).width(.condensed))
                 .foregroundStyle(Color(red: 0.9, green: 0.04, blue: 0.08))
         case .disney:
-            Text("Disney+")
-                .font(.system(size: size, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(red: 0.55, green: 0.8, blue: 1.0))
+            if let logo = OrbitPlatformLogos.url(.disney) {
+                CachedAsyncImage(string: logo, contentMode: .fit,
+                                 decodeSize: .points(width: size * 8, height: size * 3),
+                                 loading: { Color.clear }, failure: { disneyText })
+                    .frame(width: size * 3.2, height: size * 1.25)
+            } else {
+                disneyText
+            }
         case .prime:
             Text("prime video")
                 .font(.system(size: size, weight: .heavy))
@@ -91,5 +121,11 @@ struct OrbitPlatformBadge: View {
                 .frame(height: size * 0.9)
                 .foregroundStyle(Color.white)
         }
+    }
+
+    private var disneyText: some View {
+        Text("Disney+")
+            .font(.system(size: size, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(red: 0.55, green: 0.8, blue: 1.0))
     }
 }

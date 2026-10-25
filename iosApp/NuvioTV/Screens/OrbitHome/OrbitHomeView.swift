@@ -107,6 +107,8 @@ struct OrbitHomeView: View {
     @State private var heroIndex = 0
     @FocusState private var canvasFocused: Bool
     @StateObject private var trailer = InlineTrailerCardModel()
+    /// The page's own rows (TMDB): the Top 10 across the platforms, each platform's new titles.
+    @StateObject private var extras = OrbitHomeExtrasModel()
     @State private var motion = OrbitHomeMotion()
     /// "<section>|<card>" the trailer is armed for.
     @State private var trailerKey: String?
@@ -130,23 +132,46 @@ struct OrbitHomeView: View {
     private var heroItems: [MetaPreview] { heroModel.items(series: series) }
     private var genres: [OrbitGenre] { series ? OrbitGenre.series : OrbitGenre.movies }
 
+    /// Steven (pass 3: "trop pauvre", tiles of different kinds and sizes): Reprendre in landscape
+    /// tiles; his catalogs alternating the classic frame, large cards and smaller posters (his Top
+    /// 10 keep the classic frame); the Top 10 across the platforms after the first catalog; each
+    /// platform's new titles in landscape tiles, one every two catalogs.
     private var rows: [OrbitRow] {
         var out: [OrbitRow] = []
         var seen = Set<String>()
         let entries = model.continueWatching.filter { series ? $0.parentMetaType != "movie" : $0.parentMetaType == "movie" }
         if !entries.isEmpty {
             out.append(OrbitRow(id: "continue-watching", title: String(localized: "Reprendre"),
-                                cards: Self.unique(entries.map(OrbitCard.continueWatching))))
+                                cards: Self.unique(entries.map(OrbitCard.continueWatching)), style: .landscape))
             seen.insert("continue-watching")
         }
+        let extraRows = (series ? extras.seriesRows : extras.movieRows).map { extra in
+            OrbitRow(id: extra.id, title: extra.title, cards: Self.unique(extra.items.map(OrbitCard.catalog)), style: extra.style)
+        }
+        var top = extraRows.filter { $0.style == .ranked }
+        var platforms = extraRows.filter { $0.style != .ranked }
+        let cycle: [OrbitRowStyle] = [.cards, .classic, .posters]
+        var catalogs = 0
+        var styled = 0
         for row in model.rows {
             guard case .catalog(let section) = row else { continue }
             let movie = section.target.contentType == "movie"
             guard series ? !movie : movie, !section.items.isEmpty, seen.insert(section.key).inserted else { continue }
+            let heading = section.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            let isTop = heading.contains("top 10") || heading.contains("top10")
+            var style: OrbitRowStyle = .classic
+            if !isTop {
+                style = styled == 0 ? .classic : cycle[(styled - 1) % cycle.count]
+                styled += 1
+            }
             out.append(OrbitRow(id: section.key, title: section.title,
-                                cards: Self.unique(section.items.map(OrbitCard.catalog)), sectionKey: section.key))
+                                cards: Self.unique(section.items.map(OrbitCard.catalog)), sectionKey: section.key,
+                                style: style))
+            catalogs += 1
+            if catalogs == 1, !top.isEmpty { out.append(top.removeFirst()) }
+            if catalogs % 2 == 0, !platforms.isEmpty { out.append(platforms.removeFirst()) }
         }
-        return out
+        return out + top + platforms
     }
 
     private static func unique(_ cards: [OrbitCard]) -> [OrbitCard] {
@@ -174,7 +199,7 @@ struct OrbitHomeView: View {
             switch section {
             case .hero: y += L.heroPitch
             case .genres: y += L.genresPitch
-            case .row: y += L.rowPitch
+            case .row(let row): y += OrbitTileLayout.pitch(row.style)
             }
         }
         return out
@@ -237,6 +262,8 @@ struct OrbitHomeView: View {
         .ignoresSafeArea()
         .onAppear {
             heroModel.loadIfNeeded()
+            extras.load()
+            OrbitPlatformLogos.update()
             trailer.restSource = .custom(motion)
             refreshAfterMove()
         }
@@ -265,10 +292,18 @@ struct OrbitHomeView: View {
             OrbitGenresView(genres: genres, lead: leads["genres"] ?? 0, focused: focusedHere)
         case .row(let row):
             let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
-            OrbitHomeRowView(row: row, lead: lead, isCurrent: isCurrent, focused: focusedHere,
-                             trailerURL: row.cards.indices.contains(lead) ? trailerURL(for: row.id, id: row.cards[lead].id) : nil,
-                             onTrailerFailure: { trailer.playbackFailed($0) },
-                             onTrailerEnded: { trailer.playbackFinished() })
+            let rowTrailer = row.cards.indices.contains(lead) ? trailerURL(for: row.id, id: row.cards[lead].id) : nil
+            if row.style == .classic {
+                OrbitHomeRowView(row: row, lead: lead, isCurrent: isCurrent, focused: focusedHere,
+                                 trailerURL: rowTrailer,
+                                 onTrailerFailure: { trailer.playbackFailed($0) },
+                                 onTrailerEnded: { trailer.playbackFinished() })
+            } else {
+                OrbitHomeTileRowView(row: row, lead: lead, isCurrent: isCurrent, focused: focusedHere,
+                                     trailerURL: rowTrailer,
+                                     onTrailerFailure: { trailer.playbackFailed($0) },
+                                     onTrailerEnded: { trailer.playbackFinished() })
+            }
         }
     }
 
@@ -398,6 +433,8 @@ struct OrbitHomeView: View {
             trailerKey = "hero|\(item.type):\(item.id)"
             trailer.focusChanged(true, item: item)
         case .row(let row):
+            // The trailer plays in the classic frame and in the large cards only.
+            guard row.style == .classic || row.style == .cards else { return }
             let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
             guard row.cards.indices.contains(lead) else { return }
             let card = row.cards[lead]
@@ -427,21 +464,26 @@ private struct OrbitRowsBackdrop: View {
         ZStack(alignment: .topTrailing) {
             L.background
             if let url {
-                ZStack {
-                    OrbitSwapImage(url: url, fallback: nil, size: size)
-                    LinearGradient(stops: [
-                        .init(color: L.background, location: 0),
-                        .init(color: L.background.opacity(0.6), location: 0.28),
-                        .init(color: .clear, location: 0.6),
-                    ], startPoint: .leading, endPoint: .trailing)
-                    LinearGradient(stops: [
-                        .init(color: .clear, location: 0.3),
-                        .init(color: L.background.opacity(0.7), location: 0.7),
-                        .init(color: L.background, location: 1),
-                    ], startPoint: .top, endPoint: .bottom)
-                }
-                .frame(width: size.width, height: size.height)
-                .opacity(0.6)
+                // Steven: the art showed as a sharp rectangle. It now melts into the page itself
+                // (its own transparency, not a coloured shade): to the left, down, and a little at
+                // the top and right edges too.
+                OrbitSwapImage(url: url, fallback: nil, size: size)
+                    .frame(width: size.width, height: size.height)
+                    .mask(LinearGradient(stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black.opacity(0.45), location: 0.3),
+                        .init(color: .black, location: 0.62),
+                        .init(color: .black, location: 0.92),
+                        .init(color: .black.opacity(0.7), location: 1),
+                    ], startPoint: .leading, endPoint: .trailing))
+                    .mask(LinearGradient(stops: [
+                        .init(color: .black.opacity(0.75), location: 0),
+                        .init(color: .black, location: 0.12),
+                        .init(color: .black, location: 0.4),
+                        .init(color: .black.opacity(0.35), location: 0.72),
+                        .init(color: .clear, location: 1),
+                    ], startPoint: .top, endPoint: .bottom))
+                    .opacity(0.55)
             }
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topTrailing)
