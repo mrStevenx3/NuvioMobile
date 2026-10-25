@@ -346,6 +346,15 @@ struct OrbitRankedTile: View {
                 .shadow(color: .black.opacity(0.7), radius: 14, y: 4)
                 .lineLimit(1)
                 .fixedSize()
+                // Steven: the focused title's rank lit from behind, a soft glow in its own colour
+                // (a spotlight on the dark band).
+                .background {
+                    RadialGradient(colors: [base.opacity(focused ? 0.55 : 0), base.opacity(focused ? 0.18 : 0), .clear],
+                                   center: .center, startRadius: 0, endRadius: size.height * 0.5)
+                        .frame(width: size.height * 1.1, height: size.height * 1.1)
+                        .animation(.easeOut(duration: 0.25), value: focused)
+                        .allowsHitTesting(false)
+                }
                 // "10" is wider: its own room, so it no longer runs over the 9's poster (Steven).
                 .frame(width: rankWidth + 34 * scale + (rank >= 10 ? tenExtra : 0), alignment: .trailing)
                 .offset(y: size.height * 0.12)
