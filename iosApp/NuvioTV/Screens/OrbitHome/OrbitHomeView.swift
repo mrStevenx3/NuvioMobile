@@ -202,6 +202,12 @@ struct OrbitHomeView: View {
             OrbitAmbient(url: heroItem?.banner, visible: sections.first == .hero && index == 0)
                 .ignoresSafeArea()
 
+            // Steven (2026-10-25, pass 2: the rows left the screen half black): the focused title's
+            // art fills the top right behind the rows, fading to the left and down.
+            OrbitRowsBackdrop(url: rowsBackdropURL(sections: sections, index: index))
+                .opacity(index > 0 ? 1 : 0)
+                .animation(.easeInOut(duration: 0.35), value: index > 0)
+
             ZStack(alignment: .topLeading) {
                 if !sections.isEmpty {
                     ForEach(Array(zip(window, sections[window])), id: \.1.id) { i, section in
@@ -251,10 +257,10 @@ struct OrbitHomeView: View {
         switch section {
         case .hero:
             OrbitHomeHeroView(item: heroItem, focused: focusedHere,
+                              count: heroItems.count, index: heroItems.isEmpty ? 0 : heroIndex % heroItems.count,
                               trailerURL: trailerURL(for: "hero", id: heroItem.map { "\($0.type):\($0.id)" }),
                               onTrailerFailure: { trailer.playbackFailed($0) },
                               onTrailerEnded: { trailer.playbackFinished() })
-                .offset(x: OrbitHomeLayout.margin)
         case .genres:
             OrbitGenresView(genres: genres, lead: leads["genres"] ?? 0, focused: focusedHere)
         case .row(let row):
@@ -264,6 +270,15 @@ struct OrbitHomeView: View {
                              onTrailerFailure: { trailer.playbackFailed($0) },
                              onTrailerEnded: { trailer.playbackFinished() })
         }
+    }
+
+    /// The current row's focused title's art (nil on the hero).
+    private func rowsBackdropURL(sections: [Section], index: Int) -> String? {
+        guard sections.indices.contains(index), case .row(let row) = sections[index] else { return nil }
+        let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
+        guard row.cards.indices.contains(lead) else { return nil }
+        let card = row.cards[lead]
+        return OrbitMetaStore.shared.meta(for: card.preview)?.backdrop ?? card.landscape
     }
 
     private func trailerURL(for section: String, id: String?) -> String? {
@@ -397,5 +412,39 @@ struct OrbitHomeView: View {
 private struct OrbitCanvasButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+    }
+}
+
+/// The rows' backdrop: the focused title's art in the top right, fading into the page to the left
+/// and down (as on Prime's and Paramount+'s pages), dimmed so the rows stay in front.
+private struct OrbitRowsBackdrop: View {
+    let url: String?
+
+    var body: some View {
+        let L = OrbitHomeLayout.self
+        let size = CGSize(width: 1400, height: 788)
+        ZStack(alignment: .topTrailing) {
+            L.background
+            if let url {
+                ZStack {
+                    OrbitSwapImage(url: url, fallback: nil, size: size)
+                    LinearGradient(stops: [
+                        .init(color: L.background, location: 0),
+                        .init(color: L.background.opacity(0.6), location: 0.28),
+                        .init(color: .clear, location: 0.6),
+                    ], startPoint: .leading, endPoint: .trailing)
+                    LinearGradient(stops: [
+                        .init(color: .clear, location: 0.3),
+                        .init(color: L.background.opacity(0.7), location: 0.7),
+                        .init(color: L.background, location: 1),
+                    ], startPoint: .top, endPoint: .bottom)
+                }
+                .frame(width: size.width, height: size.height)
+                .opacity(0.6)
+            }
+        }
+        .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topTrailing)
+        .clipped()
+        .allowsHitTesting(false)
     }
 }

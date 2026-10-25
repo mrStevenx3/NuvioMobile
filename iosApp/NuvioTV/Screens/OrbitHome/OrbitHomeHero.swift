@@ -3,14 +3,16 @@ import CoreImage
 import SharedCore
 import SwiftUI
 
-// Orbit Home (Steven's fork): the hero — a wide rounded card under the bar with the title's
-// backdrop (its trailer once the viewer rests on it), the logo or the name, the meta line, three
-// lines of synopsis and a "Voir la fiche" pill; Left / Right go to the previous / next title.
-// Behind it, the page takes the title's colours (`OrbitAmbient`).
+// Orbit Home (Steven, 2026-10-25, pass 2: the platforms' pages made it look plain): the hero full
+// screen — the title's backdrop edge to edge (its trailer once the viewer rests on it), the platform
+// it is on, the logo or the name, the meta line, three lines of synopsis, the "Voir la fiche" pill,
+// the dots; the first row's heading peeks at the bottom. Left / Right go to the previous / next title.
 
 struct OrbitHomeHeroView: View {
     let item: MetaPreview?
     let focused: Bool
+    var count: Int = 0
+    var index: Int = 0
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -19,66 +21,86 @@ struct OrbitHomeHeroView: View {
 
     var body: some View {
         let L = OrbitHomeLayout.self
-        ZStack(alignment: .bottomLeading) {
-            Color(white: 0.08)
+        let size = CGSize(width: L.heroWidth, height: L.heroHeight)
+        ZStack(alignment: .topLeading) {
+            L.background
             if let item {
                 let meta = metaStore.meta(for: item)
                 let info = OrbitInfo.make(item, meta: meta)
-                ZStack(alignment: .bottomLeading) {
-                    OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster,
-                               size: CGSize(width: L.heroWidth, height: L.heroHeight))
+                ZStack(alignment: .topLeading) {
+                    OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster, size: size)
                     if let trailerURL {
                         TrailerHeroPlayer(urlString: trailerURL,
                                           onFailure: onTrailerFailure,
                                           zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
                                           loops: false,
                                           onPlaybackEnded: onTrailerEnded,
-                                          cornerRadius: L.heroRadius)
-                            .frame(width: L.heroWidth, height: L.heroHeight)
+                                          cornerRadius: 0)
+                            .frame(width: size.width, height: size.height)
                             .transition(.opacity.animation(.easeOut(duration: 0.5)))
                     }
                     LinearGradient(stops: [
-                        .init(color: .black.opacity(0.72), location: 0),
-                        .init(color: .black.opacity(0.35), location: 0.42),
-                        .init(color: .clear, location: 0.68),
+                        .init(color: L.background.opacity(0.88), location: 0),
+                        .init(color: L.background.opacity(0.45), location: 0.38),
+                        .init(color: .clear, location: 0.64),
                     ], startPoint: .leading, endPoint: .trailing)
-                    LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .center, endPoint: .bottom)
+                    LinearGradient(stops: [
+                        .init(color: .black.opacity(0.45), location: 0),
+                        .init(color: .clear, location: 0.16),
+                        .init(color: .clear, location: 0.6),
+                        .init(color: L.background, location: 0.97),
+                    ], startPoint: .top, endPoint: .bottom)
 
                     VStack(alignment: .leading, spacing: 0) {
+                        if let kind = OrbitPlatformBadgeKind.of(meta) {
+                            OrbitPlatformBadge(kind: kind, size: 22)
+                                .padding(.bottom, 24)
+                        }
                         OrbitTitleMark(name: item.name, logo: info.logo,
-                                       maxSize: CGSize(width: 620, height: 190), textSize: 66)
-                        OrbitMetaLine(info: info, size: 30)
-                            .padding(.top, 48)
+                                       maxSize: CGSize(width: 640, height: 200), textSize: 70, hugsLogo: true)
+                            .frame(width: 640, alignment: .leading)
+                        OrbitMetaLine(info: info, size: 28)
+                            .padding(.top, 34)
                         Text(info.synopsis)
-                            .font(.system(size: 27, weight: .medium))
+                            .font(.system(size: 26, weight: .medium))
                             .foregroundStyle(Color.white.opacity(0.94))
                             .lineSpacing(5)
                             .lineLimit(3)
-                            .frame(width: 940, alignment: .leading)
-                            .padding(.top, 40)
+                            .frame(width: 880, alignment: .leading)
+                            .padding(.top, 22)
                         Text("Voir la fiche")
-                            .font(.system(size: 28, weight: .semibold))
+                            .font(.system(size: 27, weight: .semibold))
                             .foregroundStyle(focused ? Color.black : Color.white)
-                            .padding(.horizontal, 46)
-                            .frame(height: 82)
+                            .padding(.horizontal, 44)
+                            .frame(height: 76)
                             .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.22)))
-                            .scaleEffect(focused ? 1.04 : 1, anchor: .leading)
-                            .padding(.top, 28)
+                            .scaleEffect(focused ? 1.05 : 1, anchor: .leading)
+                            .animation(.easeOut(duration: 0.16), value: focused)
+                            .padding(.top, 30)
                     }
-                    .padding(.leading, 88)
-                    .padding(.bottom, 44)
+                    .frame(width: 900, height: L.heroInfoBottom, alignment: .bottomLeading)
+                    .offset(x: L.margin)
                 }
                 .id("\(item.type):\(item.id)")
-                .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.35)),
-                                        removal: .opacity.animation(.linear(duration: 0.01).delay(0.35))))
+                .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.4)),
+                                        removal: .opacity.animation(.linear(duration: 0.01).delay(0.4))))
+            }
+
+            if count > 1 {
+                HStack(spacing: 10) {
+                    ForEach(0..<count, id: \.self) { i in
+                        Capsule()
+                            .fill(Color.white.opacity(i == index ? 1 : 0.35))
+                            .frame(width: i == index ? 24 : 8, height: 8)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.3), value: index)
+                .frame(width: size.width)
+                .offset(y: L.heroInfoBottom + 8)
             }
         }
-        .frame(width: L.heroWidth, height: L.heroHeight)
-        .clipShape(RoundedRectangle(cornerRadius: L.heroRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: L.heroRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 0.85 : 0.25), lineWidth: focused ? 3 : 1.5)
-        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .clipped()
     }
 }
 

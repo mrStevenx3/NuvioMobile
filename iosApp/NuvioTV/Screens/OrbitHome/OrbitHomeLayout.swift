@@ -22,13 +22,15 @@ enum OrbitHomeLayout {
     /// The left margin of headings, the frame, the chips and the hero.
     static let margin: CGFloat = 72
 
-    // Hero
-    static let heroTop: CGFloat = 115
-    static let heroHeight: CGFloat = 860
-    static let heroRadius: CGFloat = 24
-    static var heroWidth: CGFloat { screenWidth - 2 * margin }
-    /// From the hero's top to the first row's heading centre (the heading peeks under the hero).
-    static let heroPitch: CGFloat = 910
+    // Hero (Steven, 2026-10-25, pass 2: full screen, as the platforms' carousels)
+    static let heroTop: CGFloat = 0
+    static let heroHeight: CGFloat = screenHeight
+    static let heroRadius: CGFloat = 0
+    static var heroWidth: CGFloat { screenWidth }
+    /// Where the hero's details end (their bottom); the dots under them.
+    static let heroInfoBottom: CGFloat = 900
+    /// From the hero's top to the first row's heading centre (the heading peeks at the bottom).
+    static let heroPitch: CGFloat = 1000
 
     // Genres
     static let chipWidth: CGFloat = 272

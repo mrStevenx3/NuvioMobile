@@ -32,6 +32,9 @@ nonisolated struct OrbitMeta: Equatable, Sendable {
     var producers: [String] = []
     /// Series: the number of seasons.
     var seasons: Int? = nil
+    /// Steven (Orbit Home, 2026-10-25): TMDB's subscription platforms for the title in France
+    /// (watch-provider ids), for its platform badge. Empty for a title on none.
+    var platforms: [Int] = []
 }
 
 @MainActor
@@ -147,6 +150,17 @@ final class OrbitMetaStore: ObservableObject {
         let tv_results: [Hit]?
     }
 
+    /// TMDB's "watch/providers" (appended to the details): the subscription platforms per country.
+    nonisolated private struct ProvidersOnly: Decodable {
+        nonisolated struct Region: Decodable {
+            nonisolated struct Provider: Decodable { let provider_id: Int }
+            let flatrate: [Provider]?
+        }
+        nonisolated struct Results: Decodable { let results: [String: Region]? }
+        let providers: Results?
+        enum CodingKeys: String, CodingKey { case providers = "watch/providers" }
+    }
+
     nonisolated private struct Details: Decodable {
         nonisolated struct Genre: Decodable { let name: String? }
         nonisolated struct Logo: Decodable {
@@ -252,7 +266,7 @@ final class OrbitMetaStore: ObservableObject {
         }
         let media = tv ? "tv" : "movie"
         guard let url = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)?api_key=\(apiKey)&language=\(lang)"
-                            + "&append_to_response=images,\(tv ? "content_ratings" : "release_dates")&include_image_language=\(short),en,null") else { return .missing }
+                            + "&append_to_response=images,watch/providers,\(tv ? "content_ratings" : "release_dates")&include_image_language=\(short),en,null") else { return .missing }
         let response = await fetch(url)
         guard let body = response.data else { return response.missing ? .missing : .transient }
         guard let d = try? JSONDecoder().decode(Details.self, from: body) else { return .transient }
@@ -306,7 +320,9 @@ final class OrbitMetaStore: ObservableObject {
                          localPoster: d.images?.posters?.first { $0.iso_639_1 == short }?.file_path
                              .map { "https://image.tmdb.org/t/p/w500\($0)" },
                          producers: ((d.production_companies ?? []) + (d.networks ?? [])).compactMap(\.name),
-                         seasons: d.number_of_seasons))
+                         seasons: d.number_of_seasons,
+                         platforms: ((try? JSONDecoder().decode(ProvidersOnly.self, from: body))?.providers?.results?[region]?
+                             .flatrate ?? []).map(\.provider_id)))
     }
 }
 

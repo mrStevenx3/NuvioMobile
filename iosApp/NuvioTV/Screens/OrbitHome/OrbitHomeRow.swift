@@ -226,6 +226,16 @@ struct OrbitLeadFrame: View {
             .frame(width: size.width, height: size.height)
         }
         .frame(width: size.width, height: size.height)
+        // Where it can be watched (Steven: Orbit gathers the platforms), top right; nothing for a
+        // title on none.
+        .overlay(alignment: .topTrailing) {
+            if let kind = OrbitPlatformBadgeKind.of(meta) {
+                OrbitPlatformBadge(kind: kind, size: 20)
+                    .padding(18)
+                    .id(card.id)
+                    .transition(.opacity.animation(OrbitHomeLayout.crossfade))
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: L.frameRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: L.frameRadius, style: .continuous)
