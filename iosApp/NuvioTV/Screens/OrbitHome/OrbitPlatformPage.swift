@@ -709,6 +709,19 @@ struct OrbitPlatformIntro: View {
             preload(logoUrl)
         }
         .onChange(of: logoUrl) { _, url in preload(url) }
+        // Steven (device: entering a platform, its catalogue showed under the intro): the system
+        // can show a closed page's view again for a moment on the next visit, intro already done.
+        // Closed (no title opened over it), the intro goes back to its black start.
+        .onDisappear {
+            let left = ProcessInfo.processInfo.systemUptime
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                guard OrbitNavClock.titleOpenedAt < left - 0.3 else { return }
+                glide?.cancel()
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { phase = .hidden }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
             // Steven: a press skips the intro (the page is used often) — not the press that opened
             // the page, which lands just after it appears (the catalogue showed before the intro).

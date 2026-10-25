@@ -64,6 +64,12 @@ enum OrbitDetailLayout {
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
+/// When a title's page last appeared (a page going away just before was covered, not closed).
+@MainActor
+enum OrbitNavClock {
+    static var titleOpenedAt: TimeInterval = 0
+}
+
 struct DetailView: View {
     let preview: MetaPreview
     /// The platform page it was opened from, if any (its light touch).
@@ -416,7 +422,10 @@ struct OrbitDetailView: View {
         .onReceive(OrbitMetaStore.shared.$metas.map { [key = OrbitMetaStore.key(preview)] in $0[key]?.logo }.removeDuplicates()) { logo in
             if tmdbLogo != logo { tmdbLogo = logo }
         }
-        .onAppear { OrbitMetaStore.shared.request([preview]) }
+        .onAppear {
+            OrbitMetaStore.shared.request([preview])
+            OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
+        }
         .onAppear {
             if let back = resumeFocus {
                 // The engine restores late and more than once: the card is asked again a few
