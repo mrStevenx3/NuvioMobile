@@ -28,6 +28,12 @@ struct OrbitEpisodesSection: View {
 
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
     @State private var shownSeason: Int?
+    /// Steven (2026-10-25: the episode's text stayed far left under a card on the right): where
+    /// each card is on screen (written as the row scrolls, never a page update), and the focused
+    /// one's place the text follows.
+    @State private var cardX = OrbitEpisodeCardPlaces()
+    @State private var focusedX: CGFloat = OrbitDetailLayout.margin
+    static let detailsWidth: CGFloat = 900
 
     static let stillSize = CGSize(width: 384, height: 216)
     /// Steven (2026-10-24): larger season posters.
@@ -111,6 +117,10 @@ struct OrbitEpisodesSection: View {
                             .buttonStyle(OrbitPlainStyle())
                             .focused(focus, equals: .episode(episode.id))
                             .id(episode.id)
+                            .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minX }) { x in
+                                cardX.x[episode.id] = x
+                                if focus.wrappedValue == .episode(episode.id) { place(x) }
+                            }
                         }
                     }
                     .padding(.horizontal, OrbitDetailLayout.margin)
@@ -136,13 +146,16 @@ struct OrbitEpisodesSection: View {
                                     hidesSynopsis: shown.map { EpisodeSpoilerRules.hidesSpoilers(settingOn: hideSpoilers,
                                                                                                  isWatched: isWatched($0)) } ?? false)
             }
-            .frame(width: 1300, height: 110, alignment: .topLeading)
+            .frame(width: Self.detailsWidth, height: 110, alignment: .topLeading)
             .clipped()
-            .padding(.leading, OrbitDetailLayout.margin)
+            // Under the focused episode (kept on screen at the right edge).
+            .padding(.leading, focusedX)
+            .animation(.easeOut(duration: 0.22), value: focusedX)
         }
         // Steven: entering from above (the hero) lands on the season being shown — the season
         // row is no longer skipped (the engine took the poster under Lire, or the episodes).
         .onChange(of: focus.wrappedValue) { old, new in
+            if case .episode(let id)? = new, let x = cardX.x[id] { place(x) }
             guard case .season(let s)? = new else { return }
             // Up from the episodes too: back on the season they belong to (the engine took the
             // poster above the focused episode).
@@ -155,6 +168,12 @@ struct OrbitEpisodesSection: View {
         }
     }
 
+    private func place(_ x: CGFloat) {
+        let maxX = OrbitHomeLayout.screenWidth - OrbitDetailLayout.margin - Self.detailsWidth
+        let clamped = min(max(x, OrbitDetailLayout.margin), maxX)
+        if abs(clamped - focusedX) > 1 { focusedX = clamped }
+    }
+
     private func posterURL(season: Int) -> String? {
         let poster: String? = meta.videos.first { $0.season?.value == season && !($0.seasonPoster ?? "").isEmpty }?.seasonPoster
         return poster ?? meta.poster
@@ -164,6 +183,11 @@ struct OrbitEpisodesSection: View {
         guard let s = episode.season?.value, let e = episode.episode?.value else { return episode.rating?.doubleValue }
         return episodeRatings["\(s):\(e)"] ?? episode.rating?.doubleValue
     }
+}
+
+/// Where each episode card is on screen (a box: written on every scroll frame, never a page update).
+final class OrbitEpisodeCardPlaces {
+    var x: [String: CGFloat] = [:]
 }
 
 private struct OrbitSeasonCard: View {
@@ -272,7 +296,7 @@ private struct OrbitEpisodeDetails: View {
                 }
             }
         }
-        .frame(width: 1300, height: 110, alignment: .topLeading)
+        .frame(width: OrbitEpisodesSection.detailsWidth, height: 110, alignment: .topLeading)
         // Swapped at once: two texts cross-fading overlapped into an unreadable mix.
     }
 }
