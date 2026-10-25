@@ -242,17 +242,33 @@ struct OrbitTitleMark: View {
     let textSize: CGFloat
     /// Tried when `logo` does not load (Steven, 2026-10-25: titles with a logo showed their name).
     var fallbackLogo: String? = nil
+    /// Tried after those two, in order.
+    var moreLogos: [String] = []
+
+    private var candidates: [String] {
+        var seen = Set<String>()
+        return ([logo, fallbackLogo].compactMap { $0 } + moreLogos)
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
 
     var body: some View {
-        if let logo = [logo, fallbackLogo].compactMap({ $0 }).first(where: { !$0.isEmpty }) {
-            CachedAsyncImage(string: logo, fallback: logo == fallbackLogo ? nil : fallbackLogo, contentMode: .fit,
+        let list = candidates
+        if let first = list.first {
+            CachedAsyncImage(string: first, fallback: list.count > 1 ? list[1] : nil, contentMode: .fit,
                              decodeSize: .points(width: maxSize.width, height: maxSize.height),
-                             loading: { Color.clear }, failure: { nameText })
+                             loading: { Color.clear }, failure: { rest(list) })
             .frame(maxWidth: maxSize.width, maxHeight: maxSize.height, alignment: .bottomLeading)
             .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
         } else {
             nameText
         }
+    }
+
+    /// The candidates after the first two, else the name.
+    private func rest(_ list: [String]) -> AnyView {
+        guard list.count > 2 else { return AnyView(nameText) }
+        return AnyView(OrbitTitleMark(name: name, logo: list[2], maxSize: maxSize, textSize: textSize,
+                                      moreLogos: Array(list.dropFirst(3))))
     }
 
     private var nameText: some View {

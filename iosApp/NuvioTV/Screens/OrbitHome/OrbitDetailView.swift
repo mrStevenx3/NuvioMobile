@@ -143,13 +143,15 @@ struct OrbitDetailView: View {
     }
     /// Steven (2026-10-25: Crystal Lake's logo in Search, none on its page): TMDB's logo first (in
     /// French when there is one, as Search and Home show it), then the add-on's.
-    private var logoURL: String? { tmdbLogo ?? addonLogoURL }
-    private var addonLogoURL: String? {
-        let logo: String? = meta?.logo ?? preview.logo
-        return (logo ?? "").isEmpty ? nil : logo
+    private var logoURL: String? { logoCandidates.first }
+    /// TMDB's, then the catalog's (the card that opened the page), then the add-on page's: the
+    /// add-on's is often a link that does not resolve yet for a new title.
+    private var logoCandidates: [String] {
+        var seen = Set<String>()
+        let previewLogo: String? = preview.logo
+        let metaLogo: String? = meta?.logo
+        return [tmdbLogo, previewLogo, metaLogo].compactMap { $0 }.filter { !$0.isEmpty && seen.insert($0).inserted }
     }
-    /// The add-on's logo, tried when TMDB's does not load.
-    private var logoFallbackURL: String? { tmdbLogo == nil ? nil : addonLogoURL }
     private var posterURL: String? { meta?.poster ?? preview.poster }
     private var backdropURL: String? {
         let raw: String? = meta?.background ?? preview.banner ?? preview.poster
@@ -511,7 +513,7 @@ struct OrbitDetailView: View {
     private func titleMark(cinema corner: Bool) -> some View {
         let size = corner ? Self.cinemaTitleSize : Self.heroTitleSize
         return OrbitTitleMark(name: title, logo: logoURL, maxSize: size, textSize: corner ? 40 : 76,
-                              fallbackLogo: logoFallbackURL)
+                              moreLogos: Array(logoCandidates.dropFirst()))
             .frame(width: size.width, height: size.height, alignment: .bottomLeading)
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
     }

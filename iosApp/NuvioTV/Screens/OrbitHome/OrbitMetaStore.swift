@@ -100,7 +100,8 @@ final class OrbitMetaStore: ObservableObject {
 
     nonisolated enum Reference: Sendable {
         case tmdb(id: Int, tv: Bool)
-        case imdb(id: String, tv: Bool)
+        /// `name` / `year`: TMDB's search, when the IMDb id is not linked on TMDB yet (new titles).
+        case imdb(id: String, tv: Bool, name: String, year: String?)
     }
 
     nonisolated static func reference(for item: MetaPreview) -> Reference? {
@@ -110,8 +111,22 @@ final class OrbitMetaStore: ObservableObject {
             return .tmdb(id: id, tv: tv)
         }
         let imdb = raw.split(separator: ":").first.map(String.init) ?? raw
-        if imdb.hasPrefix("tt") { return .imdb(id: imdb, tv: tv) }
+        let year: String? = item.releaseInfo.map { String($0.prefix(4)) }.flatMap { Int($0) != nil ? $0 : nil }
+        if imdb.hasPrefix("tt") { return .imdb(id: imdb, tv: tv, name: item.name, year: year) }
         return nil
+    }
+
+    nonisolated private struct SearchResponse: Decodable {
+        nonisolated struct Hit: Decodable { let id: Int }
+        let results: [Hit]?
+    }
+
+    nonisolated private struct ImagesResponse: Decodable {
+        nonisolated struct Logo: Decodable {
+            let file_path: String?
+            let iso_639_1: String?
+        }
+        let logos: [Logo]?
     }
 
     nonisolated private struct FindResponse: Decodable {
@@ -154,6 +169,11 @@ final class OrbitMetaStore: ObservableObject {
         return (nil, status == 404)
     }
 
+    /// Ids only, never the key.
+    nonisolated private static func log(_ line: String) {
+        NSLog("%@", "[OrbitMeta] \(line)")
+    }
+
     nonisolated private static func load(ref: Reference, apiKey: String, language: String) async -> Outcome {
         let lang = language.isEmpty ? "en" : language
         let short = String(lang.prefix(2))
@@ -163,16 +183,35 @@ final class OrbitMetaStore: ObservableObject {
         case .tmdb(let id, let isTv):
             tmdbId = id
             tv = isTv
-        case .imdb(let imdb, let isTv):
+        case .imdb(let imdb, let isTv, let name, let year):
             guard let url = URL(string: "https://api.themoviedb.org/3/find/\(imdb)?api_key=\(apiKey)&external_source=imdb_id") else { return .missing }
             let response = await fetch(url)
             guard let body = response.data else { return response.missing ? .missing : .transient }
             guard let found = try? JSONDecoder().decode(FindResponse.self, from: body) else { return .transient }
             let hits = isTv ? (found.tv_results ?? []) + (found.movie_results ?? [])
                             : (found.movie_results ?? []) + (found.tv_results ?? [])
-            guard let first = hits.first else { return .missing }
-            tmdbId = first.id
-            tv = isTv ? !(found.tv_results ?? []).isEmpty : (found.movie_results ?? []).isEmpty
+            if let first = hits.first {
+                tmdbId = first.id
+                tv = isTv ? !(found.tv_results ?? []).isEmpty : (found.movie_results ?? []).isEmpty
+            } else {
+                // Steven (2026-10-25, Crystal Lake / La Femme de ménage): a new title's IMDb id is
+                // often not linked on TMDB yet; its name (and year) finds it.
+                let media = isTv ? "tv" : "movie"
+                let query = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                let yearKey = isTv ? "first_air_date_year" : "year"
+                guard !query.isEmpty,
+                      let searchURL = URL(string: "https://api.themoviedb.org/3/search/\(media)?api_key=\(apiKey)&language=\(lang)&query=\(query)"
+                                          + (year.map { "&\(yearKey)=\($0)" } ?? "")) else { return .missing }
+                let searched = await fetch(searchURL)
+                guard let searchBody = searched.data else { return .transient }
+                guard let result = try? JSONDecoder().decode(SearchResponse.self, from: searchBody) else { return .transient }
+                guard let hit = result.results?.first else {
+                    log("no TMDB match for \(imdb)")
+                    return .missing
+                }
+                tmdbId = hit.id
+                tv = isTv
+            }
         }
         let media = tv ? "tv" : "movie"
         guard let url = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)?api_key=\(apiKey)&language=\(lang)"
@@ -195,7 +234,15 @@ final class OrbitMetaStore: ObservableObject {
             english = en.overview.flatMap { $0.isEmpty ? nil : $0 }
         }
         let logos = d.images?.logos ?? []
-        let logo = (logos.first { $0.iso_639_1 == short } ?? logos.first { $0.iso_639_1 == "en" } ?? logos.first)?.file_path
+        var logo = (logos.first { $0.iso_639_1 == short } ?? logos.first { $0.iso_639_1 == "en" } ?? logos.first)?.file_path
+        if logo == nil,
+           let imagesURL = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)/images?api_key=\(apiKey)"),
+           let body = await fetch(imagesURL).data,
+           let all = try? JSONDecoder().decode(ImagesResponse.self, from: body) {
+            // No logo in French or English: any language beats the title in plain text.
+            logo = all.logos?.first?.file_path
+        }
+        if logo == nil { log("no TMDB logo for \(media)/\(tmdbId)") }
         return .found(OrbitMeta(percent: d.vote_average.flatMap { $0 > 0 ? Int(($0 * 10).rounded()) : nil },
                          year: (d.release_date ?? d.first_air_date).map { String($0.prefix(4)) }.flatMap { $0.isEmpty ? nil : $0 },
                          genre: d.genres?.first?.name,
