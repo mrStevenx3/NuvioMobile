@@ -707,7 +707,10 @@ private struct OrbitNetflixTile: View {
         // its title-less art with that logo; else his poster (his N already on it). His Top 10 images
         // carry their numbers: never those.
         let french: String? = meta?.localPoster
-        let composed: String? = french == nil && meta?.logoIsLocal == true ? meta?.textlessPoster : nil
+        // Steven: still English — new Netflix titles often have no title-less poster on TMDB either:
+        // their backdrop (no text), centred, then.
+        let composed: String? = french == nil && meta?.logoIsLocal == true
+            ? (meta?.textlessPoster ?? banner ?? meta?.backdrop) : nil
         let poster: String? = french ?? composed ?? (top10 ? meta?.titledPoster : item.poster)
         // TMDB's art has no N: his N, drawn as his add-on draws it.
         let drawsN = (french != nil || composed != nil || top10) && isNetflixOwn(item, meta)
