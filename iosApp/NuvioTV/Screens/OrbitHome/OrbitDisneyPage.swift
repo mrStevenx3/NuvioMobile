@@ -704,8 +704,10 @@ private struct OrbitDisneyTop10Card: View {
             // As on Disney+ (Steven's video): the card's corner is a teal gradient, and the poster
             // sits inside a large circle whose edge curves across that corner (the arc bulges
             // towards the corner, it is the poster's edge, not a disc over it).
-            LinearGradient(colors: [Color(red: 0.07, green: 0.47, blue: 0.53), Color(red: 0.04, green: 0.14, blue: 0.22)],
-                           startPoint: .topLeading, endPoint: UnitPoint(x: 0.45, y: 0.3))
+            // Measured on the video: the corner spans almost half the card's width on both edges, a
+            // blue-teal brighter in the corner, darker towards the poster.
+            LinearGradient(colors: [Color(red: 0.06, green: 0.42, blue: 0.54), Color(red: 0.04, green: 0.17, blue: 0.30)],
+                           startPoint: .topLeading, endPoint: UnitPoint(x: 0.35, y: 0.3))
             Group {
                 if let poster = meta?.cleanPoster {
                     OrbitImage(url: poster, mode: .fill, size: size)
@@ -715,15 +717,16 @@ private struct OrbitDisneyTop10Card: View {
             }
             .frame(width: size.width, height: size.height)
             .mask {
+                // Through (0.47 w, 0) and (0, 0.47 w), bulging slightly towards the corner.
                 Circle()
-                    .frame(width: size.width * 2.25, height: size.width * 2.25)
-                    .position(x: size.width * 0.9, y: size.width * 0.95)
+                    .frame(width: size.width * 5.23, height: size.width * 5.23)
+                    .position(x: size.width * 2.07, y: size.width * 2.07)
             }
             Text("\(rank)")
-                .font(.system(size: 84, weight: .heavy, design: .rounded))
-                .foregroundStyle(L.turquoise)
-                .padding(.leading, 18)
-                .padding(.top, 6)
+                .font(.system(size: 82, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color(red: 0.15, green: 0.80, blue: 0.92))
+                .padding(.leading, size.width * 0.055)
+                .padding(.top, size.width * 0.02)
             // The bottom: a shade, the logo, the rating and the year.
             VStack(spacing: 10) {
                 Spacer(minLength: 0)
