@@ -28,53 +28,6 @@ enum PlayerChipStyle {
     static let lastSecondExclusion: Double = 1
 }
 
-/// Non-focusable action chip drawn by the mpv screen (the native screen uses contextualActions).
-struct PlayerActionChip: View {
-    let label: String
-    let symbol: String
-    /// Trailing D-pad-down glyph — the mpv screen's trigger hint.
-    var showsPressHint = false
-
-    var body: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            Image(systemName: symbol)
-            Text(label)
-            if showsPressHint {
-                Image(systemName: "chevron.down.circle.fill")
-                    .foregroundStyle(Theme.Palette.textSecondary)
-            }
-        }
-        .font(Theme.Font.sectionTitle)
-        .foregroundStyle(Theme.Palette.textPrimary)
-        .padding(.horizontal, Theme.Spacing.lg + Theme.Spacing.xs)
-        .padding(.vertical, Theme.Spacing.md)
-        // BUG-180 (Steven rc7): solid player surface, not glass + shadow (see PlayerSurfaceStyle).
-        .playerSurface(in: Capsule(), fill: PlayerSurfaceStyle.chipFill)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// Small status/countdown capsule shown above the action chip(s). Never focusable.
-struct PlayerChipCaption: View {
-    let text: String
-    var symbol: String? = nil
-    var showsProgress = false
-
-    var body: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            if showsProgress { ProgressView().scaleEffect(0.6) }
-            if let symbol { Image(systemName: symbol) }
-            Text(text).monospacedDigit().lineLimit(1)
-        }
-        .font(Theme.Font.meta)
-        .foregroundStyle(Theme.Palette.textSecondary)
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.xs)
-        .playerSurface(in: Capsule(), fill: PlayerSurfaceStyle.chipFill)
-        .frame(maxWidth: 620, alignment: .trailing)
-    }
-}
-
 extension NextEpisodeEngine.Phase {
     /// Caption text for the up-next phase (nil = no caption). Shared by both engines.
     func chipCaption(nextTitle: String) -> (text: String, symbol: String?, progress: Bool)? {

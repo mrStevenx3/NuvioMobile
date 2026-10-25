@@ -37,7 +37,7 @@ final class SkipSegmentPlannerTests: XCTestCase {
     func testChipOffersIntroSkipToIntervalEnd() {
         var p = planner([interval(0, 90, "op")])
         let d = tick(&p, 10, at: 0)
-        XCTAssertEqual(d.prompt, SkipPrompt(label: String(localized: "Skip Intro"), targetSec: 90))
+        XCTAssertEqual(d.prompt, SkipPrompt(label: String(localized: "Passer l'intro"), targetSec: 90))
         XCTAssertNil(d.autoSkipTargetSec)
     }
 
@@ -55,13 +55,13 @@ final class SkipSegmentPlannerTests: XCTestCase {
     func testMovieCreditsSkipLandsOnPostCreditsSceneStart() {
         var p = planner([interval(6000, 6300, "movie-credits"), interval(6400, 6500, "post-credits")])
         let d = tick(&p, 6100, at: 0, duration: movieDuration)
-        XCTAssertEqual(d.prompt, SkipPrompt(label: String(localized: "Skip to Post-Credits"), targetSec: 6400))
+        XCTAssertEqual(d.prompt, SkipPrompt(label: String(localized: "Aller à la scène post-générique"), targetSec: 6400))
     }
 
     func testMovieCreditsWithoutSceneOrTailSaysSkipCredits() {
         var p = planner([interval(6000, 6598, "movie-credits")])
         let d = tick(&p, 6100, at: 0, duration: movieDuration)
-        XCTAssertEqual(d.prompt, SkipPrompt(label: String(localized: "Skip Credits"), targetSec: 6598))
+        XCTAssertEqual(d.prompt, SkipPrompt(label: String(localized: "Passer le générique"), targetSec: 6598))
     }
 
     func testTargetIsClampedShortOfKnownDuration() {
@@ -72,9 +72,9 @@ final class SkipSegmentPlannerTests: XCTestCase {
 
     func testOutroWithTailButNoExplicitPostCreditsSaysSkipOutro() {
         // Fork rule: the shared heuristic flags skipsToPostCredits for any >5 s tail (here 60 s of
-        // next-episode preview); without an explicit post-credits interval the label stays "Skip Outro".
+        // next-episode preview); without an explicit post-credits interval the label stays "Passer le générique".
         var p = planner([interval(1380, 1440, "ed")])
-        XCTAssertEqual(tick(&p, 1400, at: 0).prompt, SkipPrompt(label: String(localized: "Skip Outro"), targetSec: 1440))
+        XCTAssertEqual(tick(&p, 1400, at: 0).prompt, SkipPrompt(label: String(localized: "Passer le générique"), targetSec: 1440))
     }
 
     func testMalformedPostCreditsEntryDoesNotEarnPostCreditsLabel() {
@@ -82,15 +82,15 @@ final class SkipSegmentPlannerTests: XCTestCase {
         // (end <= start) or starts past the duration: the normal label is used.
         for bad in [interval(1450, 1450, "post-credits"), interval(1600, 1650, "post-credits")] {
             var p = planner([interval(1380, 1440, "ed"), bad])
-            XCTAssertEqual(tick(&p, 1400, at: 0).prompt?.label, String(localized: "Skip Outro"))
+            XCTAssertEqual(tick(&p, 1400, at: 0).prompt?.label, String(localized: "Passer le générique"))
         }
     }
 
     func testLabels() {
-        XCTAssertEqual(SkipSegmentPlanner.label(for: "mixed-ed", skipsToPostCredits: false), String(localized: "Skip Outro"))
-        XCTAssertEqual(SkipSegmentPlanner.label(for: "recap", skipsToPostCredits: false), String(localized: "Skip Recap"))
-        XCTAssertEqual(SkipSegmentPlanner.label(for: "ed", skipsToPostCredits: true), String(localized: "Skip to Post-Credits"))
-        XCTAssertEqual(SkipSegmentPlanner.label(for: "unknown", skipsToPostCredits: false), String(localized: "Skip Intro"))
+        XCTAssertEqual(SkipSegmentPlanner.label(for: "mixed-ed", skipsToPostCredits: false), String(localized: "Passer le générique"))
+        XCTAssertEqual(SkipSegmentPlanner.label(for: "recap", skipsToPostCredits: false), String(localized: "Passer le récap"))
+        XCTAssertEqual(SkipSegmentPlanner.label(for: "ed", skipsToPostCredits: true), String(localized: "Aller à la scène post-générique"))
+        XCTAssertEqual(SkipSegmentPlanner.label(for: "unknown", skipsToPostCredits: false), String(localized: "Passer l'intro"))
     }
 
     // MARK: - Auto-skip
@@ -237,7 +237,7 @@ final class SkipSegmentPlannerTests: XCTestCase {
             let now = Double(k) * 0.5
             lastPrompt = tick(&chip, now, at: now).prompt
         }
-        XCTAssertEqual(lastPrompt?.label, String(localized: "Skip Intro"))
+        XCTAssertEqual(lastPrompt?.label, String(localized: "Passer l'intro"))
     }
 
     /// 4

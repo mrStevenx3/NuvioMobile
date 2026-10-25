@@ -305,14 +305,13 @@ struct SkipSegmentPlanner {
     /// Chip label (upstream `SkipIntroButton.skipLabel`). Unknown types keep tvOS's old "Skip Intro".
     static func label(for type: String, skipsToPostCredits: Bool) -> String {
         switch type.trimmingCharacters(in: .whitespaces).lowercased() {
-        case "outro", "ed", "mixed-ed", "ending", "credits":
-            return skipsToPostCredits ? String(localized: "Skip to Post-Credits") : String(localized: "Skip Outro")
-        case "movie-credits":
-            return skipsToPostCredits ? String(localized: "Skip to Post-Credits") : String(localized: "Skip Credits")
+        // Steven's fork (Orbit player): French labels.
+        case "outro", "ed", "mixed-ed", "ending", "credits", "movie-credits":
+            return skipsToPostCredits ? String(localized: "Aller à la scène post-générique") : String(localized: "Passer le générique")
         case "recap":
-            return String(localized: "Skip Recap")
+            return String(localized: "Passer le récap")
         default:
-            return String(localized: "Skip Intro")
+            return String(localized: "Passer l'intro")
         }
     }
 

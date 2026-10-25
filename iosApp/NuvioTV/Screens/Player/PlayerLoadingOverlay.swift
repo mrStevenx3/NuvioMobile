@@ -267,66 +267,6 @@ struct PlayerLoadingSpinner: View {
     }
 }
 
-/// mpv's startup stages (spec §8.1). Main thread, pure, so `PlayerLoadingStageTests` drives it.
-///
-/// `.connecting` until `MPV_EVENT_FILE_LOADED`, then `.buffering(percent:)` until the first
-/// `MPV_EVENT_PLAYBACK_RESTART` that completes the resume seek — or any restart after FILE_LOADED
-/// when no resume seek was issued. A restart before the resume seek (mpv's own start of playback)
-/// does not count. Backstop: the position advancing by more than 1 s while not paused. Once
-/// `.started`, it never moves back: a mid-play rebuffer is the small spinner's job, not this one.
-struct MPVStartupStageReducer: Equatable {
-    private(set) var stage: PlayerLoadingStage = .connecting
-    private var fileLoaded = false
-    /// The resume seek's generation (nil = no resume seek this file).
-    private var resumeGeneration: Int?
-    /// First position seen once loaded and playing (the backstop's baseline).
-    private var baselineSec: Double?
-
-    var started: Bool { stage.isStarted }
-
-    /// FILE_LOADED, with the generation of the resume seek it just issued (nil = none).
-    @discardableResult
-    mutating func fileLoaded(resumeGeneration: Int?) -> Bool {
-        guard !started, !fileLoaded else { return false }
-        fileLoaded = true
-        self.resumeGeneration = resumeGeneration
-        return set(.buffering(percent: nil))
-    }
-
-    /// A PLAYBACK_RESTART. `completesSeek` is the app seek generation it confirms (nil when it is
-    /// not the completion of one of our seeks).
-    @discardableResult
-    mutating func playbackRestart(completesSeek: Int?) -> Bool {
-        guard fileLoaded, !started else { return false }
-        if let resumeGeneration {
-            guard let completesSeek, completesSeek >= resumeGeneration else { return false }
-        }
-        return set(.started)
-    }
-
-    /// `cache-buffering-state` (0–100) while buffering before start.
-    @discardableResult
-    mutating func bufferingPercent(_ percent: Int?) -> Bool {
-        guard fileLoaded, !started else { return false }
-        return set(.buffering(percent: percent.map { min(max($0, 0), 100) }))
-    }
-
-    /// The UI tick: the position-advance backstop.
-    @discardableResult
-    mutating func tick(positionSec: Double, paused: Bool) -> Bool {
-        guard fileLoaded, !started, positionSec.isFinite else { return false }
-        if paused { baselineSec = nil; return false }
-        guard let base = baselineSec else { baselineSec = positionSec; return false }
-        return positionSec - base > 1 ? set(.started) : false
-    }
-
-    private mutating func set(_ next: PlayerLoadingStage) -> Bool {
-        guard next != stage else { return false }
-        stage = next
-        return true
-    }
-}
-
 #if DEBUG
 /// The DEBUG oracle for the B24 legs (critique C9): each screen appends every stage it shows, so
 /// `checking>connecting>…>started` survives stages too short for XCUITest polling. Keyed on the
@@ -360,17 +300,4 @@ final class PlayerLoadingHistory: ObservableObject {
     }
 }
 
-struct PlayerLoadingHistoryLabel: View {
-    @ObservedObject private var history = PlayerLoadingHistory.shared
-
-    var body: some View {
-        // `<stage>>…>started overlay=<first drawn stage | none>`
-        Text(verbatim: (history.text.isEmpty ? "none" : history.text) + " overlay=" + (history.overlayDrawnAt ?? "none"))
-            .font(.system(size: 8))
-            .opacity(0.011)
-            .accessibilityIdentifier("debug_loadingHistory")
-            .allowsHitTesting(false)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-    }
-}
 #endif

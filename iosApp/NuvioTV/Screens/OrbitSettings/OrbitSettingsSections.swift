@@ -97,6 +97,7 @@ struct OrbitPlaybackSection: View {
     @AppStorage(OrbitHomeSetting.trailersKey) private var previews = true
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
     @AppStorage(TrailerStartDelay.storageKey) private var previewDelay = TrailerStartDelay.automatic.rawValue
+    @AppStorage(OrbitPlayerSettings.objectAudioKey) private var objectAudio = true
 
     var body: some View {
         OrbitSettingsGroup(title: String(localized: "En regardant")) {
@@ -145,44 +146,13 @@ struct OrbitPlaybackSection: View {
                                 isOn: $hideSpoilers)
         }
 
-        OrbitSettingsGroup(title: String(localized: "Télécommande")) {
-            OrbitSettingsChoice(title: String(localized: "Gauche / droite maintenu"),
-                                selection: Binding(get: { model.holdMode }, set: { model.setHoldMode($0) }),
-                                options: ["step", "scan"],
-                                label: { $0 == "scan" ? String(localized: "Défilement continu") : String(localized: "Par sauts") })
-            OrbitSettingsChoice(title: String(localized: "Clic gauche / droite"),
-                                selection: Binding(get: { model.edgeClickMode }, set: { model.setEdgeClickMode($0) }),
-                                options: ["skip10", "chapter"],
-                                label: { $0 == "chapter" ? String(localized: "Chapitre précédent / suivant") : String(localized: "10 secondes") })
-        }
-
-        OrbitSettingsGroup(title: String(localized: "Image")) {
+        OrbitSettingsGroup(title: String(localized: "Image et son")) {
             OrbitSettingsToggle(title: String(localized: "Adapter la fréquence d'images"),
                                 subtitle: String(localized: "L'Apple TV passe à la fréquence et à la plage dynamique de la vidéo. Active aussi « Adapter le contenu » dans Réglages › Vidéo et audio de l'Apple TV."),
                                 isOn: Binding(get: { model.matchFrameRate }, set: { model.setMatchFrameRate($0) }))
-            OrbitSettingsToggle(title: String(localized: "Lecteur natif (Dolby Vision et HDR)"),
-                                subtitle: String(localized: "Lit le Dolby Vision et le HDR10 avec le lecteur d'Apple, pour un vrai Dolby Vision sur Apple TV 4K."),
-                                isOn: Binding(get: { model.nativeDolbyVision }, set: { model.setNativeDolbyVision($0) }))
-            if model.nativeDolbyVision {
-                OrbitSettingsToggle(title: String(localized: "Garder le profil 7 FEL sur mpv"),
-                                    subtitle: String(localized: "Les fichiers profil 7 FEL restent sur mpv (lus en HDR10, rien de perdu) au lieu d'être convertis en Dolby Vision 8.1."),
-                                    isOn: Binding(get: { model.dvP7FelMpv }, set: { model.setDvP7FelMpv($0) }))
-            }
-            OrbitSettingsToggle(title: String(localized: "Rendu vidéo amélioré"),
-                                subtitle: String(localized: "Meilleur rendu HDR sur le lecteur mpv (expérimental). S'applique à la vidéo suivante."),
-                                isOn: Binding(get: { model.enhancedRenderer }, set: { model.setEnhancedRenderer($0) }))
-        }
-
-        OrbitSettingsGroup(title: String(localized: "Mémoire tampon"),
-                           note: String(localized: "S'applique à la lecture suivante. Plus de mémoire lisse une connexion instable.")) {
-            OrbitSettingsChoice(title: String(localized: "Mémoire de lecture"),
-                                selection: Binding(get: { model.bufferMB }, set: { model.setBufferMB($0) }),
-                                options: [0, 64, 150, 512],
-                                label: { $0 == 0 ? String(localized: "Automatique") : "\($0) Mo" })
-            OrbitSettingsChoice(title: String(localized: "Avance du chargement"),
-                                selection: Binding(get: { model.readaheadSec }, set: { model.setReadaheadSec($0) }),
-                                options: [0, 30, 60, 120],
-                                label: { $0 == 0 ? String(localized: "Automatique") : "\($0) s" })
+            OrbitSettingsToggle(title: String(localized: "Atmos des remux Blu-ray"),
+                                subtitle: String(localized: "Garde les effets de hauteur du TrueHD Atmos et du DTS:X (convertis en audio spatial Apple). Désactivé : son multicanal 7.1 sans perte."),
+                                isOn: $objectAudio)
         }
 
         OrbitDefaultPlayerGroup()

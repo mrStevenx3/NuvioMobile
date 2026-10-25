@@ -98,8 +98,6 @@ struct PlaybackContext: Identifiable {
     /// can be dropped (`DirectDebridPlaybackResolver.invalidate` is keyed on the listed stream).
     /// nil on launch paths without a stream.
     var listedStream: StreamItem? = nil
-    /// Failure-alert retry ("Try with mpv" / "Try Native Player"): pins the engine for this attempt.
-    var forcedEngine: PlaybackEngine? = nil
     /// Failure-alert retry: both engines resume from here instead of the saved progress (> 10 s).
     var resumeAtSec: Double? = nil
     /// Batch D U2: `url` was resolved on this device from an add-on `ytId`-only stream and expires
@@ -151,10 +149,6 @@ struct PlaybackFailure: Equatable {
     /// Seconds actually played (native seconds before a fallback included).
     let secondsPlayed: Double
     let startedPlaying: Bool
-    /// Which engine reported it (set by `PlayerScreen`).
-    var engine: PlaybackEngine = .mpv
-    /// The other engine could take this stream: the failure alert offers it as a retry.
-    var otherEngineEligible = false
     /// What kind of failure the producer saw (P4, BUG-143). Only kinds whose `remembersLink` is
     /// true may put the link into the rejected-link memory; producers set it.
     var kind: PlaybackFailureKind = .unknown
@@ -428,35 +422,9 @@ struct SubtitleFile {
     let name: String?
 }
 
-/// One selectable audio or subtitle track.
-struct PlayerTrack: Identifiable, Equatable {
-    let id: Int          // mpv track id; -1 means "off" (subtitles)
-    let label: String
-    let isSelected: Bool
-}
-
 /// The currently-offered skip action (shown while playback is inside a `SkipSegment`).
 struct SkipPrompt: Equatable {
     let label: String      // e.g. "Skip Intro"
     let targetSec: Double   // absolute seek target (segment end)
 }
 
-/// Live stream diagnostics read from libmpv properties (shown by the Stream Info overlay).
-struct StreamInfoSnapshot: Equatable {
-    /// Router decision label ("Native · DV P8.1" / "mpv · audio truehd"). Diagnostic only in Phase 1.
-    var engine = ""
-    var videoCodec = ""
-    var resolution = ""
-    var fps = ""
-    var hwdec = ""
-    var videoBitrate = ""
-    var audio = ""
-    var cache = ""
-
-    var rows: [(String, String)] {
-        [(String(localized: "Engine"), engine), (String(localized: "Video"), videoCodec),
-         (String(localized: "Resolution"), resolution), (String(localized: "Frame rate"), fps),
-         (String(localized: "Hardware decode"), hwdec), (String(localized: "Video bitrate"), videoBitrate),
-         (String(localized: "Audio"), audio), (String(localized: "Cache"), cache)].filter { !$0.1.isEmpty }
-    }
-}

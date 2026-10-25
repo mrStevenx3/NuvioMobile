@@ -26,11 +26,6 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>infuse</string>
-		<string>vlc-x-callback</string>
-		<string>outplayer</string>
-		<string>open-vidhub</string>
-		<string>vidhub</string>
-		<string>senplayer</string>
 		<string>nativeplayer</string>
 	</array>
 	<!-- Steven's fork: the name under the icon. -->

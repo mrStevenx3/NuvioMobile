@@ -78,7 +78,6 @@ struct NuvioTVApp: App {
         // docs/tvos-native-player-info-panel-plan.md). Registered — not written — so a user's explicit
         // OFF survives, and every `bool(forKey:)` reader (PlayerScreen routing, SettingsViewModel)
         // sees the same default without its own fallback logic.
-        UserDefaults.standard.register(defaults: [PlayerTuning.nativeDVKey: true])
 
         // beta.19-rc1 verdict (F, FEAT-54): the BUG-118 Developer A/B `debug.rowEdgeFade` became the
         // Appearance setting `row_edge_fade` (Off by default). An explicit old Soft, Automatic or Off
@@ -118,7 +117,6 @@ struct NuvioTVApp: App {
         // playback stop, so anything under Caches/nuvio-remux at launch is a leak — and a single
         // remux-bitrate session can be several GB). Async on a utility queue; live sessions are
         // shielded via a registry.
-        RemuxCacheJanitor.sweepAtLaunch()
 
 
         // BUG-59 (reveal gate): `debug.resetTrailerZoomStore` wipes the persisted per-title zoom

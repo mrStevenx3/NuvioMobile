@@ -219,26 +219,6 @@ final class NextEpisodeEngine: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// Wires the mpv player state's up-next hooks and resolves the next aired episode (if any).
-    func start(state: MPVPlaybackState) {
-        prime()
-        state.upNextPlayNow = { [weak self] in self?.playNow() ?? false }
-        state.upNextCancel = { [weak self] in self?.cancel() }
-        state.upNextDismiss = { [weak self] in self?.dismissIfVisible() ?? false }
-        state.upNextVisible = { [weak self] in self.map { $0.phase != .hidden } ?? false }
-        // FEAT-49 layer 2: the in-player source list (mpv only) shares `episodeStreamsState` and
-        // clears it, which throws away a preload. When the panel closes, release the list's
-        // watcher so the preload guard opens again, and re-issue a preload the list clobbered.
-        panelWatch = state.$panelOpen
-            .dropFirst()
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] open in
-                guard !open else { return }
-                self?.sourceListClosed()
-            }
-    }
-
     /// Only with the preload toggle on: with it off nothing waits on `sourcesWatcher`, and the
     /// list keeps today's behaviour (its watcher lives until the next `loadSources`/search).
     private func sourceListClosed() {

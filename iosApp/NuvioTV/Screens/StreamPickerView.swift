@@ -318,18 +318,6 @@ struct StreamPickerView: View {
                 ),
                 presenting: manualFailureAlert
             ) { alert in
-                if let retry = alert.retry, let engine = alert.retryEngine {
-                    Button(engine == .mpv ? LocalizedStringKey("Try with mpv") : LocalizedStringKey("Try Native Player")) {
-                        manualFailureAlert = nil
-                        // The link is being retried on the other engine: it is not dead yet (a retry
-                        // that works but closes before 300 s must not leave it flagged for 8 h).
-                        RejectedStreamLinks.keep(retry.streamKey, title: retry.videoId)
-                        rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            selected = retry
-                        }
-                    }
-                }
                 if let next = alert.next {
                     Button("Try Next Source") {
                         manualFailureAlert = nil
@@ -1174,24 +1162,10 @@ struct StreamPickerView: View {
             pendingFailoverTarget = FailoverTarget(context: ctx, forceManual: forceManual)
             selected = nil
         case .manualAlert:
-            var retryContext: PlaybackContext?
-            var retryEngine: PlaybackEngine?
-            if failure.otherEngineEligible {
-                let engine: PlaybackEngine = failure.engine == .mpv ? .native : .mpv
-                var retry = ctx
-                retry.forcedEngine = engine
-                retry.resumeAtSec = failure.positionSec
-                retry.attempt = ctx.attempt + 1
-                retry.launchSource = .manual
-                retryContext = retry
-                retryEngine = engine
-            }
             pendingManualFailureAlert = ManualFailureAlert(
                 reason: failure.reason,
                 next: nextManualStream(after: ctx),
-                attempt: ctx.attempt + 1,
-                retry: retryContext,
-                retryEngine: retryEngine
+                attempt: ctx.attempt + 1
             )
             selected = nil
         }
@@ -1370,10 +1344,6 @@ struct StreamPickerView: View {
         let next: StreamItem?
         /// `PlaybackContext.attempt` for the next try.
         let attempt: Int
-        /// The same stream on the other engine ("Try with mpv" / "Try Native Player"); nil when
-        /// the other engine cannot take it.
-        let retry: PlaybackContext?
-        let retryEngine: PlaybackEngine?
     }
 }
 
@@ -1403,14 +1373,14 @@ private struct ExternalPlayMenu: ViewModifier {
                     Button {
                         onBuiltIn()
                     } label: {
-                        Label("Play in NuvioTV Player", systemImage: "play.tv")
+                        Label("Lire dans Orbit", systemImage: "play.tv")
                     }
                 }
                 ForEach(players.filter { $0.id != defaultPlayerId }, id: \.id) { player in
                     Button {
                         onExternal(player)
                     } label: {
-                        Label("Open in \(player.name)", systemImage: "arrow.up.forward.app")
+                        Label("Ouvrir dans \(player.name)", systemImage: "arrow.up.forward.app")
                     }
                 }
             }
