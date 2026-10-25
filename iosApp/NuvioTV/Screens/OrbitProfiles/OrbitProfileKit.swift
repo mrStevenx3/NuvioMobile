@@ -22,7 +22,9 @@ struct OrbitAvatar: View {
             Circle().fill(OrbitProfileColor.of(profile))
             if let url = imageUrl {
                 CachedAsyncImage(string: url, decodeSize: .points(width: size * 1.2, height: size * 1.2),
-                                 loading: { initialView }, failure: { initialView })
+                                 // Steven: at launch the initial flashed before his avatar: while
+                                 // the image loads, the plain colour only.
+                                 loading: { Color.clear }, failure: { initialView })
                     .clipShape(Circle())
             } else {
                 initialView

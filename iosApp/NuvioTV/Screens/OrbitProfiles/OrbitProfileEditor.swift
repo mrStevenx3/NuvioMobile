@@ -25,7 +25,9 @@ struct OrbitProfileEditor: View {
         _name = State(initialValue: target.profile?.name ?? "")
         _colorHex = State(initialValue: target.profile?.avatarColorHex ?? OrbitProfileColor.palette[1])
         _avatarId = State(initialValue: target.profile?.avatarId)
-        _avatarUrl = State(initialValue: target.profile?.avatarId == nil ? OrbitAvatarCatalog.current(target.profile?.avatarUrl) : nil)
+        // A new profile starts on Orbit's own avatar (the initial is no longer offered).
+        let saved = target.profile == nil ? OrbitAvatarCatalog.all.first?.url : target.profile?.avatarUrl
+        _avatarUrl = State(initialValue: target.profile?.avatarId == nil ? OrbitAvatarCatalog.current(saved) : nil)
     }
 
     private var catalogItem: AvatarCatalogItem? {
@@ -96,19 +98,7 @@ struct OrbitProfileEditor: View {
             section(String(localized: "Avatar")) {
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(118), spacing: 26), count: 7),
                           alignment: .leading, spacing: 26) {
-                    // A plain colour (no avatar).
-                    Button { avatarId = nil; avatarUrl = nil } label: {
-                        ZStack {
-                            Circle().fill(color)
-                            Text(OrbitProfileColor.initial(name))
-                                .font(.system(size: 46, weight: .bold))
-                                .foregroundStyle(Color.white)
-                        }
-                        .frame(width: 112, height: 112)
-                    }
-                    .buttonStyle(OrbitSwatchStyle(selected: avatarId == nil && avatarUrl == nil))
-                    .accessibilityLabel(String(localized: "Couleur unie"))
-
+                    // (Steven: no more plain-colour initial among the avatars.)
                     // Steven (2026-10-24): Orbit's avatars only (Nuvio's are no longer offered; a
                     // profile that has one keeps it until another is picked).
                     ForEach(OrbitAvatarCatalog.all) { avatar in
