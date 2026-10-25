@@ -19,7 +19,8 @@ import SwiftUI
 // delayed the focus; given up for this page.)
 
 enum OrbitLibraryLayout {
-    static let columns = 7
+    /// Steven (2026-10-25): larger posters (seven looked lost on the page).
+    static let columns = 6
     static let gap: CGFloat = 28
     static let lineGap: CGFloat = 40
     static var tileWidth: CGFloat {
@@ -59,6 +60,11 @@ struct OrbitLibraryPage<Cloud: View>: View {
 
         ZStack(alignment: .topLeading) {
             L.background.ignoresSafeArea()
+            // The focused title's art behind the page (Orbit's look, as on Home).
+            if showsGrid, entries.indices.contains(index) {
+                OrbitFocusBackdrop(item: entries[index].item.toMetaPreview())
+                    .ignoresSafeArea()
+            }
 
             if showsGrid {
                 ZStack(alignment: .topLeading) {
@@ -331,6 +337,7 @@ private struct OrbitLibrarySkeleton: View {
 private struct OrbitLibraryTile: View {
     let entry: LibraryGridEntry
     let focused: Bool
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     var body: some View {
         let D = OrbitLibraryLayout.self
@@ -348,6 +355,12 @@ private struct OrbitLibraryTile: View {
             }
             PosterWatchBadgeView(badge: PosterWatchBadge(isWatched: entry.state.isWatched,
                                                          progress: entry.state.progress))
+            // Where it can be watched, as on Home.
+            if let kind = OrbitPlatformBadgeKind.of(metaStore.meta(for: entry.item.toMetaPreview())) {
+                OrbitPlatformBadge(kind: kind, size: 15)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 14)
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
@@ -358,6 +371,7 @@ private struct OrbitLibraryTile: View {
         .scaleEffect(focused ? 1.08 : 1)
         .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: 18, y: 10)
         .animation(.easeOut(duration: 0.14), value: focused)
+        .onAppear { metaStore.request([entry.item.toMetaPreview()]) }
     }
 }
 

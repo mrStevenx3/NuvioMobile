@@ -50,6 +50,11 @@ struct OrbitDiscoverPage: View {
 
         ZStack(alignment: .topLeading) {
             L.background.ignoresSafeArea()
+            // The selected title's art behind the page (Orbit's look, as on Home).
+            if items.indices.contains(index) {
+                OrbitFocusBackdrop(item: items[index])
+                    .ignoresSafeArea()
+            }
 
             // The grid: every line at its own place, all moving on the selection's curve.
             ZStack(alignment: .topLeading) {
@@ -290,6 +295,12 @@ struct OrbitDiscoverTile: View {
                            fallbackLogo: info.logoFallback)
                 .padding(.leading, 12)
                 .padding(.bottom, 10)
+            // Where it can be watched, as on Home.
+            if let kind = OrbitPlatformBadgeKind.of(metaStore.meta(for: item)) {
+                OrbitPlatformBadge(kind: kind, size: 14)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(10)
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

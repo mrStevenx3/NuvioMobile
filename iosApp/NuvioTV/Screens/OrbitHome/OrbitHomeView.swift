@@ -590,6 +590,20 @@ struct OrbitRowsBackdrop: View {
     }
 }
 
+/// Steven (2026-10-25, Search / Library / Discover in Orbit's language): the focused title's art
+/// faded in top right behind a page, as on Home (its add-on art, else TMDB's backdrop).
+struct OrbitFocusBackdrop: View {
+    let item: MetaPreview?
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
+
+    var body: some View {
+        let banner: String? = item?.banner
+        let url = (banner?.isEmpty == false ? banner : nil) ?? item.flatMap { metaStore.meta(for: $0)?.backdrop }
+        OrbitRowsBackdrop(url: url, opaque: false)
+            .task(id: item?.id ?? "-") { if let item { metaStore.request([item]) } }
+    }
+}
+
 /// Orbit Home's last built rows and what they were built from (a reference: updating it never
 /// re-renders the page).
 final class OrbitRowsCache {

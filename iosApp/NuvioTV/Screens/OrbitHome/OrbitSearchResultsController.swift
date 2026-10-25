@@ -74,6 +74,8 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     private var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
     private var titles: [String: MetaPreview] = [:]
     private var cancellables = Set<AnyCancellable>()
+    /// Steven (2026-10-25): the focused result's art behind the results, as on Home.
+    private let spotlight = OrbitSearchSpotlight()
 
     static let columns = 7
     static let landscapeColumns = 4
@@ -98,6 +100,14 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        let backdrop = UIHostingController(rootView: OrbitSearchBackdrop(spotlight: spotlight))
+        backdrop.view.backgroundColor = .clear
+        backdrop.view.frame = view.bounds
+        backdrop.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        backdrop.view.isUserInteractionEnabled = false
+        addChild(backdrop)
+        view.addSubview(backdrop.view)
+        backdrop.didMove(toParent: self)
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: Self.layout(landscape: landscape))
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.backgroundColor = .clear
@@ -187,6 +197,7 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
 
     private func apply() {
         let shot = feed.read()
+        if shot.queryIsEmpty, spotlight.item != nil { spotlight.item = nil }
         let found = shot.titles.filter { posterReady($0) }
         titles = Dictionary(found.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let entries = shot.chips
@@ -243,6 +254,13 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
             }
             return UIMenu(children: actions)
         }
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
+                        with coordinator: UIFocusAnimationCoordinator) {
+        guard let path = context.nextFocusedIndexPath, case .title(let id)? = dataSource.itemIdentifier(for: path),
+              let item = titles[id] else { return }
+        if spotlight.item?.id != item.id { spotlight.item = item }
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -350,5 +368,21 @@ private struct OrbitSearchPoster: View {
             .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: 16, y: 10)
             .animation(.easeOut(duration: 0.18), value: focused)
         }
+    }
+}
+
+/// The focused result (the backdrop follows it; it stays when the focus goes back to the keyboard).
+@MainActor
+final class OrbitSearchSpotlight: ObservableObject {
+    @Published var item: MetaPreview?
+}
+
+private struct OrbitSearchBackdrop: View {
+    @ObservedObject var spotlight: OrbitSearchSpotlight
+
+    var body: some View {
+        OrbitFocusBackdrop(item: spotlight.item)
+            .animation(.easeInOut(duration: 0.35), value: spotlight.item?.id)
+            .ignoresSafeArea()
     }
 }
