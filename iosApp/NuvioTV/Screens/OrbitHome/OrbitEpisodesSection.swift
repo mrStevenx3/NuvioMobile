@@ -298,21 +298,29 @@ enum OrbitEpisodeFormat {
         return parts.joined(separator: " · ")
     }
 
+    // Made once (fluidity: they were created again for every episode card drawn).
+    private static let isoDay: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+    private static let mediumDay: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+
     static func releaseDate(_ raw: String?) -> Date? {
         guard let raw, raw.count >= 10 else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: String(raw.prefix(10)))
+        return isoDay.date(from: String(raw.prefix(10)))
     }
 
     /// "6 oct. 2004" in the viewer's language.
     static func date(_ raw: String?) -> String? {
         guard let date = releaseDate(raw) else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        return mediumDay.string(from: date)
     }
 
     /// Out already (no date counts as out).
