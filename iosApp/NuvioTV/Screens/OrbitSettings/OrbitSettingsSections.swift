@@ -119,8 +119,8 @@ struct OrbitPlaybackSection: View {
         }
 
         OrbitSettingsGroup(title: String(localized: "Accueil")) {
-            OrbitSettingsToggle(title: String(localized: "Accueil fluide"),
-                                subtitle: String(localized: "Des rangées comme dans l'app Apple TV, déplacées par le système. Désactivé : l'accueil d'avant."),
+            OrbitSettingsToggle(title: String(localized: "Nouvel accueil"),
+                                subtitle: String(localized: "Activé : le nouvel accueil, fluide comme l'app Apple TV. Désactivé : l'ancien accueil."),
                                 isOn: $nativeHome)
         }
 
