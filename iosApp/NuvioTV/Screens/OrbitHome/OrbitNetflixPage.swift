@@ -333,12 +333,13 @@ struct OrbitNetflixPage: View {
     private func rowsLayer(_ rows: [OrbitNetflixRow]) -> some View {
         let tops = rowTops(rows)
         let currentRow = current - 1
-        let low = max(0, currentRow)
+        // Steven (device: Down went through an empty screen): the row above stays mounted and
+        // fades out fast as it leaves (it no longer overlaps the new one), back in coming up.
+        let low = max(0, currentRow - 1)
         let high = min(rows.count - 1, max(currentRow, 0) + 2)
         ZStack(alignment: .topLeading) {
             if low <= high {
-                ForEach(low...high, id: \.self) { i in
-                    let row = rows[i]
+                ForEach(Array(zip(low...high, rows[low...high])), id: \.1.id) { i, row in
                     let lead = lead(of: row)
                     let item: MetaPreview? = row.items.indices.contains(lead) ? row.items[lead] : nil
                     OrbitNetflixRowView(row: row, lead: lead, isCurrent: i == currentRow,
@@ -350,13 +351,14 @@ struct OrbitNetflixPage: View {
                                         onTrailerEnded: { trailer.playbackFinished() },
                                         metaStore: metaStore)
                         .offset(y: tops[i])
-                        // Steven's video: the row leaving upwards overlapped the new one while the
-                        // page moved. It goes at once, the others keep their place.
+                        .opacity(i < currentRow ? 0 : 1)
+                        .animation(.easeOut(duration: 0.14), value: i < currentRow)
                         .id(row.id)
                         .transition(.identity)
                 }
             }
         }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {

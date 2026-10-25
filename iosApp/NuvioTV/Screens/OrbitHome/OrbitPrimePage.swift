@@ -399,12 +399,13 @@ struct OrbitPrimePage: View {
     private func rowsLayer(_ rows: [OrbitPrimeRow]) -> some View {
         let tops = rowTops(rows)
         let currentRow = rowIndex(of: current) ?? -1
-        let low = max(0, currentRow)
+        // Steven (device: Up / Down went through an empty screen on the platforms): the row above
+        // stays mounted and fades out fast as it leaves, back in coming up.
+        let low = max(0, currentRow - 1)
         let high = min(rows.count - 1, max(currentRow, 0) + 3)
         ZStack(alignment: .topLeading) {
             if low <= high {
-                ForEach(low...high, id: \.self) { i in
-                    let row = rows[i]
+                ForEach(Array(zip(low...high, rows[low...high])), id: \.1.id) { i, row in
                     let rowLead = lead(of: row)
                     let leadItem: MetaPreview? = row.items.indices.contains(rowLead) ? row.items[rowLead] : nil
                     OrbitPrimeRowView(row: row, lead: rowLead, isCurrent: i == currentRow,
@@ -416,11 +417,14 @@ struct OrbitPrimePage: View {
                                                          uniquingKeysWith: { a, _ in a }),
                                       metaStore: metaStore)
                         .offset(y: tops[i])
+                        .opacity(i < currentRow ? 0 : 1)
+                        .animation(.easeOut(duration: 0.14), value: i < currentRow)
                         .id(row.id)
                         .transition(.identity)
                 }
             }
         }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {

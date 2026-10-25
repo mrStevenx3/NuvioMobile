@@ -376,6 +376,7 @@ struct OrbitParamountPage: View {
                                           metaStore: metaStore)
                         .offset(y: tops[i])
                         .opacity(i < currentRow ? 0 : 1)
+                        .animation(.easeOut(duration: 0.14), value: i < currentRow)
                         .id(row.id)
                         .transition(.identity)
                 }
