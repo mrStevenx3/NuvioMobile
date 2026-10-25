@@ -59,7 +59,7 @@ struct OrbitDiscoverPage: View {
         let lines = items.isEmpty ? 0 : (items.count + D.columns - 1) / D.columns
         let window = max(0, line - 2)...max(max(0, line - 2), min(lines - 1, line + 5))
 
-        ZStack(alignment: .topLeading) {
+        return ZStack(alignment: .topLeading) {
             L.background.ignoresSafeArea()
             // The selected title's art behind the page (Orbit's look, as on Home).
             if items.indices.contains(index) {
