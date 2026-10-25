@@ -637,6 +637,8 @@ struct CollectionFilterBar: View {
     /// The pill's width, for the logo to make room for it.
     var onWidth: (CGFloat) -> Void = { _ in }
     let onSearch: () -> Void
+    /// Films / Séries (Disney+ mixes them: none there).
+    var showsTypes = true
     /// Steven (Disney+, 2026-10-25): a second pill at the screen's centre ("Disney+ · Hulu").
     var switchItems: [String] = []
     var switchSelection: Binding<Int>? = nil
@@ -701,7 +703,7 @@ struct CollectionFilterBar: View {
 
     private var leftPill: some View {
         HStack(spacing: 4) {
-            ForEach([OrbitBarItem.home, .search, .films, .series], id: \.self) { item in
+            ForEach(showsTypes ? [OrbitBarItem.home, .search, .films, .series] : [.home, .search], id: \.self) { item in
                 Button { select(item) } label: {
                     OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
                 }
@@ -724,6 +726,12 @@ struct CollectionFilterBar: View {
         .onAppear {
             guard !placedEntryFocus else { return }
             placedEntryFocus = true
+            guard showsTypes else {
+                // No Films / Séries: the entry lands on the centre pill's selected item.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { searchReady = true }
+                OrbitBarLaunchFocus.place { switchFocused = switchSelection?.wrappedValue ?? 0 }
+                return
+            }
             focused = isSelected(.series) && !isSelected(.films) ? .series : .films
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { searchReady = true }
             OrbitBarLaunchFocus.place {

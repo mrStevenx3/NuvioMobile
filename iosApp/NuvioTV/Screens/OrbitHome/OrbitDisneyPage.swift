@@ -86,7 +86,6 @@ struct OrbitDisneyPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
 
-    @State private var typeFilter: String? = "movie"
     /// 0: Disney+, 1: Hulu.
     @State private var mode = 0
     /// 0: the hero; then the rows.
@@ -107,28 +106,30 @@ struct OrbitDisneyPage: View {
 
     // MARK: Data
 
-    private var series: Bool { typeFilter == "series" }
     private var isHulu: Bool { mode == 1 }
 
     private var rows: [OrbitDisneyRow] {
         isHulu ? huluRows : disneyRows
     }
 
-    /// His catalogs (Top 10 first, then Nouveautés), then the franchises and genres (TMDB).
+    /// Steven (option A, as on Disney+): films and series together, no Films / Séries switch. His
+    /// Top 10 rows first (films, then series), his Nouveautés, then the franchises and genres
+    /// (TMDB), films and series in turn.
     private var disneyRows: [OrbitDisneyRow] {
-        let extraRows = series ? extras.seriesRows : extras.movieRows
-        var catalogs: [OrbitDisneyRow] = CollectionTypeFilter.rows(model.stripRows, filter: typeFilter).compactMap { row in
+        let extraRows = Self.alternate(extras.movieRows, extras.seriesRows)
+        let catalogs: [OrbitDisneyRow] = model.stripRows.compactMap { row in
             guard row.status == .loaded, let items = row.section?.items, !items.isEmpty else { return nil }
             guard extraRows.isEmpty || OrbitCatalogFilter.isKept(row.heading) else { return nil }
             var seen = Set<String>()
             let unique = items.filter { seen.insert("\($0.type):\($0.id)").inserted }
             let heading = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             let top10 = heading.contains("top 10") || heading.contains("top10")
-            return OrbitDisneyRow(id: row.id, title: top10 ? Self.top10Title(series: series) : row.heading,
+            let isSeries = heading.contains("serie") || unique.first.map { $0.type != "movie" } == true
+            return OrbitDisneyRow(id: row.id, title: top10 ? Self.top10Title(series: isSeries) : row.heading,
                                   items: top10 ? Array(unique.prefix(10)) : unique, top10: top10)
         }
-        catalogs = catalogs.filter(\.top10) + catalogs.filter { !$0.top10 }
-        var shown = Set(catalogs.flatMap { $0.items.map(Self.identity) })
+        let ordered = catalogs.filter(\.top10) + catalogs.filter { !$0.top10 }
+        var shown = Set(ordered.flatMap { $0.items.map(Self.identity) })
         var more: [OrbitDisneyRow] = []
         for extra in extraRows {
             let fresh = extra.items.filter { !shown.contains(Self.identity($0)) }
@@ -137,19 +138,33 @@ struct OrbitDisneyPage: View {
             kept.forEach { shown.insert(Self.identity($0)) }
             more.append(OrbitDisneyRow(id: extra.id, title: extra.title, items: kept, top10: false, portrait: true))
         }
-        return catalogs + more
+        return ordered + more
     }
 
-    /// Hulu: its Top 10 (the most popular), then its rows.
+    /// Hulu: its Top 10 series (and films, when TMDB credits any to Hulu), then its rows.
     private var huluRows: [OrbitDisneyRow] {
-        // Hulu's films are rarely credited to Hulu on TMDB: its series when it has none.
-        let showsSeries = series || hulu.movieRows.isEmpty
-        let source = showsSeries ? hulu.seriesRows : hulu.movieRows
-        guard let popular = source.first else { return [] }
-        var out = [OrbitDisneyRow(id: "hulu-top10-\(showsSeries)", title: Self.top10Title(series: showsSeries),
-                                  items: Array(popular.items.prefix(10)), top10: true)]
-        out += source.map { OrbitDisneyRow(id: $0.id, title: $0.title, items: $0.items, top10: false,
-                                           portrait: $0.id.contains("genre")) }
+        var out: [OrbitDisneyRow] = []
+        if let popular = hulu.seriesRows.first {
+            out.append(OrbitDisneyRow(id: "hulu-top10-series", title: Self.top10Title(series: true),
+                                      items: Array(popular.items.prefix(10)), top10: true))
+        }
+        if let popular = hulu.movieRows.first {
+            out.append(OrbitDisneyRow(id: "hulu-top10-movies", title: Self.top10Title(series: false),
+                                      items: Array(popular.items.prefix(10)), top10: true))
+        }
+        out += Self.alternate(hulu.seriesRows, hulu.movieRows).map {
+            OrbitDisneyRow(id: $0.id, title: $0.title, items: $0.items, top10: false, portrait: $0.id.contains("genre"))
+        }
+        return out
+    }
+
+    /// a1, b1, a2, b2… then the rest of the longer one.
+    private static func alternate<T>(_ a: [T], _ b: [T]) -> [T] {
+        var out: [T] = []
+        for i in 0..<max(a.count, b.count) {
+            if i < a.count { out.append(a[i]) }
+            if i < b.count { out.append(b[i]) }
+        }
         return out
     }
 
@@ -158,14 +173,18 @@ struct OrbitDisneyPage: View {
                : String(localized: "Top 10 des films en France aujourd'hui")
     }
 
-    /// The hero's titles: the new ones (Disney+), the most popular (Hulu).
+    /// The hero's titles: the new films and series in turn (Disney+), the most popular (Hulu).
     private var heroItems: [MetaPreview] {
-        if isHulu { return Array((series ? hulu.seriesRows : hulu.movieRows).first?.items.prefix(6) ?? []) }
-        let fresh = CollectionTypeFilter.rows(model.stripRows, filter: typeFilter).first { row in
+        if isHulu {
+            let items = Self.alternate(hulu.seriesRows.first?.items ?? [], hulu.movieRows.first?.items ?? [])
+            return Array(items.prefix(6))
+        }
+        let fresh = model.stripRows.filter { row in
             let h = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             return row.status == .loaded && (h.contains("nouveau") || h.contains("nouvelle"))
-        }
-        let items = fresh?.section?.items ?? rows.first(where: { !$0.top10 })?.items ?? rows.first?.items ?? []
+        }.map { $0.section?.items ?? [] }
+        var items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : fresh.first ?? []
+        if items.isEmpty { items = rows.first(where: { !$0.top10 })?.items ?? rows.first?.items ?? [] }
         return Array(items.filter { $0.banner != nil }.prefix(6))
     }
 
@@ -260,7 +279,7 @@ struct OrbitDisneyPage: View {
             .offset(y: 110)
             .disabled(search != nil)
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch,
+            CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false,
                                 switchItems: ["Disney+", "Hulu"], switchSelection: $mode)
                 .disabled(search != nil || (canvasFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
@@ -309,12 +328,7 @@ struct OrbitDisneyPage: View {
             if heroIndex >= ids.count { heroIndex = 0 }
             refreshAfterMove()
         }
-        .onChange(of: typeFilter) { _, _ in resetPage() }
-        .onChange(of: mode) { _, _ in
-            // Hulu's films are rarely credited to Hulu on TMDB: its series when it has no films.
-            if isHulu, typeFilter == "movie", hulu.movieRows.isEmpty, !hulu.seriesRows.isEmpty { typeFilter = "series" }
-            resetPage()
-        }
+        .onChange(of: mode) { _, _ in resetPage() }
     }
 
     @ViewBuilder
@@ -716,9 +730,12 @@ private struct OrbitDisneyTop10Card: View {
                 .frame(height: size.height * 0.5)
             }
         }
-        .frame(width: size.width, height: size.height)
+        // Top-leading: the arc's circle is wider than the card; centred, it pushed the whole card
+        // left (Steven: a grey strip on every card's right).
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-        .modifier(OrbitDisneyFocus(focused: focused))
+        // Steven: the focused card's rank rose above the others' — a frame, no lift, on the Top 10.
+        .modifier(OrbitDisneyFocus(focused: focused, lifts: false))
     }
 }
 
@@ -788,6 +805,7 @@ private struct OrbitDisneyTile: View {
 /// Disney+'s focus: a white frame, a small lift from the card's left edge.
 private struct OrbitDisneyFocus: ViewModifier {
     let focused: Bool
+    var lifts = true
 
     func body(content: Content) -> some View {
         content
@@ -798,7 +816,7 @@ private struct OrbitDisneyFocus: ViewModifier {
                             .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 4)
                     }
                     .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 20 : 6, y: focused ? 12 : 4)
-                    .scaleEffect(focused ? 1.06 : 1, anchor: .leading)
+                    .scaleEffect(focused && lifts ? 1.06 : 1, anchor: .leading)
             }
     }
 }

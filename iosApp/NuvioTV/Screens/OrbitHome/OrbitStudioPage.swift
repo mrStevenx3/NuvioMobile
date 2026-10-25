@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Studio (Steven, 2026-10-24): a studio's page, rebuilt from scratch — a showcase of its
 // films, with a rhythm (Steven: "des trucs en avant en grand, d'autres moins en avant en petit"):
@@ -779,29 +780,68 @@ private struct OrbitStudioRowView: View {
     }
 }
 
-/// A saga shelf's band across the page: its backdrop at a small size (soft, no blur to compute),
-/// darkened, darker on the left under the logo.
+/// A saga shelf's band across the page (Steven: Disney+'s brand shelves): a smooth gradient of the
+/// saga's own two colours (its backdrop's left and right halves, sampled once), darker on the left
+/// under the logo.
 private struct OrbitSagaBand: View {
     let backdrop: String?
     let height: CGFloat
 
+    @State private var colors: OrbitSagaPalette.Pair?
+
     var body: some View {
         let W = OrbitHomeLayout.screenWidth
-        // w300 instead of w1280: drawn large, it is already soft.
-        let soft = backdrop?.replacingOccurrences(of: "/w1280/", with: "/w300/")
+        let pair = colors ?? OrbitSagaPalette.cached(backdrop)
         ZStack {
-            Color(white: 0.08)
-            OrbitImage(url: soft, size: CGSize(width: W, height: height))
-                .saturation(1.3)
-                .opacity(0.75)
+            Color(white: 0.1)
+            if let pair {
+                LinearGradient(colors: [pair.left, pair.right], startPoint: .leading, endPoint: .trailing)
+                    .transition(.opacity)
+            }
             LinearGradient(stops: [
-                .init(color: .black.opacity(0.7), location: 0),
-                .init(color: .black.opacity(0.35), location: 0.4),
-                .init(color: .black.opacity(0.15), location: 1),
+                .init(color: .black.opacity(0.35), location: 0),
+                .init(color: .black.opacity(0.1), location: 0.45),
+                .init(color: .clear, location: 1),
             ], startPoint: .leading, endPoint: .trailing)
         }
         .frame(width: W, height: height)
-        .clipped()
+        .animation(.easeInOut(duration: 0.4), value: pair?.left)
+        .task(id: backdrop) {
+            if colors == nil { colors = await OrbitSagaPalette.colors(for: backdrop) }
+        }
+    }
+}
+
+/// Each saga's two colours, sampled from a small copy of its backdrop and kept for the session.
+@MainActor
+enum OrbitSagaPalette {
+    struct Pair: Equatable {
+        let left: Color
+        let right: Color
+    }
+
+    private static var cache: [String: Pair] = [:]
+
+    static func cached(_ url: String?) -> Pair? { url.flatMap { cache[$0] } }
+
+    static func colors(for url: String?) async -> Pair? {
+        guard let url else { return nil }
+        if let known = cache[url] { return known }
+        guard let small = URL(string: url.replacingOccurrences(of: "/w1280/", with: "/w300/")),
+              let result = try? await URLSession.shared.data(from: small) else { return nil }
+        let data = result.0
+        let sampled = await Task.detached(priority: .utility) { () -> (Color?, Color?) in
+            guard let image = UIImage(data: data)?.cgImage else { return (nil, nil) }
+            let w = image.width, h = image.height
+            let left = image.cropping(to: CGRect(x: 0, y: 0, width: w / 2, height: h))
+            let right = image.cropping(to: CGRect(x: w / 2, y: 0, width: w - w / 2, height: h))
+            return (left.flatMap { ArtworkColorStore.color(from: ArtworkColorStore.meanChroma(of: $0), use: .wash) },
+                    right.flatMap { ArtworkColorStore.color(from: ArtworkColorStore.meanChroma(of: $0), use: .wash) })
+        }.value
+        guard let first = sampled.0 ?? sampled.1 else { return nil }
+        let pair = Pair(left: first, right: sampled.1 ?? first)
+        cache[url] = pair
+        return pair
     }
 }
 
@@ -817,12 +857,15 @@ private struct OrbitSagaPanel: View {
         let info = OrbitInfo.make(saga, meta: meta)
         let count: String? = saga.releaseInfo
         VStack(spacing: 22) {
-            OrbitTitleMark(name: saga.name, logo: info.logo, maxSize: CGSize(width: size.width * 0.8, height: 150),
+            OrbitTitleMark(name: saga.name, logo: info.logo, maxSize: CGSize(width: size.width * 0.8, height: 140),
                            textSize: 44, fallbackLogo: info.logoFallback)
-                .frame(width: size.width * 0.8, height: 150, alignment: .center)
+                .frame(width: size.width * 0.8, height: 140, alignment: .center)
+                .clipped()
             Text(String(localized: "La saga · \(count ?? "") films"))
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
+                .lineLimit(1)
+                .frame(height: 32)
             Text(String(localized: "TOUT VOIR"))
                 .font(.system(size: 22, weight: .bold))
                 .kerning(2)
@@ -1199,6 +1242,8 @@ final class OrbitStudioModel: ObservableObject {
             await (entity, oldest, best, popular, popular2, upcoming)
 
         var rows: [(id: String, title: String, items: [MetaPreview])] = []
+        /// Steven: the sagas spread through the page (one after each row), not one after another.
+        var sagaRows: [(id: String, title: String, items: [MetaPreview])] = []
         var sagaFilms: [String: MetaPreview] = [:]
         if bestValue.items.count >= 5 { rows.append(("best", String(localized: "Les incontournables"), bestValue.items)) }
         let popularItems = popularValue.items + popular2Value.items
@@ -1279,7 +1324,7 @@ final class OrbitStudioModel: ObservableObject {
                                         genres: [], rawPosterUrl: card.rawPosterUrl, landscapePoster: nil,
                                         rawLandscapePosterUrl: nil, customPosterApplied: false)
                 sagaFilms[first.id] = first
-                rows.append(("saga-\(card.rawPosterUrl ?? card.name)", card.name, [panel] + films))
+                sagaRows.append(("saga-\(card.rawPosterUrl ?? card.name)", card.name, [panel] + films))
             }
         }
 
@@ -1309,6 +1354,13 @@ final class OrbitStudioModel: ObservableObject {
                 : String(localized: "Les années \(decade % 100)")
             rows.append(("decade-\(decade)", label, items))
         }
+
+        var mixed: [(id: String, title: String, items: [MetaPreview])] = []
+        for row in rows {
+            mixed.append(row)
+            if !sagaRows.isEmpty { mixed.append(sagaRows.removeFirst()) }
+        }
+        rows = mixed + sagaRows
 
         let since = oldestValue.items.first?.rawReleaseDate.map { String($0.prefix(4)) }
         return (entityValue?.logo_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
