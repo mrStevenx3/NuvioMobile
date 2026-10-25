@@ -91,7 +91,8 @@ struct OrbitPlatformBadge: View {
                 CachedAsyncImage(string: logo, contentMode: .fit,
                                  decodeSize: .points(width: size * 8, height: size * 3),
                                  loading: { Color.clear }, failure: { disneyText })
-                    .frame(width: size * 3.2, height: size * 1.25)
+                    // Steven: it looked small next to NETFLIX or HBO max.
+                    .frame(width: size * 4.6, height: size * 1.5)
             } else {
                 disneyText
             }
@@ -110,9 +111,13 @@ struct OrbitPlatformBadge: View {
             }
             .foregroundStyle(Color.white)
         case .paramount:
-            Text("Paramount+")
-                .font(.system(size: size, weight: .semibold, design: .serif).italic())
-                .foregroundStyle(Color(red: 0.35, green: 0.6, blue: 1.0))
+            // The official "Paramount+" script (Steven's logo, its ORIGINAL line left out), in its blue.
+            Image("ParamountMark")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(height: size * 1.2)
+                .foregroundStyle(Color(red: 0.2, green: 0.5, blue: 1.0))
         case .appletv:
             Image("AppleTVMark")
                 .renderingMode(.template)
