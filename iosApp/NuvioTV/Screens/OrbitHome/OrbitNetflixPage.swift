@@ -505,7 +505,8 @@ private struct OrbitNetflixBillboard: View {
                 if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 22) }
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 600, height: 190), textSize: 64,
                                fallbackLogo: info.logoFallback)
-                    .frame(width: 600, height: 190, alignment: .bottomLeading)
+                    // Its own height (Steven: a wide logo left N FILM floating high above it).
+                    .frame(width: 600, alignment: .leading)
                 Text(netflixMeta(item, meta))
                     .font(.system(size: 23, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.9))
@@ -666,7 +667,7 @@ private struct OrbitNetflixTile: View {
                     if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
                     OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 380, height: 120), textSize: 40,
                                    fallbackLogo: info.logoFallback)
-                        .frame(width: 380, height: 120, alignment: .bottomLeading)
+                        .frame(width: 380, alignment: .leading)
                 }
                 .padding(.leading, 24)
                 .padding(.bottom, 22)
