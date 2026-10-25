@@ -66,6 +66,17 @@ struct OrbitNativeHome: View {
             .scrollTargetBehavior(.viewAligned)
             .contentMargins(.top, Self.topLine, for: .scrollContent)
             .scrollClipDisabled()
+
+            // Steven's video: the row above showed sliced under the bar. Once off the hero, the
+            // band under the bar is the page's dark, melting down to the focused row's line.
+            LinearGradient(stops: [.init(color: OrbitHomeLayout.background, location: 0),
+                                   .init(color: OrbitHomeLayout.background, location: 0.55),
+                                   .init(color: OrbitHomeLayout.background.opacity(0), location: 1)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(width: L.screenWidth, height: Self.topLine + 10)
+                .opacity(onHero ? 0 : 1)
+                .animation(.easeInOut(duration: 0.25), value: onHero)
+                .allowsHitTesting(false)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
