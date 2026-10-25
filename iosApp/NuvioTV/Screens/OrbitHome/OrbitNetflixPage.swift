@@ -462,8 +462,12 @@ private func netflixMeta(_ item: MetaPreview, _ meta: OrbitMeta?) -> String {
     return parts.joined(separator: "  ·  ")
 }
 
-private func isNetflixOwn(_ meta: OrbitMeta?) -> Bool {
-    meta?.producers.contains { $0.lowercased().contains("netflix") } ?? false
+/// Netflix's own title: Steven's add-on marks it in its poster's address ("/n/v13/…" in the lists,
+/// "/poster/v13/o3/…" in the Top 10 — the posters with its N), else TMDB lists Netflix as a producer.
+private func isNetflixOwn(_ item: MetaPreview, _ meta: OrbitMeta?) -> Bool {
+    let poster: String = item.poster ?? ""
+    if poster.contains("/n/v") || poster.range(of: #"/poster/v\d+/o"#, options: .regularExpression) != nil { return true }
+    return meta?.producers.contains { $0.lowercased().contains("netflix") } ?? false
 }
 
 /// The billboard: a large rounded card at the top.
@@ -498,7 +502,7 @@ private struct OrbitNetflixBillboard: View {
                 .init(color: .clear, location: 0.8),
             ], startPoint: .bottomLeading, endPoint: .topTrailing)
             VStack(alignment: .leading, spacing: 14) {
-                if isNetflixOwn(meta) { OrbitNetflixTag(series: item.type != "movie", size: 22) }
+                if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 22) }
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 600, height: 190), textSize: 64,
                                fallbackLogo: info.logoFallback)
                     .frame(width: 600, height: 190, alignment: .bottomLeading)
@@ -659,7 +663,7 @@ private struct OrbitNetflixTile: View {
                 }
                 LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 8) {
-                    if isNetflixOwn(meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
+                    if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
                     OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 380, height: 120), textSize: 40,
                                    fallbackLogo: info.logoFallback)
                         .frame(width: 380, height: 120, alignment: .bottomLeading)
