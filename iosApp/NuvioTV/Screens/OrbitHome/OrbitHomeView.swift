@@ -278,7 +278,8 @@ struct OrbitHomeView: View {
         let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
         guard row.cards.indices.contains(lead) else { return nil }
         let card = row.cards[lead]
-        return OrbitMetaStore.shared.meta(for: card.preview)?.backdrop ?? card.landscape
+        // The card's own art first (known at once: no swap when TMDB's arrives).
+        return card.landscape ?? OrbitMetaStore.shared.meta(for: card.preview)?.backdrop
     }
 
     private func trailerURL(for section: String, id: String?) -> String? {
