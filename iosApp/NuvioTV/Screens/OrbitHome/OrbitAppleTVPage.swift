@@ -364,6 +364,9 @@ struct OrbitAppleTVPage: View {
                                         focused: canvasFocused && i == currentRow,
                                         newIDs: Set(row.items.filter(isNew).map(\.id)),
                                         rankLine: { rankLine($0) },
+                                        trailerURL: i == currentRow && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
+                                        onTrailerFailure: { trailer.playbackFailed($0) },
+                                        onTrailerEnded: { trailer.playbackFinished() },
                                         metaStore: metaStore)
                         .offset(y: tops[i])
                         .id(row.id)
@@ -467,8 +470,16 @@ struct OrbitAppleTVPage: View {
 
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, search == nil, current == 0, UIAccessibility.isVideoAutoplayEnabled,
-              let item = heroItem else { return }
+        guard trailersOn, search == nil, UIAccessibility.isVideoAutoplayEnabled else { return }
+        // The carousel's trailer; in a row of large cards, the focused card's (Steven: as in the app).
+        var target: MetaPreview?
+        if current == 0 {
+            target = heroItem
+        } else if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].kind == .cards, canvasFocused {
+            let row = rows[r]
+            target = row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil
+        }
+        guard let item = target else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
         trailerKey = "\(item.type):\(item.id)"
@@ -679,6 +690,9 @@ private struct OrbitAppleTVRowView: View {
     let focused: Bool
     let newIDs: Set<String>
     let rankLine: (MetaPreview) -> String?
+    let trailerURL: String?
+    let onTrailerFailure: (TrailerFailureReport) -> Void
+    let onTrailerEnded: () -> Void
     @ObservedObject var metaStore: OrbitMetaStore
 
     var body: some View {
@@ -700,7 +714,9 @@ private struct OrbitAppleTVRowView: View {
                             switch row.kind {
                             case .cards:
                                 OrbitAppleTVCard(item: item, meta: metaStore.meta(for: item), isNew: newIDs.contains(item.id),
-                                                 line: rankLine(item), focused: lit)
+                                                 line: rankLine(item), focused: lit,
+                                                 trailerURL: index == lead ? trailerURL : nil,
+                                                 onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                             case .top10:
                                 OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false)
                             case .posters:
@@ -759,6 +775,9 @@ private struct OrbitAppleTVCard: View {
     let isNew: Bool
     let line: String?
     let focused: Bool
+    var trailerURL: String? = nil
+    var onTrailerFailure: (TrailerFailureReport) -> Void = { _ in }
+    var onTrailerEnded: () -> Void = {}
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
@@ -767,6 +786,14 @@ private struct OrbitAppleTVCard: View {
         ZStack(alignment: .bottomLeading) {
             Color.white.opacity(0.08)
             OrbitImage(url: meta?.cleanPoster ?? item.banner ?? meta?.backdrop, fallback: item.poster, mode: .fill, size: size)
+            if let trailerURL {
+                // Its trailer after a rest, filling the card (as in the app).
+                TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
+                                  zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                  loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius + 6)
+                    .frame(width: size.width, height: size.height)
+                    .transition(.opacity.animation(.easeOut(duration: 0.6)))
+            }
             LinearGradient(stops: [
                 .init(color: .clear, location: 0.45),
                 .init(color: .black.opacity(0.75), location: 1),
