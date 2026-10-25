@@ -232,6 +232,9 @@ struct OrbitNativeRow: View {
             .contentMargins(.horizontal, L.margin, for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
+            // Steven's video (the row below bounced on Left / Right): every part of a row has a
+            // fixed height — nothing in it can change the rows' places.
+            .frame(height: size.height)
             .background {
                 if style == .ranked {
                     OrbitTop10Band(height: size.height + 140)
@@ -240,9 +243,13 @@ struct OrbitNativeRow: View {
 
             // The focused title's details under the row (large cards carry theirs).
             if style != .cards {
-                details(holds ? shownCard : nil)
-                    .frame(height: Self.infoHeight, alignment: .topLeading)
-                    .padding(.leading, L.margin + 6)
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    details(holds ? shownCard : nil)
+                }
+                .frame(width: 1200, height: Self.infoHeight, alignment: .topLeading)
+                .clipped()
+                .padding(.leading, L.margin + 6)
             }
         }
         .focusSection()
