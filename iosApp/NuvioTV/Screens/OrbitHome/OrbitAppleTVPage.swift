@@ -744,7 +744,8 @@ private struct OrbitAppleTVPoster: View {
     let url: String?
     let fallback: String?
     let focused: Bool
-    var mark = true
+    /// Off (Steven: Apple's own posters already print their  tv, it showed twice).
+    var mark = false
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
