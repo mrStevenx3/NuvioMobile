@@ -76,8 +76,6 @@ enum OrbitPlatformLogos {
                 .replacingOccurrences(of: " ", with: "")
             guard let logo = folder.titleLogoUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !logo.isEmpty else { continue }
             if title.contains("disney"), found[.disney] == nil { found[.disney] = logo }
-            if title.contains("netflix"), found[.netflix] == nil { found[.netflix] = logo }
-            if title.contains("prime") || title.contains("amazon"), found[.prime] == nil { found[.prime] = logo }
         }
         urls = found
     }
@@ -89,33 +87,25 @@ enum OrbitPlatformLogos {
     }
 }
 
-/// The badge: each platform's mark in its colours. Steven (2026-10-25): no dark pill behind it any
-/// more — a soft shadow keeps it readable on bright posters.
+/// The badge: each platform's mark in its colours, on a small dark pill. Steven (2026-10-25, after
+/// trying logos and no pill): Netflix, Prime Video, HBO Max and Paramount+ back as they first were.
 struct OrbitPlatformBadge: View {
     let kind: OrbitPlatformBadgeKind
     var size: CGFloat = 20
 
     var body: some View {
         content
+            .padding(.horizontal, size * 0.55)
             .frame(height: size * 1.6)
-            .shadow(color: .black.opacity(0.75), radius: size * 0.22)
-            .shadow(color: .black.opacity(0.45), radius: size * 0.6)
+            .background(Capsule().fill(Color.black.opacity(0.62)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
     }
 
     @ViewBuilder
     private var content: some View {
         switch kind {
         case .netflix:
-            // Steven (2026-10-25): the official wordmark, his collection's Netflix logo.
-            if let logo = OrbitPlatformLogos.url(.netflix) {
-                CachedAsyncImage(string: logo, contentMode: .fit,
-                                 decodeSize: .points(width: size * 8, height: size * 3),
-                                 loading: { Color.clear }, failure: { netflixText })
-                    // Steven: too small at 3.6×1.1 (the wordmark is thin and wide).
-                    .frame(width: size * 5.4, height: size * 1.6)
-            } else {
-                netflixText
-            }
+            netflixText
         case .disney:
             if let logo = OrbitPlatformLogos.url(.disney) {
                 CachedAsyncImage(string: logo, contentMode: .fit,
@@ -127,15 +117,7 @@ struct OrbitPlatformBadge: View {
                 disneyText
             }
         case .prime:
-            // Steven: the official mark (his collection's Prime Video logo), sized like Netflix's.
-            if let logo = OrbitPlatformLogos.url(.prime) {
-                CachedAsyncImage(string: logo, contentMode: .fit,
-                                 decodeSize: .points(width: size * 8, height: size * 3),
-                                 loading: { Color.clear }, failure: { primeText })
-                    .frame(width: size * 5.4, height: size * 1.6)
-            } else {
-                primeText
-            }
+            primeText
         case .hbo:
             HStack(spacing: size * 0.25) {
                 Image("HBOMark")
@@ -147,13 +129,9 @@ struct OrbitPlatformBadge: View {
             }
             .foregroundStyle(Color.white)
         case .paramount:
-            // The official "Paramount+" script (Steven's logo, its ORIGINAL line left out), in its blue.
-            Image("ParamountMark")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(height: size * 1.2)
-                .foregroundStyle(Color(red: 0.2, green: 0.5, blue: 1.0))
+            Text("Paramount+")
+                .font(.system(size: size, weight: .semibold, design: .serif).italic())
+                .foregroundStyle(Color(red: 0.35, green: 0.6, blue: 1.0))
         case .appletv:
             Image("AppleTVMark")
                 .renderingMode(.template)
