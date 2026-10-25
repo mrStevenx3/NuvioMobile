@@ -296,6 +296,7 @@ struct OrbitNativeRow: View {
             }
         }
         .focusSection()
+        .onAppear { restoreIfReturning() }
         // Steven: coming into a row lands on its first title (the row back at its start).
         .defaultFocus($focused, row.cards.first?.id, priority: .userInitiated)
         .onChange(of: focused) { _, new in
@@ -309,6 +310,22 @@ struct OrbitNativeRow: View {
             if !holds {
                 holds = true
                 onEnter()
+                // Steven (device: entering a row didn't always land far left): the row goes back to
+                // its start and its first title is asked a few times (it may not be built yet, the
+                // row scrolled far). Not on the way back from a title (its own card is put back).
+                if Self.reopen?.row != row.id, let first = row.cards.first?.id, new != first {
+                    shown = first
+                    withAnimation(OrbitHomeLayout.horizontal) { anchor = first }
+                    let entered = ProcessInfo.processInfo.systemUptime
+                    for delay in [0.0, 0.12, 0.25, 0.4] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            guard holds, focused != nil, focused != first,
+                                  !ViewerInputClock.shared.hasInput(since: entered + 0.05) else { return }
+                            focused = first
+                        }
+                    }
+                    return
+                }
             }
             shown = new
             // Every row keeps its focused title at the margin, the row sliding under it (Steven: the
@@ -355,7 +372,29 @@ struct OrbitNativeRow: View {
         }
     }
 
+    /// The title opened from Home (row, card): the focus is put back on it on the way back
+    /// (Steven: it came back on the card to its left).
+    @MainActor static var reopen: (row: String, card: String)?
+
+    /// Back from a title: its card, asked a few times (the system's own landing comes late).
+    private func restoreIfReturning() {
+        guard let target = Self.reopen, target.row == row.id else { return }
+        let appeared = ProcessInfo.processInfo.systemUptime
+        shown = target.card
+        anchor = target.card
+        for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                if focused != target.card { focused = target.card }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if Self.reopen?.card == target.card { Self.reopen = nil }
+        }
+    }
+
     private func open(_ card: OrbitCard) {
+        Self.reopen = (row.id, card.id)
         if let entry = card.entry {
             actions.resume(ResumeTarget(entry: entry))
         } else {

@@ -389,8 +389,18 @@ struct OrbitDetailView: View {
             if new.section != section, new.section != .hero, new.section != .episodes,
                let first = firstFocus(of: new.section), first != new {
                 // Not inside the focus engine's own update (a write there is dropped): next turn.
+                // Steven (device: up from "À voir aussi" didn't land far left): the row scrolls back
+                // to its start first, and its first card may not be built yet — asked a few times.
                 enter(new.section)
-                DispatchQueue.main.async { focus = first }
+                let target = new.section
+                let entered = ProcessInfo.processInfo.systemUptime
+                for delay in [0.0, 0.12, 0.25, 0.4] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        guard focus?.section == target, focus != first,
+                              !ViewerInputClock.shared.hasInput(since: entered + 0.05) else { return }
+                        focus = first
+                    }
+                }
                 return
             }
             enter(new.section)
