@@ -296,7 +296,8 @@ struct OrbitAppleTVPage: View {
             .offset(y: 110)
             .disabled(search != nil)
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
+            // Steven: the app mixes films and series, with no Accueil / Films / Séries.
+            CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false)
                 .disabled(search != nil || (canvasFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 

@@ -754,7 +754,10 @@ struct CollectionFilterBar: View {
             guard showsTypes else {
                 // No Films / Séries: the entry lands on the centre pill's selected item.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { searchReady = true }
-                OrbitBarLaunchFocus.place { switchFocused = switchSelection?.wrappedValue ?? 0 }
+                // Nothing to land on without a centre pill (Apple TV): the page keeps its own focus.
+                if !switchItems.isEmpty {
+                    OrbitBarLaunchFocus.place { switchFocused = switchSelection?.wrappedValue ?? 0 }
+                }
                 return
             }
             focused = entryItem
