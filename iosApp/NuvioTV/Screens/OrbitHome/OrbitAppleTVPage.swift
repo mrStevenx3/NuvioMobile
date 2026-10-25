@@ -288,10 +288,10 @@ struct OrbitAppleTVPage: View {
                                      trailer.playbackFinished()
                                      advanceHero()
                                  })
+                    // The carousel's art grows into its detail page too (before the offset, see the rows).
+                    .modifier(OrbitAppleTVZoomSource(id: onArrival ? "\(hero.type):\(hero.id)" : "hero", space: zoomSpace))
                     .offset(y: -offset)
                     .opacity(onArrival ? 1 : 0)
-                    // The carousel's art grows into its detail page too.
-                    .modifier(OrbitAppleTVZoomSource(id: onArrival ? "\(hero.type):\(hero.id)" : "hero", space: zoomSpace))
             }
 
             rowsLayer(rows)
@@ -763,8 +763,10 @@ private struct OrbitAppleTVRowView: View {
                                 OrbitAppleTVPoster(url: meta?.localPoster ?? item.poster, fallback: item.rawPosterUrl, focused: lit)
                             }
                         }
-                        .offset(x: L.margin + CGFloat(index - first) * row.slot)
+                        // The zoom's source before the offset: after it, the source layer clipped every
+                        // title but the first to its own frame (Steven's video: one poster per row).
                         .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
+                        .offset(x: L.margin + CGFloat(index - first) * row.slot)
                         .opacity(index < first ? 0 : 1)
                         .zIndex(lit ? 1 : 0)
                     }
