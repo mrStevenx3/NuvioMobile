@@ -273,7 +273,9 @@ struct OrbitAppleTVPage: View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let offset = scroll(rows)
         let onArrival = current == 0
-        let ambient = focusedItem ?? heroItem
+        // Steven (the app's videos): the background takes the carousel's title only — it stays put
+        // while the focus runs through the rows (it changed with every poster).
+        let ambient = heroItem
 
         ZStack(alignment: .topLeading) {
             OrbitAppleTVAmbient(item: ambient, meta: ambient.flatMap { metaStore.meta(for: $0) })
@@ -534,8 +536,8 @@ private struct OrbitAppleTVAmbient: View {
                     .frame(width: W / 4, height: H / 4)
                     .scaleEffect(4.4)
                     .blur(radius: 18)
-                    .saturation(1.25)
-                    .opacity(0.8)
+                    .saturation(0.9)
+                    .opacity(0.75)
                     .id("\(item.type):\(item.id)")
                     .transition(.opacity.animation(.easeInOut(duration: 0.6)))
             }
