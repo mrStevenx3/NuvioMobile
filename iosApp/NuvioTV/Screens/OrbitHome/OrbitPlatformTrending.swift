@@ -180,6 +180,8 @@ final class OrbitPlatformTrendingModel: ObservableObject {
 /// sur Netflix" in posters. Each scrolls sideways; each title opens its page.
 struct OrbitPlatformTrendingRow: View {
     @ObservedObject var model = OrbitPlatformTrendingModel.shared
+    /// The row the focus is in (nil: out of the rows), for the page to bring it to its line.
+    var onRowFocus: (String?) -> Void = { _ in }
     @ObservedObject private var metaStore = OrbitMetaStore.shared
     @FocusState private var focused: String?
     /// When the focus last left the rows (the platforms keep their own landing when coming back up).
@@ -201,6 +203,8 @@ struct OrbitPlatformTrendingRow: View {
         restoreUntil = now + 4
     }
 
+    /// Steven: the page moves a row at a time — the focused row's heading sits here.
+    static let rowLine: CGFloat = 150
     static let posterWidth: CGFloat = 220
     static let posterHeight: CGFloat = 330
     static let spacing: CGFloat = 24
@@ -234,6 +238,7 @@ struct OrbitPlatformTrendingRow: View {
             Self.lastFocused = id
             if id == Self.restore { Self.restore = nil }
             let rowKey = String(id.prefix { $0 != "/" })
+            if old.map({ String($0.prefix { $0 != "/" }) }) != rowKey { onRowFocus(rowKey) }
             let items = items(rowKey)
             // The page's art follows the focused title.
             if let item = items.first(where: { "\(rowKey)/\($0.id)" == id }) {
@@ -288,7 +293,9 @@ struct OrbitPlatformTrendingRow: View {
                             case .ranked:
                                 OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
                                                 meta: metaStore.meta(for: item), rank: index + 1, focused: lit,
-                                                showsBadge: false)
+                                                // Steven: smaller here (it was cut at the top of the
+                                                // screen once the page scrolled): the series' posters' height.
+                                                showsBadge: false, scale: Self.posterHeight / OrbitTileLayout.rankedPoster.height)
                             case .landscape:
                                 OrbitLandscapeTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
                                                    meta: metaStore.meta(for: item), focused: lit, showsBadge: false)
@@ -305,6 +312,12 @@ struct OrbitPlatformTrendingRow: View {
             }
             .scrollClipDisabled()
             .padding(.vertical, -20)
+        }
+        // The row's line on the page: its heading this far under the screen's top once scrolled to.
+        .overlay(alignment: .top) {
+            Color.clear.frame(width: 1, height: 1)
+                .alignmentGuide(.top) { $0[.top] + Self.rowLine }
+                .id("\(key)-line")
         }
         .id(key)
         .transition(.opacity)

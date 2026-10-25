@@ -327,15 +327,19 @@ struct OrbitRankedTile: View {
     let focused: Bool
     /// The platform's badge on the poster (not on a studio's page: every film there is its own).
     var showsBadge = true
+    /// Steven: smaller under the platforms, larger on a studio's page (`OrbitTileLayout.rankedSlot`).
+    var scale: CGFloat = 1
 
     @State private var tone: Color?
 
     var body: some View {
         let T = OrbitTileLayout.self
-        let size = T.rankedPoster
+        let size = CGSize(width: T.rankedPoster.width * scale, height: T.rankedPoster.height * scale)
+        let rankWidth = T.rankWidth * scale
+        let tenExtra = T.tenExtra * scale
         let poster: String? = meta?.localPoster ?? card.poster
         let base = tone ?? Color(white: 0.85)
-        HStack(alignment: .bottom, spacing: -34) {
+        HStack(alignment: .bottom, spacing: -34 * scale) {
             Text(String(rank))
                 .font(.system(size: size.height * 0.7, weight: .heavy, design: .rounded))
                 .kerning(-size.height * 0.03)
@@ -353,7 +357,7 @@ struct OrbitRankedTile: View {
                 .lineLimit(1)
                 .fixedSize()
                 // "10" is wider: its own room, so it no longer runs over the 9's poster (Steven).
-                .frame(width: T.rankWidth + 34 + (rank >= 10 ? T.tenExtra : 0), alignment: .trailing)
+                .frame(width: rankWidth + 34 * scale + (rank >= 10 ? tenExtra : 0), alignment: .trailing)
                 .offset(y: size.height * 0.12)
                 .animation(.easeInOut(duration: 0.4), value: tone)
             ZStack(alignment: .bottom) {
@@ -367,7 +371,7 @@ struct OrbitRankedTile: View {
             .frame(width: size.width, height: size.height)
             .modifier(OrbitTileFocus(focused: focused, radius: 12))
         }
-        .frame(width: T.rankWidth + size.width + (rank >= 10 ? T.tenExtra : 0), height: size.height, alignment: .bottomLeading)
+        .frame(width: rankWidth + size.width + (rank >= 10 ? tenExtra : 0), height: size.height, alignment: .bottomLeading)
         .task(id: poster ?? "-") {
             guard let poster else { return }
             tone = await OrbitDominantColor.color(for: poster)

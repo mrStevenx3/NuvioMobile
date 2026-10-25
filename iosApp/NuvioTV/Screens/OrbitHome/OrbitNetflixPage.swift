@@ -36,8 +36,9 @@ enum OrbitNetflixLayout {
     static let posterWidth: CGFloat = 283
     static let gap: CGFloat = 16
     /// The open tile's meta line and synopsis.
-    static let infoHeight: CGFloat = 170
-    static let rowGap: CGFloat = 40
+    /// Steven (device: the row below barely showed): tighter, so more than half of its posters show.
+    static let infoHeight: CGFloat = 140
+    static let rowGap: CGFloat = 30
     static let radius: CGFloat = 8
     static let rankWidth: CGFloat = 145
     static let rankWidthTen: CGFloat = 306

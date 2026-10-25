@@ -555,7 +555,11 @@ struct OrbitDetailView: View {
                 proxy.scrollTo(OrbitDetailSection.hero, anchor: .top)
             } else {
                 // The episodes (seasons, episodes, the episode's text) are taller: higher up.
-                let rest = target == .episodes ? OrbitDetailLayout.episodesRest : OrbitDetailLayout.sectionRest
+                // Steven (device, Carrie: the episodes bounced): with one season there is no season
+                // row above the episodes — placed that high, their heading went under the top fade
+                // and the system pulled the row back down. They rest like any section.
+                let seasonCount = Set((meta?.videos ?? []).compactMap { $0.season?.value }).count
+                let rest = target == .episodes && seasonCount > 1 ? OrbitDetailLayout.episodesRest : OrbitDetailLayout.sectionRest
                 proxy.scrollTo(target, anchor: UnitPoint(x: 0, y: rest / OrbitHomeLayout.screenHeight))
             }
         }

@@ -78,7 +78,9 @@ struct OrbitStudioRow: Identifiable, Equatable {
         // Steven (2026-10-25): his Top 10 images much larger than the other posters.
         case .posters(let transparent):
             return transparent ? CGSize(width: 274, height: 412) : CGSize(width: 196, height: 294)
-        case .ranked: return OrbitTileLayout.rankedPoster
+        // Steven (2026-10-25): 15 % larger beside the saga's big band.
+        case .ranked: return CGSize(width: OrbitTileLayout.rankedPoster.width * Self.rankedScale,
+                                    height: OrbitTileLayout.rankedPoster.height * Self.rankedScale)
         }
     }
 
@@ -91,6 +93,8 @@ struct OrbitStudioRow: Identifiable, Equatable {
     /// The focused film's info shows under the row (not for a saga's shelf: its band is the info).
     var showsInfo: Bool { kind != .saga }
 
+    static let rankedScale: CGFloat = 1.15
+
     /// A saga shelf's first place (its logo and TOUT VOIR).
     static let sagaPanelWidth: CGFloat = 560
 
@@ -98,7 +102,7 @@ struct OrbitStudioRow: Identifiable, Equatable {
     /// at the margin). A saga's shelf (Steven): the logo stays put and the cursor moves along the
     /// films; they slide only once the cursor would leave the screen.
     func x(of index: Int, lead: Int) -> CGFloat {
-        if kind == .ranked { return CGFloat(index - lead) * (OrbitTileLayout.rankWidth + cardSize.width + gap) }
+        if kind == .ranked { return CGFloat(index - lead) * (OrbitTileLayout.rankWidth * Self.rankedScale + cardSize.width + gap) }
         guard kind == .saga else { return CGFloat(index - lead) * (cardSize.width + gap) }
         if index == 0 { return 0 }
         return Self.sagaPanelWidth + gap + CGFloat(index - 1 - sagaScroll(lead: lead)) * (cardSize.width + gap)
@@ -841,7 +845,7 @@ private struct OrbitStudioRowView: View {
         case .ranked:
             OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
                             meta: metaStore.meta(for: item), rank: (row.items.firstIndex { $0.id == item.id } ?? 0) + 1,
-                            focused: focused, showsBadge: false)
+                            focused: focused, showsBadge: false, scale: OrbitStudioRow.rankedScale)
         }
     }
 }

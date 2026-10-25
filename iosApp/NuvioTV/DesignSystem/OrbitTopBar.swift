@@ -451,6 +451,8 @@ struct OrbitCollectionGrid: View {
 
     /// The focused platform's colour (the halo), nil for a grey cover.
     @State private var haloColor: Color?
+    /// Where the page is brought to: the focused row's line, or its top on the platforms.
+    @State private var scrollLine: String?
 
     var body: some View {
         let entries = entries
@@ -468,8 +470,10 @@ struct OrbitCollectionGrid: View {
             }
             // Steven (2026-10-24): no "Plateformes" title — the bar already says it, and the
             // Studios page has none.
+            ScrollViewReader { proxy in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: Self.spacing) {
+                    Color.clear.frame(height: 0).id("grid-top")
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Self.spacing) {
                             ForEach(entries) { entry in
@@ -491,7 +495,11 @@ struct OrbitCollectionGrid: View {
                     .padding(.vertical, -16)
                     .focusSection()
                     // Steven (on trial): what is popular on the focused platform.
-                    OrbitPlatformTrendingRow()
+                    // Steven (device: the page scrolled on its own, the Top 10 cut at the top): it
+                    // moves a row at a time — the focused row at its line, the platforms at the top.
+                    OrbitPlatformTrendingRow(onRowFocus: { key in
+                        if let key { scrollLine = "\(key)-line" }
+                    })
                         .padding(.top, 14)
                 }
                 .padding(.top, Self.top)
@@ -501,6 +509,11 @@ struct OrbitCollectionGrid: View {
             }
             .scrollClipDisabled()
             .focusSection()
+            .onChange(of: scrollLine) { _, line in
+                guard let line else { return }
+                withAnimation(.easeInOut(duration: 0.36)) { proxy.scrollTo(line, anchor: .top) }
+            }
+            }
         }
         .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.45), value: haloColor?.description)
@@ -524,6 +537,7 @@ struct OrbitCollectionGrid: View {
                 return
             }
             Self.lastFocused = id
+            scrollLine = "grid-top"
             onFolderFocus(entry.collection, entry.folder)
             updateHalo(entry)
             OrbitPlatformTrendingModel.shared.focus(title: entry.folder.title)
