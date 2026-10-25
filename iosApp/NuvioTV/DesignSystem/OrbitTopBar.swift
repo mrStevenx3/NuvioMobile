@@ -352,7 +352,15 @@ private struct OrbitBarItemLabel: View {
 
     @ViewBuilder
     private var content: some View {
-        if let title = item.title {
+        if item == .hbo {
+            // Steven: HBO Max's tab shows the real HBO mark, not a word (black when focused).
+            Image("HBOMark")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(height: OrbitBarMetrics.fontSize * 0.9)
+                .padding(.horizontal, OrbitBarMetrics.textPadding)
+        } else if let title = item.title {
             Text(title)
                 // One weight in every state (pass 9, Steven: the bar shifted while moving in it —
                 // a bolder focused or selected label is wider and pushed its neighbours).
