@@ -645,6 +645,8 @@ struct OrbitPlatformIntro: View {
     let title: String
     let logoUrl: String?
     let brand: Color
+    /// Steven (Paramount+): the folder's logo drawn in white (its own blue sank into the dark page).
+    var white = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .hidden
@@ -708,6 +710,7 @@ struct OrbitPlatformIntro: View {
                              decodeSize: .points(width: Self.logoSize.width * Self.splashScale,
                                                  height: Self.logoSize.height * Self.splashScale),
                              loading: { Color.clear }, failure: { name })
+                .brightness(white ? 1 : 0)
         } else {
             name
         }
