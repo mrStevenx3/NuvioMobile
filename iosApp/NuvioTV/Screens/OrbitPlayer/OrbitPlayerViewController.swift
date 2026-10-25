@@ -1,6 +1,8 @@
 import AVKit
 import Combine
+import CoreMedia
 import OrbitEngine
+import SharedCore
 import SwiftUI
 import UIKit
 
@@ -20,6 +22,8 @@ final class OrbitPlayerViewController: AVPlayerViewController {
     var onMenu: (() -> Bool)?
 
     private var bag = Set<AnyCancellable>()
+    /// The current item's watchers (subtitle look and SDH choice).
+    private var itemBag = Set<AnyCancellable>()
     private var surface: AetherPlayerView?
     private var actionsSignature = ""
     private var audioSignature = ""
@@ -44,7 +48,10 @@ final class OrbitPlayerViewController: AVPlayerViewController {
         guard let engine = session.engine else { return }
         engine.$currentAVPlayer
             .receive(on: RunLoop.main)
-            .sink { [weak self] player in self?.player = player }
+            .sink { [weak self] player in
+                self?.player = player
+                self?.watchItems(of: player)
+            }
             .store(in: &bag)
         engine.$playbackBackend
             .receive(on: RunLoop.main)
@@ -54,6 +61,76 @@ final class OrbitPlayerViewController: AVPlayerViewController {
             .receive(on: RunLoop.main)
             .sink { [weak self] tracks, active in self?.installAudioMenu(tracks: tracks, active: active) }
             .store(in: &bag)
+    }
+
+    // MARK: - Subtitles (Steven, 2026-10-25: the settings' look was Chris's player's only)
+
+    private var subtitleSettings: SubtitleStyleState? {
+        (PlayerSettingsRepository.shared.uiState.value_ as? PlayerSettingsUiState)?.subtitleStyle
+    }
+
+    private func watchItems(of player: AVPlayer?) {
+        itemBag.removeAll()
+        guard let player else { return }
+        player.publisher(for: \.currentItem)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] item in
+                guard let self, let item else { return }
+                self.applySubtitleLook(to: item)
+                item.publisher(for: \.status)
+                    .filter { $0 == .readyToPlay }
+                    .first()
+                    .receive(on: RunLoop.main)
+                    .sink { [weak self, weak item] _ in
+                        guard let self, let item else { return }
+                        self.applySubtitleLook(to: item)
+                        self.avoidSdh(on: item)
+                    }
+                    .store(in: &self.itemBag)
+            }
+            .store(in: &itemBag)
+    }
+
+    /// Réglages › Langues et sous-titres › Apparence: the size and the background, on Apple's own
+    /// subtitle rendering.
+    private func applySubtitleLook(to item: AVPlayerItem) {
+        guard let style = subtitleSettings else { return }
+        let percent: Int
+        switch style.fontSizeSp {
+        case ..<16: percent = 80
+        case 16..<21: percent = 100
+        case 21..<27: percent = 130
+        default: percent = 160
+        }
+        var attributes: [String: Any] = [kCMTextMarkupAttribute_RelativeFontSize as String: percent]
+        let argb = UInt64(bitPattern: style.backgroundColor)
+        let alpha = Double((argb >> 24) & 0xFF) / 255
+        if alpha > 0 {
+            attributes[kCMTextMarkupAttribute_BackgroundColorARGB as String] = [
+                alpha, Double((argb >> 16) & 0xFF) / 255, Double((argb >> 8) & 0xFF) / 255, Double(argb & 0xFF) / 255,
+            ]
+        }
+        item.textStyleRules = AVTextStyleRule(textMarkupAttributes: attributes).map { [$0] }
+    }
+
+    /// "Retirer les sous-titres pour sourds et malentendants": Apple's player draws a track as it
+    /// is, so the plain track of the same language is chosen instead of an SDH one when there is.
+    private func avoidSdh(on item: AVPlayerItem) {
+        guard subtitleSettings?.stripSdh == true else { return }
+        Task { @MainActor [weak item] in
+            guard let item,
+                  let group = try? await item.asset.loadMediaSelectionGroup(for: .legible),
+                  let selected = item.currentMediaSelection.selectedMediaOption(in: group),
+                  selected.hasMediaCharacteristic(.describesMusicAndSoundForAccessibility)
+            else { return }
+            let language = selected.extendedLanguageTag ?? selected.locale?.identifier
+            let plain = group.options.first { option in
+                !option.hasMediaCharacteristic(.describesMusicAndSoundForAccessibility)
+                    && !option.hasMediaCharacteristic(.containsOnlyForcedSubtitles)
+                    && (option.extendedLanguageTag ?? option.locale?.identifier) == language
+            }
+            if let plain { item.select(plain, in: group) }
+        }
     }
 
     // MARK: - Contextual actions
