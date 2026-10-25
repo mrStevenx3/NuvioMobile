@@ -323,6 +323,8 @@ struct OrbitImage: View {
     /// Shown while `url` loads (the frame shows the poster, already loaded by the row, until its
     /// landscape art lands; it stayed an empty grey pane on a slow network).
     var placeholder: String? = nil
+    /// Tried when `url` and `fallback` both fail (Steven: Buddy showed only its title in Discover).
+    var lastResort: String? = nil
 
     var body: some View {
         CachedAsyncImage(string: url, fallback: fallback, contentMode: mode,
@@ -339,7 +341,17 @@ struct OrbitImage: View {
                                  Color.clear
                              }
                          },
-                         failure: { Color.clear })
+                         failure: {
+                             if let lastResort {
+                                 CachedAsyncImage(string: lastResort, contentMode: mode,
+                                                  decodeSize: .points(width: size.width, height: size.height),
+                                                  loading: { Color.clear }, failure: { Color.clear })
+                                     .frame(width: size.width, height: size.height)
+                                     .clipped()
+                             } else {
+                                 Color.clear
+                             }
+                         })
             .frame(width: size.width, height: size.height)
             .clipped()
     }

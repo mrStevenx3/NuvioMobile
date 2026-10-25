@@ -277,8 +277,13 @@ struct OrbitDiscoverTile: View {
         let info = OrbitInfo.make(item, meta: metaStore.meta(for: item))
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.1)
-            OrbitImage(url: InlineTrailerCard.landscapeArtworkURL(item) ?? metaStore.meta(for: item)?.backdrop,
-                       fallback: item.poster, size: size, placeholder: item.poster)
+            // The catalog's landscape art, else TMDB's backdrop, else the poster (a dead link no
+            // longer leaves the tile with its title alone).
+            let landscape = InlineTrailerCard.landscapeArtworkURL(item)
+            let backdrop = metaStore.meta(for: item)?.backdrop
+            OrbitImage(url: landscape ?? backdrop,
+                       fallback: landscape != nil && backdrop != landscape ? backdrop : item.poster,
+                       size: size, placeholder: item.poster, lastResort: item.poster)
             LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
             OrbitTitleMark(name: item.name, logo: info.logo,
                            maxSize: CGSize(width: size.width * 0.7, height: size.height * 0.32), textSize: 22,
