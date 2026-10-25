@@ -89,13 +89,26 @@ struct OrbitStudioRow: Identifiable, Equatable {
     /// A saga shelf's first place (its logo and TOUT VOIR).
     static let sagaPanelWidth: CGFloat = 560
 
-    /// A card's place along the row from the focused one (the saga's panel is wider).
+    /// A card's place along the row from the margin. Ordinary rows: from the focused card (it stays
+    /// at the margin). A saga's shelf (Steven): the logo stays put and the cursor moves along the
+    /// films; they slide only once the cursor would leave the screen.
     func x(of index: Int, lead: Int) -> CGFloat {
-        func start(_ i: Int) -> CGFloat {
-            guard kind == .saga else { return CGFloat(i) * (cardSize.width + gap) }
-            return i == 0 ? 0 : Self.sagaPanelWidth + gap + CGFloat(i - 1) * (cardSize.width + gap)
-        }
-        return start(index) - start(lead)
+        guard kind == .saga else { return CGFloat(index - lead) * (cardSize.width + gap) }
+        if index == 0 { return 0 }
+        return Self.sagaPanelWidth + gap + CGFloat(index - 1 - sagaScroll(lead: lead)) * (cardSize.width + gap)
+    }
+
+    /// The films slid out on the left of a saga's shelf.
+    func sagaScroll(lead: Int) -> Int {
+        let room = OrbitHomeLayout.screenWidth - 2 * OrbitStudioLayout.margin - Self.sagaPanelWidth - gap
+        let fits = max(1, Int((room + gap) / (cardSize.width + gap)))
+        return max(0, (lead - 1) - (fits - 1))
+    }
+
+    /// Drawn: a saga's films before its scroll are hidden; elsewhere the cards before the focused one.
+    func isHidden(_ index: Int, lead: Int) -> Bool {
+        guard kind == .saga else { return index < lead }
+        return index > 0 && index - 1 < sagaScroll(lead: lead)
     }
 
     /// From this row's heading to the next one's.
@@ -707,7 +720,9 @@ private struct OrbitStudioRowView: View {
     var body: some View {
         let L = OrbitStudioLayout.self
         let size = row.cardSize
-        let window = max(0, lead - 1)...max(max(0, lead - 1), min(row.items.count - 1, lead + 9))
+        // A saga's shelf always draws its panel (index 0).
+        let low = row.kind == .saga ? 0 : max(0, lead - 1)
+        let window = low...max(low, min(row.items.count - 1, lead + 9))
         ZStack(alignment: .topLeading) {
             if row.kind == .saga {
                 OrbitSagaBand(backdrop: row.items.first?.banner, height: L.cardsTop + size.height + 60)
@@ -729,7 +744,7 @@ private struct OrbitStudioRowView: View {
                         card(item, focused: focused && index == lead, trailer: index == lead ? trailerURL : nil, size: size,
                              panel: row.kind == .saga && index == 0)
                             .offset(x: L.margin + row.x(of: index, lead: lead))
-                            .opacity(index < lead ? 0 : 1)
+                            .opacity(row.isHidden(index, lead: lead) ? 0 : 1)
                             .transition(.identity)
                     }
                 }
@@ -1350,8 +1365,9 @@ final class OrbitStudioModel: ObservableObject {
         for decade in decades {
             let items = decadeRows[decade] ?? []
             guard items.count >= 6 else { continue }
-            let label = decade >= 2000 ? String(localized: "Les années \(decade)")
-                : String(localized: "Les années \(decade % 100)")
+            // A plain string: an interpolated Int is formatted with the French thousands space ("2 010").
+            let label = decade >= 2000 ? String(localized: "Les années \(String(decade))")
+                : String(localized: "Les années \(String(decade % 100))")
             rows.append(("decade-\(decade)", label, items))
         }
 
