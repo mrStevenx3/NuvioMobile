@@ -106,13 +106,8 @@ struct OrbitHomeTileRowView: View {
                     .allowsHitTesting(false)
             }
 
-            Text(row.title)
-                .font(.system(size: L.headingFont, weight: .bold))
-                .foregroundStyle(Color.white)
-                .opacity(isCurrent ? 1 : 0.55)
-                .lineLimit(1)
-                .frame(height: 40, alignment: .center)
-                .offset(x: L.margin + 4, y: -20)
+            OrbitRowHeading(title: row.title, isCurrent: isCurrent)
+                .offset(x: L.margin + 4, y: -24)
 
             ZStack(alignment: .topLeading) {
                 if !row.cards.isEmpty {

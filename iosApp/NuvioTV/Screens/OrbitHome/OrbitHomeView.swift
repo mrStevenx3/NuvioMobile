@@ -583,6 +583,39 @@ private struct OrbitCanvasButtonStyle: ButtonStyle {
 
 /// The rows' backdrop: the focused title's art in the top right, fading into the page to the left
 /// and down (as on Prime's and Paramount+'s pages), dimmed so the rows stay in front.
+/// The colour of Home's wash (the focused title's), shared with the rows' headings.
+@MainActor
+final class OrbitHomeTone: ObservableObject {
+    static let shared = OrbitHomeTone()
+    @Published var color: Color?
+}
+
+/// A row's heading on Home. Steven (2026-10-25: the headings melted into the titles' text under
+/// them): larger, heavier, a soft white gradient, and a short bar in the wash's colour before it.
+struct OrbitRowHeading: View {
+    let title: String
+    let isCurrent: Bool
+    @ObservedObject private var tone = OrbitHomeTone.shared
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Capsule()
+                .fill(tone.color ?? Color.white.opacity(0.8))
+                .frame(width: 6, height: 30)
+                .shadow(color: (tone.color ?? .white).opacity(0.6), radius: 6)
+            Text(title)
+                .font(.system(size: 34, weight: .heavy))
+                .foregroundStyle(LinearGradient(colors: [.white, .white.opacity(0.78)],
+                                                startPoint: .top, endPoint: .bottom))
+                .lineLimit(1)
+        }
+        // The whole heading dimmed (not its colour): an emoji in a catalogue's name dims with it.
+        .opacity(isCurrent ? 1 : 0.55)
+        .frame(height: 44, alignment: .center)
+        .animation(.easeInOut(duration: 0.5), value: tone.color)
+    }
+}
+
 struct OrbitRowsBackdrop: View {
     let url: String?
     /// The page's black under it (off where the page has its own ground).
@@ -610,7 +643,10 @@ struct OrbitRowsBackdrop: View {
             // Steven (device: still a hitch Left / Right): the wash follows the title once the
             // remote rests — a full-screen colour change animating under every step was part of it.
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
-            if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled { tone = color }
+            if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
+                tone = color
+                if opaque { OrbitHomeTone.shared.color = color }
+            }
         }
         .allowsHitTesting(false)
     }

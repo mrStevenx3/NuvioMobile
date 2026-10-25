@@ -76,15 +76,8 @@ struct OrbitHomeRowView: View {
         let L = OrbitHomeLayout.self
         let window = max(0, lead - 2)...max(max(0, lead - 2), min(row.cards.count - 1, lead + 6))
         ZStack(alignment: .topLeading) {
-            Text(row.title)
-                .font(.system(size: L.headingFont, weight: .bold))
-                // The whole title dimmed (not its colour): an emoji in a catalogue's name dims
-                // with the text instead of staying bright.
-                .foregroundStyle(Color.white)
-                .opacity(isCurrent ? 1 : 0.55)
-                .lineLimit(1)
-                .frame(height: 40, alignment: .center)
-                .offset(x: L.margin + 4, y: -20)
+            OrbitRowHeading(title: row.title, isCurrent: isCurrent)
+                .offset(x: L.margin + 4, y: -24)
 
             // The posters.
             ZStack(alignment: .topLeading) {
