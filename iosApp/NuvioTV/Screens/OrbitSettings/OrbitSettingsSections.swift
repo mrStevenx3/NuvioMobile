@@ -208,61 +208,17 @@ struct OrbitLanguagesSection: View {
                                 label: { OrbitLanguageOptions.name($0, in: OrbitLanguageOptions.metadata) })
         }
 
-        OrbitSettingsGroup(title: String(localized: "Apparence des sous-titres")) {
+        // Steven (2026-10-25): the size and background are the Apple TV's own (Réglages ›
+        // Accessibilité › Sous-titres), which Apple's player follows; only the SDH choice stays.
+        OrbitSettingsGroup(title: String(localized: "Sous-titres")) {
             if let style = model.subtitleStyle {
-                OrbitSubtitlePreview(sizeSp: style.fontSizeSp, background: style.backgroundColor)
-                OrbitSettingsChoice(title: String(localized: "Taille"),
-                                    selection: Binding(get: { style.fontSizeSp }, set: { model.setSubtitleFontSize($0) }),
-                                    options: [Int32(14), 18, 24, 30],
-                                    label: { sp in
-                                        switch sp {
-                                        case 14: return String(localized: "Petite")
-                                        case 18: return String(localized: "Moyenne")
-                                        case 24: return String(localized: "Grande")
-                                        case 30: return String(localized: "Très grande")
-                                        default: return "\(sp)"
-                                        }
-                                    })
-                OrbitSettingsChoice(title: String(localized: "Fond"),
-                                    selection: Binding(get: { style.backgroundColor }, set: { model.setSubtitleBackground($0) }),
-                                    options: [Int64(0x00000000), 0x80000000, 0xFF000000],
-                                    label: { argb in
-                                        switch argb {
-                                        case 0x80000000: return String(localized: "Semi-transparent")
-                                        case 0xFF000000: return String(localized: "Opaque")
-                                        default: return String(localized: "Aucun")
-                                        }
-                                    })
                 OrbitSettingsToggle(title: String(localized: "Retirer les sous-titres pour sourds et malentendants"),
-                                    subtitle: String(localized: "Cache les descriptions de sons et les noms des personnages."),
+                                    subtitle: String(localized: "Choisit la piste normale plutôt que celle avec les descriptions de sons, quand les deux existent."),
                                     isOn: Binding(get: { style.stripSdh }, set: { model.setSubtitleStripSdh($0) }))
             } else {
                 OrbitSettingsNote(text: String(localized: "Chargement…"))
             }
         }
-    }
-}
-
-/// What a subtitle looks like at the chosen size and background.
-private struct OrbitSubtitlePreview: View {
-    let sizeSp: Int32
-    let background: Int64
-
-    var body: some View {
-        let alpha = Double((background >> 24) & 0xFF) / 255
-        ZStack(alignment: .bottom) {
-            LinearGradient(colors: [Color(white: 0.22), Color(white: 0.08)], startPoint: .top, endPoint: .bottom)
-            Text("Je ne reviendrai pas, Marty.")
-                .font(.system(size: CGFloat(sizeSp) * 1.6, weight: .semibold))
-                .foregroundStyle(Color.white)
-                .shadow(color: .black.opacity(alpha > 0 ? 0 : 0.9), radius: 3)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(Color.black.opacity(alpha))
-                .padding(.bottom, 26)
-        }
-        .frame(width: OrbitSettingsLayout.rowWidth, height: 200)
-        .clipShape(RoundedRectangle(cornerRadius: OrbitSettingsLayout.radius, style: .continuous))
     }
 }
 
