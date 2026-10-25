@@ -436,7 +436,7 @@ private struct OrbitNetflixTag: View {
 
 /// The open tile's still, a little larger than the tile, gliding slowly to the left (Netflix's own
 /// focus effect before its preview).
-private struct OrbitNetflixDrift: View {
+struct OrbitDriftImage: View {
     let url: String?
     let fallback: String?
     let size: CGSize
@@ -541,7 +541,7 @@ private struct OrbitNetflixBillboard: View {
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.08)
             // Netflix (Steven's video): the billboard's still drifts slowly to the left until its trailer.
-            OrbitNetflixDrift(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+            OrbitDriftImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
                 .id("\(item.type):\(item.id)")
             if let trailerURL {
                 TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,

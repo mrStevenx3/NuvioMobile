@@ -49,6 +49,8 @@ struct HomeView: View {
                     OrbitDisneyPage(route: route, push: { homePath.append($0) })
                 } else if OrbitNetflixPage.handles(route) {
                     OrbitNetflixPage(route: route, push: { homePath.append($0) })
+                } else if OrbitPrimePage.handles(route) {
+                    OrbitPrimePage(route: route, push: { homePath.append($0) })
                 } else {
                     OrbitPlatformPage(route: route, push: { homePath.append($0) })
                 }
