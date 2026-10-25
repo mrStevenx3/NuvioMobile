@@ -28,6 +28,8 @@ enum OrbitHBOLayout {
     static let firstRowLine: CGFloat = 130
     static let aboveRowShows: CGFloat = 0.55
     static let headingHeight: CGFloat = 48
+    /// The Top 10's own heading (the TV app's outlined "TOP 10", "FILMS / AUJOURD'HUI" beside it).
+    static let top10HeadingHeight: CGFloat = 110
     static let poster = CGSize(width: 240, height: 360)
     /// His Top 10 images (2:3, the poster on the right 72 %, the rank behind it): the poster at a poster's height.
     static var top10Image: CGSize { CGSize(width: poster.height / 0.72 * 2 / 3, height: poster.height / 0.72) }
@@ -51,7 +53,8 @@ struct OrbitHBORow: Identifiable, Equatable {
 
     /// The Top 10 too: only its poster's band (his image's transparent top and bottom cut).
     var cardHeight: CGFloat { OrbitHBOLayout.poster.height }
-    var height: CGFloat { OrbitHBOLayout.headingHeight + cardHeight + OrbitHBOLayout.rowGap }
+    var headingHeight: CGFloat { top10 ? OrbitHBOLayout.top10HeadingHeight : OrbitHBOLayout.headingHeight }
+    var height: CGFloat { headingHeight + cardHeight + OrbitHBOLayout.rowGap }
     var slot: CGFloat { (top10 ? OrbitHBOLayout.top10Image.width : OrbitHBOLayout.poster.width) + OrbitHBOLayout.gap }
 }
 
@@ -629,12 +632,18 @@ private struct OrbitHBORowView: View {
         let low = max(0, lead - 1)
         let window = low...max(low, min(row.items.count - 1, lead + 8))
         VStack(alignment: .leading, spacing: 0) {
-            Text(row.title)
-                .font(.system(size: 25, weight: .bold))
-                .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.75))
-                .lineLimit(1)
-                .frame(height: L.headingHeight, alignment: .topLeading)
-                .padding(.leading, L.margin)
+            Group {
+                if row.top10 {
+                    OrbitHBOTop10Heading(series: row.title.lowercased().contains("série"))
+                } else {
+                    Text(row.title)
+                        .font(.system(size: 25, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.75))
+                        .lineLimit(1)
+                }
+            }
+            .frame(height: row.headingHeight, alignment: .topLeading)
+            .padding(.leading, L.margin)
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
                     ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
@@ -658,6 +667,49 @@ private struct OrbitHBORowView: View {
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
         .opacity(isCurrent || focused ? 1 : 0.85)
         .allowsHitTesting(false)
+    }
+}
+
+/// HBO Max's Top 10 heading: "TOP 10" in a thin blue neon outline, "FILMS" / "AUJOURD'HUI" spaced beside it.
+private struct OrbitHBOTop10Heading: View {
+    let series: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 22) {
+            OrbitHBOOutlined(text: "TOP 10", size: 76)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(series ? String(localized: "SÉRIES") : String(localized: "FILMS"))
+                Text(String(localized: "AUJOURD'HUI"))
+            }
+            .font(.system(size: 21, weight: .medium))
+            .kerning(7)
+            .foregroundStyle(Color.white)
+        }
+    }
+}
+
+/// Text drawn as an outline: the blue copies around, the night blue in the middle, a soft glow.
+private struct OrbitHBOOutlined: View {
+    let text: String
+    let size: CGFloat
+
+    var body: some View {
+        let font = Font.system(size: size, weight: .medium)
+        let w = max(1.5, size * 0.03)
+        let offsets: [CGSize] = (0..<16).map { i in
+            let a = Double(i) / 16 * 2 * .pi
+            return CGSize(width: cos(a) * w, height: sin(a) * w)
+        }
+        ZStack {
+            ForEach(offsets.indices, id: \.self) { i in
+                Text(text).font(font).foregroundStyle(OrbitHBOLayout.blue).offset(offsets[i])
+            }
+            Text(text).font(font).foregroundStyle(OrbitHBOLayout.background)
+        }
+        .kerning(-size * 0.02)
+        .compositingGroup()
+        .shadow(color: OrbitHBOLayout.blue.opacity(0.7), radius: 8)
+        .fixedSize()
     }
 }
 
