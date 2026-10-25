@@ -94,6 +94,10 @@ struct OrbitStudiosPage: View {
                         .frame(width: 1, height: Self.heroTop + Self.frameSize.height)
                         .allowsHitTesting(false)
 
+                    // Steven (device: from DC to Lucasfilm and on, the row jumped — the system's own
+                    // scroll): the row glides on one curve, the focused studio kept at the centre
+                    // once past the first ones, at every move alike.
+                    ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Self.tileSpacing) {
                             ForEach(folders, id: \.id) { folder in
@@ -105,10 +109,16 @@ struct OrbitStudiosPage: View {
                                 }
                                 .buttonStyle(OrbitPlatformTileStyle())
                                 .focused($focused, equals: folder.id)
+                                .id(folder.id)
                             }
                         }
                         .padding(.vertical, 30)
                         .padding(.horizontal, L.margin)
+                    }
+                    .onChange(of: focused) { _, id in
+                        guard let id, folders.contains(where: { $0.id == id }) else { return }
+                        withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
+                    }
                     }
                     .scrollClipDisabled()
                     .padding(.vertical, -30)

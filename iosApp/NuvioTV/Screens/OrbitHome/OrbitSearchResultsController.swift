@@ -366,8 +366,9 @@ private struct OrbitSearchPoster: View {
                 // (TMDB's own poster when it has none in his language: Charmed has none in French.)
                 let meta = metaStore.meta(for: item)
                 let local = meta?.localPoster ?? meta?.titledPoster
+                // (No stand-in while TMDB's loads: Charmed showed its English poster first.)
                 OrbitImage(url: local ?? item.poster, fallback: local != nil ? item.poster : item.rawPosterUrl,
-                           size: geo.size, placeholder: local != nil ? item.poster : nil)
+                           size: geo.size)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

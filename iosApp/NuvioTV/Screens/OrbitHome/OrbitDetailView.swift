@@ -243,8 +243,12 @@ struct OrbitDetailView: View {
             // Casting peeked at the bottom. On the hero, nothing below it shows.
             .mask {
                 VStack(spacing: 0) {
+                    // Steven (device: the trailers' captions showed at the top, by the house): under
+                    // the sections, the page fades out at the top.
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: section == .hero ? 0 : 160)
                     // Up to just under the buttons: a nudge of the page can no longer show "Casting".
-                    Color.black.frame(height: section == .hero ? 1050 : OrbitHomeLayout.screenHeight)
+                    Color.black.frame(height: section == .hero ? 1050 : OrbitHomeLayout.screenHeight - 160)
                     Color.clear
                 }
                 .frame(height: OrbitHomeLayout.screenHeight, alignment: .top)
@@ -422,6 +426,8 @@ struct OrbitDetailView: View {
                     guard resuming else { return }
                     resuming = false
                     resumeFocus = nil
+                    // The page follows wherever the focus ended (it stayed on the hero's look).
+                    if let focus { enter(focus.section) }
                 }
             }
             visible = true
@@ -1007,7 +1013,8 @@ private struct OrbitDetailBackground: View {
             // the whole screen made the move to the sections stutter).
             ZStack {
                 OrbitSwapImage(url: url, fallback: nil, size: size)
-                OrbitPreBlurred(url: url, radius: 26)
+                // Steven (device: not dark or blurred enough under the sections).
+                OrbitPreBlurred(url: url, radius: 44)
                     .opacity(dimmed ? 1 : 0)
             }
             .scaleEffect(dimmed ? 1.06 : (cinema ? 1.05 : 1))
@@ -1057,7 +1064,7 @@ private struct OrbitDetailBackground: View {
             // Cinema: only a light bottom shade stays (for the title and the hint).
             .opacity(cinema ? 0.35 : 1)
             // Under the sections: dark enough for white text on any art.
-            tint.opacity(dimmed ? 0.62 : 0)
+            tint.opacity(dimmed ? 0.74 : 0)
         }
         .frame(width: size.width, height: size.height)
         .clipped()

@@ -130,6 +130,9 @@ struct StreamPickerView: View {
                 .padding(.bottom, 120)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .disabled(coverShown)
+                // Steven (device: the list showed for an instant before the automatic start): it is
+                // drawn only when it is the page's content, never under the opening cover.
+                .opacity(coverShown ? 0 : 1)
         }
         .scrollClipDisabled()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -195,6 +198,8 @@ struct StreamPickerView: View {
         rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
         if !started {
             started = true
+            // The setting may have loaded after the page was built: read once more.
+            if !autoMode, !forceManual, OrbitAutoPlay.isEnabled { autoMode = true }
             if autoMode {
                 autoPlay.start()
             } else if let notice {

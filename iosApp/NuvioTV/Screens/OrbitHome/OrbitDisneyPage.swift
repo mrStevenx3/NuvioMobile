@@ -261,18 +261,21 @@ struct OrbitDisneyPage: View {
         ZStack(alignment: .topLeading) {
             OrbitDisneyLayout.background
 
-            // The page: hero, tiles, rows — moving up together.
-            ZStack(alignment: .topLeading) {
-                OrbitDisneyHero(item: hero, meta: hero.flatMap { metaStore.meta(for: $0) },
-                                count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
-                                focused: canvasFocused && current == 0, isHulu: isHulu,
-                                trailerURL: trailerURL(for: hero),
-                                onTrailerFailure: { trailer.playbackFailed($0) },
-                                onTrailerEnded: {
-                                    trailer.playbackFinished()
-                                    advanceHero()
-                                })
+            // Steven (device: back to the top, the hero came back in two steps): the hero stays in
+            // place and fades with the page's move; the tiles and rows move up over it.
+            OrbitDisneyHero(item: hero, meta: hero.flatMap { metaStore.meta(for: $0) },
+                            count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
+                            focused: canvasFocused && current == 0, isHulu: isHulu,
+                            trailerURL: trailerURL(for: hero),
+                            onTrailerFailure: { trailer.playbackFailed($0) },
+                            onTrailerEnded: {
+                                trailer.playbackFinished()
+                                advanceHero()
+                            })
+                .opacity(offset < 1 ? 1 : 0)
+                .animation(reduceMotion ? nil : OrbitDisneyLayout.vertical, value: offset < 1)
 
+            ZStack(alignment: .topLeading) {
                 rowsLayer(rows)
             }
             .offset(y: -offset)
