@@ -774,11 +774,6 @@ private struct OrbitStudioRowView: View {
         let low = row.kind == .saga ? 0 : max(0, lead - 1)
         let window = low...max(low, min(row.items.count - 1, lead + 9))
         ZStack(alignment: .topLeading) {
-            if row.kind == .ranked {
-                // Steven: Home's Top 10 band here too.
-                OrbitTop10Band(height: size.height + 140)
-                    .offset(y: L.cardsTop - 70)
-            }
             if row.kind == .saga {
                 OrbitSagaBand(backdrop: row.items.first?.banner, height: L.cardsTop + size.height + 60)
                     .offset(y: -30)

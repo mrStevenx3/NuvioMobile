@@ -279,11 +279,6 @@ struct OrbitNativeRow: View {
             // Steven's video (the row below bounced on Left / Right): every part of a row has a
             // fixed height — nothing in it can change the rows' places.
             .frame(height: size.height)
-            .background {
-                if style == .ranked {
-                    OrbitTop10Band(height: size.height + 140)
-                }
-            }
 
             // The focused title's details under the row (large cards carry theirs).
             if style != .cards {

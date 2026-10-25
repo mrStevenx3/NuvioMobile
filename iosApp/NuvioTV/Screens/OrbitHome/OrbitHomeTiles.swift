@@ -93,14 +93,7 @@ struct OrbitHomeTileRowView: View {
         let visible = Int(L.screenWidth / slot) + 2
         let window = max(0, lead - 2)...max(max(0, lead - 2), min(row.cards.count - 1, lead + visible))
         ZStack(alignment: .topLeading) {
-            // Steven (device: the Top 10 looked empty, "une bande qui se fond"): a soft dark band
-            // behind the ranks and posters, fading out above and below, that holds the row together.
-            if style == .ranked {
-                // (Steven, device: the dark band didn't show on the coloured wash — a light one.)
-                OrbitTop10Band(height: size.height + 140)
-                    .offset(y: L.cardsTop - 70)
-            }
-
+            // (Steven: no band behind the Top 10 any more — the focused rank's glow holds it.)
             OrbitRowHeading(title: row.title, isCurrent: isCurrent)
                 .offset(x: L.margin + 4, y: -24)
 
