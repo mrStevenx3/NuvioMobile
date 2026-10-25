@@ -715,13 +715,7 @@ private struct OrbitPrimeTop: View {
                                 .foregroundStyle(Color.white)
                         }
                         .scaleEffect(buttonsLit ? 1.06 : 1, anchor: .leading)
-                        ForEach(["plus", "info"], id: \.self) { symbol in
-                            Image(systemName: symbol)
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundStyle(Color.white)
-                                .frame(width: 52, height: 52)
-                                .background(Circle().fill(Color.white.opacity(0.2)))
-                        }
+                        // (+ and i removed, Steven: they could not be used.)
                     }
                     .padding(.top, 26)
                     .animation(.easeOut(duration: 0.18), value: buttonsLit)
