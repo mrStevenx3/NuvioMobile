@@ -23,6 +23,9 @@ nonisolated enum OrbitHomeSetting {
     static let trailersKey = "orbit_home_trailers"
     /// Steven (2026-10-25): the previews that start on their own play with their sound.
     static let trailerSoundKey = "orbit_trailer_sound"
+    /// Steven (2026-10-25): Home built like Apple's TV app (`OrbitNativeHome`), on by default; off
+    /// brings the canvas Home back.
+    static let nativeKey = "orbit_native_home"
 }
 
 extension Notification.Name {
@@ -111,6 +114,7 @@ struct OrbitHomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var current = 0
+    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     /// Steven (device, still a hitch on Up/Down): the rows mounted follow the row the page last
     /// settled on, not the one it is moving to — the row coming into the window is built once the
     /// move is over, not in the frame the move starts.
@@ -324,6 +328,9 @@ struct OrbitHomeView: View {
         let heroItem = heroItems.isEmpty ? nil : heroItems[heroIndex % heroItems.count]
 
         ZStack(alignment: .topLeading) {
+            if nativeHome {
+                OrbitNativeHome(heroItems: heroItems, rows: rows, actions: actions, isScrolledDown: $isScrolledDown)
+            } else {
             // (The blurred ambient behind the hero is gone: the full-screen hero covers it, it was
             // fetched and blurred for nothing on every title.)
             // Steven (2026-10-25, pass 2: the rows left the screen half black): the focused title's
@@ -355,6 +362,7 @@ struct OrbitHomeView: View {
             .onMoveCommand(perform: move)
             .onExitCommand(perform: exitAction(index: index))
             .offset(y: 110)
+            }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
         .background(OrbitHomeLayout.background)
@@ -516,6 +524,8 @@ struct OrbitHomeView: View {
 
     /// After any move: the bar's lock, Home's scrolled flag, the trailer dwell, the look-ahead.
     private func refreshAfterMove() {
+        // The native Home moves, locks the bar and looks ahead on its own.
+        guard !nativeHome else { return }
         let sections = sections
         let index = min(current, max(0, sections.count - 1))
         OrbitBarLock.shared.set(canvasFocused && index > 0)

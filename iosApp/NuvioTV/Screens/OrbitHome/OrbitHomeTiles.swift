@@ -242,7 +242,7 @@ struct OrbitLandscapeTile: View {
 
 /// A large portrait card: the art without its title, the logo, the badge and the line over it; the
 /// trailer in it after a rest.
-private struct OrbitBigCard: View {
+struct OrbitBigCard: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let focused: Bool
@@ -290,7 +290,7 @@ private struct OrbitBigCard: View {
 }
 
 /// A smaller poster (TMDB's French one when it has one).
-private struct OrbitSmallPoster: View {
+struct OrbitSmallPoster: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let focused: Bool
