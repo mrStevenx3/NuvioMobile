@@ -277,7 +277,9 @@ private struct OrbitSmallPoster: View {
         let size = OrbitTileLayout.poster
         ZStack(alignment: .topTrailing) {
             Color(white: 0.1)
-            OrbitImage(url: meta?.localPoster ?? card.poster, fallback: card.landscape, mode: .fill, size: size)
+            // A saga keeps its own poster (its card opens its first film, whose meta is not the saga's).
+            OrbitImage(url: card.id.hasPrefix("saga:") ? card.poster : (meta?.localPoster ?? card.poster),
+                       fallback: card.landscape, mode: .fill, size: size)
         }
         .frame(width: size.width, height: size.height)
         .modifier(OrbitTileFocus(focused: focused, radius: 10))
@@ -386,7 +388,11 @@ final class OrbitHomeExtrasModel: ObservableObject {
 
     @Published private(set) var movieRows: [Extra] = []
     @Published private(set) var seriesRows: [Extra] = []
+    /// "Parce que vous avez regardé …" (films, series): from the last title watched.
+    @Published private(set) var becauseMovie: Extra?
+    @Published private(set) var becauseSeries: Extra?
     private var started = false
+    private var becauseSeeds: [String: String] = [:]
 
     func load() {
         guard !started else { return }
@@ -403,6 +409,88 @@ final class OrbitHomeExtrasModel: ObservableObject {
             self.movieRows = m
             self.seriesRows = s
         }
+    }
+
+    /// Steven: from the last title watched — finished (his watched list) or in progress (Reprendre),
+    /// so it holds when a title leaves Reprendre. `seed`: (id, name), nil when nothing watched.
+    func loadBecause(seed: (id: String, name: String)?, series: Bool) {
+        let slot = series ? "tv" : "movie"
+        guard let seed, becauseSeeds[slot] != seed.id else { return }
+        let key = TmdbSettingsRepository.shared.effectiveApiKey()
+        guard !key.isEmpty else { return }
+        becauseSeeds[slot] = seed.id
+        let language = TmdbSettingsRepository.shared.snapshot().language
+        Task { [weak self] in
+            let items = await Self.recommendations(id: seed.id, tv: series, apiKey: key,
+                                                   language: language.isEmpty ? "fr-FR" : language)
+            guard let self, items.count >= 6 else { return }
+            let row = Extra(id: "orbit-because-\(slot)", title: String(localized: "Parce que vous avez regardé \(seed.name)"),
+                            items: Array(items.prefix(20)), style: .posters)
+            if series { self.becauseSeries = row } else { self.becauseMovie = row }
+        }
+    }
+
+    nonisolated private struct FindResult: Decodable {
+        nonisolated struct Hit: Decodable { let id: Int }
+        let movie_results: [Hit]?
+        let tv_results: [Hit]?
+    }
+
+    nonisolated private static func recommendations(id: String, tv: Bool, apiKey: String, language: String) async -> [MetaPreview] {
+        var tmdbId: Int?
+        if id.hasPrefix("tmdb:") {
+            tmdbId = Int(id.dropFirst(5).split(separator: ":").first ?? "")
+        } else if id.hasPrefix("tt"), let url = URL(string: "https://api.themoviedb.org/3/find/\(id)?api_key=\(apiKey)&external_source=imdb_id"),
+                  let (data, _) = try? await URLSession.shared.data(from: url),
+                  let found = try? JSONDecoder().decode(FindResult.self, from: data) {
+            tmdbId = (tv ? found.tv_results : found.movie_results)?.first?.id
+        }
+        guard let tmdbId else { return [] }
+        let media = tv ? "tv" : "movie"
+        return await OrbitPlatformExtrasModel.fetch(
+            "https://api.themoviedb.org/3/\(media)/\(tmdbId)/recommendations?api_key=\(apiKey)&language=\(language)&page=1", tv: tv)
+            .filter { $0.banner != nil }
+    }
+
+    /// A few great sagas (TMDB collections): their poster, opening their first film.
+    nonisolated private static let sagaIds = [10, 1241, 119, 9485, 87359, 645, 328, 295, 131635, 10194,
+                                              726871, 404609, 2344, 84, 264, 263, 86311, 531241, 748, 556]
+
+    nonisolated private struct CollectionResponse: Decodable {
+        nonisolated struct Part: Decodable { let id: Int; let release_date: String? }
+        let id: Int
+        let name: String?
+        let overview: String?
+        let poster_path: String?
+        let backdrop_path: String?
+        let parts: [Part]?
+    }
+
+    nonisolated private static func sagas(apiKey: String, language: String) async -> [MetaPreview] {
+        let found = await withTaskGroup(of: (Int, MetaPreview?).self) { group in
+            for (index, id) in sagaIds.enumerated() {
+                group.addTask {
+                    guard let url = URL(string: "https://api.themoviedb.org/3/collection/\(id)?api_key=\(apiKey)&language=\(language)"),
+                          let (data, _) = try? await URLSession.shared.data(from: url),
+                          let c = try? JSONDecoder().decode(CollectionResponse.self, from: data),
+                          let name = c.name, let poster = c.poster_path,
+                          let first = (c.parts ?? []).filter({ !($0.release_date ?? "").isEmpty })
+                              .min(by: { ($0.release_date ?? "") < ($1.release_date ?? "") }) else { return (index, nil) }
+                    let preview = MetaPreview(id: "tmdb:\(first.id)", type: "movie", name: name,
+                                              poster: "https://image.tmdb.org/t/p/w500\(poster)",
+                                              banner: c.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
+                                              logo: nil, posterShape: .poster, description: c.overview,
+                                              releaseInfo: nil, rawReleaseDate: nil, popularity: nil, voteCount: nil,
+                                              imdbRating: nil, genres: [], rawPosterUrl: nil, landscapePoster: nil,
+                                              rawLandscapePosterUrl: nil, customPosterApplied: false)
+                    return (index, preview)
+                }
+            }
+            var out: [Int: MetaPreview] = [:]
+            for await (index, item) in group { if let item { out[index] = item } }
+            return out
+        }
+        return sagaIds.indices.compactMap { found[$0] }
     }
 
     nonisolated private static func rows(tv: Bool, apiKey: String, language: String) async -> [Extra] {
@@ -455,6 +543,39 @@ final class OrbitHomeExtrasModel: ObservableObject {
         if mixed.count >= 6 {
             out.append(Extra(id: "orbit-new-\(media)", title: String(localized: "Nouveau sur vos plateformes"),
                              items: Array(mixed.prefix(30)), style: .landscape))
+        }
+
+        // Prochainement (everywhere: the platforms and the cinemas), their date on the tile.
+        let day: TimeInterval = 86_400
+        let iso = ISO8601DateFormatter()
+        let tomorrow = String(iso.string(from: Date().addingTimeInterval(day)).prefix(10))
+        let later = String(iso.string(from: Date().addingTimeInterval(90 * day)).prefix(10))
+        let soonAddress = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(language)"
+            + "&region=\(region)&include_adult=false&sort_by=popularity.desc"
+            + "&\(dateKey).gte=\(tomorrow)&\(dateKey).lte=\(later)"
+        let soon = await OrbitPlatformExtrasModel.fetch(soonAddress + "&page=1", tv: tv, requiresOverview: false)
+            .filter { $0.banner != nil }
+        if soon.count >= 6 {
+            out.append(Extra(id: "orbit-soon-\(media)", title: String(localized: "Prochainement"),
+                             items: Array(soon.prefix(20)), style: .landscape))
+        }
+
+        // Les mieux notés (the last five years, enough votes).
+        let fiveYears = String(iso.string(from: Date().addingTimeInterval(-5 * 365 * day)).prefix(10))
+        let bestAddress = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(language)"
+            + "&include_adult=false&sort_by=vote_average.desc&vote_count.gte=\(tv ? 300 : 1000)&\(dateKey).gte=\(fiveYears)"
+        let best = await OrbitPlatformExtrasModel.fetch(bestAddress + "&page=1", tv: tv)
+        if best.count >= 6 {
+            out.append(Extra(id: "orbit-best-\(media)", title: String(localized: "Les mieux notés"),
+                             items: Array(best.prefix(20)), style: .posters))
+        }
+
+        // Les grandes sagas (films).
+        if !tv {
+            let sagas = await sagas(apiKey: apiKey, language: language)
+            if sagas.count >= 6 {
+                out.append(Extra(id: "orbit-sagas", title: String(localized: "Les grandes sagas"), items: sagas, style: .posters))
+            }
         }
         return out
     }

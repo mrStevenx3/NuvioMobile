@@ -145,11 +145,18 @@ struct OrbitHomeView: View {
                                 cards: Self.unique(entries.map(OrbitCard.continueWatching)), style: .landscape))
             seen.insert("continue-watching")
         }
-        let extraRows = (series ? extras.seriesRows : extras.movieRows).map { extra in
-            OrbitRow(id: extra.id, title: extra.title, cards: Self.unique(extra.items.map(OrbitCard.catalog)), style: extra.style)
+        let because = series ? extras.becauseSeries : extras.becauseMovie
+        let extraRows = ((series ? extras.seriesRows : extras.movieRows) + [because].compactMap { $0 }).map { extra in
+            OrbitRow(id: extra.id, title: extra.title, cards: Self.unique(extra.items.map { Self.card(extra.id, $0) }),
+                     style: extra.style)
         }
         var top = extraRows.filter { $0.style == .ranked }
+        // Orbit's own rows, one after each of his catalogs from the second, in this order.
+        let order = ["orbit-because", "orbit-new", "orbit-soon", "orbit-sagas", "orbit-best"]
         var platforms = extraRows.filter { $0.style != .ranked }
+            .sorted { a, b in
+                (order.firstIndex { a.id.hasPrefix($0) } ?? 9) < (order.firstIndex { b.id.hasPrefix($0) } ?? 9)
+            }
         let cycle: [OrbitRowStyle] = [.cards, .classic, .posters]
         var catalogs = 0
         var styled = 0
@@ -173,9 +180,46 @@ struct OrbitHomeView: View {
             catalogs += 1
             // Steven: the Top 10 well forward, right after the first catalog.
             if catalogs == 1, !top.isEmpty { out.append(top.removeFirst()) }
-            if catalogs % 2 == 0, !platforms.isEmpty { out.append(platforms.removeFirst()) }
+            if catalogs >= 2, !platforms.isEmpty { out.append(platforms.removeFirst()) }
         }
         return out + top + platforms
+    }
+
+    /// An Orbit row's card: a saga keeps its own id (it opens its first film), Prochainement shows
+    /// its date ("12 nov.") on the tile.
+    private static func card(_ rowId: String, _ item: MetaPreview) -> OrbitCard {
+        var card = OrbitCard.catalog(item)
+        if rowId.hasPrefix("orbit-sagas") {
+            card = OrbitCard(id: "saga:\(item.id)", preview: item, poster: item.poster, landscape: card.landscape)
+        }
+        if rowId.hasPrefix("orbit-soon"), let raw = item.rawReleaseDate, raw.count >= 10 {
+            let parser = DateFormatter()
+            parser.dateFormat = "yyyy-MM-dd"
+            parser.locale = Locale(identifier: "en_US_POSIX")
+            if let date = parser.date(from: String(raw.prefix(10))) {
+                let out = DateFormatter()
+                out.locale = Locale(identifier: "fr_FR")
+                out.dateFormat = "d MMM"
+                card.badge = String(localized: "Le \(out.string(from: date))")
+            }
+        }
+        return card
+    }
+
+    /// "Parce que vous avez regardé": the last title watched of the page's kind — finished (his
+    /// watched list) or in progress (Reprendre), the more recent of the two.
+    private func becauseSeed(series: Bool) -> (id: String, name: String)? {
+        let entry = model.continueWatching
+            .filter { series ? $0.parentMetaType != "movie" : $0.parentMetaType == "movie" }
+            .max { $0.lastUpdatedEpochMs < $1.lastUpdatedEpochMs }
+        let watched = (WatchedRepository.shared.uiState.value_ as? WatchedUiState)?.items
+            .filter { series ? $0.type != "movie" : $0.type == "movie" }
+            .max { $0.markedAtEpochMs < $1.markedAtEpochMs }
+        if let watched, watched.markedAtEpochMs > (entry?.lastUpdatedEpochMs ?? 0) {
+            return (watched.id, watched.name)
+        }
+        if let entry { return (entry.parentMetaId, entry.title) }
+        return nil
     }
 
     private static func unique(_ cards: [OrbitCard]) -> [OrbitCard] {
@@ -267,6 +311,8 @@ struct OrbitHomeView: View {
         .onAppear {
             heroModel.loadIfNeeded()
             extras.load()
+            WatchedRepository.shared.ensureLoaded()
+            extras.loadBecause(seed: becauseSeed(series: series), series: series)
             OrbitPlatformLogos.update()
             trailer.restSource = .custom(motion)
             refreshAfterMove()
@@ -276,6 +322,9 @@ struct OrbitHomeView: View {
             OrbitBarLock.shared.set(false)
         }
         .onChange(of: canvasFocused) { _, _ in refreshAfterMove() }
+        .onChange(of: model.continueWatching.count) { _, _ in
+            extras.loadBecause(seed: becauseSeed(series: series), series: series)
+        }
         .onChange(of: sections.map(\.id)) { _, _ in
             if current >= sections.count { current = max(0, sections.count - 1) }
             refreshAfterMove()
