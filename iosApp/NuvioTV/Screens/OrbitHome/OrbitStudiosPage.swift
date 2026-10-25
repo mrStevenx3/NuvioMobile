@@ -307,9 +307,10 @@ private struct OrbitStudioFrame: View {
             // lowered by `lift`.
             let full = CGSize(width: size.width, height: size.width * 9 / 16)
             let spare = max(0, full.height - size.height) / 2
-            OrbitSwapImage(url: url, fallback: nil, size: full)
+            // Steven (device: Lucasfilm and Illumination switched differently): Lucasfilm's lift
+            // belongs to its image — it no longer jumps the whole frame (the old image with it).
+            OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
                 .frame(width: full.width, height: full.height)
-                .offset(y: spare * lift)
                 .frame(width: size.width, height: size.height)
                 .scaleEffect(zoom)
                 .offset(x: shift)

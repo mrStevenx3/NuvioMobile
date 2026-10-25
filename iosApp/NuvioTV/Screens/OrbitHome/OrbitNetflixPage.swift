@@ -252,7 +252,8 @@ struct OrbitNetflixPage: View {
                         .offset(x: OrbitNetflixLayout.margin, y: OrbitNetflixLayout.billboardTop)
                         // Steven (taller billboard): its bottom showed under the bar once scrolled.
                         .opacity(current == 0 ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.3), value: current == 0)
+                        // Leaving, gone before the rows reach it; back once they have moved off.
+                        .animation(current == 0 ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.12), value: current == 0)
                         .opacity(current <= 1 ? 1 : 0)
                 }
                 rowsLayer(rows)
@@ -673,7 +674,10 @@ private struct OrbitNetflixRowView: View {
                 }
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: L.tileHeight, alignment: .topLeading)
-            if isCurrent, row.items.indices.contains(lead) {
+            // Steven (device: the text ran over the posters while the page moved): the details of
+            // the row the page arrives at wait for the move to end, then fade in; leaving, they go
+            // at once.
+            if row.items.indices.contains(lead) {
                 let item = row.items[lead]
                 let meta = metaStore.meta(for: item)
                 let info = OrbitInfo.make(item, meta: meta)
@@ -693,6 +697,8 @@ private struct OrbitNetflixRowView: View {
                 .padding(.top, 18)
                 .id("\(item.type):\(item.id)")
                 .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.2)), removal: .identity))
+                .opacity(isCurrent ? 1 : 0)
+                .animation(isCurrent ? .easeInOut(duration: 0.2).delay(0.34) : nil, value: isCurrent)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)

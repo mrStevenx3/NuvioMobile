@@ -357,9 +357,12 @@ struct OrbitSwapImage: View {
     let url: String?
     let fallback: String?
     let size: CGSize
+    /// A vertical shift belonging to this image (it cross-fades with it, never jumps on the old one).
+    var shiftY: CGFloat = 0
 
     @Environment(\.displayScale) private var displayScale
     @State private var shown: UIImage?
+    @State private var shownShift: CGFloat = 0
     @State private var generation = 0
 
     var body: some View {
@@ -370,6 +373,7 @@ struct OrbitSwapImage: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: size.width, height: size.height)
                     .clipped()
+                    .offset(y: shownShift)
                     .id(generation)
                     .zIndex(Double(generation))
                     .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
@@ -383,6 +387,7 @@ struct OrbitSwapImage: View {
 
     private func show(_ image: UIImage) {
         generation &+= 1
+        shownShift = shiftY
         shown = image
     }
 
