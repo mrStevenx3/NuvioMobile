@@ -696,6 +696,12 @@ private struct OrbitAppleTVRowView: View {
     let onTrailerEnded: () -> Void
     @ObservedObject var metaStore: OrbitMetaStore
 
+    /// Half the focused title's growth, plus a little air.
+    private var headingLift: CGFloat {
+        row.kind == .cards ? OrbitAppleTVLayout.card.height * 0.03 + 10
+                           : OrbitAppleTVLayout.poster.height * (OrbitAppleTVLayout.focusScale - 1) / 2 + 10
+    }
+
     var body: some View {
         let L = OrbitAppleTVLayout.self
         let low = max(0, lead - 1)
@@ -707,6 +713,10 @@ private struct OrbitAppleTVRowView: View {
                 .lineLimit(1)
                 .frame(height: L.headingHeight, alignment: .topLeading)
                 .padding(.leading, L.margin)
+                // As in the app (Steven): the focused title under the heading grows, the heading
+                // steps up out of its way, quickly, and comes back once it is no longer focused.
+                .offset(y: focused ? -headingLift : 0)
+                .animation(.easeOut(duration: 0.16), value: focused)
             ZStack(alignment: .topLeading) {
                 if !row.items.isEmpty {
                     ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
