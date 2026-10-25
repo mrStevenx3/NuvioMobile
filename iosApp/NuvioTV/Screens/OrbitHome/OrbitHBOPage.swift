@@ -245,7 +245,10 @@ struct OrbitHBOPage: View {
     private var heroItems: [MetaPreview] {
         let fresh = catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
-        return Array(items.filter { $0.banner != nil }.prefix(6))
+        // Steven (the HBO tab showed only documentaries): fiction first, documentaries after.
+        let withArt = items.filter { $0.banner != nil }
+        let isDoc: (MetaPreview) -> Bool = { item in item.genres.contains { $0.hasPrefix("Documentaire") } }
+        return Array((withArt.filter { !isDoc($0) } + withArt.filter(isDoc)).prefix(6))
     }
 
     private var heroItem: MetaPreview? {
