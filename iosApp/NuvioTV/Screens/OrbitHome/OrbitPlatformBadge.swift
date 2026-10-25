@@ -76,6 +76,7 @@ enum OrbitPlatformLogos {
                 .replacingOccurrences(of: " ", with: "")
             guard let logo = folder.titleLogoUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !logo.isEmpty else { continue }
             if title.contains("disney"), found[.disney] == nil { found[.disney] = logo }
+            if title.contains("netflix"), found[.netflix] == nil { found[.netflix] = logo }
         }
         urls = found
     }
@@ -104,9 +105,15 @@ struct OrbitPlatformBadge: View {
     private var content: some View {
         switch kind {
         case .netflix:
-            Text("NETFLIX")
-                .font(.system(size: size, weight: .black).width(.condensed))
-                .foregroundStyle(Color(red: 0.9, green: 0.04, blue: 0.08))
+            // Steven (2026-10-25): the official wordmark, his collection's Netflix logo.
+            if let logo = OrbitPlatformLogos.url(.netflix) {
+                CachedAsyncImage(string: logo, contentMode: .fit,
+                                 decodeSize: .points(width: size * 8, height: size * 3),
+                                 loading: { Color.clear }, failure: { netflixText })
+                    .frame(width: size * 3.6, height: size * 1.1)
+            } else {
+                netflixText
+            }
         case .disney:
             if let logo = OrbitPlatformLogos.url(.disney) {
                 CachedAsyncImage(string: logo, contentMode: .fit,
@@ -147,6 +154,12 @@ struct OrbitPlatformBadge: View {
                 .frame(height: size * 0.9)
                 .foregroundStyle(Color.white)
         }
+    }
+
+    private var netflixText: some View {
+        Text("NETFLIX")
+            .font(.system(size: size, weight: .black).width(.condensed))
+            .foregroundStyle(Color(red: 0.9, green: 0.04, blue: 0.08))
     }
 
     private var disneyText: some View {
