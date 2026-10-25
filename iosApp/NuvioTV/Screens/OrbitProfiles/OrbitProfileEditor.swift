@@ -25,7 +25,7 @@ struct OrbitProfileEditor: View {
         _name = State(initialValue: target.profile?.name ?? "")
         _colorHex = State(initialValue: target.profile?.avatarColorHex ?? OrbitProfileColor.palette[1])
         _avatarId = State(initialValue: target.profile?.avatarId)
-        _avatarUrl = State(initialValue: target.profile?.avatarId == nil ? target.profile?.avatarUrl : nil)
+        _avatarUrl = State(initialValue: target.profile?.avatarId == nil ? OrbitAvatarCatalog.current(target.profile?.avatarUrl) : nil)
     }
 
     private var catalogItem: AvatarCatalogItem? {
@@ -132,16 +132,16 @@ struct OrbitProfileEditor: View {
             section(String(localized: "Couleur")) {
                 HStack(spacing: 26) {
                     ForEach(OrbitProfileColor.palette, id: \.self) { hex in
+                        // Steven: the colour is the profile's own (its page's tint); it no longer
+                        // replaces the avatar picked above with the plain-colour initial.
                         Button {
                             colorHex = hex
-                            avatarId = nil
-                            avatarUrl = nil
                         } label: {
                             Circle()
                                 .fill(Color(hexString: hex) ?? .gray)
                                 .frame(width: 76, height: 76)
                         }
-                        .buttonStyle(OrbitSwatchStyle(selected: hex == colorHex && avatarId == nil && avatarUrl == nil))
+                        .buttonStyle(OrbitSwatchStyle(selected: hex == colorHex))
                     }
                 }
             }

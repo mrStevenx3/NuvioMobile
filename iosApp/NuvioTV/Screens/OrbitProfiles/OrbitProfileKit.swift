@@ -39,7 +39,7 @@ struct OrbitAvatar: View {
 
     private var imageUrl: String? {
         let item = avatars.first { $0.id == profile.avatarId }
-        return ProfileModelsKt.profileAvatarImageUrl(profile: profile, avatar: item)
+        return OrbitAvatarCatalog.current(ProfileModelsKt.profileAvatarImageUrl(profile: profile, avatar: item))
     }
 }
 
