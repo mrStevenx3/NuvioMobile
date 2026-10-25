@@ -713,7 +713,8 @@ private struct OrbitParamountTop10Image: View {
         OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: L.top10Image)
             .frame(width: L.top10Image.width, height: L.top10Image.height)
             .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
-            .scaleEffect(focused ? 1.06 : 1, anchor: .bottom)
+            // From the poster's centre (Steven: from the bottom, the focused rank rose above the others).
+            .scaleEffect(focused ? 1.06 : 1, anchor: UnitPoint(x: 0.6, y: 0.6))
             .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
