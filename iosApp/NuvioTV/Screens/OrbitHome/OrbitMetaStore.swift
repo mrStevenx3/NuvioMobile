@@ -28,7 +28,16 @@ final class OrbitMetaStore: ObservableObject {
 
     @Published private(set) var metas: [String: OrbitMeta] = [:]
     private var inFlight = Set<String>()
+    /// TMDB has no such title (or no id to look it up by): never asked again this session.
     private var failed = Set<String>()
+    /// Steven (2026-10-25, logos gone on titles that have one): a lookup that failed on the network
+    /// or TMDB's rate limit is retried later instead of being given up for the whole session.
+    private var retries: [String: (count: Int, after: Date)] = [:]
+    /// Waiting for a free slot, the focused title first.
+    private var queue: [(key: String, ref: Reference)] = []
+    /// A burst of tiles (Discover's grid) stays under TMDB's rate limit.
+    private static let maxConcurrent = 6
+    private static let retryDelays: [TimeInterval] = [2, 8, 30]
 
     private init() {}
 
@@ -38,17 +47,51 @@ final class OrbitMetaStore: ObservableObject {
 
     /// Looks up the titles not known yet (the focused one first).
     func request(_ items: [MetaPreview]) {
+        var front: [(key: String, ref: Reference)] = []
         for item in items {
             let key = Self.key(item)
             guard metas[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
+            if let retry = retries[key], retry.after > Date() { continue }
             guard let ref = Self.reference(for: item) else { failed.insert(key); continue }
+            queue.removeAll { $0.key == key }
+            front.append((key, ref))
+        }
+        queue.insert(contentsOf: front, at: 0)
+        pump()
+    }
+
+    private func pump() {
+        while inFlight.count < Self.maxConcurrent, !queue.isEmpty {
+            let (key, ref) = queue.removeFirst()
+            guard metas[key] == nil, !inFlight.contains(key), !failed.contains(key) else { continue }
             inFlight.insert(key)
             let apiKey = TmdbSettingsRepository.shared.effectiveApiKey()
             let language = TmdbSettingsRepository.shared.snapshot().language
             Task {
-                let found = await Self.load(ref: ref, apiKey: apiKey, language: language)
+                let outcome = await Self.load(ref: ref, apiKey: apiKey, language: language)
                 self.inFlight.remove(key)
-                if let found { self.metas[key] = found } else { self.failed.insert(key) }
+                switch outcome {
+                case .found(let meta):
+                    self.retries[key] = nil
+                    self.metas[key] = meta
+                case .missing:
+                    self.failed.insert(key)
+                case .transient:
+                    let count = (self.retries[key]?.count ?? 0) + 1
+                    if count > Self.retryDelays.count {
+                        self.failed.insert(key)
+                    } else {
+                        let delay = Self.retryDelays[count - 1]
+                        self.retries[key] = (count, Date().addingTimeInterval(delay))
+                        // Retried on its own: the tile may already be on screen and ask no more.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.1) {
+                            guard self.metas[key] == nil, !self.failed.contains(key) else { return }
+                            self.queue.append((key, ref))
+                            self.pump()
+                        }
+                    }
+                }
+                self.pump()
             }
         }
     }
@@ -95,7 +138,23 @@ final class OrbitMetaStore: ObservableObject {
         let backdrop_path: String?
     }
 
-    nonisolated private static func load(ref: Reference, apiKey: String, language: String) async -> OrbitMeta? {
+    nonisolated enum Outcome: Sendable {
+        case found(OrbitMeta)
+        /// TMDB answered: no such title.
+        case missing
+        /// The network, a timeout or the rate limit: worth another try.
+        case transient
+    }
+
+    /// The body of a TMDB answer; nil on a network error or a status other than 200 (404: missing).
+    nonisolated private static func fetch(_ url: URL) async -> (data: Data?, missing: Bool) {
+        guard let result = try? await URLSession.shared.data(from: url) else { return (nil, false) }
+        let status = (result.1 as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 200 { return (result.0, false) }
+        return (nil, status == 404)
+    }
+
+    nonisolated private static func load(ref: Reference, apiKey: String, language: String) async -> Outcome {
         let lang = language.isEmpty ? "en" : language
         let short = String(lang.prefix(2))
         let tmdbId: Int
@@ -105,20 +164,22 @@ final class OrbitMetaStore: ObservableObject {
             tmdbId = id
             tv = isTv
         case .imdb(let imdb, let isTv):
-            guard let url = URL(string: "https://api.themoviedb.org/3/find/\(imdb)?api_key=\(apiKey)&external_source=imdb_id"),
-                  let response = try? await URLSession.shared.data(from: url),
-                  let found = try? JSONDecoder().decode(FindResponse.self, from: response.0) else { return nil }
+            guard let url = URL(string: "https://api.themoviedb.org/3/find/\(imdb)?api_key=\(apiKey)&external_source=imdb_id") else { return .missing }
+            let response = await fetch(url)
+            guard let body = response.data else { return response.missing ? .missing : .transient }
+            guard let found = try? JSONDecoder().decode(FindResponse.self, from: body) else { return .transient }
             let hits = isTv ? (found.tv_results ?? []) + (found.movie_results ?? [])
                             : (found.movie_results ?? []) + (found.tv_results ?? [])
-            guard let first = hits.first else { return nil }
+            guard let first = hits.first else { return .missing }
             tmdbId = first.id
             tv = isTv ? !(found.tv_results ?? []).isEmpty : (found.movie_results ?? []).isEmpty
         }
         let media = tv ? "tv" : "movie"
         guard let url = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)?api_key=\(apiKey)&language=\(lang)"
-                            + "&append_to_response=images&include_image_language=\(short),en,null"),
-              let response = try? await URLSession.shared.data(from: url),
-              let d = try? JSONDecoder().decode(Details.self, from: response.0) else { return nil }
+                            + "&append_to_response=images&include_image_language=\(short),en,null") else { return .missing }
+        let response = await fetch(url)
+        guard let body = response.data else { return response.missing ? .missing : .transient }
+        guard let d = try? JSONDecoder().decode(Details.self, from: body) else { return .transient }
         let minutes = d.runtime ?? d.episode_run_time?.first
         let runtime = minutes.flatMap { m -> String? in
             guard m > 0 else { return nil }
@@ -135,14 +196,14 @@ final class OrbitMetaStore: ObservableObject {
         }
         let logos = d.images?.logos ?? []
         let logo = (logos.first { $0.iso_639_1 == short } ?? logos.first { $0.iso_639_1 == "en" } ?? logos.first)?.file_path
-        return OrbitMeta(percent: d.vote_average.flatMap { $0 > 0 ? Int(($0 * 10).rounded()) : nil },
+        return .found(OrbitMeta(percent: d.vote_average.flatMap { $0 > 0 ? Int(($0 * 10).rounded()) : nil },
                          year: (d.release_date ?? d.first_air_date).map { String($0.prefix(4)) }.flatMap { $0.isEmpty ? nil : $0 },
                          genre: d.genres?.first?.name,
                          runtime: runtime,
                          overview: overview,
                          logo: logo.map { "https://image.tmdb.org/t/p/w500\($0)" },
                          backdrop: d.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
-                         overviewEnglish: english)
+                         overviewEnglish: english))
     }
 }
 
