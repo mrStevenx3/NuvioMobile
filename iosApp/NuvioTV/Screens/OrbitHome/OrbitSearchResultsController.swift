@@ -359,7 +359,9 @@ private struct OrbitSearchPoster: View {
                 Color(white: 0.1)
                 // Steven (Charmed: a plain catalog poster, no title): TMDB's poster in his language,
                 // with its title, as on Home; the catalog's while TMDB has none.
-                let local = metaStore.meta(for: item)?.localPoster
+                // (TMDB's own poster when it has none in his language: Charmed has none in French.)
+                let meta = metaStore.meta(for: item)
+                let local = meta?.localPoster ?? meta?.titledPoster
                 OrbitImage(url: local ?? item.poster, fallback: local != nil ? item.poster : item.rawPosterUrl,
                            size: geo.size, placeholder: local != nil ? item.poster : nil)
             }
