@@ -147,6 +147,11 @@ final class OrbitMetaStore: ObservableObject {
         let imdb = raw.split(separator: ":").first.map(String.init) ?? raw
         let year: String? = item.releaseInfo.map { String($0.prefix(4)) }.flatMap { Int($0) != nil ? $0 : nil }
         if imdb.hasPrefix("tt") { return .imdb(id: imdb, tv: tv, name: item.name, year: year) }
+        // Steven (device: titles of his platform catalogs showed their name, not their logo): an id
+        // TMDB cannot look up (a catalog's own) — found by its name and year.
+        if !item.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            return .imdb(id: "", tv: tv, name: item.name, year: year)
+        }
         return nil
     }
 
@@ -260,10 +265,14 @@ final class OrbitMetaStore: ObservableObject {
             tmdbId = id
             tv = isTv
         case .imdb(let imdb, let isTv, let name, let year):
-            guard let url = URL(string: "https://api.themoviedb.org/3/find/\(imdb)?api_key=\(apiKey)&external_source=imdb_id") else { return .missing }
-            let response = await fetch(url)
-            guard let body = response.data else { return response.missing ? .missing : .transient }
-            guard let found = try? JSONDecoder().decode(FindResponse.self, from: body) else { return .transient }
+            var found = FindResponse(movie_results: nil, tv_results: nil)
+            if !imdb.isEmpty {
+                guard let url = URL(string: "https://api.themoviedb.org/3/find/\(imdb)?api_key=\(apiKey)&external_source=imdb_id") else { return .missing }
+                let response = await fetch(url)
+                guard let body = response.data else { return response.missing ? .missing : .transient }
+                guard let decoded = try? JSONDecoder().decode(FindResponse.self, from: body) else { return .transient }
+                found = decoded
+            }
             let hits = isTv ? (found.tv_results ?? []) + (found.movie_results ?? [])
                             : (found.movie_results ?? []) + (found.tv_results ?? [])
             if let first = hits.first {
