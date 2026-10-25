@@ -630,25 +630,18 @@ struct OrbitRowHeading: View {
     }
 }
 
-/// The band behind a Top 10 (Steven: "une bande qui se fond"): a light frosted strip, solid in
-/// the middle and melting away above and below, that holds the ranks and posters together.
+/// The band behind a Top 10 (Steven: "un fond foncé en fondu tout le long de la ligne"): a dark
+/// strip across the whole row, deepest behind the posters, melting away above and below — no rims.
 struct OrbitTop10Band: View {
     let height: CGFloat
 
     var body: some View {
-        LinearGradient(stops: [.init(color: .white.opacity(0), location: 0),
-                               .init(color: .white.opacity(0.10), location: 0.2),
-                               .init(color: .white.opacity(0.10), location: 0.8),
-                               .init(color: .white.opacity(0), location: 1)],
+        LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
+                               .init(color: .black.opacity(0.38), location: 0.18),
+                               .init(color: .black.opacity(0.58), location: 0.5),
+                               .init(color: .black.opacity(0.38), location: 0.82),
+                               .init(color: .black.opacity(0), location: 1)],
                        startPoint: .top, endPoint: .bottom)
-            .overlay {
-                // Two soft rims where the strip is solid.
-                VStack {
-                    Color.white.opacity(0.10).frame(height: 1).padding(.top, height * 0.2)
-                    Spacer()
-                    Color.white.opacity(0.10).frame(height: 1).padding(.bottom, height * 0.2)
-                }
-            }
             .frame(width: OrbitHomeLayout.screenWidth, height: height)
             .allowsHitTesting(false)
     }
