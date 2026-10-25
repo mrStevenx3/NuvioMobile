@@ -1211,9 +1211,10 @@ private struct OrbitSagaBand: View {
         // under its logo on the left, melting into the page's dark to the right.
         ZStack {
             if let pair {
+                // (Steven: the melt starts after the second poster, ~40 %, and ends at the edge.)
                 LinearGradient(stops: [.init(color: pair.left, location: 0),
-                                       .init(color: pair.right, location: 0.45),
-                                       .init(color: pair.right.opacity(0.55), location: 0.75),
+                                       .init(color: pair.right, location: 0.4),
+                                       .init(color: pair.right.opacity(0.45), location: 0.72),
                                        .init(color: pair.right.opacity(0), location: 1)],
                                startPoint: .leading, endPoint: .trailing)
                     .transition(.opacity)
