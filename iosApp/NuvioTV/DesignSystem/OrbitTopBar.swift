@@ -732,6 +732,13 @@ struct CollectionFilterBar: View {
         // Once: a pop back from Detail keeps its own restore.
         // Steven: the engine's first pick (Search, top-left) flashed before Films.
         .defaultFocus($focused, isSelected(.series) && !isSelected(.films) ? .series : .films, priority: .userInitiated)
+        // Steven: Films / Séries switch on focus, no press (as Disney+ / Hulu), after a short rest.
+        .onChange(of: focused) { _, item in
+            guard let item, let type = type(of: item) else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                if focused == item, filter != type { filter = type }
+            }
+        }
         .onAppear {
             guard !placedEntryFocus else { return }
             placedEntryFocus = true

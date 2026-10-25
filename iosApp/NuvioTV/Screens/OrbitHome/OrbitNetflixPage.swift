@@ -451,10 +451,12 @@ private struct OrbitNetflixDrift: View {
             .offset(x: drifting ? -travel : travel)
             .frame(width: size.width, height: size.height)
             .clipped()
-            .onAppear {
+            // Steven: it never moved — an animation started in the first appearance is dropped; a beat
+            // later it runs. It goes on whether or not the billboard has the focus (back and forth).
+            .task {
                 guard !reduceMotion else { return }
-                drifting = false
-                withAnimation(.linear(duration: 14)) { drifting = true }
+                try? await Task.sleep(for: .milliseconds(300))
+                withAnimation(.easeInOut(duration: 16).repeatForever(autoreverses: true)) { drifting = true }
             }
     }
 }
