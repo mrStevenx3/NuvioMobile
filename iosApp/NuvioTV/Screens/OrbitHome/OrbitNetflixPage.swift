@@ -649,8 +649,13 @@ private struct OrbitNetflixTile: View {
         let size = CGSize(width: open ? L.openWidth : L.posterWidth, height: L.tileHeight)
         let info = OrbitInfo.make(item, meta: meta)
         let banner: String? = item.banner
-        // His Top 10 images carry their own numbers: TMDB's poster there.
-        let poster: String? = top10 ? meta?.titledPoster : (item.poster ?? meta?.titledPoster)
+        // Steven: the catalog's posters were often in English (Le Pacte des innocentes showed "The
+        // Night Everything Changed"): TMDB's French poster first. His Top 10 images carry their own
+        // numbers: TMDB's poster there too.
+        let french: String? = meta?.localPoster
+        let poster: String? = french ?? (top10 ? meta?.titledPoster : (item.poster ?? meta?.titledPoster))
+        // His posters carry Netflix's N; TMDB's do not.
+        let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.09)
             if open {
@@ -677,8 +682,15 @@ private struct OrbitNetflixTile: View {
                         .padding(22)
                 }
             } else {
-                // His add-on's posters already carry Netflix's N: none added here.
-                OrbitImage(url: poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
+                OrbitImage(url: poster, fallback: item.poster, mode: .fill, size: size)
+                if drawsN {
+                    Text("N")
+                        .font(.system(size: 40, weight: .black))
+                        .foregroundStyle(L.red)
+                        .padding(.leading, 12)
+                        .padding(.top, 6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
