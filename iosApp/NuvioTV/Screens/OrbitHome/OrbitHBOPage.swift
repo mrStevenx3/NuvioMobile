@@ -86,9 +86,15 @@ enum OrbitHBOOwn {
 
     static func of(_ item: MetaPreview) -> OrbitHBOOwn? {
         let poster: String = item.poster ?? ""
-        if poster.range(of: #"/h/v\d+/|/poster/v\d+/h\d+/"#, options: .regularExpression) != nil { return .hbo }
-        if poster.range(of: #"/m/v\d+/|/poster/v\d+/m\d+/"#, options: .regularExpression) != nil { return .max }
+        if poster.range(of: #"/h/v\d+/|/poster/v\d+/h\d+/"#, options: [.regularExpression, .caseInsensitive]) != nil { return .hbo }
+        if poster.range(of: #"/m/v\d+/|/poster/v\d+/m\d+/"#, options: [.regularExpression, .caseInsensitive]) != nil { return .max }
         return nil
+    }
+
+    /// An original from before 2020 ("/H/v…", "/M/v…"): his add-on leaves its poster without the mark
+    /// (TMDB's often has the official one), so the French poster can show instead.
+    static func isPlain(_ item: MetaPreview) -> Bool {
+        (item.poster ?? "").range(of: #"/[HM]/v\d+/"#, options: .regularExpression) != nil
     }
 }
 
@@ -835,7 +841,7 @@ private struct OrbitHBOPoster: View {
         // His ranked Top 10 image ("/poster/v…") is never a poster here.
         let ranked = (item.poster ?? "").contains("/poster/v")
         let url: String? = ranked ? (meta?.titledPoster ?? meta?.localPoster)
-            : OrbitHBOOwn.of(item) != nil ? item.poster : (meta?.localPoster ?? item.poster)
+            : OrbitHBOOwn.of(item) != nil && !OrbitHBOOwn.isPlain(item) ? item.poster : (meta?.localPoster ?? item.poster)
         ZStack(alignment: .topLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
             if let url { OrbitImage(url: url, fallback: ranked ? nil : item.rawPosterUrl, mode: .fill, size: size) }
