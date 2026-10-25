@@ -63,7 +63,10 @@ struct HomeView: View {
                 } else if OrbitParamountPage.handles(route) {
                     OrbitParamountPage(route: route, push: { homePath.append($0) })
                 } else if OrbitAppleTVPage.handles(route) {
-                    OrbitAppleTVPage(route: route, push: { homePath.append($0) }, zoomSpace: zoomSpace)
+                    // The zoom into the detail page is off (Steven's video, 2026-10-25: it faded through
+                    // black instead of growing out of the poster — the page's posters are drawn on one
+                    // canvas, not real buttons the zoom can follow). Pass `zoomSpace` to try it again.
+                    OrbitAppleTVPage(route: route, push: { homePath.append($0) })
                 } else {
                     OrbitPlatformPage(route: route, push: { homePath.append($0) })
                 }
