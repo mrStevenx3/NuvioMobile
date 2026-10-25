@@ -15,7 +15,7 @@ object TmdbSettingsRepository {
 
     private var hasLoaded = false
 
-    private var enabled = false
+    private var enabled = true
     private var apiKey = ""
     private var language = "en"
     private var useTrailers = true
@@ -223,8 +223,8 @@ object TmdbSettingsRepository {
         val previousUseReleaseDates = useReleaseDates
         hasLoaded = true
         // Upstream 60ee0160: no `&& apiKey.isNotBlank()` gate any more — the key is bundled, so
-        // a stored/synced `tmdb_enabled=true` now takes effect on its own. Default stays opt-in.
-        enabled = TmdbSettingsStorage.loadEnabled() ?: false
+        // a stored/synced `tmdb_enabled=true` now takes effect on its own. Orbit: on by default.
+        enabled = TmdbSettingsStorage.loadEnabled() ?: true
         // Upstream df589078: the personal key is back as an optional override of the bundled one.
         apiKey = TmdbSettingsStorage.loadApiKey()?.trim().orEmpty()
         val storedLanguage = TmdbSettingsStorage.loadLanguage()

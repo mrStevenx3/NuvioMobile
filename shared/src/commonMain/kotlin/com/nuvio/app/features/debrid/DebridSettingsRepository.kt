@@ -24,7 +24,7 @@ object DebridSettingsRepository {
     private var cloudLibraryEnabled = true
     private var providerApiKeys = emptyMap<String, String>()
     private var preferredResolverProviderId = ""
-    private var instantPlaybackPreparationLimit = 0
+    private var instantPlaybackPreparationLimit = 2
     private var streamMaxResults = 0
     private var streamSortMode = DebridStreamSortMode.DEFAULT
     private var streamMinimumQuality = DebridStreamMinimumQuality.ANY
@@ -302,7 +302,7 @@ object DebridSettingsRepository {
         enabled = (DebridSettingsStorage.loadEnabled() ?: false) && hasResolverProvider()
         cloudLibraryEnabled = DebridSettingsStorage.loadCloudLibraryEnabled() ?: true
         instantPlaybackPreparationLimit = normalizeDebridInstantPlaybackPreparationLimit(
-            DebridSettingsStorage.loadInstantPlaybackPreparationLimit() ?: 0,
+            DebridSettingsStorage.loadInstantPlaybackPreparationLimit() ?: 2,
         )
         streamMaxResults = normalizeDebridStreamMaxResults(DebridSettingsStorage.loadStreamMaxResults() ?: 0)
         streamSortMode = enumValueOrDefault(

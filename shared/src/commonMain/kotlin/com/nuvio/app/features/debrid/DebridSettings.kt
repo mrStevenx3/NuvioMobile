@@ -7,7 +7,8 @@ data class DebridSettings(
     val cloudLibraryEnabled: Boolean = true,
     val providerApiKeys: Map<String, String> = emptyMap(),
     val preferredResolverProviderId: String = "",
-    val instantPlaybackPreparationLimit: Int = 0,
+    // Orbit (Steven, 2026-10-25): the two best sources prepared while the list is open.
+    val instantPlaybackPreparationLimit: Int = 2,
     val streamMaxResults: Int = 0,
     val streamSortMode: DebridStreamSortMode = DebridStreamSortMode.DEFAULT,
     val streamMinimumQuality: DebridStreamMinimumQuality = DebridStreamMinimumQuality.ANY,

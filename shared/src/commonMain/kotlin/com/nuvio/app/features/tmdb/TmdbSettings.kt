@@ -1,7 +1,8 @@
 package com.nuvio.app.features.tmdb
 
 data class TmdbSettings(
-    val enabled: Boolean = false,
+    // Orbit (Steven, 2026-10-25): Orbit is built on TMDB — enrichment on by default.
+    val enabled: Boolean = true,
     /**
      * Optional personal TMDB key (upstream df589078). Blank means "use the bundled
      * [TmdbConfig.API_KEY]" — read the key to call with through
