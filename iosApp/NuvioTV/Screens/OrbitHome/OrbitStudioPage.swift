@@ -808,10 +808,12 @@ private struct OrbitNativeStudioRow: View {
                 .padding(.leading, L.margin + 6)
             }
         }
-        .padding(.top, saga ? 30 : 0)
+        // Steven (device: the next row's title sat on the saga's band): the band is exactly the
+        // shelf's own height, with room above and below its posters.
+        .padding(.vertical, saga ? 30 : 0)
         .background(alignment: .topLeading) {
             if saga {
-                OrbitSagaBand(backdrop: row.items.first?.banner, height: size.height + 104)
+                OrbitSagaBand(backdrop: row.items.first?.banner, height: size.height + 60)
             }
         }
         .focusSection()
