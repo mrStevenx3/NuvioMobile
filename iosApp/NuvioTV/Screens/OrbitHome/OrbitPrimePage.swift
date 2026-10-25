@@ -33,12 +33,13 @@ enum OrbitPrimeLayout {
     static let headingHeight: CGFloat = 50
     static let tile = CGSize(width: 340, height: 191)
     /// Steven: the Amazon Original posters are larger still on Prime's TV app.
-    static let poster = CGSize(width: 360, height: 540)
+    /// Measured on Prime's 2026 TV app: as tall as the opened card (16:9) beside them.
+    static let poster = CGSize(width: 267, height: 400)
     static var openWidth: CGFloat { poster.height * 16 / 9 }
     /// His Top 10 images (16:9, the card on the right 76 %, the rank behind it), the card at a tile's size.
     static var top10Image: CGSize { CGSize(width: tile.width / 0.76, height: tile.width / 0.76 * 9 / 16) }
     /// The current row's top when it is the Amazon Original row (its posters need the room).
-    static let originalsLine: CGFloat = 150
+    static let originalsLine: CGFloat = 230
     static let gap: CGFloat = 22
     static let rowGap: CGFloat = 40
     static let radius: CGFloat = 10
@@ -675,6 +676,14 @@ private struct OrbitPrimeTop: View {
                     .frame(width: L.synopsisWidth, alignment: .topLeading)
                     .padding(.top, 14)
                 HStack(spacing: 12) {
+                    // Prime 2026: the rating out of five first.
+                    if let percent = meta?.percent {
+                        HStack(spacing: 6) {
+                            Image(systemName: "star.fill").foregroundStyle(Color.white.opacity(0.9))
+                            Text(String(format: "%.1f/5", Double(percent) / 20).replacingOccurrences(of: ".", with: ","))
+                                .foregroundStyle(Color.white.opacity(0.9))
+                        }
+                    }
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(L.blue)
                     Text(String(localized: "Inclus avec Prime"))
