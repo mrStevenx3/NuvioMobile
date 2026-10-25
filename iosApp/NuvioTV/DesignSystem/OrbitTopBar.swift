@@ -583,7 +583,12 @@ struct OrbitCollectionGrid: View {
 
     private func updateHalo(_ entry: Entry) {
         if let brand = Self.brandColor(entry.folder.title) {
-            haloColor = brand
+            // The full-screen colour follows once the remote rests (not on every step of a pass).
+            let id = entry.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                guard focused == id || haloColor == nil else { return }
+                haloColor = brand
+            }
             return
         }
         let url = OrbitPlatformTile.coverURL(entry.folder, collectionBackdropUrl: entry.collection.backdropImageUrl)
@@ -665,7 +670,9 @@ struct OrbitPlatformTile: View {
                 .strokeBorder(Color.white.opacity(focused ? 1 : 0.08), lineWidth: focused ? 5 : 1.5)
         }
         // Steven (device): no zoom on focus — it jumped before the GIF started. The frame says it.
-        .shadow(color: .black.opacity(focused ? 0.6 : 0.25), radius: focused ? 26 : 10, y: focused ? 14 : 6)
+        // Fluidity (Steven, device: the selection moved in jerks): only the focused tile casts a
+        // shadow — six animated blurred shadows were redrawn on every step.
+        .shadow(color: .black.opacity(focused ? 0.6 : 0), radius: focused ? 26 : 0, y: focused ? 14 : 0)
         .animation(.easeOut(duration: 0.16), value: focused)
         .accessibilityLabel(folder.title)
     }
