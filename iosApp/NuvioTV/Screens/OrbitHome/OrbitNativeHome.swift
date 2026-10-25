@@ -37,6 +37,8 @@ struct OrbitNativeHome: View {
     @State private var heroPage = 0
     /// The page is on its hero (else on a row): the wash shows, the bar locks, Menu goes up.
     @State private var onHero = true
+    /// The section the page is aligned on (the system scrolls to it, on its own curve).
+    @State private var position: String? = "hero"
 
     /// The line under the bar the page aligns its sections on (the bar's band is above it).
     static let topLine: CGFloat = 120
@@ -53,9 +55,11 @@ struct OrbitNativeHome: View {
                 LazyVStack(alignment: .leading, spacing: Self.sectionGap) {
                     if !heroItems.isEmpty {
                         hero
+                            .id("hero")
                     }
                     ForEach(rows) { row in
-                        OrbitNativeRow(row: row, actions: actions, onEnter: { setOnHero(false) })
+                        OrbitNativeRow(row: row, actions: actions, onEnter: { enter(row.id) })
+                            .id(row.id)
                     }
                 }
                 .scrollTargetLayout()
@@ -64,6 +68,9 @@ struct OrbitNativeHome: View {
             // Steven (device: the rows jumped on a quick Up / Down, as if the cursor didn't know
             // where to stop): the system aligns the focused section on the line itself.
             .scrollTargetBehavior(.viewAligned)
+            // Steven's video: a row entered while still on screen stayed where it was (the focus
+            // on the second row shown). The row the focus enters always comes to the line.
+            .scrollPosition(id: $position, anchor: .top)
             .contentMargins(.top, Self.topLine, for: .scrollContent)
             .scrollClipDisabled()
 
@@ -84,6 +91,7 @@ struct OrbitNativeHome: View {
             guard let page else { return }
             heroPage = page
             setOnHero(true)
+            if position != "hero" { withAnimation(.easeInOut(duration: 0.32)) { position = "hero" } }
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
         .onAppear {
@@ -132,6 +140,11 @@ struct OrbitNativeHome: View {
             return { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
         }
         return { heroFocus = heroPage }
+    }
+
+    private func enter(_ rowID: String) {
+        setOnHero(false)
+        if position != rowID { withAnimation(.easeInOut(duration: 0.32)) { position = rowID } }
     }
 
     private func setOnHero(_ value: Bool) {
