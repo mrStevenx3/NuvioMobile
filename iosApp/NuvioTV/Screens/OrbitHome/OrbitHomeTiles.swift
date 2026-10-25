@@ -13,7 +13,7 @@ import SwiftUI
 // Every kind keeps Orbit's focus (the white frame, a little larger) and the lead at the left
 // margin; the focused title's meta line and synopsis show under the row (on the card for cards).
 
-enum OrbitRowStyle: Equatable {
+nonisolated enum OrbitRowStyle: Equatable {
     case classic, landscape, cards, posters, ranked
 }
 
@@ -313,7 +313,7 @@ private struct OrbitRankedTile: View {
 /// titles, for films and for series.
 @MainActor
 final class OrbitHomeExtrasModel: ObservableObject {
-    struct Extra: Equatable {
+    nonisolated struct Extra: Equatable {
         let id: String
         let title: String
         let items: [MetaPreview]

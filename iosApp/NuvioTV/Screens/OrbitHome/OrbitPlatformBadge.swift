@@ -5,7 +5,7 @@ import SwiftUI
 // badge in each platform's own style, from TMDB's subscription platforms in France
 // (`OrbitMeta.platforms`). A title on none (his own sources) has no badge and shows as before.
 
-enum OrbitPlatformBadgeKind: CaseIterable {
+nonisolated enum OrbitPlatformBadgeKind: CaseIterable {
     case netflix, disney, prime, hbo, paramount, appletv
 
     /// TMDB's watch-provider ids (with their ads tiers and channels).

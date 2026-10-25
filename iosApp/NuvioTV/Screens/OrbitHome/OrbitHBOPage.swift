@@ -916,7 +916,7 @@ private struct OrbitHBOFocus: ViewModifier {
 /// viewer's region; the newest first, then the most watched by genre.
 @MainActor
 final class OrbitHBOOriginalsModel: ObservableObject {
-    struct Row: Equatable {
+    nonisolated struct Row: Equatable {
         let id: String
         let title: String
         let items: [MetaPreview]
