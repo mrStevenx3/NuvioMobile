@@ -32,10 +32,14 @@ enum OrbitPrimeLayout {
     static let rowLine: CGFloat = 580
     static let headingHeight: CGFloat = 50
     static let tile = CGSize(width: 340, height: 191)
-    static let poster = CGSize(width: 260, height: 390)
+    /// Steven: the Amazon Original posters are larger still on Prime's TV app.
+    static let poster = CGSize(width: 360, height: 540)
+    static var openWidth: CGFloat { poster.height * 16 / 9 }
+    /// His Top 10 images (16:9, the card on the right 76 %, the rank behind it), the card at a tile's size.
+    static var top10Image: CGSize { CGSize(width: tile.width / 0.76, height: tile.width / 0.76 * 9 / 16) }
+    /// The current row's top when it is the Amazon Original row (its posters need the room).
+    static let originalsLine: CGFloat = 150
     static let gap: CGFloat = 22
-    static let rankWidth: CGFloat = 96
-    static let rankTuck: CGFloat = 46
     static let rowGap: CGFloat = 40
     static let radius: CGFloat = 10
     static let focusScale: CGFloat = 1.07
@@ -55,19 +59,32 @@ struct OrbitPrimeRow: Identifiable, Equatable {
         a.id == b.id && a.kind == b.kind && a.items.map(\.id) == b.items.map(\.id)
     }
 
-    var cardHeight: CGFloat { kind == .originals ? OrbitPrimeLayout.poster.height : OrbitPrimeLayout.tile.height }
+    var cardHeight: CGFloat {
+        switch kind {
+        case .tiles: return OrbitPrimeLayout.tile.height
+        case .originals: return OrbitPrimeLayout.poster.height
+        case .top10: return OrbitPrimeLayout.top10Image.height
+        }
+    }
     var height: CGFloat { OrbitPrimeLayout.headingHeight + cardHeight + OrbitPrimeLayout.rowGap }
 
-    private var slot: CGFloat {
+    private func slot(_ index: Int, lead: Int, current: Bool) -> CGFloat {
         let L = OrbitPrimeLayout.self
         switch kind {
         case .tiles: return L.tile.width
-        case .originals: return L.poster.width
-        case .top10: return L.rankWidth + L.tile.width
+        case .originals: return current && index == lead ? L.openWidth : L.poster.width
+        case .top10: return L.top10Image.width
         }
     }
 
-    func x(of index: Int, lead: Int) -> CGFloat { CGFloat(index - lead) * (slot + OrbitPrimeLayout.gap) }
+    /// From the focused one (at the margin); the focused Amazon Original poster opens wide.
+    func x(of index: Int, lead: Int, current: Bool) -> CGFloat {
+        let L = OrbitPrimeLayout.self
+        guard index > lead else { return index == lead ? 0 : -(slot(index, lead: lead, current: current) + L.gap) }
+        var x: CGFloat = 0
+        for i in lead..<index { x += slot(i, lead: lead, current: current) + L.gap }
+        return x
+    }
 }
 
 /// Amazon's own title: Steven's add-on marks it in its image address ("/img/v…/tv/123/o0/…").
@@ -252,7 +269,8 @@ struct OrbitPrimePage: View {
     /// How far the rows have moved up: none on arrival, else the current row at its line.
     private func scroll(_ rows: [OrbitPrimeRow]) -> CGFloat {
         guard let r = rowIndex(of: current), rows.indices.contains(r) else { return 0 }
-        return rowTops(rows)[r] - OrbitPrimeLayout.rowLine
+        let line = rows[r].kind == .originals ? OrbitPrimeLayout.originalsLine : OrbitPrimeLayout.rowLine
+        return rowTops(rows)[r] - line
     }
 
     private func lead(of row: OrbitPrimeRow) -> Int {
@@ -276,6 +294,7 @@ struct OrbitPrimePage: View {
         let offset = scroll(rows)
         let shown = shownItem
         let onArrival = current <= 1
+        let onOriginals = rowIndex(of: current).map { rows.indices.contains($0) && rows[$0].kind == .originals } ?? false
 
         ZStack(alignment: .topLeading) {
             OrbitPrimeLayout.background
@@ -290,6 +309,10 @@ struct OrbitPrimePage: View {
                                   trailer.playbackFinished()
                                   advanceHero()
                               })
+                    // On the Amazon Original row, its large posters take the screen (the trailer
+                    // plays in the opened one).
+                    .opacity(onOriginals ? 0 : 1)
+                    .animation(.easeInOut(duration: 0.3), value: onOriginals)
             }
 
             if onArrival {
@@ -382,8 +405,13 @@ struct OrbitPrimePage: View {
             if low <= high {
                 ForEach(low...high, id: \.self) { i in
                     let row = rows[i]
-                    OrbitPrimeRowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
+                    let rowLead = lead(of: row)
+                    let leadItem: MetaPreview? = row.items.indices.contains(rowLead) ? row.items[rowLead] : nil
+                    OrbitPrimeRowView(row: row, lead: rowLead, isCurrent: i == currentRow,
                                       focused: canvasFocused && i == currentRow,
+                                      trailerURL: i == currentRow && row.kind == .originals ? trailerURL(for: leadItem) : nil,
+                                      onTrailerFailure: { trailer.playbackFailed($0) },
+                                      onTrailerEnded: { trailer.playbackFinished() },
                                       badges: Dictionary(row.items.map { ($0.id, badge($0) ?? "") },
                                                          uniquingKeysWith: { a, _ in a }),
                                       metaStore: metaStore)
@@ -499,9 +527,17 @@ struct OrbitPrimePage: View {
 
         trailer.reset()
         trailerKey = nil
-        // The hero's trailer plays whether or not it has the focus (the bar can).
-        guard trailersOn, current == 0, search == nil, UIAccessibility.isVideoAutoplayEnabled,
-              let item = heroItem else { return }
+        // The hero's trailer plays whether or not it has the focus (the bar can); on the Amazon
+        // Original row, the opened poster's.
+        guard trailersOn, search == nil, UIAccessibility.isVideoAutoplayEnabled else { return }
+        var target: MetaPreview?
+        if current == 0 {
+            target = heroItem
+        } else if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].kind == .originals, canvasFocused {
+            let row = rows[r]
+            target = row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil
+        }
+        guard let item = target else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
         trailerKey = "\(item.type):\(item.id)"
@@ -735,6 +771,9 @@ private struct OrbitPrimeRowView: View {
     let lead: Int
     let isCurrent: Bool
     let focused: Bool
+    let trailerURL: String?
+    let onTrailerFailure: (TrailerFailureReport) -> Void
+    let onTrailerEnded: () -> Void
     let badges: [String: String]
     @ObservedObject var metaStore: OrbitMetaStore
 
@@ -768,16 +807,14 @@ private struct OrbitPrimeRowView: View {
                             case .tiles:
                                 OrbitPrimeTile(item: item, meta: meta, badge: badge, focused: lit)
                             case .originals:
-                                OrbitPrimePoster(item: item, meta: meta, badge: badge, focused: lit)
+                                OrbitPrimePoster(item: item, meta: meta, badge: badge, open: isCurrent && index == lead,
+                                                 focused: lit, trailerURL: index == lead ? trailerURL : nil,
+                                                 onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                             case .top10:
-                                HStack(alignment: .center, spacing: 0) {
-                                    OrbitPrimeRank(rank: index + 1)
-                                    OrbitPrimeTile(item: item, meta: meta, badge: badge, focused: lit)
-                                        .padding(.leading, -L.rankTuck)
-                                }
+                                OrbitPrimeTop10Image(item: item, focused: lit)
                             }
                         }
-                        .offset(x: L.margin + row.x(of: index, lead: lead))
+                        .offset(x: L.margin + row.x(of: index, lead: lead, current: isCurrent))
                         .opacity(index < lead ? 0 : 1)
                         .zIndex(lit ? 1 : 0)
                     }
@@ -790,19 +827,27 @@ private struct OrbitPrimeRowView: View {
     }
 }
 
-/// Prime's Top 10 rank: a very wide, very heavy face, flat grey, its right part under the tile.
-private struct OrbitPrimeRank: View {
-    let rank: Int
+/// His Top 10 image as it is (Steven: his add-on's ranks): the 16:9 card on the right, its big rank
+/// behind; focused, a white frame around the card only.
+private struct OrbitPrimeTop10Image: View {
+    let item: MetaPreview
+    let focused: Bool
 
     var body: some View {
         let L = OrbitPrimeLayout.self
-        Text("\(rank)")
-            .font(.system(size: L.tile.height * 0.5, weight: .black).width(.expanded))
-            .kerning(rank == 10 ? -4 : 0)
-            .foregroundStyle(Color(white: 0.55))
-            .fixedSize()
-            .frame(width: L.rankWidth + L.rankTuck, height: L.tile.height, alignment: .trailing)
-            .offset(y: -L.tile.height * 0.1)
+        let size = L.top10Image
+        let card = CGRect(x: size.width * 0.24, y: (size.height - L.tile.height) / 2,
+                          width: L.tile.width, height: L.tile.height)
+        OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
+            .frame(width: size.width, height: size.height)
+            .overlay(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
+                    .frame(width: card.width, height: card.height)
+                    .offset(x: card.minX, y: card.minY)
+            }
+            .scaleEffect(focused ? L.focusScale : 1, anchor: .leading)
+            .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
 
@@ -844,31 +889,69 @@ private struct OrbitPrimeTile: View {
     }
 }
 
-/// A tall poster of Amazon's own titles (TMDB's, in French when it has one).
+/// A tall poster of Amazon's own titles (TMDB's, in French when it has one); focused, it opens wide
+/// (as on Prime's TV app) and its trailer plays in it after a rest.
 private struct OrbitPrimePoster: View {
     let item: MetaPreview
     let meta: OrbitMeta?
     let badge: String?
+    let open: Bool
     let focused: Bool
+    let trailerURL: String?
+    let onTrailerFailure: (TrailerFailureReport) -> Void
+    let onTrailerEnded: () -> Void
 
     var body: some View {
         let L = OrbitPrimeLayout.self
-        let size = L.poster
+        let size = CGSize(width: open ? L.openWidth : L.poster.width, height: L.poster.height)
+        let info = OrbitInfo.make(item, meta: meta)
         let poster: String? = meta?.localPoster ?? meta?.titledPoster
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .bottomLeading) {
             Color(red: 0.10, green: 0.13, blue: 0.18)
-            OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: size)
-            OrbitPrimeMark(size: 18)
-                .padding(14)
+            if open {
+                OrbitImage(url: item.banner ?? meta?.backdrop, fallback: poster, size: size)
+                if let trailerURL {
+                    TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
+                                      zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                      loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius)
+                        .frame(width: size.width, height: size.height)
+                        .transition(.opacity.animation(.easeOut(duration: 0.6)))
+                }
+                LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
+                VStack(alignment: .leading, spacing: 12) {
+                    OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 420, height: 140), textSize: 44,
+                                   fallbackLogo: info.logoFallback, hugsLogo: true)
+                        .frame(width: 420, alignment: .leading)
+                    Text(info.parts.joined(separator: "  ·  "))
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+                .padding(.leading, 26)
+                .padding(.bottom, 26)
+                OrbitPrimeMark(size: 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(24)
+            } else {
+                OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: size)
+                OrbitPrimeMark(size: 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(16)
+            }
             if let badge {
                 OrbitPrimeBadge(text: badge)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(5)
+                    .padding(6)
             }
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-        .modifier(OrbitPrimeFocus(focused: focused))
+        .overlay {
+            RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+                .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
+        }
+        .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 4)
+        .animation(.easeOut(duration: 0.18), value: focused)
     }
 }
 
