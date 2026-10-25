@@ -108,7 +108,8 @@ struct OrbitStudioRow: Identifiable, Equatable {
     static let rankedScale: CGFloat = 1.15
 
     /// A saga shelf's first place (its logo and TOUT VOIR).
-    static let sagaPanelWidth: CGFloat = 560
+    /// (Steven: the posters sat too far right of the left-aligned logo and text: narrower.)
+    static let sagaPanelWidth: CGFloat = 430
 
     /// A card's place along the row from the margin. Ordinary rows: from the focused card (it stays
     /// at the margin). A saga's shelf (Steven): the logo stays put and the cursor moves along the
