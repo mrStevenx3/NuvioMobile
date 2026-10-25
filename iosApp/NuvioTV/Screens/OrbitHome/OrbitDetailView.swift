@@ -425,7 +425,10 @@ struct OrbitDetailView: View {
             armHeroTrailer()
         }
         .onChange(of: qualityRequest, initial: true) { _, _ in requestQuality() }
+        // Steven (device): the house hides while the trailer plays full screen.
+        .onChange(of: cinema) { _, on in OrbitHomeButtonHost.shared.hidden = on }
         .onDisappear {
+            OrbitHomeButtonHost.shared.hidden = false
             // Leaving for an actor, a saga, a similar title…: where to come back.
             resumeFocus = section != .hero ? lastFocus : nil
             quality.stop()

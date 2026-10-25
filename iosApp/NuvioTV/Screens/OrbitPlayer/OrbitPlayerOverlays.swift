@@ -1,5 +1,6 @@
 import OrbitEngine
 import SwiftUI
+import UIKit
 
 // What Orbit draws over Apple's player (Steven's mockup, 2026-10-25). None of it is focusable or
 // hit-tested: the remote always reaches the player underneath.
@@ -24,13 +25,7 @@ struct OrbitPauseCard: View {
                 if !badges.isEmpty {
                     HStack(spacing: 12) {
                         ForEach(badges, id: \.self) { badge in
-                            Text(badge)
-                                .font(.system(size: 18, weight: .heavy))
-                                .kerning(1)
-                                .foregroundStyle(Color.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
-                                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.75), lineWidth: 2))
+                            OrbitPlayerBadge(text: badge)
                         }
                     }
                 }
@@ -107,5 +102,40 @@ struct OrbitUpNextCard: View {
         .padding(.trailing, 96)
         .padding(.bottom, 200)
         .allowsHitTesting(false)
+    }
+}
+
+/// A format badge on the pause card: Orbit's own logos (the same as on a title's page) for Dolby
+/// Vision, Dolby Atmos and HDR10(+) — Steven (device): they were text — else the framed text.
+private struct OrbitPlayerBadge: View {
+    let text: String
+
+    private var asset: (name: String, height: CGFloat)? {
+        let t = text.uppercased()
+        if t.contains("DOLBY VISION") { return ("orbit-badge-dolby-vision", 34) }
+        if t.contains("ATMOS") { return ("orbit-badge-dolby-atmos", 34) }
+        if t == "HDR10+" { return ("orbit-badge-hdr10plus", 28) }
+        if t == "HDR10" { return ("orbit-badge-hdr10", 28) }
+        return nil
+    }
+
+    var body: some View {
+        if let asset, let image = UIImage(named: asset.name), image.size.height > 0 {
+            Image(asset.name)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(height: asset.height)
+                .foregroundStyle(Color.white.opacity(0.92))
+                .accessibilityLabel(text)
+        } else {
+            Text(text)
+                .font(.system(size: 18, weight: .heavy))
+                .kerning(1)
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.75), lineWidth: 2))
+        }
     }
 }

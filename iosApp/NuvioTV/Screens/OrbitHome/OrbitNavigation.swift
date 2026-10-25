@@ -67,6 +67,8 @@ final class OrbitHomeButtonHost: ObservableObject {
     /// The pages on screen drawn on a canvas: the house is reached from their top only (else the
     /// focus engine sent every Up there instead of to the row above).
     @Published private var canvases = 0
+    /// Steven (device): out of sight while a trailer plays full screen on a title's page.
+    @Published var hidden = false
 
     var mode: Mode { ownBars > 0 ? .ownBar : (canvases > 0 ? .onRequest : .free) }
 
@@ -109,7 +111,7 @@ struct OrbitHomeButton: View {
     @State private var requested = false
     @FocusState private var focused: Bool
 
-    private var shown: Bool { immersive && host.mode != .ownBar }
+    private var shown: Bool { immersive && host.mode != .ownBar && !host.hidden }
     private var reachable: Bool { shown && ready && (host.mode == .free || requested) }
 
     var body: some View {
