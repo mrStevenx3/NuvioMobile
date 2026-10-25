@@ -59,7 +59,10 @@ struct OrbitNativeHome: View {
             OrbitNativeBackdrop(visible: !onHero)
 
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: Self.sectionGap) {
+                // Steven (device: now and then Up jumped in one go): a lazy column guesses the height
+                // of the rows it hasn't built yet and corrects it as one is built on the way up — the
+                // jump. A dozen rows are built once, at their real heights (each row stays lazy along).
+                VStack(alignment: .leading, spacing: Self.sectionGap) {
                     if !heroItems.isEmpty {
                         hero
                             .id("hero")
