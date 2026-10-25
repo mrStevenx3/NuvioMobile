@@ -598,14 +598,10 @@ struct OrbitDetailView: View {
         enter(.hero)
     }
 
+    /// Steven (2026-10-25): the trailer no longer starts on its own behind the hero — only the
+    /// Bande-annonce button plays it (`startCinema`).
     private func armHeroTrailer() {
         heroRestTask?.cancel()
-        guard backgroundTrailerEnabled, model.trailerVideoURL != nil, !coverUp else { return }
-        heroRestTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            guard !Task.isCancelled, section == .hero, !coverUp else { return }
-            withAnimation(.easeInOut(duration: 0.8)) { heroTrailerOn = true }
-        }
     }
 
     /// Bande-annonce: the trailer in the page, with its sound. Already playing muted behind the

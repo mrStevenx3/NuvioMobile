@@ -157,6 +157,8 @@ struct OrbitStudioPage: View {
     @State private var tint: Color?
     /// The opening is over: the page's own studio logo shows (the opening's lands on it).
     @State private var introDone = false
+    /// When a title was last opened from a studio page (its disappearance then is a push, not a close).
+    @MainActor private static var pushedAt: TimeInterval = 0
 
     init(route: OrbitStudioRoute) {
         self.route = route
@@ -231,15 +233,23 @@ struct OrbitStudioPage: View {
                                     trailerURL: onHero ? trailerURL(for: heroItem) : nil,
                                     onTrailerFailure: { trailer.playbackFailed($0) },
                                     onTrailerEnded: { trailer.playbackFinished() })
+                        // Steven (device: the banner came back up in two steps): it stays in place
+                        // (the column's move undone) and fades — gone before the rows reach it,
+                        // back once they have moved off it.
+                        .offset(y: -scroll)
                         .opacity(onHero ? 1 : 0)
+                        .animation(onHero ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onHero)
                 } else {
                     OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: nil)
                         .offset(x: L.margin, y: 90)
                         .opacity(index == 0 ? 1 : 0)
                 }
                 if count > 0 {
-                    let first = max(hasHero ? 1 : 0, index)
-                    let last = min(count - 1, index + 2)
+                    // Steven (device: the saga's band rose before the rest, the row above vanished):
+                    // the row above stays mounted and fades fast as it leaves; the one coming in
+                    // from below is mounted before it shows.
+                    let first = max(hasHero ? 1 : 0, index - 1)
+                    let last = min(count - 1, index + 3)
                     if first <= last {
                         ForEach(first...last, id: \.self) { s in
                             if let sectionRow = row(at: s) {
@@ -252,6 +262,8 @@ struct OrbitStudioPage: View {
                                                    onTrailerFailure: { trailer.playbackFailed($0) },
                                                    onTrailerEnded: { trailer.playbackFinished() })
                                     .offset(y: anchors[s])
+                                    .opacity(s < index ? 0 : 1)
+                                    .animation(.easeOut(duration: 0.14), value: s < index)
                                     .id(row.id)
                                     .transition(.identity)
                             }
@@ -312,6 +324,13 @@ struct OrbitStudioPage: View {
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.onRequest)
             trailer.reset(abortStages: true)
+            // Steven (device: entering a studio, its page showed — with its logo — before the
+            // opening): the system can show a closed page's view again for a moment on the next
+            // visit. Closed (not covered by a title), it goes back to its black opening.
+            if ProcessInfo.processInfo.systemUptime - Self.pushedAt > 1.5 {
+                introDone = false
+                current = 0
+            }
         }
         // Down from the house: back on the page.
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeButtonLeave)) { _ in
@@ -381,6 +400,7 @@ struct OrbitStudioPage: View {
         guard let item = focusedItem() else { return }
         // A saga opens its first film, as that film (its own name and art, not the saga's).
         let route = TitleRoute(preview: model.sagaFilms[item.id] ?? item)
+        Self.pushedAt = ProcessInfo.processInfo.systemUptime
         if let orbitPush { orbitPush(route) } else { opening = route }
     }
 
@@ -737,6 +757,16 @@ private struct OrbitStudioRowView: View {
         let low = row.kind == .saga ? 0 : max(0, lead - 1)
         let window = low...max(low, min(row.items.count - 1, lead + 9))
         ZStack(alignment: .topLeading) {
+            if row.kind == .ranked {
+                // Steven: Home's Top 10 band here too.
+                LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
+                                       .init(color: .black.opacity(0.30), location: 0.28),
+                                       .init(color: .black.opacity(0.30), location: 0.72),
+                                       .init(color: .black.opacity(0), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(width: OrbitHomeLayout.screenWidth, height: size.height + 140)
+                    .offset(y: L.cardsTop - 70)
+            }
             if row.kind == .saga {
                 OrbitSagaBand(backdrop: row.items.first?.banner, height: L.cardsTop + size.height + 60)
                     .offset(y: -30)
@@ -764,7 +794,9 @@ private struct OrbitStudioRowView: View {
             }
             .offset(y: L.cardsTop)
 
-            if isCurrent, row.showsInfo, row.items.indices.contains(lead) {
+            // Steven (device: the text ran over the posters while the page moved): the details of
+            // the row the page arrives at wait for the move to end, then fade in.
+            if row.showsInfo, row.items.indices.contains(lead) {
                 let item = row.items[lead]
                 let info = OrbitInfo.make(item, meta: metaStore.meta(for: item))
                 VStack(alignment: .leading, spacing: 12) {
@@ -785,6 +817,8 @@ private struct OrbitStudioRowView: View {
                 // Fades in; leaves at once (it hung over the next row while the page moved).
                 .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.2)), removal: .identity))
                 .offset(x: L.margin + 4, y: L.cardsTop + size.height + (row.kind == .featured ? 30 : 46))
+                .opacity(isCurrent ? 1 : 0)
+                .animation(isCurrent ? .easeInOut(duration: 0.2).delay(0.3) : .easeOut(duration: 0.08), value: isCurrent)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
