@@ -440,7 +440,8 @@ struct OrbitCollectionGrid: View {
     // Steven (trending row): the platforms on ONE line (Down from a platform goes straight to its
     // trending row; on two lines Down from Netflix landed on HBO Max and the row switched to it).
     // Six fit across the screen; more scroll sideways.
-    static let columns = 6
+    /// Steven: larger platforms (they melted into the rest) — four across, the others scroll.
+    static let columns = 4
     static let spacing: CGFloat = 28
     /// The tiles, under the bar (the page's title is gone).
     static let top: CGFloat = 130

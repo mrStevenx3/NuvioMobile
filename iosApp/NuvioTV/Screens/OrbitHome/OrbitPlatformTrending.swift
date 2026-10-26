@@ -209,13 +209,27 @@ struct OrbitPlatformTrendingRow: View {
     static let rowLine: CGFloat = 150
     /// Steven (2026-10-25: "tout est trop grand" — the page is a preview of the platform): smaller.
     /// Steven: the Top 20, the new films and the new series all on one screen under the platforms.
-    static let posterWidth: CGFloat = 116
-    static let posterHeight: CGFloat = 174
+    /// (Two rows — the Top 20, then the new films and series together — so the platforms above
+    /// can be larger.)
+    static let posterWidth: CGFloat = 156
+    static let posterHeight: CGFloat = 234
     /// The 16:9 tiles, from Home's size.
     static let landscapeScale: CGFloat = 0.68
     static let spacing: CGFloat = 24
 
     private enum Kind { case ranked, landscape, posters }
+
+    /// Films and series in turn, each title once.
+    static func alternate(_ a: [MetaPreview], _ b: [MetaPreview]) -> [MetaPreview] {
+        var out: [MetaPreview] = []
+        var seen = Set<String>()
+        for i in 0..<max(a.count, b.count) {
+            for list in [a, b] where i < list.count {
+                if seen.insert("\(list[i].type):\(list[i].id)").inserted { out.append(list[i]) }
+            }
+        }
+        return out
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -224,13 +238,11 @@ struct OrbitPlatformTrendingRow: View {
                     row(heading: String(format: String(localized: "Top 20 sur %@"), title),
                         items: model.top, key: "top-\(title)", kind: .ranked)
                 }
-                if !model.movies.isEmpty {
-                    row(heading: String(format: String(localized: "Nouveaux films sur %@"), title),
-                        items: model.movies, key: "movies-\(title)", kind: .landscape)
-                }
-                if !model.series.isEmpty {
-                    row(heading: String(format: String(localized: "Nouveautés séries sur %@"), title),
-                        items: model.series, key: "series-\(title)", kind: .posters)
+                // Steven: one row of the new films and series, in turn (the platforms above grow).
+                let fresh = Self.alternate(model.movies, model.series)
+                if !fresh.isEmpty {
+                    row(heading: String(format: String(localized: "Nouveaux films et séries sur %@"), title),
+                        items: fresh, key: "fresh-\(title)", kind: .posters)
                 }
             }
         }
@@ -273,8 +285,7 @@ struct OrbitPlatformTrendingRow: View {
         guard let title = model.title else { return [] }
         switch rowKey {
         case "top-\(title)": return model.top
-        case "movies-\(title)": return model.movies
-        case "series-\(title)": return model.series
+        case "fresh-\(title)": return Self.alternate(model.movies, model.series)
         default: return []
         }
     }
