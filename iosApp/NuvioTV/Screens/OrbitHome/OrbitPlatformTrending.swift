@@ -232,7 +232,8 @@ struct OrbitPlatformTrendingRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        // Steven: the second row lower (it sat too close under the first).
+        VStack(alignment: .leading, spacing: 50) {
             if let title = model.title {
                 if model.top.count >= 5 {
                     row(heading: String(format: String(localized: "Top 20 sur %@"), title),
