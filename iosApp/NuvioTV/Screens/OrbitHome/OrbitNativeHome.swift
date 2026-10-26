@@ -102,6 +102,14 @@ struct OrbitNativeHome: View {
                 guard let target else { return }
                 withAnimation(.easeInOut(duration: 0.34)) { proxy.scrollTo("line-\(target)", anchor: .top) }
             }
+            // The page no longer scrolls for the system: a row off screen may be out of its reach.
+            // Up / Down it could not follow (still in the same row a beat later) moves the page to
+            // the next row (or the hero), which then takes the focus.
+            .onMoveCommand { direction in
+                guard direction == .up || direction == .down else { return }
+                let from = currentRow
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) { fallbackMove(direction, from: from) }
+            }
             }
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
@@ -133,6 +141,26 @@ struct OrbitNativeHome: View {
             OrbitBarLock.shared.set(false)
             trailers.stop(abort: true)
             trailers.suspended = true
+        }
+    }
+
+    private func fallbackMove(_ direction: MoveCommandDirection, from: String?) {
+        guard currentRow == from else { return }
+        let index = from.flatMap { id in rows.firstIndex { $0.id == id } }
+        if direction == .down {
+            let next = index.map { $0 + 1 } ?? 0
+            guard rows.indices.contains(next) else { return }
+            if from == nil, heroFocus == nil { return }   // the bar, not the hero
+            position = rows[next].id
+            NotificationCenter.default.post(name: .orbitHomeRowFocus, object: rows[next].id)
+        } else {
+            guard let index else { return }
+            if index == 0 {
+                if !heroItems.isEmpty { heroFocus = heroPage }
+            } else {
+                position = rows[index - 1].id
+                NotificationCenter.default.post(name: .orbitHomeRowFocus, object: rows[index - 1].id)
+            }
         }
     }
 
@@ -334,6 +362,10 @@ struct OrbitNativeRow: View {
         }
         .focusSection()
         .onAppear { restoreIfReturning() }
+        .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
+            guard note.object as? String == row.id else { return }
+            focused = shown ?? row.cards.first?.id
+        }
         // Steven: coming into a row lands on its first title (the row back at its start).
         // (Steven: no return to the row's start — the row keeps where it was, as in Apple's app.)
         .defaultFocus($focused, shown ?? row.cards.first?.id, priority: .userInitiated)
@@ -493,4 +525,10 @@ private struct OrbitNativeTile: View {
         }
         .animation(.easeOut(duration: 0.18), value: isFocused)
     }
+}
+
+
+extension Notification.Name {
+    /// A Home row takes the focus (the page's own Up / Down, when the system could not reach it).
+    static let orbitHomeRowFocus = Notification.Name("orbitHomeRowFocus")
 }

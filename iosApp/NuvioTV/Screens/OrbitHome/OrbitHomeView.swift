@@ -339,31 +339,62 @@ struct OrbitRowsBackdrop: View {
     /// Steven (device: the art behind the rows looked overloaded): no image any more — a soft wash
     /// of the focused title's dominant colour from the top right, fading into the page (as the
     /// Top 10's ranks take their poster's colour).
+    /// The wash shown, and the next one fading in over it (Steven: the colour went through black
+    /// at each change — the old wash now stays under the new one until it has fully come).
     @State private var tone: Color?
+    @State private var incoming: Color?
+    @State private var incomingOpacity: Double = 0
+    @State private var settle: DispatchWorkItem?
+
+    private func wash(_ color: Color) -> some View {
+        RadialGradient(colors: [color.opacity(0.38), color.opacity(0.14), .clear],
+                       center: UnitPoint(x: 0.82, y: 0.08), startRadius: 0, endRadius: 1500)
+    }
 
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack {
             if opaque { L.background }
-            if let tone {
-                RadialGradient(colors: [tone.opacity(0.38), tone.opacity(0.14), .clear],
-                               center: UnitPoint(x: 0.82, y: 0.08), startRadius: 0, endRadius: 1500)
-                    .transition(.opacity)
-            }
+            if let tone { wash(tone) }
+            if let incoming { wash(incoming).opacity(incomingOpacity) }
         }
         .frame(width: L.screenWidth, height: L.screenHeight)
-        .animation(.easeInOut(duration: 0.5), value: tone)
         .task(id: url ?? "-") {
             guard let url else { return }
             // Steven (device: still a hitch Left / Right): the wash follows the title once the
             // remote rests — a full-screen colour change animating under every step was part of it.
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
             if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
-                tone = color
+                show(color)
                 if opaque { OrbitHomeTone.shared.color = color }
             }
         }
         .allowsHitTesting(false)
+    }
+
+    private func show(_ color: Color) {
+        guard color != tone || incoming != nil else { return }
+        settle?.cancel()
+        // A change still coming: it becomes the ground at once.
+        if let incoming { tone = incoming }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            incoming = color
+            incomingOpacity = 0
+        }
+        withAnimation(.easeInOut(duration: 0.5)) { incomingOpacity = 1 }
+        let work = DispatchWorkItem {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) {
+                tone = color
+                incoming = nil
+                incomingOpacity = 0
+            }
+        }
+        settle = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55, execute: work)
     }
 }
 
