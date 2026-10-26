@@ -408,6 +408,16 @@ struct OrbitDetailView: View {
                 for delay in [0.0, 0.2, 0.4, 0.55, 0.7, 0.85, 1.0, 1.2] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard resuming else { return }
+                        // Steven (back from an actor: Left / Right did nothing for a moment): the
+                        // card already holds the focus (the system put it back before the page
+                        // showed — no change seen): the return is over, his presses are his.
+                        if focus == back {
+                            resuming = false
+                            resumeFocus = nil
+                            lastFocus = back
+                            enter(back.section)
+                            return
+                        }
                         if focus != back { focus = back }
                         anchorTick &+= 1
                     }
