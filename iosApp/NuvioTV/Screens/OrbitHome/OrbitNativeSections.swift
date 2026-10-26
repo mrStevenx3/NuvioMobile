@@ -88,6 +88,8 @@ struct OrbitNativeSections<SectionContent: View>: View {
     @ViewBuilder let content: (Int, Bool) -> SectionContent
 
     @FocusState private var focus: Int?
+    /// Bumped at each section change (a late re-ask for an older one is dropped).
+    @State private var takeTicket = 0
 
     private var heroCount: Int { hasHero ? 1 : 0 }
 
@@ -166,8 +168,11 @@ struct OrbitNativeSections<SectionContent: View>: View {
         // column has slid: a section still off screen may not take it the first time).
         .onChange(of: current) { _, c in
             take(c)
+            takeTicket &+= 1
+            let ticket = takeTicket
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
-                guard current == c else { return }
+                // (`current` is a copy here: the ticket says whether the section changed since.)
+                guard takeTicket == ticket else { return }
                 take(c)
             }
         }
