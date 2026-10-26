@@ -739,7 +739,10 @@ private struct OrbitNetflixRowView: View {
                         .frame(width: 1000, alignment: .topLeading)
                 }
                 .padding(.leading, L.margin + (row.top10 ? (lead == 9 ? L.rankWidthTen : L.rankWidth) : 0))
-                .padding(.top, 18)
+                // (Steven: further from the open tile, which grows when focused; the row's height
+                // unchanged — taken from the gap under it.)
+                .padding(.top, 30)
+                .padding(.bottom, -12)
                 .id("\(item.type):\(item.id)")
                 // Steven: as on Home — the details move with their row (no wait, no early fade).
                 .transition(.opacity.animation(.easeInOut(duration: 0.18)))
