@@ -485,6 +485,9 @@ struct MainTabView: View {
         .overlay(alignment: .topLeading) {
             OrbitHomeButton(tabBarVisibility: tabBarVisibility)
         }
+        // The opening a platform's or a studio's page is pushed under, over everything — the
+        // Orbit bar too (Steven: the bar went only after the opening had begun).
+        .overlay { OrbitPlatformCurtainView() }
         // FEAT-25: keep the "is Home frontmost" signal current from OUTSIDE the kept-alive tab
         // subtrees — this closure runs on the always-visible shell, so the hero trailer's
         // teardown can't be deferred along with a hidden tab's rendering.

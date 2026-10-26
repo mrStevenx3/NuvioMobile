@@ -260,7 +260,7 @@ struct OrbitStudioPage: View {
             // The studio's opening, over everything from the first frame (the catalogue never
             // shows before it).
             if !introDone {
-                OrbitStudioIntro(name: model.name, logoUrl: model.logo ?? route.logo,
+                OrbitStudioIntro(name: model.name, logoUrl: model.logo ?? route.logo, tint: brand,
                                  onDone: { introDone = true })
                     .zIndex(20)
             }
@@ -590,7 +590,11 @@ struct OrbitStudioPage: View {
 struct OrbitStudioIntro: View {
     let name: String
     let logoUrl: String?
+    /// Steven: the opening's black tinted with the studio's colour, as the platforms' are.
+    var tint: Color? = nil
     let onDone: () -> Void
+    /// The tint drawn (the curtain's own when the page was pushed under it: the same colour).
+    @State private var shownTint: Color?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .black
@@ -616,9 +620,14 @@ struct OrbitStudioIntro: View {
         let corner = CGPoint(x: W - Self.cornerTrailing - box.width / 2, y: Self.cornerTop + box.height / 2)
         let centre = phase == .corner ? corner : CGPoint(x: W / 2, y: H / 2)
         ZStack(alignment: .topLeading) {
-            Color.black
-                .frame(width: W, height: H)
-                .opacity(veil)
+            ZStack {
+                Color.black
+                if let tint = shownTint ?? tint {
+                    RadialGradient(colors: [tint.opacity(0.45), .clear], center: .center, startRadius: 0, endRadius: 900)
+                }
+            }
+            .frame(width: W, height: H)
+            .opacity(veil)
 
             logo
                 // Centred in the middle; in the corner, right-aligned as the page's own logo.
@@ -642,9 +651,21 @@ struct OrbitStudioIntro: View {
         .allowsHitTesting(false)
         .onAppear {
             appearedAt = Date()
-            // Pushed under the Studios page's black: its own black is there — the curtain goes once
-            // the push is over.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift() }
+            // Pushed under the Studios page's curtain, which already shows this very opening: the
+            // page starts at the same point, the curtain goes once the push is over.
+            if OrbitPlatformCurtain.shared.down {
+                let look = OrbitPlatformCurtain.shared.look
+                if let look, look.studio {
+                    shownTint = look.brand
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { phase = .splash }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift(instant: true) }
+                    play(fromSplash: true)
+                    return
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift() }
+            }
             // Steven (opened from a film's page): the logo is not known yet — the screen stays
             // black until it is (its name only if it never comes).
             if let logoUrl, !logoUrl.isEmpty {
@@ -665,22 +686,12 @@ struct OrbitStudioIntro: View {
         }
     }
 
-    @ViewBuilder
     private var logo: some View {
-        if let logoUrl, !logoUrl.isEmpty {
-            OrbitBalancedLogo(url: logoUrl, area: 13_000, maxSize: Self.cornerBox,
-                              whiten: OrbitBalancedLogo.isGrey(name), alignment: phase == .corner ? .topTrailing : .center)
-        } else {
-            Text(name)
-                .font(.system(size: 40, weight: .heavy))
-                .foregroundStyle(Color.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-        }
+        OrbitStudioIntroLogo(name: name, logoUrl: logoUrl, corner: phase == .corner)
     }
 
-    private func play() {
-        guard !started, phase == .black, veil == 1 else { return }
+    private func play(fromSplash: Bool = false) {
+        guard !started, fromSplash || phase == .black, veil == 1 else { return }
         started = true
         if reduceMotion { onDone(); return }
         func at(_ delay: Double, _ body: @escaping () -> Void) {
@@ -688,8 +699,8 @@ struct OrbitStudioIntro: View {
             work.append(item)
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
         }
-        // 0 s: the logo fades in, large, in the middle.
-        withAnimation(.easeOut(duration: 0.55)) { phase = .splash }
+        // 0 s: the logo fades in, large, in the middle (already there under the curtain).
+        if !fromSplash { withAnimation(.easeOut(duration: 0.55)) { phase = .splash } }
         // 0.6 s: the light sweeps across it.
         at(0.6) { withAnimation(.easeInOut(duration: 0.75)) { sweep = 1 } }
         // 1.5 s: it glides to its place, the page fades in under it.
@@ -1892,5 +1903,26 @@ final class OrbitStudioModel: ObservableObject {
                                rawLandscapePosterUrl: nil, customPosterApplied: false)
         }
         return (items, decoded.total_results ?? items.count)
+    }
+}
+
+
+/// A studio's logo as its opening draws it.
+struct OrbitStudioIntroLogo: View {
+    let name: String
+    let logoUrl: String?
+    let corner: Bool
+
+    var body: some View {
+        if let logoUrl, !logoUrl.isEmpty {
+            OrbitBalancedLogo(url: logoUrl, area: 13_000, maxSize: OrbitStudioIntro.cornerBox,
+                              whiten: OrbitBalancedLogo.isGrey(name), alignment: corner ? .topTrailing : .center)
+        } else {
+            Text(name)
+                .font(.system(size: 40, weight: .heavy))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        }
     }
 }

@@ -831,6 +831,8 @@ struct OrbitPlatformLook {
     var white = false
     var assetLogo: String? = nil
     var assetInColour = false
+    /// A studio's opening (its logo as the studio page draws it, with the light's sweep).
+    var studio = false
 
     /// The look of the page `route` opens (the same choice, in the same order, as Home's stack).
     @MainActor static func of(_ route: FolderRoute) -> OrbitPlatformLook {

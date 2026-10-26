@@ -245,11 +245,19 @@ struct OrbitPlatformCurtainView: View {
             Color.black
             if let look = curtain.look {
                 RadialGradient(colors: [look.brand.opacity(0.45), .clear], center: .center, startRadius: 0, endRadius: 900)
-                OrbitPlatformIntroLogo(look: look)
-                    .frame(width: OrbitPlatformIntro.logoSize.width, height: OrbitPlatformIntro.logoSize.height)
-                    .scaleEffect(OrbitPlatformIntro.splashScale * (curtain.logoIn ? 1 : 0.85))
-                    .opacity(curtain.logoIn ? 1 : 0)
-                    .position(x: W / 2, y: H / 2)
+                if look.studio {
+                    OrbitStudioIntroLogo(name: look.title, logoUrl: look.logoUrl, corner: false)
+                        .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height)
+                        .scaleEffect(OrbitStudioIntro.splashScale * (curtain.logoIn ? 1 : 0.92))
+                        .opacity(curtain.logoIn ? 1 : 0)
+                        .position(x: W / 2, y: H / 2)
+                } else {
+                    OrbitPlatformIntroLogo(look: look)
+                        .frame(width: OrbitPlatformIntro.logoSize.width, height: OrbitPlatformIntro.logoSize.height)
+                        .scaleEffect(OrbitPlatformIntro.splashScale * (curtain.logoIn ? 1 : 0.85))
+                        .opacity(curtain.logoIn ? 1 : 0)
+                        .position(x: W / 2, y: H / 2)
+                }
             }
         }
         .frame(width: W, height: H)

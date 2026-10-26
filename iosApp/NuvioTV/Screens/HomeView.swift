@@ -105,8 +105,6 @@ struct HomeView: View {
         .environment(\.orbitPush, { homePath.append($0) })
         .environment(\.orbitPushFolder, { homePath.append($0) })
         .environment(\.orbitPushStudio, { homePath.append($0) })
-        // The black a platform's page is pushed under (its opening lifts it).
-        .overlay { OrbitPlatformCurtainView() }
         .orbitPopsToRootOnGoHome($homePath, tab: 0, delay: 0)
         .onAppear {
             // Retain, don't start: during a theme rebuild the incoming Home appears before the

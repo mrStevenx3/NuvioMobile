@@ -330,13 +330,8 @@ struct OrbitNativeRow: View {
     }
 
     private func lockForReturn(_ card: String) {
-        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
-        // when the page came back — Steven: the row came back shifted, then corrected).
-        settle(on: card)
-        restoreLock = true
-        disappeared = false
-        // (No page came over it: unlocked.)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
+        // Nothing touches the row at the press (Steven: "Films recommandés pour vous" slid right
+        // as he pressed): the aim and the lock wait for the page to have gone (`onDisappear`).
     }
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
@@ -448,7 +443,13 @@ struct OrbitNativeRow: View {
         // (Every appearance: a row scrolled off the page and back stopped keeping where it was —
         // Steven: back from a title the row came back far from where he left it.)
         .onAppear { disappeared = false; restoreIfReturning() }
-        .onDisappear { disappeared = true }
+        .onDisappear {
+            disappeared = true
+            if let back = Self.reopen, back.row == row.id {
+                settle(on: back.card)
+                restoreLock = true
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
             guard note.object as? String == row.id else { return }
             focused = shown ?? row.cards.first?.id

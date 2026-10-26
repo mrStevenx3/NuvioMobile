@@ -111,7 +111,11 @@ struct OrbitStudiosPage: View {
                                 // pushed under it (its own opening takes over the black).
                                 Button {
                                     let route = OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)
-                                    if let pushStudio { OrbitPlatformCurtain.shared.drop { pushStudio(route) } }
+                                    if let pushStudio {
+                                        let look = OrbitPlatformLook(title: folder.title, logoUrl: route.logo,
+                                                                     brand: tint(folder), studio: true)
+                                        OrbitPlatformCurtain.shared.drop(look: look) { pushStudio(route) }
+                                    }
                                 } label: {
                                     OrbitStudioTile(folder: folder,
                                                     focused: lit == folder.id,
