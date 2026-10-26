@@ -303,6 +303,8 @@ struct OrbitNativeRow: View {
     @State private var anchor: String?
     /// The row's own scroll (a last correction once the frame has opened).
     @State private var rowProxy: ScrollViewProxy?
+    /// When the way back from a title began (0: not coming back).
+    @State private var restoringSince: TimeInterval = 0
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     private var style: OrbitRowStyle { row.style }
@@ -413,6 +415,13 @@ struct OrbitNativeRow: View {
                 }
                 return
             }
+            // Back from a title: a landing on another title is the system's — sent straight back,
+            // the row unchanged (Steven, simulator: Split showed a moment, then Logan).
+            if let back = Self.reopen, back.row == row.id, new != back.card, restoringSince > 0,
+               !ViewerInputClock.shared.hasInput(since: restoringSince) {
+                DispatchQueue.main.async { focused = back.card }
+                return
+            }
             // A move inside the row (not the focus coming back into it, nor a return from a title).
             let moving = holds
             if !holds {
@@ -497,6 +506,8 @@ struct OrbitNativeRow: View {
     private func restoreIfReturning() {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
+        restoringSince = appeared
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0 }
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
         // brought to its title; the others are where they were left.

@@ -229,6 +229,8 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     @State private var holds = false
 
     @State private var rowProxy: ScrollViewProxy?
+    /// When the way back from a title began (0: not coming back).
+    @State private var restoringSince: TimeInterval = 0
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -264,6 +266,13 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                     if focus == nil, holds { holds = false; onLeave() }
                 }
+                return
+            }
+            // Back from a title: a landing on another title is the system's, not the viewer's —
+            // sent straight back, the row unchanged (Steven: it went to a neighbour, then came back).
+            if let back = box.reopen, new != back, restoringSince > 0,
+               !ViewerInputClock.shared.hasInput(since: restoringSince) {
+                DispatchQueue.main.async { focus = back }
                 return
             }
             let moving = holds
@@ -306,11 +315,14 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             // row is rebuilt deep inside (its title must exist to take the focus back).
             // (Steven, simulator: back from a title an unpinned row jumped to its title, then slid
             // back to where it was: only a pinned row is brought to it.)
-            if keepsLeadAtMargin { anchor = lead } else if let first = box.firstVisible { anchor = first }
+            // (An unpinned row is left where it is: re-anchored on its first title it moved — Steven.)
+            if keepsLeadAtMargin { anchor = lead }
             // Back from a title opened here: its card takes the focus again (asked a few times,
             // the system's own landing comes late).
             if let back = box.reopen {
                 let appeared = ProcessInfo.processInfo.systemUptime
+                restoringSince = appeared
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0 }
                 for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard box.reopen == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
