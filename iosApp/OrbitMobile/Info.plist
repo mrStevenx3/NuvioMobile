@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Orbit mobile (iPhone / iPad). Merged with the generated plist (GENERATE_INFOPLIST_FILE = YES);
+	     keep this file in the OrbitMobile folder's membership exceptions (as NuvioTV/Info.plist). -->
+	<key>CFBundleDisplayName</key>
+	<string>Orbit</string>
+	<key>CFBundleName</key>
+	<string>Orbit</string>
+	<!-- Add-on manifests, LAN add-ons and debrid links can be plain http (as on the TV). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Orbit accède au réseau local pour les extensions et les serveurs installés chez vous.</string>
+	<!-- External players: the two ExternalPlayerPlatform.apple.kt knows (it probes canOpenURL). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>infuse</string>
+		<string>nativeplayer</string>
+	</array>
+	<!-- Infuse's x-callback return: ExternalPlaybackReturn reads the per-install scheme back from here. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).callback</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>OpenSans-Regular.ttf</string>
+		<string>OpenSans-SemiBold.ttf</string>
+		<string>OpenSans-Bold.ttf</string>
+	</array>
+	<!-- Sound keeps playing when the screen locks / AirPlay. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+</dict>
+</plist>
