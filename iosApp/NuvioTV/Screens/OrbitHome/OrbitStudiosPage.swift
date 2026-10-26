@@ -130,9 +130,8 @@ struct OrbitStudiosPage: View {
                     .padding(.top, 40)
                     .focusSection()
 
-                    // One row (Steven): the studio's new films, or its essentials when it has few.
-                    OrbitStudioFilmsRow(slot: 0)
-                        .padding(.top, 36)
+                    // (Steven, 2026-10-26: the row of the studio's films is gone — the studios
+                    // alone.)
             }
             .frame(width: L.screenWidth, alignment: .leading)
         }

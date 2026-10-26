@@ -239,12 +239,7 @@ struct OrbitPlatformTrendingRow: View {
                     row(heading: String(format: String(localized: "Top 20 sur %@"), title),
                         items: model.top, key: "top-\(title)", kind: .ranked)
                 }
-                // Steven: one row of the new films and series, in turn (the platforms above grow).
-                let fresh = Self.alternate(model.movies, model.series)
-                if !fresh.isEmpty {
-                    row(heading: String(format: String(localized: "Nouveaux films et séries sur %@"), title),
-                        items: fresh, key: "fresh-\(title)", kind: .posters)
-                }
+                // (Steven, 2026-10-26: the row of the new films and series is gone — too full.)
             }
         }
         .onAppear { restoreFocus() }

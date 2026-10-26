@@ -776,7 +776,9 @@ private struct OrbitNativeStudioRow: View {
                 .scrollTargetLayout()
                 .padding(.vertical, 34)
             }
-            .scrollTargetBehavior(.viewAligned)
+            // A row with its title's details under it is pinned: placed by its anchor alone (the
+            // alignment snapped it back — Steven, simulator: the title stopped second).
+            .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !row.showsInfo))
             // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
             // binding kept the first title the system wrote back (one half off screen) and brought it
             // in on the way back from a title — the row moved by one (Steven, simulator).
