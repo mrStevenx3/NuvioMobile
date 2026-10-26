@@ -212,7 +212,10 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     @State private var anchor: Int?
     @State private var holds = false
 
+    @State private var rowProxy: ScrollViewProxy?
+
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(alignment: alignment, spacing: spacing) {
                 ForEach(0..<count, id: \.self) { i in
@@ -235,6 +238,8 @@ struct OrbitNativeTileStrip<Tile: View>: View {
         .contentMargins(.trailing, keepsLeadAtMargin ? max(margin, OrbitHomeLayout.screenWidth - margin - lastWidth) : margin,
                         for: .scrollContent)
         .scrollClipDisabled()
+        .onAppear { rowProxy = proxy }
+        }
         .padding(.vertical, -40)
         .frame(height: height)
         .defaultFocus($focus, min(box.lead, max(0, count - 1)), priority: .userInitiated)
@@ -254,6 +259,14 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 onLeadChange(new)
             }
             if keepsLeadAtMargin, anchor != new { withAnimation(.easeOut(duration: 0.24)) { anchor = new } }
+            // The open tile grows while the scroll is aimed: once open, the title back exactly at
+            // the margin (Steven, simulator: it drifted right).
+            if keepsLeadAtMargin {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    guard focus == new else { return }
+                    withAnimation(.easeOut(duration: 0.16)) { rowProxy?.scrollTo(new, anchor: .leading) }
+                }
+            }
         }
         .onChange(of: box.focusRequest) { _, _ in
             let target = min(box.lead, max(0, count - 1))
