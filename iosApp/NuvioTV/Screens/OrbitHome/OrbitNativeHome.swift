@@ -413,6 +413,8 @@ struct OrbitNativeRow: View {
                 }
                 return
             }
+            // A move inside the row (not the focus coming back into it, nor a return from a title).
+            let moving = holds
             if !holds {
                 holds = true
                 onEnter()
@@ -427,7 +429,8 @@ struct OrbitNativeRow: View {
             // Steven (simulator: moving right, the frame drifted off the margin, a poster left of
             // it): the scroll is aimed while the frame is still opening — once it has opened, the
             // title is brought back exactly to the margin.
-            if pinned {
+            // (Only on a move inside the row: on a return the re-aim moved the row — Steven.)
+            if pinned, moving {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
                     guard shown == new, focused == new else { return }
                     // Re-aimed through the anchor (it keeps the margin): cleared, then set again.
@@ -497,7 +500,7 @@ struct OrbitNativeRow: View {
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
         // brought to its title; the others are where they were left.
-        if pinned { anchor = target.card } else if let first = Self.firstVisible[row.id] { anchor = first }
+        if pinned { anchor = target.card }
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }

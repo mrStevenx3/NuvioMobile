@@ -70,6 +70,8 @@ enum OrbitDetailLayout {
 @MainActor
 enum OrbitNavClock {
     static var titleOpenedAt: TimeInterval = 0
+    /// Title pages on screen (a page going away while one shows was covered, not closed).
+    static var titlesShown = 0
 }
 
 struct DetailView: View {
@@ -392,7 +394,9 @@ struct OrbitDetailView: View {
         .onAppear {
             OrbitMetaStore.shared.request([preview])
             OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
+            OrbitNavClock.titlesShown += 1
         }
+        .onDisappear { OrbitNavClock.titlesShown = max(0, OrbitNavClock.titlesShown - 1) }
         .onAppear {
             if let back = resumeFocus {
                 // The engine restores late and more than once: the card is asked again a few

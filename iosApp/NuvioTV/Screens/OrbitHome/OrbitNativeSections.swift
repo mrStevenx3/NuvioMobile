@@ -97,6 +97,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
 
     /// The section the page is aligned on.
     @State private var position: Int?
+    @State private var heroLocked = false
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth
@@ -112,6 +113,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
                         content(0, false)
                             .frame(width: W, height: height(0), alignment: .topLeading)
                             .focusSection()
+                            .disabled(heroLocked)
                     } else if rowsFocusable && s >= heroCount {
                         Group {
                             if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
@@ -138,6 +140,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($focus, equals: s)
+                    .disabled(heroLocked && s < heroCount)
                     .onMoveCommand { direction in
                         switch direction {
                         case .left, .right: onMove(direction)
@@ -158,7 +161,9 @@ struct OrbitNativeSections<SectionContent: View>: View {
         .contentMargins(.top, lineOf(position ?? current), for: .scrollContent)
         .scrollClipDisabled()
         .onExitCommand(perform: onExit)
-        .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
+        // Only the hero is a button of ours: on the way back to a row, nothing pulls the focus up to
+        // it (Steven, simulator: back from a title the page came back on its hero).
+        .defaultFocus($focus, !customHero && current == 0 ? 0 : nil, priority: .userInitiated)
         .onChange(of: focus) { old, s in
             // (With rows of their own buttons, this focus is the hero's alone: Steven, simulator —
             // DÉTAILS no longer lit when the hero took the focus.)
@@ -174,6 +179,11 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
         .onAppear {
             position = current
+            // Back to a row (from a title): the hero out of the focus's reach a moment.
+            if current >= heroCount, heroCount > 0 {
+                heroLocked = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false }
+            }
             DispatchQueue.main.async { take(current) }
         }
     }
@@ -256,6 +266,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 }
                 return
             }
+            let moving = holds
             if !holds {
                 holds = true
                 onEnter()
@@ -269,7 +280,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             if keepsLeadAtMargin, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
             // The open tile grows while the scroll is aimed: once open, the title back exactly at
             // the margin (Steven, simulator: it drifted right).
-            if keepsLeadAtMargin {
+            if keepsLeadAtMargin, moving {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     guard focus == new else { return }
                     anchor = nil

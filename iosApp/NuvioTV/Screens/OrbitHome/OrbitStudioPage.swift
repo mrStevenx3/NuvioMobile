@@ -295,7 +295,12 @@ struct OrbitStudioPage: View {
             // Steven (device: entering a studio, its page showed — with its logo — before the
             // opening): the system can show a closed page's view again for a moment on the next
             // visit. Closed (not covered by a title), it goes back to its black opening.
-            if ProcessInfo.processInfo.systemUptime - Self.pushedAt > 1.5 {
+            // (Steven, simulator: back from a title the opening played again — the page went away
+            // late: it is closed only when no title page covers it, a moment later.)
+            let left = ProcessInfo.processInfo.systemUptime
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                guard OrbitNavClock.titlesShown == 0, left - Self.pushedAt > 1.5,
+                      OrbitNavClock.titleOpenedAt < left - 2.0 else { return }
                 introDone = false
                 current = 0
             }
