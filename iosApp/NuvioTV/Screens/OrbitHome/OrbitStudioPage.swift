@@ -734,6 +734,7 @@ private struct OrbitNativeStudioRow: View {
 
     /// The title opened from a studio page (row, place): the focus goes back to it.
     @MainActor static var reopen: (row: String, index: Int)?
+    @State private var restoringSince: TimeInterval = 0
 
     var body: some View {
         let L = OrbitStudioLayout.self
@@ -805,6 +806,12 @@ private struct OrbitNativeStudioRow: View {
                 }
                 return
             }
+            // Back from a title: a landing on another title is the system's — sent straight back.
+            if let back = Self.reopen, back.row == row.id, new != back.index, restoringSince > 0,
+               !ViewerInputClock.shared.hasInput(since: restoringSince) {
+                DispatchQueue.main.async { focused = back.index }
+                return
+            }
             if !holds {
                 holds = true
                 onEnter()
@@ -828,6 +835,8 @@ private struct OrbitNativeStudioRow: View {
     private func restoreIfReturning() {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
+        restoringSince = appeared
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0 }
         shown = target.index
         if row.showsInfo { anchor = target.index }
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
