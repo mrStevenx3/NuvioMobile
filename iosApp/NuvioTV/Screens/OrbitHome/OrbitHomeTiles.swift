@@ -30,8 +30,9 @@ enum OrbitTileLayout {
     static let rankedPoster = CGSize(width: 300, height: 450)
     static let rankWidth: CGFloat = 190
     /// The extra room for "10" (the last title: nothing after it moves).
-    /// (Steven, 2026-10-26: the 1 of 10 too close to the poster on its left — more room.)
-    static let tenExtra: CGFloat = 140
+    /// (Steven, 2026-10-26: the 1 of 10 too close to the poster on its left — more room; its two
+    /// digits drawn closer, so the 10 does not push its poster far from the 9's.)
+    static let tenExtra: CGFloat = 115
     static let infoGap: CGFloat = 26
 
     static func size(_ style: OrbitRowStyle) -> CGSize {
@@ -321,14 +322,14 @@ struct OrbitRankedTile: View {
         HStack(alignment: .bottom, spacing: -34 * scale) {
             Text(String(rank))
                 .font(.system(size: size.height * 0.7, weight: .heavy, design: .rounded))
-                .kerning(-size.height * 0.03)
+                .kerning(-size.height * (rank >= 10 ? 0.07 : 0.03))
                 .foregroundStyle(LinearGradient(colors: [base.opacity(1), base.opacity(0.75)],
                                                 startPoint: .top, endPoint: .bottom))
                 .overlay {
                     // A light rim on top, as on his add-on's ranks.
                     Text(String(rank))
                         .font(.system(size: size.height * 0.7, weight: .heavy, design: .rounded))
-                        .kerning(-size.height * 0.03)
+                        .kerning(-size.height * (rank >= 10 ? 0.07 : 0.03))
                         .foregroundStyle(LinearGradient(colors: [Color.white.opacity(0.55), .clear],
                                                         startPoint: .top, endPoint: .center))
                 }

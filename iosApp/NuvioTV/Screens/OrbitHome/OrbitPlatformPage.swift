@@ -669,6 +669,12 @@ struct OrbitPlatformIntro: View {
     @State private var phase: Phase = .hidden
     @State private var glide: DispatchWorkItem?
     @State private var appearedAt = Date.distantFuture
+    /// When the page last went away (a title opened just then: the way back keeps the corner logo).
+    @State private var leftAt: TimeInterval = 0
+
+    private static func returningFromTitle(leftAt: TimeInterval) -> Bool {
+        leftAt > 0 && OrbitNavClock.titleOpenedAt >= leftAt - 2.0
+    }
 
     private enum Phase { case hidden, splash, settled }
 
@@ -716,6 +722,17 @@ struct OrbitPlatformIntro: View {
         .allowsHitTesting(false)
         .onAppear {
             appearedAt = Date()
+            // Steven (2026-10-26, still: the collection showed a moment, then the cover faded in over
+            // it): a fresh entry (not the way back from a title opened here) starts black at once,
+            // in this very frame and without animation, whatever the intro was left at.
+            if phase != .hidden, OrbitNavClock.titlesShown == 0,
+               OrbitNavClock.titleOpenedAt < ProcessInfo.processInfo.systemUptime - 3.0,
+               !Self.returningFromTitle(leftAt: leftAt) {
+                glide?.cancel()
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { phase = .hidden }
+            }
             // Steven (device: the collection showed before its logo): the screen stays black until
             // the logo is ready (a second at most), then the intro plays with it.
             if assetLogo != nil { play(); return }
@@ -728,6 +745,7 @@ struct OrbitPlatformIntro: View {
         // Closed (no title opened over it), the intro goes back to its black start.
         .onDisappear {
             let left = ProcessInfo.processInfo.systemUptime
+            leftAt = left
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 // (A title opened from the page appears while the page is still leaving — the push
                 // lasts: Steven, simulator, the opening replayed on the way back.)
