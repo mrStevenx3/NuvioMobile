@@ -454,6 +454,8 @@ struct OrbitCollectionGrid: View {
 
     /// The focused platform's colour (the halo), nil for a grey cover.
     @State private var haloColor: Color?
+    /// The platform whose Top 20 is shown (marked while the focus is in its rows).
+    @State private var selectedId: String?
     /// Where the page is brought to: the focused row's line, or its top on the platforms.
     @State private var scrollLine: String?
 
@@ -484,6 +486,10 @@ struct OrbitCollectionGrid: View {
                                     OrbitPlatformTile(folder: entry.folder,
                                                       collectionBackdropUrl: entry.collection.backdropImageUrl,
                                                       focused: focused == entry.id,
+                                                      // Steven: the platform whose Top 20 shows stays
+                                                      // marked when the focus is down in it.
+                                                      selected: focused != entry.id && selectedId == entry.id,
+                                                      tint: haloColor,
                                                       size: CGSize(width: Self.tileWidth, height: Self.tileHeight))
                                 }
                                 .buttonStyle(OrbitPlatformTileStyle())
@@ -546,6 +552,7 @@ struct OrbitCollectionGrid: View {
                 return
             }
             Self.lastFocused = id
+            selectedId = id
             scrollLine = "grid-top"
             onFolderFocus(entry.collection, entry.folder)
             updateHalo(entry)
@@ -555,6 +562,7 @@ struct OrbitCollectionGrid: View {
         // from the bar, which keeps focus where the viewer is.
         .onAppear {
             if haloColor == nil, let first = entries.first(where: { $0.id == Self.lastFocused }) ?? entries.first {
+                selectedId = first.id
                 updateHalo(first)
                 OrbitPlatformTrendingModel.shared.focus(title: first.folder.title)
             }
@@ -643,6 +651,9 @@ struct OrbitPlatformTile: View {
     let folder: CollectionFolder
     let collectionBackdropUrl: String?
     let focused: Bool
+    /// The platform whose Top 20 shows, the focus elsewhere: a fine frame and its colour's glow.
+    var selected = false
+    var tint: Color? = nil
     let size: CGSize
 
     static func coverURL(_ folder: CollectionFolder, collectionBackdropUrl: String?) -> String? {
@@ -676,13 +687,16 @@ struct OrbitPlatformTile: View {
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 1 : 0.08), lineWidth: focused ? 5 : 1.5)
+                .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.55 : 0.08)),
+                              lineWidth: focused ? 5 : (selected ? 3 : 1.5))
         }
+        .shadow(color: (tint ?? .white).opacity(selected ? 0.45 : 0), radius: selected ? 24 : 0)
         // Steven (device): no zoom on focus — it jumped before the GIF started. The frame says it.
         // Fluidity (Steven, device: the selection moved in jerks): only the focused tile casts a
         // shadow — six animated blurred shadows were redrawn on every step.
         .shadow(color: .black.opacity(focused ? 0.6 : 0), radius: focused ? 26 : 0, y: focused ? 14 : 0)
         .animation(.easeOut(duration: 0.16), value: focused)
+        .animation(.easeOut(duration: 0.2), value: selected)
         .accessibilityLabel(folder.title)
     }
 }
