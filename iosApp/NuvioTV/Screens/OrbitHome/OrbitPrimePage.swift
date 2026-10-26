@@ -580,7 +580,7 @@ struct OrbitPrimePage: View {
 // MARK: - Pieces
 
 /// "prime" with Amazon's smile.
-private struct OrbitPrimeMark: View {
+struct OrbitPrimeMark: View {
     var size: CGFloat = 22
     var color: Color = .white
 
@@ -597,7 +597,7 @@ private struct OrbitPrimeMark: View {
     }
 }
 
-private struct OrbitPrimeSmile: Shape {
+struct OrbitPrimeSmile: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()
         p.move(to: CGPoint(x: rect.minX, y: rect.minY))

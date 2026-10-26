@@ -98,28 +98,38 @@ struct OrbitDetailPlatformMark: View {
 struct OrbitDetailOwnTag: View {
     let own: OrbitDetailOwn
     let series: Bool
+    /// The title's drawn width (Steven: the tag fits its title — a wide logo, a larger tag; a short
+    /// one, a smaller tag). 480 is the size the tag was drawn for.
+    var titleWidth: CGFloat = 480
+
+    private var k: CGFloat { min(1.3, max(0.7, titleWidth / 480)) }
 
     var body: some View {
+        tag.animation(.easeOut(duration: 0.2), value: k)
+    }
+
+    @ViewBuilder
+    private var tag: some View {
+        let k = k
         switch own {
         case .netflix:
             HStack(spacing: 8) {
-                Image("NetflixN").resizable().scaledToFit().frame(height: 34)
+                Image("NetflixN").resizable().scaledToFit().frame(height: 34 * k)
                 Text(series ? String(localized: "SÉRIE") : String(localized: "FILM"))
-                    .font(.system(size: 24, weight: .bold))
-                    .kerning(5)
+                    .font(.system(size: 24 * k, weight: .bold))
+                    .kerning(5 * k)
                     .foregroundStyle(Color.white.opacity(0.9))
             }
         case .prime:
-            Text("prime")
-                .font(.system(size: 34, weight: .heavy))
-                .foregroundStyle(OrbitPrimeLayout.blue)
+            // Steven: the Prime Video page's own mark — "prime" with Amazon's smile under it.
+            OrbitPrimeMark(size: 34 * k, color: OrbitPrimeLayout.blue)
         case .hbo, .hboMax:
             HStack(spacing: 10) {
                 Text(own == .hbo ? "HBO" : "HBO max")
-                    .font(.system(size: 30, weight: .black))
+                    .font(.system(size: 30 * k, weight: .black))
                 Text(String(localized: "ORIGINAL"))
-                    .font(.system(size: 21, weight: .semibold))
-                    .kerning(7)
+                    .font(.system(size: 21 * k, weight: .semibold))
+                    .kerning(7 * k)
             }
             .foregroundStyle(Color.white)
         case .paramount:
@@ -128,7 +138,7 @@ struct OrbitDetailOwnTag: View {
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(Color.white)
-                .frame(height: 56)
+                .frame(height: 56 * k)
         }
     }
 }

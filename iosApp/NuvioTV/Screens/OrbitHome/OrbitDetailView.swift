@@ -544,6 +544,8 @@ struct OrbitDetailView: View {
     }
 
     static let heroTitleSize = CGSize(width: 720, height: 240)
+    /// The width the title's logo is drawn at (the tag above it follows it).
+    @State private var taggedTitleWidth: CGFloat = 480
     static let cinemaTitleSize = CGSize(width: 340, height: 120)
 
     /// The title (logo or name), in the hero or in the cinema corner: ONE matched view, so going
@@ -555,6 +557,11 @@ struct OrbitDetailView: View {
         return OrbitTitleMark(name: title, logo: logoURL, maxSize: tagged ? CGSize(width: size.width, height: size.height - 60) : size,
                               textSize: corner ? 40 : 76,
                               moreLogos: Array(logoCandidates.dropFirst()), hugsLogo: tagged)
+            // The title's own width: the platform's tag above it is sized from it (Steven: every
+            // tag fitting its title).
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { w in
+                if tagged, abs(w - taggedTitleWidth) > 1 { taggedTitleWidth = w }
+            }
             .frame(width: size.width, height: tagged ? nil : size.height, alignment: .bottomLeading)
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
     }
@@ -659,7 +666,7 @@ struct OrbitDetailView: View {
                     // The platform's "original" tag right on top of the title (Steven: above the
                     // title's box it floated high over a wide logo).
                     VStack(alignment: .leading, spacing: 16) {
-                        OrbitDetailOwnTag(own: own, series: isSeries)
+                        OrbitDetailOwnTag(own: own, series: isSeries, titleWidth: taggedTitleWidth)
                             .shadow(color: .black.opacity(0.5), radius: 6)
                         titleMark(cinema: false, hugs: true)
                     }
