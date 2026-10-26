@@ -173,6 +173,9 @@ struct TrailerHeroPlayer: UIViewRepresentable {
     /// BUG-128: which surface this is, for the `[TrailerHealth]` summary (`detail-bg`, `home-hero`).
     /// nil falls back to `hero` (looping) / `inline`.
     var surfaceTag: String? = nil
+    /// Steven (Orbit): a trailer watched full screen with its sound shows its whole picture — the
+    /// crop that fills a poster's frame is for the previews only (the full-screen surface's policy).
+    var uncropped: Bool = false
 
     /// UX-9: our YouTube trailer encodes bake letterboxing directly into the frame (2.39:1 film
     /// inside a 16:9 container), so `.resizeAspectFill` alone still shows black bars — it fills the
@@ -213,6 +216,7 @@ struct TrailerHeroPlayer: UIViewRepresentable {
         view.layer.cornerCurve = .continuous
         view.layer.masksToBounds = true
         view.playerLayer.videoGravity = .resizeAspectFill
+        context.coordinator.uncropped = uncropped
         context.coordinator.attach(to: view, urlString: urlString, loops: loops, zoomKey: zoomKey, videoId: videoId, surfaceTag: surfaceTag)
         return view
     }
@@ -278,6 +282,9 @@ struct TrailerHeroPlayer: UIViewRepresentable {
             self.onFailure = onFailure
             self.onPlaybackEnded = onPlaybackEnded
         }
+
+        /// The full-screen surface's policy (no crop), set before `attach`.
+        var uncropped = false
 
         func attach(to view: TrailerPlayerUIView, urlString: String, loops: Bool = true, zoomKey: String? = nil,
                     videoId: String? = nil, surfaceTag: String? = nil) {
@@ -372,7 +379,7 @@ struct TrailerHeroPlayer: UIViewRepresentable {
             // background loop (`hero`); `loops == false` is the catalog inline preview tile
             // (`inline`, `InlineTrailerCard`'s only caller) — the two share this one representable,
             // so the surface name has to come from which mode the caller asked for.
-            letterboxProbe = TrailerLetterboxProbe(view: view, player: queue, urlString: urlString, zoomKey: zoomKey, videoId: videoId, surface: loops ? "hero" : "inline")
+            letterboxProbe = TrailerLetterboxProbe(view: view, player: queue, urlString: urlString, zoomKey: zoomKey, videoId: videoId, surface: uncropped ? "full" : (loops ? "hero" : "inline"))
             letterboxProbe?.start()
 
             #if DEBUG

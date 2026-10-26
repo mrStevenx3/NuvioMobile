@@ -443,7 +443,7 @@ struct OrbitCollectionGrid: View {
     static let columns = 6
     static let spacing: CGFloat = 28
     /// The tiles, under the bar (the page's title is gone).
-    static let top: CGFloat = 150
+    static let top: CGFloat = 130
     static var tileWidth: CGFloat {
         floor((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin - CGFloat(columns - 1) * spacing) / CGFloat(columns))
     }
@@ -497,10 +497,9 @@ struct OrbitCollectionGrid: View {
                     // Steven (on trial): what is popular on the focused platform.
                     // Steven (device: the page scrolled on its own, the Top 10 cut at the top): it
                     // moves a row at a time — the focused row at its line, the platforms at the top.
-                    OrbitPlatformTrendingRow(onRowFocus: { key in
-                        if let key { scrollLine = "\(key)-line" }
-                    }, accent: haloColor)
-                        .padding(.top, 14)
+                    // Steven: everything on one screen — the page no longer moves row by row.
+                    OrbitPlatformTrendingRow(accent: haloColor)
+                        .padding(.top, 8)
                 }
                 .padding(.top, Self.top)
                 .padding(.horizontal, OrbitHomeLayout.margin)
@@ -508,6 +507,7 @@ struct OrbitCollectionGrid: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollClipDisabled()
+            .scrollDisabled(true)
             .focusSection()
             .onChange(of: scrollLine) { _, line in
                 guard let line else { return }

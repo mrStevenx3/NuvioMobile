@@ -73,6 +73,9 @@ struct HomeView: View {
                     OrbitPlatformPage(route: route, push: { homePath.append($0) })
                 }
                 }
+                // Steven (the page showed for an instant before its logo's opening): black over its
+                // very first frames, until the opening's own black has taken over.
+                .overlay { OrbitOpeningCover() }
                 .id(route.openedAt)
             }
             .navigationDestination(for: OrbitGenreRoute.self) { route in
@@ -333,3 +336,20 @@ struct HeroPageDots: View {
 #if DEBUG
 
 #endif
+
+
+/// Black over a platform page's first frames (its opening covers it from there).
+private struct OrbitOpeningCover: View {
+    @State private var gone = false
+
+    var body: some View {
+        Color.black
+            .ignoresSafeArea()
+            .opacity(gone ? 0 : 1)
+            .allowsHitTesting(false)
+            .task {
+                try? await Task.sleep(for: .milliseconds(250))
+                gone = true
+            }
+    }
+}

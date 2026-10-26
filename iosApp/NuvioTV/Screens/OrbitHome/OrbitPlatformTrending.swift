@@ -126,7 +126,7 @@ final class OrbitPlatformTrendingModel: ObservableObject {
         let (m, s, tm, ts) = await (movies, series, topMovies, topSeries)
         // Films and series together, the most popular first.
         let top = (tm + ts).sorted { ($0.popularity?.doubleValue ?? 0) > ($1.popularity?.doubleValue ?? 0) }
-        return (m, s, Array(top.prefix(10)))
+        return (m, s, Array(top.prefix(20)))
     }
 
     nonisolated private static func page(media: String, provider: Int, region: String, apiKey: String,
@@ -208,8 +208,9 @@ struct OrbitPlatformTrendingRow: View {
     /// Steven: the page moves a row at a time — the focused row's heading sits here.
     static let rowLine: CGFloat = 150
     /// Steven (2026-10-25: "tout est trop grand" — the page is a preview of the platform): smaller.
-    static let posterWidth: CGFloat = 170
-    static let posterHeight: CGFloat = 255
+    /// Steven: the Top 20, the new films and the new series all on one screen under the platforms.
+    static let posterWidth: CGFloat = 116
+    static let posterHeight: CGFloat = 174
     /// The 16:9 tiles, from Home's size.
     static let landscapeScale: CGFloat = 0.68
     static let spacing: CGFloat = 24
@@ -217,10 +218,10 @@ struct OrbitPlatformTrendingRow: View {
     private enum Kind { case ranked, landscape, posters }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 26) {
+        VStack(alignment: .leading, spacing: 22) {
             if let title = model.title {
                 if model.top.count >= 5 {
-                    row(heading: String(format: String(localized: "Top 10 sur %@"), title),
+                    row(heading: String(format: String(localized: "Top 20 sur %@"), title),
                         items: model.top, key: "top-\(title)", kind: .ranked)
                 }
                 if !model.movies.isEmpty {

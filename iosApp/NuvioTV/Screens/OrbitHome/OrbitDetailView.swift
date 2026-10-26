@@ -1023,9 +1023,9 @@ private struct OrbitDetailBackground: View {
                                   zoomKey: zoomKey,
                                   loops: false,
                                   onPlaybackEnded: onTrailerEnded,
-                                  cornerRadius: 0)
+                                  cornerRadius: 0,
+                                  uncropped: cinema)
                     .frame(width: size.width, height: size.height)
-                    .scaleEffect(cinema ? 1.05 : 1)
                     .transition(.opacity)
                 OrbitSwapImage(url: url, fallback: nil, size: size)
                     .scaleEffect(cinema ? 1.05 : 1)
