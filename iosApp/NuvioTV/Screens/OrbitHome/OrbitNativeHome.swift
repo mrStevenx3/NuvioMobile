@@ -532,7 +532,8 @@ struct OrbitNativeRow: View {
                     }
                 }
                 .frame(height: 34)
-                Text(saga ? (card.preview.description_ ?? "") : info.synopsis)
+                // (Steven: no synopsis under Prochainement — its title and date line only.)
+                Text(row.id.hasPrefix("orbit-soon") ? "" : (saga ? (card.preview.description_ ?? "") : info.synopsis))
                     .font(.system(size: 23, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.85))
                     .lineSpacing(3)

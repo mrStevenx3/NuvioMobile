@@ -355,7 +355,13 @@ struct OrbitDetailView: View {
         // from there (Left even left the row). During the return a press puts the card back
         // first; the next press moves from it.
         .onMoveCommand { _ in
-            guard resuming, let back = resumeFocus, focus != back else { return }
+            guard resuming, let back = resumeFocus else { return }
+            // Past the first moment, or the card already focused: the press is his.
+            if focus == back || ProcessInfo.processInfo.systemUptime - resumeStart > 0.3 {
+                resuming = false
+                resumeFocus = nil
+                return
+            }
             DispatchQueue.main.async { focus = back; anchorTick &+= 1 }
         }
         // Menu from a section: back to the hero; from the hero, the page leaves (system default).
@@ -405,9 +411,17 @@ struct OrbitDetailView: View {
                 resumeStart = ProcessInfo.processInfo.systemUptime
                 // The engine lands on the row's first card once the way back has finished (about
                 // half a second): asked often, so the wrong card never holds long.
-                for delay in [0.0, 0.2, 0.4, 0.55, 0.7, 0.85, 1.0, 1.2] {
+                for delay in [0.0, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard resuming else { return }
+                        // A press of his once the way back has settled (a third of a second): the
+                        // focus is his from then on (Steven: still a wait before he could move).
+                        if delay >= 0.35, ViewerInputClock.shared.hasInput(since: resumeStart + 0.3) {
+                            resuming = false
+                            resumeFocus = nil
+                            if let focus { enter(focus.section) }
+                            return
+                        }
                         // Steven (back from an actor: Left / Right did nothing for a moment): the
                         // card already holds the focus (the system put it back before the page
                         // showed — no change seen): the return is over, his presses are his.
@@ -422,7 +436,7 @@ struct OrbitDetailView: View {
                         anchorTick &+= 1
                     }
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) {
                     guard resuming else { return }
                     resuming = false
                     resumeFocus = nil

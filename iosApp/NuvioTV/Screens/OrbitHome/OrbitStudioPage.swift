@@ -599,7 +599,7 @@ struct OrbitStudioIntro: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .black
     @State private var veil: Double = 1
-    @State private var sweep: CGFloat = -1
+    @State private var sweep: CGFloat = 0
     @State private var work: [DispatchWorkItem] = []
     @State private var started = false
     @State private var appearedAt = Date.distantFuture
@@ -629,19 +629,16 @@ struct OrbitStudioIntro: View {
             .frame(width: W, height: H)
             .opacity(veil)
 
+            // Orbit's touch (Steven: "dans l'ADN d'Orbit"): an orbit drawn around the logo.
+            OrbitIntroOrbit(progress: sweep, tint: shownTint ?? tint ?? Color(white: 0.7))
+                .frame(width: box.width * Self.splashScale * 1.1, height: box.height * Self.splashScale * 1.6)
+                .position(x: W / 2, y: H / 2)
+                .opacity(phase == .splash ? 1 : 0)
+                .animation(.easeOut(duration: 0.3), value: phase == .splash)
+
             logo
                 // Centred in the middle; in the corner, right-aligned as the page's own logo.
                 .frame(width: box.width, height: box.height, alignment: phase == .corner ? .topTrailing : .center)
-                .overlay {
-                    // The light sweeping across the logo, masked by it.
-                    LinearGradient(colors: [.clear, .white.opacity(0.9), .clear], startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 90, height: box.height * 1.6)
-                        .rotationEffect(.degrees(18))
-                        .offset(x: sweep * (box.width / 2 + 90))
-                        .blendMode(.plusLighter)
-                        .mask(logo.frame(width: box.width, height: box.height))
-                        .opacity(phase == .splash ? 1 : 0)
-                }
                 .scaleEffect(phase == .corner ? 1 : (phase == .black ? Self.splashScale * 0.92 : Self.splashScale))
                 .opacity(phase == .black ? 0 : 1)
                 .position(centre)
@@ -701,8 +698,8 @@ struct OrbitStudioIntro: View {
         }
         // 0 s: the logo fades in, large, in the middle (already there under the curtain).
         if !fromSplash { withAnimation(.easeOut(duration: 0.55)) { phase = .splash } }
-        // 0.6 s: the light sweeps across it.
-        at(0.6) { withAnimation(.easeInOut(duration: 0.75)) { sweep = 1 } }
+        // Then the orbit is drawn around it (Orbit's touch).
+        at(fromSplash ? 0.5 : 0.45) { withAnimation(.easeInOut(duration: 0.9)) { sweep = 1 } }
         // 1.5 s: it glides to its place, the page fades in under it.
         at(1.5) {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.9)) { phase = .corner }
