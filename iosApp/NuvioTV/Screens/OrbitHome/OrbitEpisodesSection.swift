@@ -33,6 +33,9 @@ struct OrbitEpisodesSection: View {
     /// one's place the text follows.
     @State private var cardX = OrbitEpisodeCardPlaces()
     @State private var focusedX: CGFloat = OrbitDetailLayout.margin
+    /// Steven (2026-10-26): the focused episode always at the margin, the row sliding under it
+    /// (as on Home) — its text stays put under it.
+    @State private var episodeAnchor: String?
     static let detailsWidth: CGFloat = 900
 
     static let stillSize = CGSize(width: 384, height: 216)
@@ -123,9 +126,15 @@ struct OrbitEpisodesSection: View {
                             }
                         }
                     }
-                    .padding(.horizontal, OrbitDetailLayout.margin)
+                    .scrollTargetLayout()
                     .padding(.vertical, 18)
                 }
+                .scrollTargetBehavior(.viewAligned)
+                .scrollPosition(id: $episodeAnchor, anchor: .leading)
+                .contentMargins(.leading, OrbitDetailLayout.margin, for: .scrollContent)
+                // Room after the last episode: it comes to the margin too.
+                .contentMargins(.trailing, OrbitHomeLayout.screenWidth - OrbitDetailLayout.margin - Self.stillSize.width,
+                                for: .scrollContent)
                 .scrollClipDisabled()
                 .id("season-\(season ?? -1)")
                 .transition(.opacity)
@@ -155,7 +164,10 @@ struct OrbitEpisodesSection: View {
         // Steven: entering from above (the hero) lands on the season being shown — the season
         // row is no longer skipped (the engine took the poster under Lire, or the episodes).
         .onChange(of: focus.wrappedValue) { old, new in
-            if case .episode(let id)? = new, let x = cardX.x[id] { place(x) }
+            if case .episode(let id)? = new {
+                if episodeAnchor != id { withAnimation(.easeOut(duration: 0.26)) { episodeAnchor = id } }
+                if let x = cardX.x[id] { place(x) }
+            }
             guard case .season(let s)? = new else { return }
             // Up from the episodes too: back on the season they belong to (the engine took the
             // poster above the focused episode).
