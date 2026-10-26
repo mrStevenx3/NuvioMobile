@@ -99,6 +99,7 @@ struct OrbitNativeHome: View {
                             // (Steven's videos: back from a title the focus landed a moment in the
                             // row above, then came back.)
                             .disabled(returnRow != nil && returnRow != row.id)
+                            .environment(\.orbitFocusHidden, returnRow != nil && returnRow != row.id)
                     }
                 }
                 .scrollTargetLayout()
@@ -384,6 +385,9 @@ struct OrbitNativeRow: View {
                         // Back from a title, only its card can take the focus a moment: a landing on
                         // a neighbour scrolled the row to it (Steven, simulator: the row moved).
                         .disabled(restoreLock && Self.reopen?.row == row.id && Self.reopen?.card != card.id)
+                        .transformEnvironment(\.orbitFocusHidden) {
+                            $0 = $0 || ((restoreLock || restoringSince > 0) && Self.reopen?.row == row.id && Self.reopen?.card != card.id)
+                        }
                         .onAppear { OrbitMetaStore.shared.request([card.preview]) }
                     }
                 }
@@ -588,7 +592,11 @@ private struct OrbitNativeClassicTile: View {
     let trailers: OrbitNativeTrailerHost
     let trailerKey: String
     let open: Bool
-    @Environment(\.isFocused) private var isFocused
+    @Environment(\.isFocused) private var systemFocused
+    /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
+    /// focus seen going left, then coming back).
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    private var isFocused: Bool { systemFocused && !focusHidden }
 
     var body: some View {
         if open {
@@ -615,7 +623,11 @@ private struct OrbitNativeTile: View {
     let rank: Int
     let trailers: OrbitNativeTrailerHost
     let trailerKey: String
-    @Environment(\.isFocused) private var isFocused
+    @Environment(\.isFocused) private var systemFocused
+    /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
+    /// focus seen going left, then coming back).
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    private var isFocused: Bool { systemFocused && !focusHidden }
 
     var body: some View {
         Group {

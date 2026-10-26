@@ -128,6 +128,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
                         // Back from a title, only the row it was opened from can take the focus a
                         // moment (Steven's video, Disney+: it landed in the row above, then came back).
                         .disabled(heroLocked && s != current)
+                        .transformEnvironment(\.orbitFocusHidden) { $0 = $0 || (heroLocked && s != current) }
                         .focusSection()
                         // Steven (simulator: Up in the platforms went astray): the row above is hidden
                         // (transparent: the system cannot focus it) — Up goes to it explicitly.
@@ -300,6 +301,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                     .zIndex(focus == i ? 1 : 0)
                     // Back from a title, only its tile can take the focus a moment.
                     .disabled(box.restoreLock && box.reopen != nil && box.reopen != i)
+                    .transformEnvironment(\.orbitFocusHidden) {
+                        $0 = $0 || ((box.restoreLock || restoringSince > 0) && box.reopen != nil && box.reopen != i)
+                    }
                 }
             }
             .scrollTargetLayout()
@@ -400,7 +404,11 @@ struct OrbitNativeTileStrip<Tile: View>: View {
 
 private struct OrbitNativeStripLabel<Content: View>: View {
     @ViewBuilder let content: (Bool) -> Content
-    @Environment(\.isFocused) private var isFocused
+    @Environment(\.isFocused) private var systemFocused
+    /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
+    /// focus seen going left, then coming back).
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    private var isFocused: Bool { systemFocused && !focusHidden }
 
     var body: some View { content(isFocused) }
 }
@@ -409,7 +417,11 @@ private struct OrbitNativeStripLabel<Content: View>: View {
 private struct OrbitNativeSectionLabel<Content: View>: View {
     let live: Bool
     @ViewBuilder let content: (Bool) -> Content
-    @Environment(\.isFocused) private var isFocused
+    @Environment(\.isFocused) private var systemFocused
+    /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
+    /// focus seen going left, then coming back).
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    private var isFocused: Bool { systemFocused && !focusHidden }
 
     var body: some View {
         if live {
@@ -507,4 +519,18 @@ struct OrbitNativeTrailerReader<Content: View>: View {
     @ViewBuilder let content: (String?) -> Content
 
     var body: some View { content(host.url(for: key)) }
+}
+
+
+private struct OrbitFocusHiddenKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// A tile drawn unfocused even while the system holds the focus on it (the moment of a return
+    /// from a title, when the system's own landing is sent back to the title's tile).
+    var orbitFocusHidden: Bool {
+        get { self[OrbitFocusHiddenKey.self] }
+        set { self[OrbitFocusHiddenKey.self] = newValue }
+    }
 }

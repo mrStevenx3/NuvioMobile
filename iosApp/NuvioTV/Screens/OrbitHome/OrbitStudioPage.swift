@@ -361,6 +361,7 @@ struct OrbitStudioPage: View {
                                              onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) })
                             .id(row.id)
                             .disabled(returnRow != nil && returnRow != row.id)
+                            .environment(\.orbitFocusHidden, returnRow != nil && returnRow != row.id)
                     }
                 }
                 .scrollTargetLayout()
@@ -806,6 +807,9 @@ private struct OrbitNativeStudioRow: View {
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
                         .disabled(restoreLock && Self.reopen?.row == row.id && Self.reopen?.index != index)
+                        .transformEnvironment(\.orbitFocusHidden) {
+                            $0 = $0 || ((restoreLock || restoringSince > 0) && Self.reopen?.row == row.id && Self.reopen?.index != index)
+                        }
                         .onAppear { OrbitMetaStore.shared.request([item]) }
                     }
                 }
@@ -959,7 +963,11 @@ private struct OrbitNativeStudioTile: View {
     let index: Int
     let meta: OrbitMeta?
     let trailers: OrbitNativeTrailerHost
-    @Environment(\.isFocused) private var isFocused
+    @Environment(\.isFocused) private var systemFocused
+    /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
+    /// focus seen going left, then coming back).
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    private var isFocused: Bool { systemFocused && !focusHidden }
 
     var body: some View {
         let size = row.cardSize
