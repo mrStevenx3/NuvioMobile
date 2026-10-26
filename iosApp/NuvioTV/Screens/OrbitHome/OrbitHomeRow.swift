@@ -419,7 +419,11 @@ struct OrbitSwapImage: View {
         let best = main.flatMap { ArtworkURLUpgrade.upgraded($0, role: .backdrop) }
         if let best, let image = ArtworkStore.cached(best, decode: frame) { show(image); return }
         if let main, let image = ArtworkStore.cached(main, decode: frame) { show(image) }
-        else if shown == nil, let backup, let image = ArtworkStore.cached(backup, decode: poster) { show(image) }
+        else if shown == nil, let backup,
+                let image = ArtworkStore.cached(backup, decode: poster) ?? ArtworkStore.cachedLargest(backup) {
+            // (Any size of the poster already drawn: Netflix's tiles decode it at their own.)
+            show(image)
+        }
         for candidate in [best, main, backup].compactMap({ $0 }) {
             if let image = try? await ArtworkStore.fetch(candidate, decode: frame) {
                 guard !Task.isCancelled else { return }

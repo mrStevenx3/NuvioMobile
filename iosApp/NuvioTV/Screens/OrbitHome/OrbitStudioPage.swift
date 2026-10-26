@@ -364,20 +364,23 @@ struct OrbitStudioPage: View {
             // The studio's logo stays top right while the page moves (Steven).
             Group {
                 if let logo = model.logo ?? route.logo, !logo.isEmpty {
-                    OrbitBalancedLogo(url: logo, area: 17_000, maxSize: CGSize(width: 300, height: 100),
-                                      whiten: OrbitBalancedLogo.isGrey(model.name), alignment: .topTrailing)
+                    OrbitBalancedLogo(url: logo, area: 13_000, maxSize: OrbitStudioIntro.cornerBox,
+                                      whiten: OrbitBalancedLogo.isGrey(model.name), alignment: .trailing)
                 } else {
                     Text(model.name)
-                        .font(.system(size: 40, weight: .heavy))
+                        .font(.system(size: 36, weight: .heavy))
                         .foregroundStyle(Color.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
-                        .frame(width: 300, height: 100, alignment: .topTrailing)
+                        .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height,
+                               alignment: .trailing)
                 }
             }
+            .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height, alignment: .trailing)
             .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
             .opacity(introDone && (hasHero || !nativeOnHero) ? 1 : 0)
-            .offset(x: OrbitHomeLayout.screenWidth - L.margin - 300, y: OrbitStudioIntro.cornerTop)
+            .offset(x: OrbitHomeLayout.screenWidth - OrbitStudioIntro.cornerTrailing - OrbitStudioIntro.cornerBox.width,
+                    y: OrbitStudioIntro.cornerTop)
             .allowsHitTesting(false)
 
             if sectionCount == 0 {
@@ -566,14 +569,16 @@ struct OrbitStudioIntro: View {
     private enum Phase { case black, splash, corner }
 
     /// The page's studio logo: its box and place (top right of the banner).
-    static let cornerBox = CGSize(width: 300, height: 100)
-    static let cornerTop: CGFloat = 56
+    /// Steven: level with the Orbit bar (its centre line), at its right end.
+    static let cornerBox = CGSize(width: 300, height: 76)
+    static let cornerTop: CGFloat = OrbitPlatformIntro.cornerCentreY - 38
+    static let cornerTrailing: CGFloat = OrbitPlatformIntro.cornerTrailing
     static let splashScale: CGFloat = 2.4
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let box = Self.cornerBox
-        let corner = CGPoint(x: W - OrbitHomeLayout.margin - box.width / 2, y: Self.cornerTop + box.height / 2)
+        let corner = CGPoint(x: W - Self.cornerTrailing - box.width / 2, y: Self.cornerTop + box.height / 2)
         let centre = phase == .corner ? corner : CGPoint(x: W / 2, y: H / 2)
         ZStack(alignment: .topLeading) {
             Color.black
@@ -582,7 +587,7 @@ struct OrbitStudioIntro: View {
 
             logo
                 // Centred in the middle; in the corner, right-aligned as the page's own logo.
-                .frame(width: box.width, height: box.height, alignment: phase == .corner ? .topTrailing : .center)
+                .frame(width: box.width, height: box.height, alignment: phase == .corner ? .trailing : .center)
                 .overlay {
                     // The light sweeping across the logo, masked by it.
                     LinearGradient(colors: [.clear, .white.opacity(0.9), .clear], startPoint: .leading, endPoint: .trailing)
@@ -625,8 +630,8 @@ struct OrbitStudioIntro: View {
     @ViewBuilder
     private var logo: some View {
         if let logoUrl, !logoUrl.isEmpty {
-            OrbitBalancedLogo(url: logoUrl, area: 17_000, maxSize: Self.cornerBox,
-                              whiten: OrbitBalancedLogo.isGrey(name), alignment: phase == .corner ? .topTrailing : .center)
+            OrbitBalancedLogo(url: logoUrl, area: 13_000, maxSize: Self.cornerBox,
+                              whiten: OrbitBalancedLogo.isGrey(name), alignment: phase == .corner ? .trailing : .center)
         } else {
             Text(name)
                 .font(.system(size: 40, weight: .heavy))

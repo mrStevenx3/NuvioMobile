@@ -666,8 +666,10 @@ private struct OrbitNetflixRowView: View {
         for i in max(0, index - 1)...min(row.items.count - 1, index + 3) where i != index {
             let item = row.items[i]
             let banner: String? = item.banner
-            guard let address = (banner ?? metaStore.meta(for: item)?.backdrop).flatMap(URL.init(string:)),
-                  ArtworkStore.cached(address, decode: request) == nil else { continue }
+            guard let raw = (banner ?? metaStore.meta(for: item)?.backdrop).flatMap(URL.init(string:)) else { continue }
+            // The address the open tile asks first (TMDB's original, as `OrbitSwapImage` does).
+            let address = ArtworkURLUpgrade.upgraded(raw, role: .backdrop) ?? raw
+            guard ArtworkStore.cached(address, decode: request) == nil else { continue }
             Task { _ = try? await ArtworkStore.fetch(address, decode: request) }
         }
     }
@@ -808,19 +810,11 @@ private struct OrbitNetflixTile: View {
         // TMDB's art has no N: his N, drawn as his add-on draws it.
         let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
         ZStack(alignment: .bottomLeading) {
-            Color(white: 0.09)
+            Color(white: open ? 0 : 0.09)
             if open {
-                // Steven (video: grey between each step): the poster the tile just showed — already
-                // decoded at its own size — stands under the landscape art while it comes.
-                CachedAsyncImage(string: poster, fallback: top10 ? nil : item.poster, contentMode: .fill,
-                                 decodeSize: .points(width: L.posterWidth, height: L.tileHeight),
-                                 loading: { Color(white: 0.09) }, failure: { Color(white: 0.09) })
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-                // (No art known yet: nothing over the poster — an empty address drew a grey pane.)
-                if let art = banner ?? meta?.backdrop, !art.isEmpty {
-                    OrbitImage(url: art, fallback: poster, size: size)
-                }
+                // Steven (grey between each step, still): built as Home's open frame — the art is
+                // fetched first and swapped in over the poster, never an empty pane.
+                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: poster ?? item.poster, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),

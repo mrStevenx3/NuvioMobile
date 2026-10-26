@@ -57,50 +57,55 @@ struct OrbitNativeHome: View {
     /// (Steven: 12 points taken from here went above the details, so the rows stay in place.)
     static let sectionGap: CGFloat = 44
 
-    /// A section's line: brought to the screen's top, it leaves the section `topLine` under it.
-    static func lineMarker(_ id: String) -> some View {
-        Color.clear.frame(width: 1, height: 1)
-            .alignmentGuide(.top) { $0[.top] + topLine }
-            .id("line-\(id)")
-    }
+    /// Each section's top in the column (measured), for the page to bring it to its line.
+    @State private var tops: [String: CGFloat] = [:]
+    private static let column = "orbit-home-column"
+
+    /// The column's shift: the current section's top at the line under the bar.
+    private var columnOffset: CGFloat { Self.topLine - (tops[position ?? "hero"] ?? 0) }
 
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack(alignment: .topLeading) {
             OrbitNativeBackdrop(visible: !onHero)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                // Steven (device: now and then Up jumped in one go): a lazy column guesses the height
-                // of the rows it hasn't built yet and corrects it as one is built on the way up — the
-                // jump. A dozen rows are built once, at their real heights (each row stays lazy along).
-                VStack(alignment: .leading, spacing: Self.sectionGap) {
-                    if !heroItems.isEmpty {
-                        hero
-                            .id("hero")
-                    }
-                    let currentIndex = rows.firstIndex { $0.id == currentRow } ?? -1
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                        OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
-                                       onEnter: { enter(row.id) })
-                            // Steven (device: the wash stopped short of the top under a dark band):
-                            // no band — the row above fades out as it leaves instead.
-                            .opacity(index < currentIndex ? 0 : 1)
-                            .animation(.easeOut(duration: 0.14), value: index < currentIndex)
-                            .id(row.id)
-                    }
+            // Steven (device, several videos: "le problème de coupure" — the system scrolled to the
+            // focus, then the page aligned the row: two moves, an overshoot and a settle): no scroll
+            // view any more. The column is slid by the page alone, on one curve, each section's top
+            // to the line; Up / Down go to the row above / below explicitly (a row off screen is
+            // still reached). The rows' own horizontal scroll views are untouched.
+            VStack(alignment: .leading, spacing: Self.sectionGap) {
+                if !heroItems.isEmpty {
+                    hero
+                        .onMoveCommand { direction in
+                            if direction == .down { vertical(.down, from: "hero") }
+                        }
+                        .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named(Self.column)).minY }) { top in
+                            tops["hero"] = top
+                        }
                 }
-                .scrollTargetLayout()
-                .padding(.bottom, OrbitHomeLayout.screenHeight)
+                ForEach(rows) { row in
+                    OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
+                                   onEnter: { enter(row.id) },
+                                   onVertical: { vertical($0, from: row.id) })
+                        .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named(Self.column)).minY }) { top in
+                            tops[row.id] = top
+                        }
+                }
             }
-            // Steven ("le problème de coupure"; then, the page taking over the scroll: everything
-            // jumped and vanished): Up / Down are the system's own single move, aligned on the rows
-            // at their line. The page moves itself only for Menu back to the top.
-            .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(id: $position, anchor: .top)
-            .contentMargins(.top, Self.topLine, for: .scrollContent)
-            .scrollClipDisabled()
+            // Its own height (taller than the screen), from the top.
+            .fixedSize(horizontal: false, vertical: true)
+            .coordinateSpace(.named(Self.column))
+            .offset(y: columnOffset)
+
+            // Off the hero, the band under the bar is the page's own ground and wash (the rows above
+            // slide under it; Steven: no dark band, the wash reaches the top, no hero left showing).
+            OrbitNativeTopCover()
+                .opacity(onHero ? 0 : 1)
+                .animation(.easeInOut(duration: 0.25), value: onHero)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
+        .clipped()
         .onExitCommand(perform: exitAction)
         .onChange(of: heroFocus) { _, page in
             guard let page else {
@@ -117,6 +122,7 @@ struct OrbitNativeHome: View {
             heroPage = page
             currentRow = nil
             setOnHero(true)
+            if position != "hero" { withAnimation(.easeInOut(duration: 0.34)) { position = "hero" } }
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
         .onAppear {
@@ -169,15 +175,42 @@ struct OrbitNativeHome: View {
         if onHero {
             return { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
         }
-        return {
-            withAnimation(.easeInOut(duration: 0.36)) { position = "hero" }
-            heroFocus = heroPage
-        }
+        return { focusSection("hero") }
     }
 
     private func enter(_ rowID: String) {
         currentRow = rowID
         setOnHero(false)
+        if position != rowID { withAnimation(.easeInOut(duration: 0.34)) { position = rowID } }
+    }
+
+    /// Up / Down from a section (the one the press came from): the section above / below takes the
+    /// focus (on its last title). Up from the hero stays the system's (the bar).
+    private func vertical(_ direction: MoveCommandDirection, from id: String) {
+        guard direction == .up || direction == .down else { return }
+        let order = (heroItems.isEmpty ? [] : ["hero"]) + rows.map(\.id)
+        guard let i = order.firstIndex(of: id) else { return }
+        let j = direction == .down ? i + 1 : i - 1
+        guard order.indices.contains(j) else { return }
+        focusSection(order[j])
+    }
+
+    /// Brings a section to its line and gives it the focus — asked at once and again once the
+    /// column has slid (a section still off screen may not take it the first time).
+    private func focusSection(_ id: String) {
+        if position != id { withAnimation(.easeInOut(duration: 0.34)) { position = id } }
+        let ask = {
+            if id == "hero" {
+                if heroFocus == nil { heroFocus = heroPage }
+            } else if currentRow != id || heroFocus != nil {
+                NotificationCenter.default.post(name: .orbitHomeRowFocus, object: id)
+            }
+        }
+        ask()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
+            guard position == id else { return }
+            ask()
+        }
     }
 
     private func setOnHero(_ value: Bool) {
@@ -218,6 +251,25 @@ private struct OrbitNativeHeroPage: View {
     }
 }
 
+/// The band under the bar off the hero: the page's ground and wash again, fading out down to the
+/// rows' line (the rows above slide under it).
+private struct OrbitNativeTopCover: View {
+    @ObservedObject private var state = OrbitNativeHomeState.shared
+
+    var body: some View {
+        OrbitRowsBackdrop(url: state.art)
+            .mask(alignment: .top) {
+                LinearGradient(stops: [.init(color: .black, location: 0),
+                                       .init(color: .black, location: 0.7),
+                                       .init(color: .black.opacity(0), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: OrbitNativeHome.topLine)
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+    }
+}
+
 /// The colour wash behind the rows (its own view: a new colour redraws only it).
 private struct OrbitNativeBackdrop: View {
     let visible: Bool
@@ -241,6 +293,8 @@ struct OrbitNativeRow: View {
     let trailers: OrbitNativeTrailerHost
     /// The focus came into this row (from outside it).
     let onEnter: () -> Void
+    /// Up / Down pressed in this row (the page moves to the section above / below).
+    var onVertical: (MoveCommandDirection) -> Void = { _ in }
 
     @FocusState private var focused: String?
     /// The row holds the focus. Steven (device: the headings blinked on every Left / Right): the
@@ -330,6 +384,9 @@ struct OrbitNativeRow: View {
             }
         }
         .focusSection()
+        .onMoveCommand { direction in
+            if direction == .up || direction == .down { onVertical(direction) }
+        }
         .onAppear { restoreIfReturning() }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
             guard note.object as? String == row.id else { return }

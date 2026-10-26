@@ -342,15 +342,16 @@ struct OrbitRowsBackdrop: View {
     /// Steven (device: the art behind the rows looked overloaded): no image any more — a soft wash
     /// of the focused title's dominant colour from the top right, fading into the page (as the
     /// Top 10's ranks take their poster's colour).
-    /// The wash shown, and the next one fading in over it (Steven: the colour went through black
-    /// at each change — the old wash now stays under the new one until it has fully come).
-    @State private var tone: Color?
-    @State private var incoming: Color?
-    @State private var incomingOpacity: Double = 0
-    @State private var settle: DispatchWorkItem?
+    /// Two washes cross-fading (one in, the other out, on the same curve). Steven: the colour went
+    /// through black (none under the new one), then rose and suddenly darkened (two washes stacked,
+    /// then one) — the two now always add up to one.
+    @State private var colourA: Color?
+    @State private var colourB: Color?
+    @State private var showsB = false
 
-    private func wash(_ color: Color) -> some View {
-        RadialGradient(colors: [color.opacity(0.38), color.opacity(0.14), .clear],
+    private func wash(_ color: Color?) -> some View {
+        RadialGradient(colors: [(color ?? .clear).opacity(color == nil ? 0 : 0.38),
+                                (color ?? .clear).opacity(color == nil ? 0 : 0.14), .clear],
                        center: UnitPoint(x: 0.82, y: 0.08), startRadius: 0, endRadius: 1500)
     }
 
@@ -358,9 +359,10 @@ struct OrbitRowsBackdrop: View {
         let L = OrbitHomeLayout.self
         ZStack {
             if opaque { L.background }
-            if let tone { wash(tone) }
-            if let incoming { wash(incoming).opacity(incomingOpacity) }
+            wash(colourA).opacity(showsB ? 0 : 1)
+            wash(colourB).opacity(showsB ? 1 : 0)
         }
+        .compositingGroup()
         .frame(width: L.screenWidth, height: L.screenHeight)
         .task(id: url ?? "-") {
             guard let url else { return }
@@ -376,28 +378,14 @@ struct OrbitRowsBackdrop: View {
     }
 
     private func show(_ color: Color) {
-        guard color != tone || incoming != nil else { return }
-        settle?.cancel()
-        // A change still coming: it becomes the ground at once.
-        if let incoming { tone = incoming }
+        if (showsB ? colourB : colourA) == color { return }
+        // The hidden wash takes the new colour (no animation), then the two swap on one curve.
         var still = Transaction()
         still.disablesAnimations = true
         withTransaction(still) {
-            incoming = color
-            incomingOpacity = 0
+            if showsB { colourA = color } else { colourB = color }
         }
-        withAnimation(.easeInOut(duration: 0.5)) { incomingOpacity = 1 }
-        let work = DispatchWorkItem {
-            var still = Transaction()
-            still.disablesAnimations = true
-            withTransaction(still) {
-                tone = color
-                incoming = nil
-                incomingOpacity = 0
-            }
-        }
-        settle = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55, execute: work)
+        withAnimation(.easeInOut(duration: 0.6)) { showsB.toggle() }
     }
 }
 

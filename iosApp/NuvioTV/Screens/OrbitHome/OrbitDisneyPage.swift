@@ -616,9 +616,15 @@ private struct OrbitDisneyHero: View {
                             .font(.system(size: 40, weight: .black, design: .rounded))
                             .foregroundStyle(Color(red: 0.11, green: 0.91, blue: 0.51))
                     } else {
+                        // Steven: as before — black text on a white framed label.
                         Text(String(localized: "Nouveau sur Disney+"))
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.92))
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white))
+                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.black.opacity(0.25), lineWidth: 1))
                     }
                 }
                 .frame(height: 52, alignment: .bottomLeading)
