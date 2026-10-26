@@ -28,15 +28,10 @@ struct OrbitEpisodesSection: View {
 
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
     @State private var shownSeason: Int?
-    /// Steven (2026-10-25: the episode's text stayed far left under a card on the right): where
-    /// each card is on screen (written as the row scrolls, never a page update), and the focused
-    /// one's place the text follows.
-    @State private var cardX = OrbitEpisodeCardPlaces()
-    @State private var focusedX: CGFloat = OrbitDetailLayout.margin
     /// Steven (2026-10-26): the focused episode always at the margin, the row sliding under it
     /// (as on Home) — its text stays put under it.
     @State private var episodeAnchor: String?
-    static let detailsWidth: CGFloat = 900
+    static let detailsWidth: CGFloat = 1300
 
     static let stillSize = CGSize(width: 384, height: 216)
     /// Steven (2026-10-24): larger season posters.
@@ -175,12 +170,6 @@ struct OrbitEpisodesSection: View {
         }
     }
 
-    private func place(_ x: CGFloat) {
-        let maxX = OrbitHomeLayout.screenWidth - OrbitDetailLayout.margin - Self.detailsWidth
-        let clamped = min(max(x, OrbitDetailLayout.margin), maxX)
-        if abs(clamped - focusedX) > 1 { focusedX = clamped }
-    }
-
     private func posterURL(season: Int) -> String? {
         let poster: String? = meta.videos.first { $0.season?.value == season && !($0.seasonPoster ?? "").isEmpty }?.seasonPoster
         return poster ?? meta.poster
@@ -190,11 +179,6 @@ struct OrbitEpisodesSection: View {
         guard let s = episode.season?.value, let e = episode.episode?.value else { return episode.rating?.doubleValue }
         return episodeRatings["\(s):\(e)"] ?? episode.rating?.doubleValue
     }
-}
-
-/// Where each episode card is on screen (a box: written on every scroll frame, never a page update).
-final class OrbitEpisodeCardPlaces {
-    var x: [String: CGFloat] = [:]
 }
 
 private struct OrbitSeasonCard: View {

@@ -23,9 +23,6 @@ nonisolated enum OrbitHomeSetting {
     static let trailersKey = "orbit_home_trailers"
     /// Steven (2026-10-25): the previews that start on their own play with their sound.
     static let trailerSoundKey = "orbit_trailer_sound"
-    /// Steven (2026-10-25): Home built like Apple's TV app (`OrbitNativeHome`), on by default; off
-    /// brings the canvas Home back.
-    static let nativeKey = "orbit_native_home"
 }
 
 extension Notification.Name {
