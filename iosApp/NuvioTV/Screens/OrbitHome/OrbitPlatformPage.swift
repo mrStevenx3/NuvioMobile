@@ -751,7 +751,9 @@ struct OrbitPlatformIntro: View {
             Image(assetLogo)
                 .resizable()
                 .scaledToFit()
-                .padding(.vertical, Self.logoSize.height * 0.02)
+                // (Steven: Netflix's N touched the billboard under it — a little shorter, its top
+                // still on the corner's line.)
+                .padding(.bottom, Self.logoSize.height * 0.3)
         } else if let assetLogo {
             Image(assetLogo)
                 .renderingMode(.template)

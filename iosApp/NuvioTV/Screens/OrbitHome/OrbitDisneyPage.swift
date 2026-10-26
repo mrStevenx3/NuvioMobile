@@ -609,7 +609,8 @@ private struct OrbitDisneyHero: View {
         return VStack(alignment: .leading, spacing: 0) {
             // The platform's mark sits right on the title's logo, both at the box's bottom (Steven:
             // the Hulu mark floated high above a short logo).
-            VStack(alignment: .leading, spacing: 18) {
+            // (Steven: the Disney+ logo floated above the title's — closer.)
+            VStack(alignment: .leading, spacing: 6) {
                 Group {
                     if isHulu {
                         Text("hulu")
@@ -623,7 +624,7 @@ private struct OrbitDisneyHero: View {
                                              decodeSize: .points(width: 300, height: 110),
                                              loading: { Color.clear },
                                              failure: { Text("Disney+").font(.system(size: 34, weight: .bold, design: .rounded)) })
-                                .frame(width: 150, height: 52, alignment: .bottomLeading)
+                                .frame(width: 130, height: 44, alignment: .bottomLeading)
                         } else {
                             Text("Disney+")
                                 .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -637,7 +638,7 @@ private struct OrbitDisneyHero: View {
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
                                fallbackLogo: info.logoFallback, hugsLogo: true)
             }
-            .frame(width: L.logoSize.width, height: 52 + 18 + L.logoSize.height, alignment: .bottomLeading)
+            .frame(width: L.logoSize.width, height: 52 + 6 + L.logoSize.height, alignment: .bottomLeading)
             OrbitDisneyMetaLine(certification: meta?.certification, parts: info.parts)
                 .padding(.top, 24)
             Text(info.synopsis)
