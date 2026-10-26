@@ -156,7 +156,7 @@ struct OrbitStudioPage: View {
     let route: OrbitStudioRoute
 
     @StateObject private var model: OrbitStudioModel
-    @StateObject private var trailer = InlineTrailerCardModel()
+    @StateObject private var trailer = OrbitNativeTrailerHost()
     @ObservedObject private var metaStore = OrbitMetaStore.shared
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

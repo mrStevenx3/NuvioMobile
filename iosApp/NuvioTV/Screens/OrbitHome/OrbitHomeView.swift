@@ -122,7 +122,7 @@ struct OrbitHomeView: View {
     @State private var leads: [String: Int] = [:]
     @State private var heroIndex = 0
     @FocusState private var canvasFocused: Bool
-    @StateObject private var trailer = InlineTrailerCardModel()
+    @StateObject private var trailer = OrbitNativeTrailerHost()
     /// The page's own rows (TMDB): the Top 10 across the platforms, each platform's new titles.
     @StateObject private var extras = OrbitHomeExtrasModel()
     @State private var motion = OrbitHomeMotion()

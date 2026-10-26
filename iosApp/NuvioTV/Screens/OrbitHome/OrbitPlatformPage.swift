@@ -82,7 +82,7 @@ struct OrbitPlatformPage: View {
 
     @StateObject private var model: FolderDetailViewModel
     @StateObject private var extras = OrbitPlatformExtrasModel()
-    @StateObject private var trailer = InlineTrailerCardModel()
+    @StateObject private var trailer = OrbitNativeTrailerHost()
     @ObservedObject private var metaStore = OrbitMetaStore.shared
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

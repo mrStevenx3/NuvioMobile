@@ -160,7 +160,8 @@ private struct OrbitNativeSectionLabel<Content: View>: View {
 
 // MARK: - Trailers on native pages
 
-/// The native pages' trailer (Steven, 2026-10-26: back on Home and the studios). Kept out of the
+/// Orbit's one trailer object (Steven, 2026-10-26: back on Home and the studios, then "un truc
+/// unifié": every page uses it). Kept out of the
 /// pages' own state: arming it, or the trailer starting, redraws only the few views that play it
 /// (`OrbitNativeTrailerReader`), never a whole page.
 @MainActor
@@ -200,6 +201,36 @@ final class OrbitNativeTrailerHost: ObservableObject {
     func url(for key: String) -> String? {
         self.key == key ? model.playingURL : nil
     }
+
+    // Steven (2026-10-26: "un truc unifié"): every Orbit page plays its trailers through this one
+    // object — the drawn pages too, with the same calls they made on the bare model.
+
+    var playingURL: String? { model.playingURL }
+    var prefersReducedMotion: Bool {
+        get { model.prefersReducedMotion }
+        set { model.prefersReducedMotion = newValue }
+    }
+    var restSource: RowRestSource {
+        get { model.restSource }
+        set { model.restSource = newValue }
+    }
+
+    func focusChanged(_ focused: Bool, item: MetaPreview) {
+        if focused {
+            key = "\(item.type):\(item.id)"
+            model.focusChanged(true, item: item)
+        } else {
+            reset()
+        }
+    }
+
+    func reset(abortStages: Bool = false) {
+        model.reset(abortStages: abortStages)
+        key = nil
+    }
+
+    func playbackFailed(_ report: TrailerFailureReport) { model.playbackFailed(report) }
+    func playbackFinished() { model.playbackFinished() }
 }
 
 /// Hands its content the trailer playing for `key` (nil: none), redrawn alone as it changes.
