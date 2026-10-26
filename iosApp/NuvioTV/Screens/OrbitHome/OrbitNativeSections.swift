@@ -147,6 +147,19 @@ struct OrbitNativeSections<SectionContent: View>: View {
         // places itself, on one curve, each section at its own line.
         .scrollDisabled(true)
         .scrollClipDisabled()
+        // The page does not scroll for the system any more: a section off screen may be out of its
+        // reach. Up / Down the system could not follow (the focus still in the same section a beat
+        // later) moves the page itself to the next section, which then takes the focus.
+        .onMoveCommand { direction in
+            guard direction == .up || direction == .down else { return }
+            let from = current
+            let target = direction == .up ? from - 1 : from + 1
+            guard target >= 0, target < count, !(direction == .up && from == 0) else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
+                guard current == from else { return }
+                onFocus(target)
+            }
+        }
         .onExitCommand(perform: onExit)
         .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
         .onChange(of: focus) { old, s in

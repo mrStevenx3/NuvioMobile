@@ -655,6 +655,22 @@ private struct OrbitNetflixBillboard: View {
 /// open tile, its meta line and synopsis.
 private struct OrbitNetflixRowView: View {
     let row: OrbitNetflixRow
+
+    /// The landscape art of the titles next to the open one, decoded at the open tile's size
+    /// before the focus gets there (Steven: grey between each step).
+    private func prefetchOpenArt(around index: Int) {
+        let L = OrbitNetflixLayout.self
+        let request = ArtworkDecodeRequest(size: .points(width: L.openWidth, height: L.tileHeight), fill: true,
+                                           scale: UIScreen.main.scale).normalized
+        for i in max(0, index - 1)...min(row.items.count - 1, index + 3) where i != index {
+            let item = row.items[i]
+            let banner: String? = item.banner
+            guard let address = (banner ?? metaStore.meta(for: item)?.backdrop).flatMap(URL.init(string:)),
+                  ArtworkStore.cached(address, decode: request) == nil else { continue }
+            Task { _ = try? await ArtworkStore.fetch(address, decode: request) }
+        }
+    }
+
     @ObservedObject var box: OrbitLeadBox
     let isCurrent: Bool
     let focused: Bool
@@ -684,7 +700,10 @@ private struct OrbitNetflixRowView: View {
                                  lastWidth: L.openWidth + (row.top10 ? L.rankWidthTen : 0), box: box,
                                  keepsLeadAtMargin: true,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
-                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                                 onLeadChange: { new in
+                                     onLeadChange()
+                                     prefetchOpenArt(around: new)
+                                 }) { index, lit in
                 let item = row.items[index]
                 let open = isCurrent && index == lead
                 HStack(alignment: .bottom, spacing: 0) {
@@ -790,8 +809,14 @@ private struct OrbitNetflixTile: View {
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.09)
             if open {
-                // (Steven, device: a grey box while the landscape art loaded): the poster stands in.
-                OrbitImage(url: banner ?? meta?.backdrop, fallback: poster, size: size, placeholder: poster)
+                // Steven (video: grey between each step): the poster the tile just showed — already
+                // decoded at its own size — stands under the landscape art while it comes.
+                CachedAsyncImage(string: poster, fallback: top10 ? nil : item.poster, contentMode: .fill,
+                                 decodeSize: .points(width: L.posterWidth, height: L.tileHeight),
+                                 loading: { Color(white: 0.09) }, failure: { Color(white: 0.09) })
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                OrbitImage(url: banner ?? meta?.backdrop, fallback: poster, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
