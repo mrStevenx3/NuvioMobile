@@ -42,7 +42,9 @@ struct OrbitStudiosPage: View {
     static let heroTop: CGFloat = 112
     static let logoSize = CGSize(width: 460, height: 130)
     /// The framed backdrop, top right.
-    static let frameSize = CGSize(width: 1760, height: 450)
+    /// Steven (2026-10-26): the large image takes the top of the screen, the studios under it at
+    /// the bottom (their size unchanged).
+    static let frameSize = CGSize(width: 1760, height: 690)
 
     private var folders: [CollectionFolder] {
         var seen = Set<String>()

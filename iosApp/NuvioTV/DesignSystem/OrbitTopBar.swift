@@ -445,7 +445,8 @@ struct OrbitCollectionGrid: View {
     static let columns = 3
     static let spacing: CGFloat = 28
     /// The tiles, under the bar (the page's title is gone).
-    static let top: CGFloat = 130
+    /// (Steven: the page balanced — the platforms a little lower, the larger Top 20 under them.)
+    static let top: CGFloat = 165
     static var tileWidth: CGFloat {
         floor((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin - CGFloat(columns - 1) * spacing) / CGFloat(columns))
     }
@@ -507,7 +508,7 @@ struct OrbitCollectionGrid: View {
                         // (Back from a platform: the rows below cannot take the focus either — Steven,
                         // simulator: it landed in the Top 20, then went back to the platform.)
                         .disabled(restoreTarget != nil)
-                        .padding(.top, 8)
+                        .padding(.top, 30)
                 }
                 .padding(.top, Self.top)
                 .padding(.horizontal, OrbitHomeLayout.margin)

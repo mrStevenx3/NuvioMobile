@@ -211,8 +211,9 @@ struct OrbitPlatformTrendingRow: View {
     /// Steven: the Top 20, the new films and the new series all on one screen under the platforms.
     /// (Two rows — the Top 20, then the new films and series together — so the platforms above
     /// can be larger.)
-    static let posterWidth: CGFloat = 156
-    static let posterHeight: CGFloat = 234
+    /// (Steven: the Top 20 alone under the platforms — larger, filling the screen's bottom.)
+    static let posterWidth: CGFloat = 214
+    static let posterHeight: CGFloat = 320
     /// The 16:9 tiles, from Home's size.
     static let landscapeScale: CGFloat = 0.68
     static let spacing: CGFloat = 24
@@ -289,7 +290,7 @@ struct OrbitPlatformTrendingRow: View {
     private func row(heading: String, items: [MetaPreview], key: String, kind: Kind) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             // Steven: Home's headings here too, the bar in the platform's colour.
-            OrbitRowHeading(title: heading, isCurrent: true, accent: accent, size: 28)
+            OrbitRowHeading(title: heading, isCurrent: true, accent: accent, size: 32)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: kind == .ranked ? 18 : Self.spacing) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
