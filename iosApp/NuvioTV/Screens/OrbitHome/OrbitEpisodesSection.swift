@@ -120,10 +120,6 @@ struct OrbitEpisodesSection: View {
                             .buttonStyle(OrbitPlainStyle())
                             .focused(focus, equals: .episode(episode.id))
                             .id(episode.id)
-                            .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minX }) { x in
-                                cardX.x[episode.id] = x
-                                if focus.wrappedValue == .episode(episode.id) { place(x) }
-                            }
                         }
                     }
                     .scrollTargetLayout()
@@ -157,16 +153,15 @@ struct OrbitEpisodesSection: View {
             }
             .frame(width: Self.detailsWidth, height: 110, alignment: .topLeading)
             .clipped()
-            // Under the focused episode (kept on screen at the right edge).
-            .padding(.leading, focusedX)
-            .animation(.easeOut(duration: 0.22), value: focusedX)
+            // Under the focused episode — always at the margin now (Steven: the text bounced while it
+            // followed the card through the row's slide).
+            .padding(.leading, OrbitDetailLayout.margin)
         }
         // Steven: entering from above (the hero) lands on the season being shown — the season
         // row is no longer skipped (the engine took the poster under Lire, or the episodes).
         .onChange(of: focus.wrappedValue) { old, new in
             if case .episode(let id)? = new {
                 if episodeAnchor != id { withAnimation(.easeOut(duration: 0.26)) { episodeAnchor = id } }
-                if let x = cardX.x[id] { place(x) }
             }
             guard case .season(let s)? = new else { return }
             // Up from the episodes too: back on the season they belong to (the engine took the
