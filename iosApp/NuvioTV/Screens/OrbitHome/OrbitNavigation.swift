@@ -188,3 +188,56 @@ private struct OrbitHomeButtonStyle: ButtonStyle {
         configuration.label.opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
+
+// MARK: - Platform curtain
+
+/// Steven (2026-10-27: "il faudrait que l'animation s'ouvre avant la page"): pressing a platform
+/// on the Plateformes page first darkens the screen (over the grid), and only then is the page
+/// pushed — under the black. The page's own opening lifts the curtain once its logo shows, so the
+/// page is never seen before its opening.
+@MainActor
+final class OrbitPlatformCurtain: ObservableObject {
+    static let shared = OrbitPlatformCurtain()
+    @Published private(set) var down = false
+    private var token = 0
+
+    /// Black over the screen, then `then` (the push) once it is dark.
+    func drop(then: @escaping () -> Void) {
+        token &+= 1
+        let mine = token
+        withAnimation(.easeIn(duration: 0.18)) { down = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { then() }
+        // Never left over the app (a page with no opening).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            if self?.token == mine { self?.lift() }
+        }
+    }
+
+    func lift() {
+        guard down else { return }
+        withAnimation(.easeOut(duration: 0.25)) { down = false }
+    }
+}
+
+struct OrbitPlatformCurtainView: View {
+    @ObservedObject private var curtain = OrbitPlatformCurtain.shared
+
+    var body: some View {
+        Color.black
+            .ignoresSafeArea()
+            .opacity(curtain.down ? 1 : 0)
+            .allowsHitTesting(false)
+    }
+}
+
+private struct OrbitPushFolderKey: EnvironmentKey {
+    static let defaultValue: ((FolderRoute) -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    /// Pushes a platform's page onto the current tab's stack; nil outside one.
+    var orbitPushFolder: ((FolderRoute) -> Void)? {
+        get { self[OrbitPushFolderKey.self] }
+        set { self[OrbitPushFolderKey.self] = newValue }
+    }
+}

@@ -456,6 +456,7 @@ struct OrbitCollectionGrid: View {
     @State private var haloColor: Color?
     /// The platform whose Top 20 is shown (marked while the focus is in its rows).
     @State private var selectedId: String?
+    @Environment(\.orbitPushFolder) private var pushFolder
     /// The focus is down in the Top 20 (Steven: up on the bar, the platform stayed marked).
     @State private var inRows = false
     /// Where the page is brought to: the focused row's line, or its top on the platforms.
@@ -484,7 +485,14 @@ struct OrbitCollectionGrid: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Self.spacing) {
                             ForEach(entries) { entry in
-                                NavigationLink(value: FolderRoute(collectionId: entry.collection.id, folder: entry.folder)) {
+                                // Steven: the platform's opening before its page — black first, the
+                                // page pushed under it (see `OrbitPlatformCurtain`).
+                                Button {
+                                    let route = FolderRoute(collectionId: entry.collection.id, folder: entry.folder)
+                                    if let pushFolder {
+                                        OrbitPlatformCurtain.shared.drop { pushFolder(route) }
+                                    }
+                                } label: {
                                     OrbitPlatformTile(folder: entry.folder,
                                                       collectionBackdropUrl: entry.collection.backdropImageUrl,
                                                       focused: focused == entry.id,

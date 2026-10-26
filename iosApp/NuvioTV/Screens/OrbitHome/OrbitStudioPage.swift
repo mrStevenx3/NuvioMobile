@@ -767,9 +767,10 @@ private struct OrbitNativeStudioRow: View {
         still.disablesAnimations = true
         if row.showsInfo, let index {
             withTransaction(still) { scroll.scrollTo(id: index, anchor: .leading) }
-        } else if let x = Self.offsets[row.id] {
-            withTransaction(still) { scroll.scrollTo(x: x) }
         }
+        // A row scrolled freely is never moved by us (Steven's video, Disney+ Top 10: at the
+        // press the row slid right — the kept scroll put back — then again on the way back). The
+        // system keeps it where it is; only the title's tile can take the focus meanwhile.
     }
 
     private func lockForReturn(_ index: Int) {

@@ -815,12 +815,15 @@ struct OrbitPlatformIntro: View {
     }
 
     private func play() {
-        guard phase == .hidden else { return }
+        guard phase == .hidden else { OrbitPlatformCurtain.shared.lift(); return }
         if reduceMotion {
             phase = .settled
+            OrbitPlatformCurtain.shared.lift()
             return
         }
         withAnimation(.easeOut(duration: 0.35)) { phase = .splash }
+        // The curtain the page was pushed under goes once the logo shows on the page's own black.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { OrbitPlatformCurtain.shared.lift() }
         let work = DispatchWorkItem {
             withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
         }
