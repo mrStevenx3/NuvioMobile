@@ -288,7 +288,7 @@ struct OrbitParamountPage: View {
                 OrbitParamountTop(item: shown, meta: metaStore.meta(for: shown), line: greenLine(shown),
                                   onArrival: onArrival, buttonLit: pageFocused && onArrival,
                                   count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
-                                  trailerURL: onArrival ? trailerURL(for: shown) : nil,
+                                  trailerURL: trailerURL(for: shown),
                                   onTrailerFailure: { trailer.playbackFailed($0) },
                                   onTrailerEnded: {
                                       trailer.playbackFinished()
@@ -519,8 +519,9 @@ struct OrbitParamountPage: View {
         trailer.reset()
         trailerKey = nil
         // The arrival's trailer plays whether or not it has the focus (the bar can).
-        guard trailersOn, !covered, search == nil, current == 0, UIAccessibility.isVideoAutoplayEnabled,
-              let item = heroItem else { return }
+        // Steven: in the rows too — the focused title's trailer plays in the art at the top after a rest.
+        guard trailersOn, !covered, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+              let item = current == 0 ? heroItem : (pageFocused ? shownItem : nil) else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
         trailerKey = "\(item.type):\(item.id)"

@@ -261,9 +261,12 @@ struct OrbitDetailView: View {
             // back. The page's own moves (`anchor`, scrollTo) still place it.
             .scrollDisabled(onSeasonPoster)
             .ignoresSafeArea()
+            // Steven ("le problème de coupure" on Up / Down): the system scrolled to the focus, then
+            // the page scrolled again to its section — two moves. Only Menu back to the top moves the
+            // page itself now; Up / Down are the system's one move, aligned on the sections.
             .onChange(of: section) { _, target in
-                if pagePosition != target {
-                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.36)) { pagePosition = target }
+                if target == .hero, pagePosition != .hero {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.36)) { pagePosition = .hero }
                 }
             }
             }
@@ -531,7 +534,7 @@ struct OrbitDetailView: View {
 
     private func enter(_ target: OrbitDetailSection) {
         // Moves inside the hero are left alone (re-pinning it bounced the buttons).
-        guard target != section else { if target != .hero { anchorTick &+= 1 }; return }
+        guard target != section else { return }
         section = target
         if target == .hero { armHeroTrailer() } else { stopHeroTrailer() }
     }
@@ -1488,8 +1491,9 @@ private struct OrbitCastCard: View {
             }
             .frame(width: 170, height: 170)
             .overlay(Circle().strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 5))
+            // Steven (lag in the cast row): no shadow animated on every step — the lift alone.
+            .compositingGroup()
             .scaleEffect(focused ? 1.1 : 1)
-            .shadow(color: .black.opacity(focused ? 0.5 : 0.2), radius: 16, y: 8)
             VStack(spacing: 4) {
                 Text(person.name)
                     .font(.system(size: 23, weight: .semibold))
