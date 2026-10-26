@@ -365,7 +365,7 @@ struct OrbitStudioPage: View {
             Group {
                 if let logo = model.logo ?? route.logo, !logo.isEmpty {
                     OrbitBalancedLogo(url: logo, area: 13_000, maxSize: OrbitStudioIntro.cornerBox,
-                                      whiten: OrbitBalancedLogo.isGrey(model.name), alignment: .trailing)
+                                      whiten: OrbitBalancedLogo.isGrey(model.name), alignment: .topTrailing)
                 } else {
                     Text(model.name)
                         .font(.system(size: 36, weight: .heavy))
@@ -373,10 +373,10 @@ struct OrbitStudioPage: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                         .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height,
-                               alignment: .trailing)
+                               alignment: .topTrailing)
                 }
             }
-            .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height, alignment: .trailing)
+            .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height, alignment: .topTrailing)
             .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
             .opacity(introDone && (hasHero || !nativeOnHero) ? 1 : 0)
             .offset(x: OrbitHomeLayout.screenWidth - OrbitStudioIntro.cornerTrailing - OrbitStudioIntro.cornerBox.width,
@@ -570,9 +570,10 @@ struct OrbitStudioIntro: View {
 
     /// The page's studio logo: its box and place (top right of the banner).
     /// Steven: level with the Orbit bar (its centre line), at its right end.
-    static let cornerBox = CGSize(width: 300, height: 76)
-    static let cornerTop: CGFloat = OrbitPlatformIntro.cornerCentreY - 38
-    static let cornerTrailing: CGFloat = OrbitPlatformIntro.cornerTrailing
+    static let cornerBox = CGSize(width: 300, height: OrbitPlatformIntro.cornerHeight)
+    /// (Steven: in the TV's corner, at the same place as the platforms' logos.)
+    static let cornerTop: CGFloat = OrbitPlatformIntro.cornerInset
+    static let cornerTrailing: CGFloat = OrbitPlatformIntro.cornerInset
     static let splashScale: CGFloat = 2.4
 
     var body: some View {
@@ -587,7 +588,7 @@ struct OrbitStudioIntro: View {
 
             logo
                 // Centred in the middle; in the corner, right-aligned as the page's own logo.
-                .frame(width: box.width, height: box.height, alignment: phase == .corner ? .trailing : .center)
+                .frame(width: box.width, height: box.height, alignment: phase == .corner ? .topTrailing : .center)
                 .overlay {
                     // The light sweeping across the logo, masked by it.
                     LinearGradient(colors: [.clear, .white.opacity(0.9), .clear], startPoint: .leading, endPoint: .trailing)
@@ -631,7 +632,7 @@ struct OrbitStudioIntro: View {
     private var logo: some View {
         if let logoUrl, !logoUrl.isEmpty {
             OrbitBalancedLogo(url: logoUrl, area: 13_000, maxSize: Self.cornerBox,
-                              whiten: OrbitBalancedLogo.isGrey(name), alignment: phase == .corner ? .trailing : .center)
+                              whiten: OrbitBalancedLogo.isGrey(name), alignment: phase == .corner ? .topTrailing : .center)
         } else {
             Text(name)
                 .font(.system(size: 40, weight: .heavy))

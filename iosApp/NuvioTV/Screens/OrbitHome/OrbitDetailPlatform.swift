@@ -70,24 +70,26 @@ struct OrbitDetailPlatformMark: View {
                     .scaledToFit()
                     .foregroundStyle(Color.white)
                     .frame(height: 44)
+                    .frame(height: OrbitPlatformIntro.cornerHeight, alignment: .top)
             } else if platform.theme == .netflix {
                 // Steven: just his N, larger, not the whole Netflix word.
                 Image("NetflixN")
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 76)
+                    .frame(height: OrbitPlatformIntro.cornerHeight)
             } else if let url = platform.logoUrl, !url.isEmpty {
                 CachedAsyncImage(string: url, contentMode: .fit,
                                  decodeSize: .points(width: 380, height: 140),
                                  loading: { Color.clear }, failure: { Color.clear })
                     .brightness(platform.theme.whiteLogo ? 1 : 0)
-                    .frame(width: 190, height: 70, alignment: .trailing)
+                    .frame(width: 190, height: OrbitPlatformIntro.cornerHeight, alignment: .topTrailing)
             }
         }
         .shadow(color: .black.opacity(0.5), radius: 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .padding(.top, 40)
-        .padding(.trailing, OrbitPlatformIntro.cornerTrailing)
+        // The same corner as the platform's page (Steven: on the TV's diagonal).
+        .padding(.top, OrbitPlatformIntro.cornerInset)
+        .padding(.trailing, OrbitPlatformIntro.cornerInset)
         .allowsHitTesting(false)
     }
 }

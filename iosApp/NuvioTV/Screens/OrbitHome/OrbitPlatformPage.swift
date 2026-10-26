@@ -677,6 +677,11 @@ struct OrbitPlatformIntro: View {
     static let cornerScale: CGFloat = 0.36
     /// The corner: level with the bar's centre line, at the right margin.
     static let cornerCentreY: CGFloat = 59
+    /// Steven: every page's logo in the TV's top right corner, the same distance from the top and
+    /// from the right (on the corner's diagonal), at the same place on every page.
+    static let cornerInset: CGFloat = 44
+    /// The corner box's height (every logo fits it, its top and right edges on the inset).
+    static let cornerHeight: CGFloat = 72
     /// Steven (device: not far enough right): level with the bar's right end.
     static let cornerTrailing: CGFloat = 50
 
@@ -689,7 +694,8 @@ struct OrbitPlatformIntro: View {
         case .settled: Self.cornerScale
         }
         let centre: CGPoint = phase == .settled
-            ? CGPoint(x: W - Self.cornerTrailing - size.width * Self.cornerScale / 2, y: Self.cornerCentreY)
+            ? CGPoint(x: W - Self.cornerInset - size.width * Self.cornerScale / 2,
+                      y: Self.cornerInset + size.height * Self.cornerScale / 2)
             : CGPoint(x: W / 2, y: H / 2)
         ZStack(alignment: .topLeading) {
             // Black tinted with the platform's colour.
@@ -701,7 +707,7 @@ struct OrbitPlatformIntro: View {
             .opacity(phase == .settled ? 0 : 1)
 
             logo
-                .frame(width: size.width, height: size.height, alignment: phase == .settled ? .trailing : .center)
+                .frame(width: size.width, height: size.height, alignment: phase == .settled ? .topTrailing : .center)
                 .scaleEffect(scale, anchor: .center)
                 .opacity(phase == .hidden ? 0 : 1)
                 .offset(x: centre.x - size.width / 2, y: centre.y - size.height / 2)
@@ -752,7 +758,8 @@ struct OrbitPlatformIntro: View {
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(Color.white)
-                .padding(.vertical, Self.logoSize.height * 0.18)
+                // (Its room below it: its top on the corner's line, as the other logos.)
+                .padding(.bottom, Self.logoSize.height * 0.36)
         } else if let logoUrl, !logoUrl.isEmpty {
             CachedAsyncImage(string: logoUrl, contentMode: .fit,
                              decodeSize: .points(width: Self.logoSize.width * Self.splashScale,
