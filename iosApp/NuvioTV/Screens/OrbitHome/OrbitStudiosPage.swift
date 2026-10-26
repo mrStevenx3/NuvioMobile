@@ -59,6 +59,8 @@ struct OrbitStudiosPage: View {
         OrbitPlatformBrand.known(title: folder.title) ?? tints[folder.id] ?? OrbitPlatformBrand.color(title: folder.title)
     }
 
+    @Environment(\.orbitPushStudio) private var pushStudio
+
     var body: some View {
         let L = OrbitHomeLayout.self
         let folders = folders
@@ -105,7 +107,12 @@ struct OrbitStudiosPage: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Self.tileSpacing) {
                             ForEach(folders, id: \.id) { folder in
-                                NavigationLink(value: OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)) {
+                                // Steven: the studio's opening before its page — black first, the page
+                                // pushed under it (its own opening takes over the black).
+                                Button {
+                                    let route = OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)
+                                    if let pushStudio { OrbitPlatformCurtain.shared.drop { pushStudio(route) } }
+                                } label: {
                                     OrbitStudioTile(folder: folder,
                                                     focused: lit == folder.id,
                                                     selected: lit == nil && folder.id == selectedId,

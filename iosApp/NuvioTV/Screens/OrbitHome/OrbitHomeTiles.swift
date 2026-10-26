@@ -290,8 +290,11 @@ struct OrbitSmallPoster: View {
         ZStack(alignment: .topTrailing) {
             Color(white: 0.1)
             // A saga keeps its own poster (its card opens its first film, whose meta is not the saga's).
-            OrbitImage(url: card.id.hasPrefix("saga:") ? card.poster : (meta?.localPoster ?? card.poster),
-                       fallback: card.landscape, mode: .fill, size: size)
+            if card.id.hasPrefix("saga:") {
+                OrbitImage(url: card.poster, fallback: card.landscape, mode: .fill, size: size)
+            } else {
+                OrbitStablePoster(card: card, meta: meta, size: size)
+            }
         }
         .frame(width: size.width, height: size.height)
         .modifier(OrbitTileFocus(focused: focused, radius: 10))
@@ -352,7 +355,7 @@ struct OrbitRankedTile: View {
                 .animation(.easeInOut(duration: 0.4), value: tone)
             ZStack(alignment: .bottom) {
                 Color(white: 0.1)
-                OrbitImage(url: poster, fallback: card.landscape, mode: .fill, size: size)
+                OrbitStablePoster(card: card, meta: meta, size: size)
                 if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
                     OrbitPlatformBadge(kind: kind, size: 16)
                         .padding(.bottom, 14)
@@ -623,5 +626,41 @@ final class OrbitHomeExtrasModel: ObservableObject {
             }
         }
         return out
+    }
+}
+
+
+/// A poster chosen once (Steven: on some titles — Prisoners — one poster showed, then another
+/// replaced it): TMDB's French poster when the title's data is there in time, else the catalog's;
+/// whichever it is, it stays.
+struct OrbitStablePoster: View {
+    let card: OrbitCard
+    let meta: OrbitMeta?
+    let size: CGSize
+    /// The address picked (nil: not picked yet — nothing drawn but the tile's ground).
+    @State private var picked: String??
+
+    var body: some View {
+        Group {
+            if let picked {
+                OrbitImage(url: picked, fallback: card.landscape, mode: .fill, size: size)
+            } else {
+                Color.clear.frame(width: size.width, height: size.height)
+            }
+        }
+        .onAppear {
+            guard picked == nil else { return }
+            if let meta {
+                picked = .some(meta.localPoster ?? card.poster)
+            } else {
+                // A short wait for the title's data (asked as the tile appears), then the catalog's.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    if picked == nil { picked = .some(card.poster) }
+                }
+            }
+        }
+        .onChange(of: meta?.localPoster) { _, local in
+            if picked == nil, meta != nil { picked = .some(local ?? card.poster) }
+        }
     }
 }

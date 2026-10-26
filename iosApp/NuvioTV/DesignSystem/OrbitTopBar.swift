@@ -490,7 +490,7 @@ struct OrbitCollectionGrid: View {
                                 Button {
                                     let route = FolderRoute(collectionId: entry.collection.id, folder: entry.folder)
                                     if let pushFolder {
-                                        OrbitPlatformCurtain.shared.drop { pushFolder(route) }
+                                        OrbitPlatformCurtain.shared.drop(look: OrbitPlatformLook.of(route)) { pushFolder(route) }
                                     }
                                 } label: {
                                     OrbitPlatformTile(folder: entry.folder,

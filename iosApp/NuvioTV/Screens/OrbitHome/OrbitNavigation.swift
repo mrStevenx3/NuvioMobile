@@ -199,23 +199,40 @@ private struct OrbitHomeButtonStyle: ButtonStyle {
 final class OrbitPlatformCurtain: ObservableObject {
     static let shared = OrbitPlatformCurtain()
     @Published private(set) var down = false
+    /// The platform's opening drawn on the curtain itself (nil: plain black, a studio's).
+    @Published private(set) var look: OrbitPlatformLook?
+    /// The logo shown (it grows in as the screen darkens).
+    @Published private(set) var logoIn = false
     private var token = 0
 
-    /// Black over the screen, then `then` (the push) once it is dark.
-    func drop(then: @escaping () -> Void) {
+    /// Steven (2026-10-27, "plus naturel"): the press opens the platform straight away — its colour
+    /// and logo come up over the grid as an app opening — and its page is pushed under it, already
+    /// showing the very same opening, which then carries on (the logo to its corner).
+    func drop(look: OrbitPlatformLook? = nil, then: @escaping () -> Void) {
         token &+= 1
         let mine = token
-        withAnimation(.easeIn(duration: 0.18)) { down = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { then() }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { self.look = look; logoIn = false }
+        withAnimation(.easeOut(duration: 0.25)) { down = true }
+        withAnimation(.easeOut(duration: 0.35)) { logoIn = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { then() }
         // Never left over the app (a page with no opening).
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
             if self?.token == mine { self?.lift() }
         }
     }
 
-    func lift() {
+    /// `instant`: the page under it shows the same thing — it simply goes.
+    func lift(instant: Bool = false) {
         guard down else { return }
-        withAnimation(.easeOut(duration: 0.25)) { down = false }
+        if instant {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { down = false; logoIn = false }
+        } else {
+            withAnimation(.easeOut(duration: 0.25)) { down = false }
+        }
     }
 }
 
@@ -223,11 +240,27 @@ struct OrbitPlatformCurtainView: View {
     @ObservedObject private var curtain = OrbitPlatformCurtain.shared
 
     var body: some View {
-        Color.black
-            .ignoresSafeArea()
-            .opacity(curtain.down ? 1 : 0)
-            .allowsHitTesting(false)
+        let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
+        ZStack {
+            Color.black
+            if let look = curtain.look {
+                RadialGradient(colors: [look.brand.opacity(0.45), .clear], center: .center, startRadius: 0, endRadius: 900)
+                OrbitPlatformIntroLogo(look: look)
+                    .frame(width: OrbitPlatformIntro.logoSize.width, height: OrbitPlatformIntro.logoSize.height)
+                    .scaleEffect(OrbitPlatformIntro.splashScale * (curtain.logoIn ? 1 : 0.85))
+                    .opacity(curtain.logoIn ? 1 : 0)
+                    .position(x: W / 2, y: H / 2)
+            }
+        }
+        .frame(width: W, height: H)
+        .ignoresSafeArea()
+        .opacity(curtain.down ? 1 : 0)
+        .allowsHitTesting(false)
     }
+}
+
+private struct OrbitPushStudioKey: EnvironmentKey {
+    static let defaultValue: ((OrbitStudioRoute) -> Void)? = nil
 }
 
 private struct OrbitPushFolderKey: EnvironmentKey {
@@ -239,5 +272,10 @@ extension EnvironmentValues {
     var orbitPushFolder: ((FolderRoute) -> Void)? {
         get { self[OrbitPushFolderKey.self] }
         set { self[OrbitPushFolderKey.self] = newValue }
+    }
+    /// Pushes a studio's page onto the current tab's stack; nil outside one.
+    var orbitPushStudio: ((OrbitStudioRoute) -> Void)? {
+        get { self[OrbitPushStudioKey.self] }
+        set { self[OrbitPushStudioKey.self] = newValue }
     }
 }

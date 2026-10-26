@@ -275,12 +275,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     }
 
     private func lockForReturn(_ index: Int) {
-        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
-        // when the page came back — Steven: the row came back shifted, then corrected).
-        settle(on: index)
-        box.restoreLock = true
-        disappeared = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { box.restoreLock = false } }
+        // Nothing touches the row at the press (Steven's video: the poster slid right before the
+        // title's page came — the lock and the scroll's aim moved it): both wait for the page to
+        // have gone (`onDisappear`), the row no longer on screen.
     }
 
     var body: some View {
@@ -372,7 +369,15 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             let target = min(box.lead, max(0, count - 1))
             if focus != target { focus = target }
         }
-        .onDisappear { disappeared = true }
+        // The page gone over a title opened here: the scroll's aim set to where the row is, and only
+        // the title's tile able to take the focus until the way back is over.
+        .onDisappear {
+            disappeared = true
+            if let back = box.reopen {
+                settle(on: back)
+                box.restoreLock = true
+            }
+        }
         .onAppear {
             let lead = min(box.lead, max(0, count - 1))
             // Pinned rows keep it at the margin; the others are brought back to it only when the

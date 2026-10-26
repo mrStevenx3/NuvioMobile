@@ -642,6 +642,9 @@ struct OrbitStudioIntro: View {
         .allowsHitTesting(false)
         .onAppear {
             appearedAt = Date()
+            // Pushed under the Studios page's black: its own black is there — the curtain goes once
+            // the push is over.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift() }
             // Steven (opened from a film's page): the logo is not known yet — the screen stays
             // black until it is (its name only if it never comes).
             if let logoUrl, !logoUrl.isEmpty {
@@ -774,12 +777,8 @@ private struct OrbitNativeStudioRow: View {
     }
 
     private func lockForReturn(_ index: Int) {
-        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
-        // when the page came back — Steven: the row came back shifted, then corrected).
-        settle(on: index)
-        restoreLock = true
-        disappeared = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
+        // Nothing touches the row at the press (Steven: it slid right now and then): the aim and
+        // the lock wait for the page to have gone (`onDisappear`).
     }
 
     var body: some View {
@@ -866,7 +865,13 @@ private struct OrbitNativeStudioRow: View {
         // (Every appearance: a row scrolled off the page and back stopped keeping where it was —
         // Steven: back from a title the row came back far from where he left it.)
         .onAppear { disappeared = false; restoreIfReturning() }
-        .onDisappear { disappeared = true }
+        .onDisappear {
+            disappeared = true
+            if let back = Self.reopen, back.row == row.id {
+                settle(on: back.index)
+                restoreLock = true
+            }
+        }
         .onChange(of: focused) { _, new in
             guard let new else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {

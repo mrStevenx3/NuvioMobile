@@ -722,6 +722,25 @@ struct OrbitPlatformIntro: View {
         .allowsHitTesting(false)
         .onAppear {
             appearedAt = Date()
+            // Pushed under the Plateformes page's curtain, which already shows this very opening:
+            // the page starts at the same point (no fade), the curtain goes once the push is over,
+            // then the logo glides to its corner.
+            if OrbitPlatformCurtain.shared.down {
+                glide?.cancel()
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { phase = reduceMotion ? .settled : .splash }
+                let curtained = OrbitPlatformCurtain.shared.look != nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift(instant: curtained) }
+                if !reduceMotion {
+                    let work = DispatchWorkItem {
+                        withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
+                    }
+                    glide = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.85, execute: work)
+                }
+                return
+            }
             // Steven (2026-10-26, still: the collection showed a moment, then the cover faded in over
             // it): a fresh entry (not the way back from a title opened here) starts black at once,
             // in this very frame and without animation, whatever the intro was left at.
@@ -765,41 +784,11 @@ struct OrbitPlatformIntro: View {
         }
     }
 
-    @ViewBuilder
     private var logo: some View {
-        if let assetLogo, assetInColour {
-            Image(assetLogo)
-                .resizable()
-                .scaledToFit()
-                // (Steven: Netflix's N touched the billboard under it — a little shorter, its top
-                // still on the corner's line.)
-                .padding(.bottom, Self.logoSize.height * 0.3)
-        } else if let assetLogo {
-            Image(assetLogo)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(Color.white)
-                // (Its room below it: its top on the corner's line, as the other logos.)
-                .padding(.bottom, Self.logoSize.height * 0.36)
-        } else if let logoUrl, !logoUrl.isEmpty {
-            CachedAsyncImage(string: logoUrl, contentMode: .fit,
-                             decodeSize: .points(width: Self.logoSize.width * Self.splashScale,
-                                                 height: Self.logoSize.height * Self.splashScale),
-                             loading: { Color.clear }, failure: { name })
-                .brightness(white ? 1 : 0)
-        } else {
-            name
-        }
+        OrbitPlatformIntroLogo(look: OrbitPlatformLook(title: title, logoUrl: logoUrl, brand: brand, white: white,
+                                                       assetLogo: assetLogo, assetInColour: assetInColour))
     }
 
-    private var name: some View {
-        Text(title)
-            .font(.system(size: 90, weight: .heavy))
-            .foregroundStyle(Color.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.4)
-    }
 
     /// The logo fetched at its splash size, then the intro.
     private func preload(_ url: String?) {
@@ -829,6 +818,82 @@ struct OrbitPlatformIntro: View {
         }
         glide = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.95, execute: work)
+    }
+}
+
+
+/// How a platform opens: its name, logo and colour (the page's own opening and the curtain the
+/// Plateformes page drops before pushing it draw the same thing).
+struct OrbitPlatformLook {
+    let title: String
+    let logoUrl: String?
+    let brand: Color
+    var white = false
+    var assetLogo: String? = nil
+    var assetInColour = false
+
+    /// The look of the page `route` opens (the same choice, in the same order, as Home's stack).
+    @MainActor static func of(_ route: FolderRoute) -> OrbitPlatformLook {
+        let t = route.folderTitle, logo = route.titleLogoUrl
+        if OrbitDisneyPage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitDisneyLayout.brandBlue) }
+        if OrbitNetflixPage.handles(route) {
+            return .init(title: t, logoUrl: logo, brand: OrbitNetflixLayout.red, assetLogo: "NetflixN", assetInColour: true)
+        }
+        if OrbitPrimePage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitPrimeLayout.blue) }
+        if OrbitHBOPage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitHBOLayout.blue) }
+        if OrbitParamountPage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitParamountLayout.blue, white: true) }
+        if OrbitAppleTVPage.handles(route) {
+            return .init(title: t, logoUrl: logo, brand: Color(white: 0.6), white: true, assetLogo: "AppleTVMark")
+        }
+        return .init(title: t, logoUrl: logo, brand: OrbitPlatformBrand.color(title: t))
+    }
+}
+
+/// The platform's logo as its opening draws it.
+struct OrbitPlatformIntroLogo: View {
+    let look: OrbitPlatformLook
+    private var title: String { look.title }
+    private var logoUrl: String? { look.logoUrl }
+    private var white: Bool { look.white }
+    private var assetLogo: String? { look.assetLogo }
+    private var assetInColour: Bool { look.assetInColour }
+
+    var body: some View { logo }
+
+    @ViewBuilder
+    private var logo: some View {
+        if let assetLogo, assetInColour {
+            Image(assetLogo)
+                .resizable()
+                .scaledToFit()
+                // (Steven: Netflix's N touched the billboard under it — a little shorter, its top
+                // still on the corner's line.)
+                .padding(.bottom, OrbitPlatformIntro.logoSize.height * 0.3)
+        } else if let assetLogo {
+            Image(assetLogo)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(Color.white)
+                // (Its room below it: its top on the corner's line, as the other logos.)
+                .padding(.bottom, OrbitPlatformIntro.logoSize.height * 0.36)
+        } else if let logoUrl, !logoUrl.isEmpty {
+            CachedAsyncImage(string: logoUrl, contentMode: .fit,
+                             decodeSize: .points(width: OrbitPlatformIntro.logoSize.width * OrbitPlatformIntro.splashScale,
+                                                 height: OrbitPlatformIntro.logoSize.height * OrbitPlatformIntro.splashScale),
+                             loading: { Color.clear }, failure: { name })
+                .brightness(white ? 1 : 0)
+        } else {
+            name
+        }
+    }
+
+    private var name: some View {
+        Text(title)
+            .font(.system(size: 90, weight: .heavy))
+            .foregroundStyle(Color.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.4)
     }
 }
 
