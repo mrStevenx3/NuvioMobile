@@ -93,63 +93,67 @@ struct OrbitNativeSections<SectionContent: View>: View {
 
     private func lineOf(_ s: Int) -> CGFloat { line?(s) ?? topLine }
 
+    /// A section's top in the column (the sections have fixed heights).
+    private func topOf(_ s: Int) -> CGFloat { (0..<max(0, s)).reduce(0) { $0 + height($1) } }
+
+    /// Up / Down pressed in section `s`: the section above / below (explicitly — one off screen is
+    /// still reached). Idempotent: computed from the section the press came from.
+    private func vertical(_ direction: MoveCommandDirection, from s: Int) {
+        switch direction {
+        case .up where s == 0: onUpFromTop?()
+        case .up: if current != s - 1 { onFocus(s - 1) }
+        case .down where s + 1 < count: if current != s + 1 { onFocus(s + 1) }
+        default: break
+        }
+    }
+
     var body: some View {
         let W = OrbitHomeLayout.screenWidth
-        ScrollViewReader { proxy in
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(0..<count, id: \.self) { s in
-                    VStack(alignment: .leading, spacing: 0) {
-                    Color.clear
-                        .frame(width: 1, height: lineOf(s))
-                        .id("orbit-line-\(s)")
-                    Group {
-                    if customHero && s == 0 {
-                        content(0, false)
-                            .frame(width: W, height: height(0), alignment: .topLeading)
-                            .focusSection()
-                    } else if rowsFocusable && s >= heroCount {
-                        Group {
-                            if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
-                        }
-                        .frame(width: W, height: height(s), alignment: .topLeading)
-                        .opacity(hidesAbove && s < current ? 0 : 1)
-                        .animation(.easeOut(duration: 0.14), value: s < current)
+        // Steven (device: "le problème de coupure" — the system scrolled to the focus, then the page
+        // aligned the section: two moves): no vertical scroll view. The column is slid by the page
+        // alone, on one curve, each section's top to its line; Up / Down are the page's own.
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(0..<count, id: \.self) { s in
+                Group {
+                if customHero && s == 0 {
+                    content(0, false)
+                        .frame(width: W, height: height(0), alignment: .topLeading)
                         .focusSection()
-                    } else {
-                    Button(action: onSelect) {
-                        OrbitNativeSectionLabel(live: abs(s - current) <= 3) { focused in
-                            content(s, focused)
-                        }
-                        .frame(width: W, height: height(s), alignment: .topLeading)
-                        .opacity(hidesAbove && s < current ? 0 : 1)
-                        .animation(.easeOut(duration: 0.14), value: s < current)
+                        .onMoveCommand { vertical($0, from: 0) }
+                } else if rowsFocusable && s >= heroCount {
+                    Group {
+                        if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
                     }
-                    .buttonStyle(OrbitPlainStyle())
-                    .focused($focus, equals: s)
-                    .onMoveCommand { direction in
-                        switch direction {
-                        case .left, .right: onMove(direction)
-                        case .up where s == 0: onUpFromTop?()
-                        default: break
-                        }
+                    .frame(width: W, height: height(s), alignment: .topLeading)
+                    .opacity(hidesAbove && s < current ? 0 : 1)
+                    .animation(.easeOut(duration: 0.14), value: s < current)
+                    .focusSection()
+                    .onMoveCommand { vertical($0, from: s) }
+                } else {
+                Button(action: onSelect) {
+                    OrbitNativeSectionLabel(live: abs(s - current) <= 3) { focused in
+                        content(s, focused)
                     }
+                    .frame(width: W, height: height(s), alignment: .topLeading)
+                    .opacity(hidesAbove && s < current ? 0 : 1)
+                    .animation(.easeOut(duration: 0.14), value: s < current)
+                }
+                .buttonStyle(OrbitPlainStyle())
+                .focused($focus, equals: s)
+                .onMoveCommand { direction in
+                    switch direction {
+                    case .left, .right: onMove(direction)
+                    default: vertical(direction, from: s)
                     }
-                    }
-                    }
-                    // The section's line: a real spacer `line` tall above its top (the padding gives
-                    // the room back), brought to the screen's top, leaves the section at its line.
-                    // (Steven: with an alignment-guide marker the page ran up under the bar.)
-                    .padding(.top, -lineOf(s))
+                }
+                }
                 }
             }
-            // Room above the first section for its own line (scrolled to, it is not clamped).
-            .padding(.top, lineOf(0))
-            .padding(.bottom, OrbitHomeLayout.screenHeight)
         }
-        // (Steven, device: with the page taking over the scroll, everything jumped and vanished —
-        // the system scrolls to the focus again; the page then places the section at its line.)
-        .scrollClipDisabled()
+        .fixedSize(horizontal: false, vertical: true)
+        .offset(y: lineOf(current) - topOf(current))
+        .animation(.easeInOut(duration: 0.34), value: current)
+        .frame(width: W, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: onExit)
         .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
         .onChange(of: focus) { old, s in
@@ -157,26 +161,29 @@ struct OrbitNativeSections<SectionContent: View>: View {
             guard let s else { return }
             if s != current { onFocus(s) }
         }
-        // The section changed (the focus moved, Menu back to the top, a filter reset): the page
-        // slides to it, and a section the focus is not in yet takes it.
+        // The section changed (the focus moved, Up / Down, Menu back to the top, a filter reset): the
+        // column slides to it, and a section the focus is not in yet takes it (asked again once the
+        // column has slid: a section still off screen may not take it the first time).
         .onChange(of: current) { _, c in
-            withAnimation(.easeInOut(duration: 0.34)) { proxy.scrollTo("orbit-line-\(c)", anchor: .top) }
-            if customHero && c == 0 {
-                focusHero?()
-            } else if rowsFocusable && c >= heroCount {
-                focusRow?(c)
-            } else if focus != c {
-                focus = c
+            take(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
+                guard current == c else { return }
+                take(c)
             }
         }
         .onAppear {
-            proxy.scrollTo("orbit-line-\(current)", anchor: .top)
-            DispatchQueue.main.async {
-                if customHero && current == 0 { focusHero?() }
-                else if rowsFocusable && current >= heroCount { focusRow?(current) }
-                else if focus == nil { focus = current }
-            }
+            DispatchQueue.main.async { take(current) }
         }
+    }
+
+    /// Section `c` takes the focus (if it does not hold it already).
+    private func take(_ c: Int) {
+        if customHero && c == 0 {
+            focusHero?()
+        } else if rowsFocusable && c >= heroCount {
+            focusRow?(c)
+        } else if focus != c {
+            focus = c
         }
     }
 }
