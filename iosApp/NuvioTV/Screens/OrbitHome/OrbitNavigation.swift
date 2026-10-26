@@ -81,10 +81,16 @@ final class OrbitHomeButtonHost: ObservableObject {
     }
 
     func leave(_ kind: Mode) {
-        switch kind {
-        case .ownBar: ownBars = max(0, ownBars - 1)
-        case .onRequest: canvases = max(0, canvases - 1)
-        case .free: break
+        // Steven (simulator: back from a platform or a studio, the house showed for a second on the
+        // Plateformes / Studios page): the page leaving gives its house back a moment later — the
+        // bar's own return (one turn later) comes first, so the house never shows in between.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self else { return }
+            switch kind {
+            case .ownBar: self.ownBars = max(0, self.ownBars - 1)
+            case .onRequest: self.canvases = max(0, self.canvases - 1)
+            case .free: break
+            }
         }
     }
 }

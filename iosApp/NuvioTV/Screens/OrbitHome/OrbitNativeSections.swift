@@ -23,6 +23,9 @@ final class OrbitLeadBox: ObservableObject {
     var reopen: Int?
     /// An unpinned row's first title on screen (where it comes back to when rebuilt).
     var firstVisible: Int?
+    /// From the opening of a title until just after the way back (kept by the box: the row may be
+    /// rebuilt meanwhile): only the reopened tile can take the focus.
+    @Published var restoreLock = false
 }
 
 /// The rows' leads, read by the page (never observed by it: a lead change redraws only its row).
@@ -231,14 +234,12 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     @State private var rowProxy: ScrollViewProxy?
     /// When the way back from a title began (0: not coming back).
     @State private var restoringSince: TimeInterval = 0
-    /// From the opening of a title until just after the way back: only its tile can take the focus.
-    @State private var restoreLock = false
     @State private var disappeared = false
 
     private func lockForReturn() {
-        restoreLock = true
+        box.restoreLock = true
         disappeared = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { box.restoreLock = false } }
     }
 
     var body: some View {
@@ -256,7 +257,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                     .buttonStyle(OrbitPlainStyle())
                     .focused($focus, equals: i)
                     // Back from a title, only its tile can take the focus a moment.
-                    .disabled(restoreLock && box.reopen != nil && box.reopen != i)
+                    .disabled(box.restoreLock && box.reopen != nil && box.reopen != i)
                 }
             }
             .scrollTargetLayout()
@@ -337,7 +338,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             if let back = box.reopen {
                 let appeared = ProcessInfo.processInfo.systemUptime
                 restoringSince = appeared
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; box.restoreLock = false }
                 for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard box.reopen == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }

@@ -626,7 +626,10 @@ struct OrbitRowScrollBehavior: ScrollTargetBehavior {
     let aligned: Bool
 
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-        guard aligned else { return }
-        ViewAlignedScrollTargetBehavior().updateTarget(&target, context: context)
+        // Steven (simulator, every return from a title: the row moved right): a row the focus
+        // scrolled freely rests between two tiles; the next scroll — the focus put back on the
+        // way back — was snapped to a tile, a tile to the right. No row is aligned any more: the
+        // focus scrolls them as Apple's app does, and a pinned row is placed by its anchor.
+        _ = aligned
     }
 }

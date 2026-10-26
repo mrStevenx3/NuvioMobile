@@ -810,14 +810,17 @@ private struct OrbitNetflixTile: View {
         // TMDB's art has no N: his N, drawn as his add-on draws it.
         let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
         ZStack(alignment: .bottomLeading) {
-            Color(white: open ? 0 : 0.09)
+            Color(white: 0.09)
+            // Steven ("le même effet que l'accueil"): as Home's first row — the closed poster and the
+            // open frame are two views cross-fading on the row's own curve while the tile widens.
             if open {
+                Group {
                 // Steven (grey between each step, still): built as Home's open frame — the art is
                 // fetched first and swapped in over the poster, never an empty pane.
                 // Under it, the poster the tile showed closed — the same address and decode, so it is
                 // drawn from memory in the very first frame (Steven, simulator: a dark box at the
                 // margin, the posters pushed right, until the art came).
-                CachedAsyncImage(string: poster, fallback: top10 ? nil : item.poster, contentMode: .fill,
+                CachedAsyncImage(string: poster ?? item.poster, fallback: top10 ? nil : item.poster, contentMode: .fill,
                                  decodeSize: .points(width: L.posterWidth, height: L.tileHeight),
                                  loading: { Color(white: 0.09) }, failure: { Color(white: 0.09) })
                     .frame(width: size.width, height: size.height)
@@ -844,11 +847,18 @@ private struct OrbitNetflixTile: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .padding(22)
                 }
+                }
+                .transition(.opacity)
             } else {
-                OrbitImage(url: poster, fallback: top10 ? nil : item.poster, mode: .fill, size: size)
-                if drawsN { OrbitNetflixPosterN(size: size) }
+                ZStack {
+                    // (Before TMDB answers for a Top 10 title, the catalog's poster rather than black.)
+                    OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: size)
+                    if drawsN { OrbitNetflixPosterN(size: size) }
+                }
+                .transition(.opacity)
             }
         }
+        .animation(OrbitHomeLayout.horizontal, value: open)
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         .overlay {
