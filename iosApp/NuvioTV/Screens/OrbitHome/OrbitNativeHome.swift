@@ -361,7 +361,13 @@ struct OrbitNativeRow: View {
             // Room after the last title (Steven: at a row's end the focus stopped at the margin and
             // ran on to the right): the last one can come to the margin too.
             .contentMargins(.leading, L.margin, for: .scrollContent)
-            .contentMargins(.trailing, pinned ? L.screenWidth - L.margin - (classic ? L.frameWidth : size.width) : L.margin,
+            // Steven (2026-10-26: at a row's end the frame stayed mid-screen): the room is counted
+            // from a closed POSTER, not the open frame. The scroll is asked for while the frame is
+            // still opening on the new title (its old place a poster), so with room for the frame
+            // only, the row's end was clamped short and the title stopped in the middle. A
+            // poster's width is the narrowest it can be: the clamp never bites; the surplus is
+            // blank space after the last title.
+            .contentMargins(.trailing, pinned ? L.screenWidth - L.margin - size.width : L.margin,
                             for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
