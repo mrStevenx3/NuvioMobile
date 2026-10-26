@@ -93,8 +93,8 @@ struct OrbitHomeSwitch: View {
                     .id(filter)
                     // Steven (Films ↔ Séries not fluid): the two pages no longer overlap half-drawn —
                     // the old one leaves quickly, the new one (built meanwhile) comes in after it.
-                    .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.3).delay(0.14)),
-                                            removal: .opacity.animation(.easeIn(duration: 0.14))))
+                    // (Steven: then a latency — the hand-over waited; a short cross-fade, no wait.)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
             }
         }
         // Steven (device: Films ↔ Séries arrived at once): the pages cross-fade.

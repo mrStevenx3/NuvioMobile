@@ -118,6 +118,11 @@ struct OrbitNativeSections<SectionContent: View>: View {
                         .opacity(hidesAbove && s < current ? 0 : 1)
                         .animation(.easeOut(duration: 0.14), value: s < current)
                         .focusSection()
+                        // Steven (simulator: Up in the platforms went astray): the row above is hidden
+                        // (transparent: the system cannot focus it) — Up goes to it explicitly.
+                        .onMoveCommand { direction in
+                            if direction == .up, hidesAbove, current == s, s > 0 { onFocus(s - 1) }
+                        }
                     } else {
                     Button(action: onSelect) {
                         OrbitNativeSectionLabel(live: abs(s - current) <= 3) { focused in
