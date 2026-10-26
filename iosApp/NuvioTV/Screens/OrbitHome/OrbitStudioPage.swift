@@ -817,8 +817,8 @@ private struct OrbitNativeStudioRow: View {
                 // Steven: the text was too close under the posters (the focused one, larger,
                 // nearly touched it). Lower again (2026-10-26), the row's height unchanged: the
                 // 16 points come out of the gap under the row.
-                .padding(.top, 28)
-                .padding(.bottom, -16)
+                .padding(.top, 44)
+                .padding(.bottom, -32)
                 .padding(.leading, L.margin + 6)
             }
         }
