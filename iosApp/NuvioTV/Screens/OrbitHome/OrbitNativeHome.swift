@@ -324,9 +324,9 @@ struct OrbitNativeRow: View {
         still.disablesAnimations = true
         if pinned, let card {
             withTransaction(still) { scroll.scrollTo(id: card, anchor: .leading) }
-        } else if let x = Self.offsets[row.id] {
-            withTransaction(still) { scroll.scrollTo(x: x) }
         }
+        // A row scrolled freely is never moved by us (Steven's video: at the end of "Films
+        // recommandés pour vous" it came back shifted right) — as on the platforms and studios.
     }
 
     private func lockForReturn(_ card: String) {
