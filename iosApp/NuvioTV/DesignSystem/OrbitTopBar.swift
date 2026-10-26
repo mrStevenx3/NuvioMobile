@@ -486,6 +486,9 @@ struct OrbitCollectionGrid: View {
                                 }
                                 .buttonStyle(OrbitPlatformTileStyle())
                                 .focused($focused, equals: entry.id)
+                                // Back from a platform, only its tile can take the focus a moment
+                                // (Steven, simulator: it went to another platform first).
+                                .disabled(restoreTarget != nil && restoreTarget != entry.id)
                                 .id(entry.id)
                             }
                         }
