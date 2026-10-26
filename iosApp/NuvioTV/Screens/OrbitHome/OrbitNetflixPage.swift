@@ -813,62 +813,59 @@ private struct OrbitNetflixTile: View {
         let poster: String? = french ?? (top10 ? meta?.titledPoster : item.poster)
         // TMDB's art has no N: his N, drawn as his add-on draws it.
         let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
-        ZStack(alignment: .bottomLeading) {
-            Color(white: 0.09)
-            // Steven ("le même effet que l'accueil"): as Home's first row — the closed poster and the
-            // open frame are two views cross-fading on the row's own curve while the tile widens.
+        let closedSize = CGSize(width: L.posterWidth, height: L.tileHeight)
+        let openSize = CGSize(width: L.openWidth, height: L.tileHeight)
+        let shape = RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+        // Steven (2026-10-26: "exactement comme dans Nouveaux films de l'accueil"): the closed poster
+        // is always there, drawn whole at its own size; the open frame is a view of its own at its
+        // full size, fading in over it on the row's curve — no pane revealed from one side as the
+        // tile widens, no grey: under the frame's art there is the poster, not an empty box.
+        ZStack(alignment: .topLeading) {
+            ZStack {
+                Color(white: 0.09)
+                // (Before TMDB answers for a Top 10 title, the catalog's poster rather than black.)
+                OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: closedSize)
+                if drawsN { OrbitNetflixPosterN(size: closedSize) }
+            }
+            .frame(width: closedSize.width, height: closedSize.height)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(Color.white.opacity(focused && !open ? 0.95 : 0), lineWidth: 3) }
             if open {
-                Group {
-                // Steven (grey between each step, still): built as Home's open frame — the art is
-                // fetched first and swapped in over the poster, never an empty pane.
-                // Under it, the poster the tile showed closed — the same address and decode, so it is
-                // drawn from memory in the very first frame (Steven, simulator: a dark box at the
-                // margin, the posters pushed right, until the art came).
-                CachedAsyncImage(string: poster ?? item.poster, fallback: top10 ? nil : item.poster, contentMode: .fill,
-                                 decodeSize: .points(width: L.posterWidth, height: L.tileHeight),
-                                 loading: { Color(white: 0.09) }, failure: { Color(white: 0.09) })
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
-                if let trailerURL {
-                    TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
-                                      zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
-                                      loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius)
-                        .frame(width: size.width, height: size.height)
-                        .transition(.opacity.animation(.easeOut(duration: 0.6)))
+                ZStack(alignment: .bottomLeading) {
+                    // The poster stretched under the art until it lands (drawn from memory).
+                    OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: closedSize)
+                        .frame(width: openSize.width, height: openSize.height)
+                        .clipped()
+                    OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: openSize)
+                    if let trailerURL {
+                        TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
+                                          zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                          loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius)
+                            .frame(width: openSize.width, height: openSize.height)
+                            .transition(.opacity.animation(.easeOut(duration: 0.6)))
+                    }
+                    LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
+                    VStack(alignment: .leading, spacing: 8) {
+                        if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
+                        OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 330, height: 104), textSize: 36,
+                                       fallbackLogo: info.logoFallback, hugsLogo: true)
+                            .frame(width: 330, alignment: .leading)
+                    }
+                    .padding(.leading, 24)
+                    .padding(.bottom, 22)
+                    if let badge {
+                        OrbitNetflixBadge(text: badge)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                            .padding(22)
+                    }
                 }
-                LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
-                VStack(alignment: .leading, spacing: 8) {
-                    if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
-                    OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 330, height: 104), textSize: 36,
-                                   fallbackLogo: info.logoFallback, hugsLogo: true)
-                        .frame(width: 330, alignment: .leading)
-                }
-                .padding(.leading, 24)
-                .padding(.bottom, 22)
-                if let badge {
-                    OrbitNetflixBadge(text: badge)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .padding(22)
-                }
-                }
-                .transition(.opacity)
-            } else {
-                ZStack {
-                    // (Before TMDB answers for a Top 10 title, the catalog's poster rather than black.)
-                    OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: size)
-                    if drawsN { OrbitNetflixPosterN(size: size) }
-                }
-                .transition(.opacity)
+                .frame(width: openSize.width, height: openSize.height)
+                .clipShape(shape)
+                .overlay { shape.strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3) }
+                .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
         }
-        .animation(OrbitHomeLayout.horizontal, value: open)
         .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
-        }
         // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }

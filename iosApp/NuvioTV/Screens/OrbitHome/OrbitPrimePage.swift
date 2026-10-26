@@ -913,56 +913,68 @@ private struct OrbitPrimePoster: View {
         let size = CGSize(width: open ? L.openWidth : L.poster.width, height: L.poster.height)
         let info = OrbitInfo.make(item, meta: meta)
         let poster: String? = meta?.localPoster ?? meta?.titledPoster
-        ZStack(alignment: .bottomLeading) {
-            Color(red: 0.10, green: 0.13, blue: 0.18)
-            // The poster always under (one view, open or closed: already loaded, it never blanks).
-            // Steven's video: the tile opening and the one closing went an empty grey a moment.
-            // (Decoded at the poster's size, open or not: a new size re-read it — blank meanwhile.)
-            OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: L.poster)
-                .frame(width: size.width, height: size.height, alignment: .leading)
-                .clipped()
-            if open {
-                OrbitImage(url: item.banner ?? meta?.backdrop, fallback: poster, size: size, placeholder: poster ?? item.poster)
-                    .transition(.opacity.animation(.easeOut(duration: 0.2)))
-                if let trailerURL {
-                    TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
-                                      zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
-                                      loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius)
-                        .frame(width: size.width, height: size.height)
-                        .transition(.opacity.animation(.easeOut(duration: 0.6)))
-                }
-                LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
-                VStack(alignment: .leading, spacing: 12) {
-                    OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 420, height: 140), textSize: 44,
-                                   fallbackLogo: info.logoFallback, hugsLogo: true)
-                        .frame(width: 420, alignment: .leading)
-                    Text(info.parts.joined(separator: "  ·  "))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .lineLimit(1)
-                }
-                .padding(.leading, 26)
-                .padding(.bottom, 26)
-                OrbitPrimeMark(size: 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(24)
-            } else {
+        let openSize = CGSize(width: L.openWidth, height: L.poster.height)
+        let shape = RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+        // Steven (2026-10-26: "exactement comme dans Nouveaux films de l'accueil"): the closed poster
+        // always there at its own size; the open frame a view of its own at its full size, fading
+        // in over it — no pane revealed from one side, no grey.
+        ZStack(alignment: .topLeading) {
+            ZStack {
+                Color(red: 0.10, green: 0.13, blue: 0.18)
+                OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: L.poster)
                 OrbitPrimeMark(size: 20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(16)
+                if let badge {
+                    OrbitPrimeBadge(text: badge)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(6)
+                }
             }
-            if let badge {
-                OrbitPrimeBadge(text: badge)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(6)
+            .frame(width: L.poster.width, height: L.poster.height)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(Color.white.opacity(focused && !open ? 0.95 : 0), lineWidth: 3) }
+            if open {
+                ZStack(alignment: .bottomLeading) {
+                    OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: L.poster)
+                        .frame(width: openSize.width, height: openSize.height)
+                        .clipped()
+                    OrbitSwapImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: openSize)
+                    if let trailerURL {
+                        TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
+                                          zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                          loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius)
+                            .frame(width: openSize.width, height: openSize.height)
+                            .transition(.opacity.animation(.easeOut(duration: 0.6)))
+                    }
+                    LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
+                    VStack(alignment: .leading, spacing: 12) {
+                        OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 420, height: 140), textSize: 44,
+                                       fallbackLogo: info.logoFallback, hugsLogo: true)
+                            .frame(width: 420, alignment: .leading)
+                        Text(info.parts.joined(separator: "  ·  "))
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.85))
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, 26)
+                    .padding(.bottom, 26)
+                    OrbitPrimeMark(size: 24)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .padding(24)
+                    if let badge {
+                        OrbitPrimeBadge(text: badge)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                            .padding(6)
+                    }
+                }
+                .frame(width: openSize.width, height: openSize.height)
+                .clipShape(shape)
+                .overlay { shape.strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3) }
+                .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
-        }
         .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 4)
         // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }

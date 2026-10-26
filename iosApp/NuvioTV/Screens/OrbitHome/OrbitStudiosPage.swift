@@ -250,14 +250,9 @@ struct OrbitStudiosPage: View {
     /// The hero: the studio's logo, then its figures.
     /// Steven (2026-10-24): the name follows the focus — right on the tiles, it leaves to the right
     /// and the next one comes in from the left.
+    /// Steven (2026-10-26): the logo in a plain fade, nothing else (no glide).
     private var slide: AnyTransition {
-        let distance: CGFloat = 90
-        return .asymmetric(
-            insertion: .offset(x: forward ? -distance : distance).combined(with: .opacity)
-                .animation(.easeOut(duration: 0.3).delay(0.06)),
-            // The old one leaves quickly: the two barely cross (a Warner ghost behind Universal).
-            removal: .offset(x: forward ? distance * 0.5 : -distance * 0.5).combined(with: .opacity)
-                .animation(.easeIn(duration: 0.12)))
+        .opacity.animation(.easeInOut(duration: 0.35))
     }
 
     /// Fixed places (Steven: from Disney to Pixar the logo moved, the block was centred and its
@@ -336,18 +331,7 @@ private struct OrbitStudioFrame: View {
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1.5)
         }
         .shadow(color: .black.opacity(0.5), radius: 30, y: 16)
-        .onChange(of: url) { _, _ in
-            var instant = Transaction()
-            instant.disablesAnimations = true
-            withTransaction(instant) {
-                zoom = 1.07
-                shift = forward ? -24 : 24
-            }
-            withAnimation(.easeOut(duration: 0.7)) {
-                zoom = 1
-                shift = 0
-            }
-        }
+        // (Steven, 2026-10-26: the image in a plain fade — no glide, no zoom.)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

@@ -30,7 +30,8 @@ enum OrbitTileLayout {
     static let rankedPoster = CGSize(width: 300, height: 450)
     static let rankWidth: CGFloat = 190
     /// The extra room for "10" (the last title: nothing after it moves).
-    static let tenExtra: CGFloat = 110
+    /// (Steven, 2026-10-26: the 1 of 10 too close to the poster on its left — more room.)
+    static let tenExtra: CGFloat = 140
     static let infoGap: CGFloat = 26
 
     static func size(_ style: OrbitRowStyle) -> CGSize {
