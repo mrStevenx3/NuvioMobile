@@ -814,7 +814,15 @@ private struct OrbitNetflixTile: View {
             if open {
                 // Steven (grey between each step, still): built as Home's open frame — the art is
                 // fetched first and swapped in over the poster, never an empty pane.
-                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: poster ?? item.poster, size: size)
+                // Under it, the poster the tile showed closed — the same address and decode, so it is
+                // drawn from memory in the very first frame (Steven, simulator: a dark box at the
+                // margin, the posters pushed right, until the art came).
+                CachedAsyncImage(string: poster, fallback: top10 ? nil : item.poster, contentMode: .fill,
+                                 decodeSize: .points(width: L.posterWidth, height: L.tileHeight),
+                                 loading: { Color(white: 0.09) }, failure: { Color(white: 0.09) })
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
