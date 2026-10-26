@@ -662,6 +662,8 @@ struct OrbitPlatformIntro: View {
     var white = false
     /// Steven (Apple TV): a logo of the app's own instead of the folder's image.
     var assetLogo: String? = nil
+    /// The asset keeps its own colours (Netflix's red N) instead of being drawn in white.
+    var assetInColour = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .hidden
@@ -738,7 +740,12 @@ struct OrbitPlatformIntro: View {
 
     @ViewBuilder
     private var logo: some View {
-        if let assetLogo {
+        if let assetLogo, assetInColour {
+            Image(assetLogo)
+                .resizable()
+                .scaledToFit()
+                .padding(.vertical, Self.logoSize.height * 0.02)
+        } else if let assetLogo {
             Image(assetLogo)
                 .renderingMode(.template)
                 .resizable()

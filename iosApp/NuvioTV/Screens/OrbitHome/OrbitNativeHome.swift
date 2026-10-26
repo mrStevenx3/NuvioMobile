@@ -69,7 +69,6 @@ struct OrbitNativeHome: View {
         ZStack(alignment: .topLeading) {
             OrbitNativeBackdrop(visible: !onHero)
 
-            ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 // Steven (device: now and then Up jumped in one go): a lazy column guesses the height
                 // of the rows it hasn't built yet and corrects it as one is built on the way up — the
@@ -77,7 +76,7 @@ struct OrbitNativeHome: View {
                 VStack(alignment: .leading, spacing: Self.sectionGap) {
                     if !heroItems.isEmpty {
                         hero
-                            .overlay(alignment: .top) { Self.lineMarker("hero") }
+                            .id("hero")
                     }
                     let currentIndex = rows.firstIndex { $0.id == currentRow } ?? -1
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
@@ -87,30 +86,19 @@ struct OrbitNativeHome: View {
                             // no band — the row above fades out as it leaves instead.
                             .opacity(index < currentIndex ? 0 : 1)
                             .animation(.easeOut(duration: 0.14), value: index < currentIndex)
-                            .overlay(alignment: .top) { Self.lineMarker(row.id) }
+                            .id(row.id)
                     }
                 }
-                .padding(.top, Self.topLine)
+                .scrollTargetLayout()
                 .padding(.bottom, OrbitHomeLayout.screenHeight)
             }
-            // Steven (device: "le problème de coupure" on Up / Down): the system scrolled the page to
-            // show the focus, then the page scrolled it to its line — two moves, a jump. The page
-            // alone places itself now, on one curve.
-            .scrollDisabled(true)
+            // Steven ("le problème de coupure"; then, the page taking over the scroll: everything
+            // jumped and vanished): Up / Down are the system's own single move, aligned on the rows
+            // at their line. The page moves itself only for Menu back to the top.
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $position, anchor: .top)
+            .contentMargins(.top, Self.topLine, for: .scrollContent)
             .scrollClipDisabled()
-            .onChange(of: position) { _, target in
-                guard let target else { return }
-                withAnimation(.easeInOut(duration: 0.34)) { proxy.scrollTo("line-\(target)", anchor: .top) }
-            }
-            // The page no longer scrolls for the system: a row off screen may be out of its reach.
-            // Up / Down it could not follow (still in the same row a beat later) moves the page to
-            // the next row (or the hero), which then takes the focus.
-            .onMoveCommand { direction in
-                guard direction == .up || direction == .down else { return }
-                let from = currentRow
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) { fallbackMove(direction, from: from) }
-            }
-            }
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
@@ -129,7 +117,6 @@ struct OrbitNativeHome: View {
             heroPage = page
             currentRow = nil
             setOnHero(true)
-            if position != "hero" { position = "hero" }
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
         .onAppear {
@@ -141,26 +128,6 @@ struct OrbitNativeHome: View {
             OrbitBarLock.shared.set(false)
             trailers.stop(abort: true)
             trailers.suspended = true
-        }
-    }
-
-    private func fallbackMove(_ direction: MoveCommandDirection, from: String?) {
-        guard currentRow == from else { return }
-        let index = from.flatMap { id in rows.firstIndex { $0.id == id } }
-        if direction == .down {
-            let next = index.map { $0 + 1 } ?? 0
-            guard rows.indices.contains(next) else { return }
-            if from == nil, heroFocus == nil { return }   // the bar, not the hero
-            position = rows[next].id
-            NotificationCenter.default.post(name: .orbitHomeRowFocus, object: rows[next].id)
-        } else {
-            guard let index else { return }
-            if index == 0 {
-                if !heroItems.isEmpty { heroFocus = heroPage }
-            } else {
-                position = rows[index - 1].id
-                NotificationCenter.default.post(name: .orbitHomeRowFocus, object: rows[index - 1].id)
-            }
         }
     }
 
@@ -202,13 +169,15 @@ struct OrbitNativeHome: View {
         if onHero {
             return { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
         }
-        return { heroFocus = heroPage }
+        return {
+            withAnimation(.easeInOut(duration: 0.36)) { position = "hero" }
+            heroFocus = heroPage
+        }
     }
 
     private func enter(_ rowID: String) {
         currentRow = rowID
         setOnHero(false)
-        if position != rowID { position = rowID }
     }
 
     private func setOnHero(_ value: Bool) {

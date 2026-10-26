@@ -326,6 +326,17 @@ struct OrbitImage: View {
     var lastResort: String? = nil
 
     var body: some View {
+        // (Steven: grey panes between steps — an image with no address yet drew the grey surface;
+        // its fallback stands in, or nothing.)
+        let address = (url?.isEmpty == false ? url : nil) ?? fallback ?? lastResort
+        if address == nil {
+            Color.clear.frame(width: size.width, height: size.height)
+        } else {
+            image(address, fallback: address == url ? fallback : nil)
+        }
+    }
+
+    private func image(_ url: String?, fallback: String?) -> some View {
         CachedAsyncImage(string: url, fallback: fallback, contentMode: mode,
                          decodeSize: .points(width: size.width, height: size.height),
                          loading: {

@@ -99,6 +99,10 @@ struct OrbitNativeSections<SectionContent: View>: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(0..<count, id: \.self) { s in
+                    VStack(alignment: .leading, spacing: 0) {
+                    Color.clear
+                        .frame(width: 1, height: lineOf(s))
+                        .id("orbit-line-\(s)")
                     Group {
                     if customHero && s == 0 {
                         content(0, false)
@@ -132,34 +136,20 @@ struct OrbitNativeSections<SectionContent: View>: View {
                     }
                     }
                     }
-                    // The section's line: its top rests this far under the screen's top.
-                    .overlay(alignment: .top) {
-                        Color.clear.frame(width: 1, height: 1)
-                            .alignmentGuide(.top) { $0[.top] + lineOf(s) }
-                            .id("orbit-line-\(s)")
                     }
+                    // The section's line: a real spacer `line` tall above its top (the padding gives
+                    // the room back), brought to the screen's top, leaves the section at its line.
+                    // (Steven: with an alignment-guide marker the page ran up under the bar.)
+                    .padding(.top, -lineOf(s))
                 }
             }
+            // Room above the first section for its own line (scrolled to, it is not clamped).
+            .padding(.top, lineOf(0))
             .padding(.bottom, OrbitHomeLayout.screenHeight)
         }
-        // Steven (device: "le problème de coupure" on Up / Down — the system scrolled the page to
-        // show the focus, then the page scrolled it to its line: two moves, a jump). The page alone
-        // places itself, on one curve, each section at its own line.
-        .scrollDisabled(true)
+        // (Steven, device: with the page taking over the scroll, everything jumped and vanished —
+        // the system scrolls to the focus again; the page then places the section at its line.)
         .scrollClipDisabled()
-        // The page does not scroll for the system any more: a section off screen may be out of its
-        // reach. Up / Down the system could not follow (the focus still in the same section a beat
-        // later) moves the page itself to the next section, which then takes the focus.
-        .onMoveCommand { direction in
-            guard direction == .up || direction == .down else { return }
-            let from = current
-            let target = direction == .up ? from - 1 : from + 1
-            guard target >= 0, target < count, !(direction == .up && from == 0) else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
-                guard current == from else { return }
-                onFocus(target)
-            }
-        }
         .onExitCommand(perform: onExit)
         .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
         .onChange(of: focus) { old, s in

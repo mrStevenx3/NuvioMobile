@@ -270,8 +270,9 @@ struct OrbitNetflixPage: View {
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
+            // Steven: only his N in the corner (larger), not the whole Netflix word.
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
-                               brand: OrbitNetflixLayout.red)
+                               brand: OrbitNetflixLayout.red, assetLogo: "NetflixN", assetInColour: true)
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
@@ -816,7 +817,10 @@ private struct OrbitNetflixTile: View {
                                  loading: { Color(white: 0.09) }, failure: { Color(white: 0.09) })
                     .frame(width: size.width, height: size.height)
                     .clipped()
-                OrbitImage(url: banner ?? meta?.backdrop, fallback: poster, size: size)
+                // (No art known yet: nothing over the poster — an empty address drew a grey pane.)
+                if let art = banner ?? meta?.backdrop, !art.isEmpty {
+                    OrbitImage(url: art, fallback: poster, size: size)
+                }
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
