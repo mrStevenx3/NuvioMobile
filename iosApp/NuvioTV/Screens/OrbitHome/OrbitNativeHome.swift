@@ -74,9 +74,13 @@ struct OrbitNativeHome: View {
                     if !heroItems.isEmpty {
                         hero
                             // Steven (a strip of the hero under the bar once in the rows): its art runs
-                            // past its frame — gone while the rows hold the focus.
-                            .opacity(onHero ? 1 : 0)
-                            .animation(.easeInOut(duration: 0.25), value: onHero)
+                            // past its frame — cut to its frame while the rows hold the focus (a mask,
+                            // not a fade: Up must still reach it).
+                            .mask {
+                                Rectangle()
+                                    .frame(width: OrbitHomeLayout.screenWidth,
+                                           height: onHero ? OrbitHomeLayout.screenHeight * 3 : Self.heroHeight)
+                            }
                             .id("hero")
                     }
                     ForEach(rows) { row in
