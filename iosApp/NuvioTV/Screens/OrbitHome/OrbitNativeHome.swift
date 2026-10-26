@@ -73,6 +73,10 @@ struct OrbitNativeHome: View {
                 VStack(alignment: .leading, spacing: Self.sectionGap) {
                     if !heroItems.isEmpty {
                         hero
+                            // Steven (a strip of the hero under the bar once in the rows): its art runs
+                            // past its frame — gone while the rows hold the focus.
+                            .opacity(onHero ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.25), value: onHero)
                             .id("hero")
                     }
                     ForEach(rows) { row in
@@ -324,7 +328,10 @@ struct OrbitNativeRow: View {
                 // The frame opening on the new title and closing on the old one, on the row's curve.
                 .animation(classic ? OrbitHomeLayout.horizontal : nil, value: lead)
             }
-            .scrollTargetBehavior(.viewAligned)
+            // Steven (simulator: always a whole poster left of the focused title): the alignment on
+            // the tiles snapped the pinned row back while its frame was opening — a pinned row is
+            // placed by its anchor alone.
+            .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !pinned))
             .scrollPosition(id: $anchor, anchor: .leading)
             // Room after the last title (Steven: at a row's end the focus stopped at the margin and
             // ran on to the right): the last one can come to the margin too.
@@ -393,7 +400,12 @@ struct OrbitNativeRow: View {
             if pinned {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
                     guard shown == new, focused == new else { return }
-                    withAnimation(.easeOut(duration: 0.16)) { rowProxy?.scrollTo(new, anchor: .leading) }
+                    // Re-aimed through the anchor (it keeps the margin): cleared, then set again.
+                    anchor = nil
+                    DispatchQueue.main.async {
+                        guard shown == new else { return }
+                        withAnimation(.easeOut(duration: 0.16)) { anchor = new }
+                    }
                 }
             }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
@@ -539,4 +551,16 @@ private struct OrbitNativeTile: View {
 extension Notification.Name {
     /// A Home row takes the focus (the page's own Up / Down, when the system could not reach it).
     static let orbitHomeRowFocus = Notification.Name("orbitHomeRowFocus")
+}
+
+
+/// A row's scroll: aligned on its tiles (Apple's own rows), or free for a row whose focused title is
+/// pinned at the margin by the page (the alignment snapped it back while its frame was opening).
+struct OrbitRowScrollBehavior: ScrollTargetBehavior {
+    let aligned: Bool
+
+    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+        guard aligned else { return }
+        ViewAlignedScrollTargetBehavior().updateTarget(&target, context: context)
+    }
 }

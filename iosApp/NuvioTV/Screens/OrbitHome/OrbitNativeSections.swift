@@ -232,7 +232,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             .scrollTargetLayout()
             .padding(.vertical, 40)
         }
-        .scrollTargetBehavior(.viewAligned)
+        .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !keepsLeadAtMargin))
         .scrollPosition(id: $anchor, anchor: .leading)
         .contentMargins(.leading, margin, for: .scrollContent)
         .contentMargins(.trailing, keepsLeadAtMargin ? max(margin, OrbitHomeLayout.screenWidth - margin - lastWidth) : margin,
@@ -264,7 +264,11 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             if keepsLeadAtMargin {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     guard focus == new else { return }
-                    withAnimation(.easeOut(duration: 0.16)) { rowProxy?.scrollTo(new, anchor: .leading) }
+                    anchor = nil
+                    DispatchQueue.main.async {
+                        guard focus == new else { return }
+                        withAnimation(.easeOut(duration: 0.16)) { anchor = new }
+                    }
                 }
             }
         }
