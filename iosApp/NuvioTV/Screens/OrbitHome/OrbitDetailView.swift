@@ -1030,11 +1030,14 @@ private struct OrbitDetailBackground: View {
                                   uncropped: cinema)
                     .frame(width: size.width, height: size.height)
                     .transition(.opacity)
-                OrbitSwapImage(url: url, fallback: nil, size: size)
-                    .scaleEffect(cinema ? 1.05 : 1)
-                    .opacity(holdArt ? 1 : 0)
-                    .allowsHitTesting(false)
             }
+            // The art held over a trailer just started. Steven (a ghost frame of the trailer, then
+            // the page, then the trailer): always there, already loaded — it no longer appears a
+            // moment after the trailer's first frame.
+            OrbitSwapImage(url: url, fallback: nil, size: size)
+                .scaleEffect(cinema ? 1.05 : 1)
+                .opacity(holdArt && trailerURL != nil ? 1 : 0)
+                .allowsHitTesting(false)
             // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
             Group {
                 LinearGradient(stops: [
