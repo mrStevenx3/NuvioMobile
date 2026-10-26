@@ -480,7 +480,9 @@ struct OrbitNativeRow: View {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
         shown = target.card
-        anchor = target.card
+        // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
+        // brought to its title; the others are where they were left.
+        if pinned { anchor = target.card }
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }

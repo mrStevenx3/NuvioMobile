@@ -816,7 +816,7 @@ private struct OrbitNativeStudioRow: View {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
         shown = target.index
-        anchor = target.index
+        if row.showsInfo { anchor = target.index }
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.index == target.index, !ViewerInputClock.shared.hasInput(since: appeared) else { return }

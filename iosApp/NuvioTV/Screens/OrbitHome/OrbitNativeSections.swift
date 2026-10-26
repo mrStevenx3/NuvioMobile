@@ -280,7 +280,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             let lead = min(box.lead, max(0, count - 1))
             // Pinned rows keep it at the margin; the others are brought back to it only when the
             // row is rebuilt deep inside (its title must exist to take the focus back).
-            if keepsLeadAtMargin || lead > 0 { anchor = lead }
+            // (Steven, simulator: back from a title an unpinned row jumped to its title, then slid
+            // back to where it was: only a pinned row is brought to it.)
+            if keepsLeadAtMargin { anchor = lead }
             // Back from a title opened here: its card takes the focus again (asked a few times,
             // the system's own landing comes late).
             if let back = box.reopen {
