@@ -669,6 +669,8 @@ struct OrbitPlatformIntro: View {
     @State private var phase: Phase = .hidden
     @State private var glide: DispatchWorkItem?
     @State private var appearedAt = Date.distantFuture
+    /// The light across the logo (-1: before it, 1: past it).
+    @State private var sweep: CGFloat = -1
     /// When the page last went away (a title opened just then: the way back keeps the corner logo).
     @State private var leftAt: TimeInterval = 0
 
@@ -714,6 +716,16 @@ struct OrbitPlatformIntro: View {
 
             logo
                 .frame(width: size.width, height: size.height, alignment: phase == .settled ? .topTrailing : .center)
+                // Steven: the light sweeping across the logo, as on the studios' openings.
+                .overlay {
+                    LinearGradient(colors: [.clear, .white.opacity(0.9), .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 90, height: size.height * 1.6)
+                        .rotationEffect(.degrees(18))
+                        .offset(x: sweep * (size.width / 2 + 90))
+                        .blendMode(.plusLighter)
+                        .mask(logo.frame(width: size.width, height: size.height))
+                        .opacity(phase == .splash ? 1 : 0)
+                }
                 .scaleEffect(scale, anchor: .center)
                 .opacity(phase == .hidden ? 0 : 1)
                 .offset(x: centre.x - size.width / 2, y: centre.y - size.height / 2)
@@ -733,11 +745,14 @@ struct OrbitPlatformIntro: View {
                 let curtained = OrbitPlatformCurtain.shared.look != nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift(instant: curtained) }
                 if !reduceMotion {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(.easeInOut(duration: 0.7)) { sweep = 1 }
+                    }
                     let work = DispatchWorkItem {
                         withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
                     }
                     glide = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.85, execute: work)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
                 }
                 return
             }
@@ -811,13 +826,16 @@ struct OrbitPlatformIntro: View {
             return
         }
         withAnimation(.easeOut(duration: 0.35)) { phase = .splash }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeInOut(duration: 0.7)) { sweep = 1 }
+        }
         // The curtain the page was pushed under goes once the logo shows on the page's own black.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { OrbitPlatformCurtain.shared.lift() }
         let work = DispatchWorkItem {
             withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
         }
         glide = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.95, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: work)
     }
 }
 
