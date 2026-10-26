@@ -241,6 +241,13 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     @State private var disappeared = false
 
     private func lockForReturn() {
+        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
+        // when the page came back — Steven: the row came back shifted, then corrected).
+        if let x = box.offsetX {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { scroll.scrollTo(x: x) }
+        }
         box.restoreLock = true
         disappeared = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { box.restoreLock = false } }
@@ -274,7 +281,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
         // Where the row is scrolled, kept in its box (not while it comes back from a title): the way
         // back puts it exactly there again (Steven, simulator: every return moved it right).
         .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
-            if restoringSince == 0, !disappeared { box.offsetX = x }
+            if restoringSince == 0, !disappeared, !box.restoreLock { box.offsetX = x }
         }
         .contentMargins(.leading, margin, for: .scrollContent)
         .contentMargins(.trailing, keepsLeadAtMargin ? max(margin, OrbitHomeLayout.screenWidth - margin - lastWidth) : margin,

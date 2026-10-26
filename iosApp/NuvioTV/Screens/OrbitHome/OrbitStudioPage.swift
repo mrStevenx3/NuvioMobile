@@ -742,6 +742,13 @@ private struct OrbitNativeStudioRow: View {
     @State private var disappeared = false
 
     private func lockForReturn() {
+        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
+        // when the page came back — Steven: the row came back shifted, then corrected).
+        if let x = Self.offsets[row.id] {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { scroll.scrollTo(x: x) }
+        }
         restoreLock = true
         disappeared = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
@@ -789,7 +796,7 @@ private struct OrbitNativeStudioRow: View {
             // Where the row is scrolled, kept (not while it comes back from a title): the way back
             // puts it exactly there again (Steven, simulator: the return moved it right).
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
-                if restoringSince == 0, !disappeared { Self.offsets[row.id] = x }
+                if restoringSince == 0, !disappeared, !restoreLock { Self.offsets[row.id] = x }
             }
             .contentMargins(.leading, L.margin, for: .scrollContent)
             // A saga's shelf keeps its logo panel in view (Steven's video: the panel left, an empty band

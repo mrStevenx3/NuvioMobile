@@ -311,6 +311,13 @@ struct OrbitNativeRow: View {
     @State private var disappeared = false
 
     private func lockForReturn() {
+        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
+        // when the page came back — Steven: the row came back shifted, then corrected).
+        if let x = Self.offsets[row.id] {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { scroll.scrollTo(x: x) }
+        }
         restoreLock = true
         disappeared = false
         // (No page came over it: unlocked.)
@@ -382,7 +389,7 @@ struct OrbitNativeRow: View {
             // Where the row is scrolled, kept (not while it comes back from a title): the way back
             // puts it exactly there again (Steven, simulator: every return moved it right).
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
-                if restoringSince == 0, !disappeared { Self.offsets[row.id] = x }
+                if restoringSince == 0, !disappeared, !restoreLock { Self.offsets[row.id] = x }
             }
             // Room after the last title (Steven: at a row's end the focus stopped at the margin and
             // ran on to the right): the last one can come to the margin too.

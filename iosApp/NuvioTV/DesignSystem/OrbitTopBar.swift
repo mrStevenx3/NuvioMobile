@@ -687,10 +687,12 @@ struct OrbitPlatformTile: View {
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.55 : 0.08)),
-                              lineWidth: focused ? 5 : (selected ? 3 : 1.5))
+                .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.8 : 0.08)),
+                              lineWidth: focused ? 5 : (selected ? 4 : 1.5))
         }
-        .shadow(color: (tint ?? .white).opacity(selected ? 0.45 : 0), radius: selected ? 24 : 0)
+        // (Steven: too light — a stronger glow in the platform's colour, as the Top 10's.)
+        .shadow(color: (tint ?? .white).opacity(selected ? 0.9 : 0), radius: selected ? 34 : 0)
+        .shadow(color: (tint ?? .white).opacity(selected ? 0.5 : 0), radius: selected ? 70 : 0)
         // Steven (device): no zoom on focus — it jumped before the GIF started. The frame says it.
         // Fluidity (Steven, device: the selection moved in jerks): only the focused tile casts a
         // shadow — six animated blurred shadows were redrawn on every step.
