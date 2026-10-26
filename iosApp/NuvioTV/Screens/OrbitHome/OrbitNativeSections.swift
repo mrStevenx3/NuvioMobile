@@ -263,7 +263,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             .padding(.vertical, 40)
         }
         .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !keepsLeadAtMargin))
-        .scrollPosition(id: $anchor, anchor: .leading)
+        // (Only a pinned row is driven by its anchor; an unpinned one is not bound: the written-back
+        // first title, half off screen, was brought in on the way back — Steven.)
+        .scrollPosition(id: keepsLeadAtMargin ? $anchor : .constant(nil), anchor: .leading)
         .contentMargins(.leading, margin, for: .scrollContent)
         .contentMargins(.trailing, keepsLeadAtMargin ? max(margin, OrbitHomeLayout.screenWidth - margin - lastWidth) : margin,
                         for: .scrollContent)

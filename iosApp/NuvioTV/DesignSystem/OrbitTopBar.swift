@@ -503,6 +503,9 @@ struct OrbitCollectionGrid: View {
                     // moves a row at a time — the focused row at its line, the platforms at the top.
                     // Steven: everything on one screen — the page no longer moves row by row.
                     OrbitPlatformTrendingRow(accent: haloColor)
+                        // (Back from a platform: the rows below cannot take the focus either — Steven,
+                        // simulator: it landed in the Top 20, then went back to the platform.)
+                        .disabled(restoreTarget != nil)
                         .padding(.top, 8)
                 }
                 .padding(.top, Self.top)

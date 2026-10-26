@@ -777,7 +777,10 @@ private struct OrbitNativeStudioRow: View {
                 .padding(.vertical, 34)
             }
             .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(id: $anchor, anchor: .leading)
+            // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
+            // binding kept the first title the system wrote back (one half off screen) and brought it
+            // in on the way back from a title — the row moved by one (Steven, simulator).
+            .scrollPosition(id: row.showsInfo ? $anchor : .constant(nil), anchor: .leading)
             .contentMargins(.leading, L.margin, for: .scrollContent)
             // A saga's shelf keeps its logo panel in view (Steven's video: the panel left, an empty band
             // behind a few posters) — the system scrolls it only as far as needed.

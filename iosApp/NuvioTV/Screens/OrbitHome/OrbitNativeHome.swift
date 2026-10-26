@@ -374,7 +374,10 @@ struct OrbitNativeRow: View {
             // the tiles snapped the pinned row back while its frame was opening — a pinned row is
             // placed by its anchor alone.
             .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !pinned))
-            .scrollPosition(id: $anchor, anchor: .leading)
+            // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
+            // binding kept the first title the system wrote back (one half off screen) and brought it
+            // in on the way back from a title — the row moved by one (Steven, simulator).
+            .scrollPosition(id: pinned ? $anchor : .constant(nil), anchor: .leading)
             // Room after the last title (Steven: at a row's end the focus stopped at the margin and
             // ran on to the right): the last one can come to the margin too.
             .contentMargins(.leading, L.margin, for: .scrollContent)
