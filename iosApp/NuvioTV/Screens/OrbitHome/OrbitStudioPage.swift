@@ -183,6 +183,7 @@ struct OrbitStudioPage: View {
     @State private var nativeHeroPage = 0
     @State private var nativeOnHero = true
     @State private var nativePosition: String? = "hero"
+    @State private var studioHeroLocked = false
     @State private var nativeRow: String?
     /// The native page's trailer (banner, featured cards) — a reference, never observed by the page.
     @State private var nativeTrailers = OrbitNativeTrailerHost()
@@ -275,6 +276,11 @@ struct OrbitStudioPage: View {
             model.start()
             trailer.restSource = .custom(motion)
             nativeTrailers.suspended = false
+            if let back = OrbitNativeStudioRow.reopen {
+                studioHeroLocked = true
+                nativePosition = back.row
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { studioHeroLocked = false }
+            }
             DispatchQueue.main.async {
                  if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = nativeHeroPage } 
             }
@@ -333,6 +339,8 @@ struct OrbitStudioPage: View {
                 VStack(alignment: .leading, spacing: 44) {
                     if hasHero {
                         nativeHero
+                            // Back from a title of a row: the banner out of the focus's reach a moment.
+                            .disabled(studioHeroLocked)
                             .id("hero")
                     } else {
                         OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: nil)

@@ -47,6 +47,8 @@ struct OrbitNativeHome: View {
     /// The row holding the focus (its heading lit, its details shown) — set by the page, so a
     /// row's own focus passing through "none" between two titles never dims it.
     @State private var currentRow: String?
+    /// The hero out of the focus's reach while a row takes back the title opened from it.
+    @State private var heroLocked = false
 
     /// The line under the bar the page aligns its sections on (the bar's band is above it).
     static let topLine: CGFloat = 120
@@ -83,6 +85,9 @@ struct OrbitNativeHome: View {
                                     .frame(width: OrbitHomeLayout.screenWidth,
                                            height: onHero ? OrbitHomeLayout.screenHeight * 3 : Self.heroHeight)
                             }
+                            // Back from a title opened in a row: the hero cannot take the focus for
+                            // a moment (Steven, simulator: the focus went up to it).
+                            .disabled(heroLocked)
                             .id("hero")
                     }
                     ForEach(rows) { row in
@@ -136,6 +141,11 @@ struct OrbitNativeHome: View {
             }
         }
         .onAppear {
+            if let back = OrbitNativeRow.reopen, rows.contains(where: { $0.id == back.row }) {
+                heroLocked = true
+                position = back.row
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false }
+            }
             trailers.suspended = !active
             if active { OrbitBarLock.shared.set(!onHero) }
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
@@ -385,6 +395,9 @@ struct OrbitNativeRow: View {
         }
         .focusSection()
         .onAppear { restoreIfReturning() }
+        .onChange(of: anchor) { _, first in
+            if !pinned, let first { Self.firstVisible[row.id] = first }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
             guard note.object as? String == row.id else { return }
             focused = shown ?? row.cards.first?.id
@@ -474,6 +487,8 @@ struct OrbitNativeRow: View {
     /// The title opened from Home (row, card): the focus is put back on it on the way back
     /// (Steven: it came back on the card to its left).
     @MainActor static var reopen: (row: String, card: String)?
+    /// Each unpinned row's first title on screen (where it comes back to on the way back).
+    @MainActor static var firstVisible: [String: String] = [:]
 
     /// Back from a title: its card, asked a few times (the system's own landing comes late).
     private func restoreIfReturning() {
@@ -482,7 +497,7 @@ struct OrbitNativeRow: View {
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
         // brought to its title; the others are where they were left.
-        if pinned { anchor = target.card }
+        if pinned { anchor = target.card } else if let first = Self.firstVisible[row.id] { anchor = first }
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }

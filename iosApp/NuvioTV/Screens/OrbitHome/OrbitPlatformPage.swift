@@ -729,7 +729,9 @@ struct OrbitPlatformIntro: View {
         .onDisappear {
             let left = ProcessInfo.processInfo.systemUptime
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                guard OrbitNavClock.titleOpenedAt < left - 0.3 else { return }
+                // (A title opened from the page appears while the page is still leaving — the push
+                // lasts: Steven, simulator, the opening replayed on the way back.)
+                guard OrbitNavClock.titleOpenedAt < left - 2.0 else { return }
                 glide?.cancel()
                 var still = Transaction()
                 still.disablesAnimations = true

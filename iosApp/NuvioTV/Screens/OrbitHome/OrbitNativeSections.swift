@@ -21,6 +21,8 @@ final class OrbitLeadBox: ObservableObject {
     @Published var focusRequest = 0
     /// The title opened from this row: the focus comes back on it on the way back.
     var reopen: Int?
+    /// An unpinned row's first title on screen (where it comes back to when rebuilt).
+    var firstVisible: Int?
 }
 
 /// The rows' leads, read by the page (never observed by it: a lead change redraws only its row).
@@ -121,7 +123,9 @@ struct OrbitNativeSections<SectionContent: View>: View {
                         // Steven (simulator: Up in the platforms went astray): the row above is hidden
                         // (transparent: the system cannot focus it) — Up goes to it explicitly.
                         .onMoveCommand { direction in
-                            if direction == .up, hidesAbove, current == s, s > 0 { onFocus(s - 1) }
+                            // (From the row the press came from: the system may already have jumped
+                            // to the hero — Steven, Hulu: the Top 10 above was skipped.)
+                            if direction == .up, hidesAbove, s > 0, current != s - 1 { onFocus(s - 1) }
                         }
                     } else {
                     Button(action: onSelect) {
@@ -156,7 +160,9 @@ struct OrbitNativeSections<SectionContent: View>: View {
         .onExitCommand(perform: onExit)
         .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
         .onChange(of: focus) { old, s in
-            if (old == nil) != (s == nil), !rowsFocusable { onFocusChange?(s != nil) }
+            // (With rows of their own buttons, this focus is the hero's alone: Steven, simulator —
+            // DÉTAILS no longer lit when the hero took the focus.)
+            if (old == nil) != (s == nil) { onFocusChange?(s != nil) }
             guard let s else { return }
             if s != current { onFocus(s) }
         }
@@ -255,10 +261,12 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 onEnter()
             }
             if box.lead != new {
-                withAnimation(.easeOut(duration: 0.24)) { box.lead = new }
+                // Steven: Netflix's rows move as Home's first row does — the same curve for the tile
+                // opening and the row sliding.
+                withAnimation(OrbitHomeLayout.horizontal) { box.lead = new }
                 onLeadChange(new)
             }
-            if keepsLeadAtMargin, anchor != new { withAnimation(.easeOut(duration: 0.24)) { anchor = new } }
+            if keepsLeadAtMargin, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
             // The open tile grows while the scroll is aimed: once open, the title back exactly at
             // the margin (Steven, simulator: it drifted right).
             if keepsLeadAtMargin {
@@ -272,6 +280,11 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 }
             }
         }
+        // An unpinned row remembers where it was scrolled (its first title on screen): rebuilt —
+        // back from a title, far from the page's section — it comes back there (Steven: it moved).
+        .onChange(of: anchor) { _, first in
+            if !keepsLeadAtMargin, let first { box.firstVisible = first }
+        }
         .onChange(of: box.focusRequest) { _, _ in
             let target = min(box.lead, max(0, count - 1))
             if focus != target { focus = target }
@@ -282,7 +295,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             // row is rebuilt deep inside (its title must exist to take the focus back).
             // (Steven, simulator: back from a title an unpinned row jumped to its title, then slid
             // back to where it was: only a pinned row is brought to it.)
-            if keepsLeadAtMargin { anchor = lead }
+            if keepsLeadAtMargin { anchor = lead } else if let first = box.firstVisible { anchor = first }
             // Back from a title opened here: its card takes the focus again (asked a few times,
             // the system's own landing comes late).
             if let back = box.reopen {

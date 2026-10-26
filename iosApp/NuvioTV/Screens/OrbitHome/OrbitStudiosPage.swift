@@ -111,6 +111,9 @@ struct OrbitStudiosPage: View {
                                 }
                                 .buttonStyle(OrbitPlatformTileStyle())
                                 .focused($focused, equals: folder.id)
+                                // Back from a studio, only its tile can take the focus for a moment
+                                // (Steven, simulator: it went to Walt Disney first, then came back).
+                                .disabled(restoreTarget != nil && restoreTarget != folder.id)
                                 .id(folder.id)
                             }
                         }
