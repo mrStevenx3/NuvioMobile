@@ -87,24 +87,44 @@ struct OrbitHomeSwitch: View {
                     .id(filter)
                     .transition(.opacity)
                     .onAppear { OrbitBarLock.shared.set(false) }
-            } else {
-                OrbitHomeView(model: model, series: filter == .series, actions: actions, pushGenre: pushGenre,
-                              isScrolledDown: $isScrolledDown)
-                    .id(filter)
-                    // Steven (Films ↔ Séries not fluid): the two pages no longer overlap half-drawn —
-                    // the old one leaves quickly, the new one (built meanwhile) comes in after it.
-                    // (Steven: then a latency — the hand-over waited; a short cross-fade, no wait.)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+            }
+            // Steven (simulator: Films ↔ Séries took up to a second — the page was built again at
+            // each switch): both Homes stay built once visited; the switch only shows the other one.
+            // The hidden one is inert (no focus, no trailer, no bar lock).
+            ForEach([false, true], id: \.self) { series in
+                if visited.contains(series) {
+                    let active = isHome && (filter == .series) == series
+                    OrbitHomeView(model: model, series: series, active: active, actions: actions, pushGenre: pushGenre,
+                                  isScrolledDown: active ? $isScrolledDown : .constant(false))
+                        .opacity(active ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.15), value: active)
+                        .disabled(!active)
+                        .allowsHitTesting(active)
+                        .zIndex(active ? 1 : 0)
+                }
             }
         }
-        // Steven (device: Films ↔ Séries arrived at once): the pages cross-fade.
-        .animation(.easeInOut(duration: 0.35), value: filter)
+        .animation(.easeInOut(duration: 0.2), value: isHome)
+        .onAppear { markVisited() }
+        .onChange(of: filter) { _, _ in markVisited() }
+    }
+
+    /// The Homes built so far (films, series).
+    @State private var visited: Set<Bool> = []
+
+    private var isHome: Bool { contentFilter.filter != .services && contentFilter.filter != .studios }
+
+    private func markVisited() {
+        guard isHome else { return }
+        visited.insert(contentFilter.filter == .series)
     }
 }
 
 struct OrbitHomeView: View {
     @ObservedObject var model: HomeViewModel
     let series: Bool
+    /// The Home on screen (the other one stays built, hidden and inert).
+    var active: Bool = true
     let actions: StageHomeActions
     let pushGenre: (OrbitGenre) -> Void
     @Binding var isScrolledDown: Bool
@@ -258,7 +278,7 @@ struct OrbitHomeView: View {
 
     var body: some View {
         // Steven (2026-10-26): Home built like Apple's TV app — the drawn Home is gone.
-        OrbitNativeHome(heroItems: heroItems, rows: rows, actions: actions, isScrolledDown: $isScrolledDown)
+        OrbitNativeHome(heroItems: heroItems, rows: rows, actions: actions, isScrolledDown: $isScrolledDown, active: active)
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
         .background(OrbitHomeLayout.background)
         .ignoresSafeArea()
@@ -270,7 +290,7 @@ struct OrbitHomeView: View {
             OrbitPlatformLogos.update()
         }
         .onDisappear {
-            OrbitBarLock.shared.set(false)
+            if active { OrbitBarLock.shared.set(false) }
         }
         .onChange(of: model.continueWatching.count) { _, _ in
             extras.loadBecause(seed: becauseSeed(series: series), series: series)

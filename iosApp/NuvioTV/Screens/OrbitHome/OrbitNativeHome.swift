@@ -31,6 +31,8 @@ struct OrbitNativeHome: View {
     let rows: [OrbitRow]
     let actions: StageHomeActions
     @Binding var isScrolledDown: Bool
+    /// On screen (the other Home stays built, hidden: no trailer, no bar lock).
+    var active: Bool = true
 
     @FocusState private var heroFocus: Int?
     /// The trailer (hero, classic frame, large cards) — a reference, never observed by the page.
@@ -123,9 +125,19 @@ struct OrbitNativeHome: View {
             if position != "hero" { withAnimation(.easeInOut(duration: 0.32)) { position = "hero" } }
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
+        .onChange(of: active) { _, now in
+            if now {
+                trailers.suspended = false
+                OrbitBarLock.shared.set(!onHero)
+                if isScrolledDown != !onHero { isScrolledDown = !onHero }
+            } else {
+                trailers.stop(abort: true)
+                trailers.suspended = true
+            }
+        }
         .onAppear {
-            trailers.suspended = false
-            OrbitBarLock.shared.set(!onHero)
+            trailers.suspended = !active
+            if active { OrbitBarLock.shared.set(!onHero) }
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
         }
         .onDisappear {
@@ -191,6 +203,7 @@ struct OrbitNativeHome: View {
     private func setOnHero(_ value: Bool) {
         guard onHero != value else { return }
         onHero = value
+        guard active else { return }
         OrbitBarLock.shared.set(!value)
         if isScrolledDown != !value { isScrolledDown = !value }
     }
