@@ -282,7 +282,7 @@ struct OrbitStudioPage: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { studioHeroLocked = false }
             }
             DispatchQueue.main.async {
-                 if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = nativeHeroPage } 
+                 if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = 0 } 
             }
             refreshAfterMove()
         }
@@ -410,54 +410,67 @@ struct OrbitStudioPage: View {
             }
         }
         .onExitCommand(perform: nativeExit)
-        .onChange(of: nativeHeroFocus) { _, page in
-            guard let page else {
+        .onChange(of: nativeHeroFocus) { _, focus in
+            guard focus != nil else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     if nativeHeroFocus == nil, nativeRow == nil { nativeTrailers.stop() }
                 }
                 return
             }
-            if heroItems.indices.contains(page) {
-                let item = heroItems[page]
-                nativeTrailers.arm("hero|\(item.type):\(item.id)", item: item, reduceMotion: reduceMotion)
-            }
-            nativeHeroPage = page
+            armHero(nativeHeroPage)
             nativeRow = nil
             nativeOnHero = true
             if nativePosition != "hero" { withAnimation(.easeInOut(duration: 0.32)) { nativePosition = "hero" } }
-            if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
+        }
+        // Left / Right on the banner: the next film fades in (Steven: no slide).
+        .onChange(of: nativeHeroPage) { _, page in
+            if nativeHeroFocus != nil { armHero(page) }
         }
     }
 
-    /// The banner: a carousel of buttons the system slides (Left / Right); Up goes to the house.
+    private func armHero(_ page: Int) {
+        guard heroItems.indices.contains(page) else { return }
+        let item = heroItems[page]
+        nativeTrailers.arm("hero|\(item.type):\(item.id)", item: item, reduceMotion: reduceMotion)
+        if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
+    }
+
+    /// The banner: one button showing the film of the page; Left / Right change it with a plain
+    /// cross-fade (Steven: he did not like the slide); Up goes to the house.
     private var nativeHero: some View {
         let count = heroItems.count
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(Array(heroItems.enumerated()), id: \.offset) { index, item in
-                    Button {
-                        nativeOpen(item)
-                    } label: {
-                        OrbitNativeStudioHeroPage(item: item, meta: metaStore.meta(for: item), trailers: nativeTrailers,
-                                                  studioName: model.name, studioLogo: model.logo ?? route.logo,
-                                                  showsStudioLogo: false, statsLine: model.statsLine,
-                                                  count: count, index: index,
-                                                  live: abs(index - nativeHeroPage) <= 1)
-                    }
-                    .buttonStyle(OrbitPlainStyle())
-                    .focused($nativeHeroFocus, equals: index)
-                    .onMoveCommand { direction in
-                        if direction == .up { NotificationCenter.default.post(name: .orbitHomeButtonFocus, object: nil) }
-                    }
+        let page = min(nativeHeroPage, max(0, count - 1))
+        return Button {
+            if heroItems.indices.contains(page) { nativeOpen(heroItems[page]) }
+        } label: {
+            ZStack(alignment: .topLeading) {
+                if heroItems.indices.contains(page) {
+                    let item = heroItems[page]
+                    OrbitNativeStudioHeroPage(item: item, meta: metaStore.meta(for: item), trailers: nativeTrailers,
+                                              studioName: model.name, studioLogo: model.logo ?? route.logo,
+                                              showsStudioLogo: false, statsLine: model.statsLine,
+                                              count: count, index: page, live: true)
+                        .id(page)
+                        .transition(.opacity)
                 }
             }
-            .scrollTargetLayout()
+            .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop,
+                   alignment: .topLeading)
+            .animation(.easeInOut(duration: 0.45), value: page)
         }
-        .scrollTargetBehavior(.viewAligned)
-        .scrollClipDisabled()
+        .buttonStyle(OrbitPlainStyle())
+        .focused($nativeHeroFocus, equals: 0)
+        .onMoveCommand { direction in
+            switch direction {
+            case .up: NotificationCenter.default.post(name: .orbitHomeButtonFocus, object: nil)
+            case .left: if nativeHeroPage > 0 { nativeHeroPage -= 1 }
+            case .right: if nativeHeroPage < count - 1 { nativeHeroPage += 1 }
+            default: break
+            }
+        }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop)
         .focusSection()
-        .defaultFocus($nativeHeroFocus, nativeHeroPage,
+        .defaultFocus($nativeHeroFocus, 0,
                       // (Back from a title of a row: its card takes the focus, not the banner first.)
                       priority: OrbitNativeStudioRow.reopen == nil ? .userInitiated : .automatic)
     }
@@ -465,7 +478,7 @@ struct OrbitStudioPage: View {
     /// Menu: from a row, back to the banner; on the banner (or with none), the page closes.
     private var nativeExit: (() -> Void)? {
         guard hasHero, !nativeOnHero else { return nil }
-        return { nativeHeroFocus = nativeHeroPage }
+        return { nativeHeroFocus = 0 }
     }
 
     private func nativeEnter(_ rowID: String) {

@@ -125,8 +125,6 @@ struct OrbitNativeSections<SectionContent: View>: View {
                             if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
                         }
                         .frame(width: W, height: height(s), alignment: .topLeading)
-                        .opacity(hidesAbove && s < current ? 0 : 1)
-                        .animation(.easeOut(duration: 0.14), value: s < current)
                         .focusSection()
                         // Steven (simulator: Up in the platforms went astray): the row above is hidden
                         // (transparent: the system cannot focus it) — Up goes to it explicitly.
@@ -164,8 +162,27 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollPosition(id: $position, anchor: .top)
-        .contentMargins(.top, lineOf(position ?? current), for: .scrollContent)
+        // The line follows the page's section only (Steven's videos, Prime Video / Paramount+: the
+        // rows jumped — the line also followed the section the scroll wrote back mid-move).
+        .contentMargins(.top, lineOf(current), for: .scrollContent)
         .scrollClipDisabled()
+        // The rows above the current one slide away under the page's top, as on Home (Steven's
+        // video, Prime Video: a row vanished on the spot when the focus left it, before the page
+        // had moved). A soft edge just above the line, not a switch on each row.
+        .mask {
+            if hidesAbove, current >= heroCount {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: max(0, lineOf(current) - 56))
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 44)
+                    Color.black
+                }
+                .frame(width: W, height: OrbitHomeLayout.screenHeight, alignment: .top)
+                .ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+            }
+        }
         .onExitCommand(perform: onExit)
         // Only the hero is a button of ours: on the way back to a row, nothing pulls the focus up to
         // it (Steven, simulator: back from a title the page came back on its hero).
