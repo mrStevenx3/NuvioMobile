@@ -145,7 +145,23 @@ private final class OrbitSearchHostController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        restoreOpenedTitle(attempt: 0)
+        if results?.hasRestore == true {
+            restoreOpenedTitle(attempt: 0)
+        } else {
+            focusKeyboard(attempt: 0)
+        }
+    }
+
+    /// Steven: coming back to Search, the focus went to the recent searches — the keyboard has it
+    /// (asked a few times: the system's own landing can come after).
+    private func focusKeyboard(attempt: Int) {
+        guard let searchBar else { return }
+        let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+        if let focused, focused.isDescendant(of: view), !(results.map { focused.isDescendant(of: $0.view) } ?? false) { return }
+        if focused != nil, !(focused?.isDescendant(of: view) ?? false) { return }   // the bar or elsewhere: left alone
+        move(to: searchBar)
+        guard attempt < 3 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.focusKeyboard(attempt: attempt + 1) }
     }
 
     /// Back from a title: the poster it was opened from, asked again a few times (the system's own

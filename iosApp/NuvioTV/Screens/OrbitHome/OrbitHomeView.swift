@@ -373,11 +373,22 @@ struct OrbitFocusBackdrop: View {
     let item: MetaPreview?
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
+    /// The title whose catalog art may be used (TMDB's never came in time).
+    @State private var fallbackFor: String?
+
     var body: some View {
         let banner: String? = item?.banner
-        let url = (banner?.isEmpty == false ? banner : nil) ?? item.flatMap { metaStore.meta(for: $0)?.backdrop }
-        OrbitRowsBackdrop(url: url, opaque: false)
-            .task(id: item?.id ?? "-") { if let item { metaStore.request([item]) } }
+        // Steven (Search: an English backdrop for a second): TMDB's art in his language first; the
+        // catalog's only if TMDB has none after a moment (the previous art stays meanwhile).
+        let tmdb = item.flatMap { metaStore.meta(for: $0)?.backdrop }
+        let catalog = (banner?.isEmpty == false && fallbackFor == item?.id) ? banner : nil
+        OrbitRowsBackdrop(url: tmdb ?? catalog, opaque: false)
+            .task(id: item?.id ?? "-") {
+                guard let item else { return }
+                metaStore.request([item])
+                try? await Task.sleep(for: .milliseconds(700))
+                if !Task.isCancelled { fallbackFor = item.id }
+            }
     }
 }
 

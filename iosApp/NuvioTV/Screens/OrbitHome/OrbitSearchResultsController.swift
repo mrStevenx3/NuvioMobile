@@ -195,17 +195,36 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         }
     }
 
+    /// The focus is on a poster of the grid.
+    private var gridFocused = false
+    /// What the page shows now (titles in their places, chips).
+    private var shownTitles: [String] = []
+    private var shownChips: [String] = []
+
     private func apply() {
         let shot = feed.read()
         if shot.queryIsEmpty, spotlight.item != nil { spotlight.item = nil }
         let found = shot.titles.filter { posterReady($0) }
+        var order = shot.queryIsEmpty ? [] : found.map(\.id)
+        var seen = Set<String>()
+        var chips = shot.chips.filter { seen.insert($0).inserted }
+        // Steven ("small": Smallville there, but the posters arriving around it made the cursor
+        // jump): while a poster has the focus, the ones shown keep their places and the chips line
+        // stays; new titles only join at the end.
+        if gridFocused, !shownTitles.isEmpty {
+            let now = Set(order)
+            let kept = shownTitles.filter { now.contains($0) }
+            let keptSet = Set(kept)
+            order = kept + order.filter { !keptSet.contains($0) }
+            chips = shownChips
+        }
         titles = Dictionary(found.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let entries = shot.chips
+        shownTitles = order
+        shownChips = chips
         var snapshot = NSDiffableDataSourceSnapshot<Section, Item>()
         snapshot.appendSections([.suggestions, .titles])
-        var seen = Set<String>()
-        snapshot.appendItems(entries.filter { seen.insert($0).inserted }.map(Item.suggestion), toSection: .suggestions)
-        snapshot.appendItems(shot.queryIsEmpty ? [] : found.map { Item.title($0.id) }, toSection: .titles)
+        snapshot.appendItems(chips.map(Item.suggestion), toSection: .suggestions)
+        snapshot.appendItems(order.map(Item.title), toSection: .titles)
         dataSource.apply(snapshot, animatingDifferences: false)
     }
 
@@ -258,6 +277,10 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
 
     func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                         with coordinator: UIFocusAnimationCoordinator) {
+        let wasGrid = gridFocused
+        gridFocused = context.nextFocusedIndexPath?.section == Section.titles.rawValue
+        // Off the grid: what arrived meanwhile takes its proper order.
+        if wasGrid, !gridFocused { scheduleApply() }
         guard let path = context.nextFocusedIndexPath, case .title(let id)? = dataSource.itemIdentifier(for: path),
               let item = titles[id] else { return }
         if spotlight.item?.id != item.id { spotlight.item = item }
@@ -293,6 +316,9 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     }
 
     func restoreDone() { lastOpened = nil }
+
+    /// A title was opened from here (its poster takes the focus back).
+    var hasRestore: Bool { lastOpened != nil }
 
     var restoredCell: UIView? { lastOpened.flatMap { collectionView.cellForItem(at: $0) } }
 
@@ -356,6 +382,7 @@ private struct OrbitSearchPoster: View {
     let item: MetaPreview
     let focused: Bool
     @ObservedObject private var metaStore = OrbitMetaStore.shared
+    @State private var waited = false
 
     var body: some View {
         GeometryReader { geo in
@@ -367,8 +394,12 @@ private struct OrbitSearchPoster: View {
                 let meta = metaStore.meta(for: item)
                 let local = meta?.localPoster ?? meta?.titledPoster
                 // (No stand-in while TMDB's loads: Charmed showed its English poster first.)
-                OrbitImage(url: local ?? item.poster, fallback: local != nil ? item.poster : item.rawPosterUrl,
-                           size: geo.size)
+                // Steven (an English poster for a second): the catalog's poster only once TMDB has
+                // answered without one in his language, or after a moment.
+                if local != nil || meta != nil || waited {
+                    OrbitImage(url: local ?? item.poster, fallback: local != nil ? item.poster : item.rawPosterUrl,
+                               size: geo.size)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -381,6 +412,11 @@ private struct OrbitSearchPoster: View {
             .animation(.easeOut(duration: 0.18), value: focused)
         }
         .onAppear { metaStore.request([item]) }
+        .task(id: item.id) {
+            waited = false
+            try? await Task.sleep(for: .milliseconds(800))
+            if !Task.isCancelled { waited = true }
+        }
     }
 }
 
