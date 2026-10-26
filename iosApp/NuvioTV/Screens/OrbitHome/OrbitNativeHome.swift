@@ -301,6 +301,7 @@ struct OrbitNativeRow: View {
     @State private var shown: String?
     /// The classic row: the title it is scrolled to (its frame at the margin).
     @State private var anchor: String?
+    @State private var scroll = ScrollPosition(idType: String.self)
     /// The row's own scroll (a last correction once the frame has opened).
     @State private var rowProxy: ScrollViewProxy?
     /// When the way back from a title began (0: not coming back).
@@ -377,7 +378,12 @@ struct OrbitNativeRow: View {
             // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
             // binding kept the first title the system wrote back (one half off screen) and brought it
             // in on the way back from a title — the row moved by one (Steven, simulator).
-            .scrollPosition(id: pinned ? $anchor : .constant(nil), anchor: .leading)
+            .scrollPosition($scroll)
+            // Where the row is scrolled, kept (not while it comes back from a title): the way back
+            // puts it exactly there again (Steven, simulator: every return moved it right).
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
+                if restoringSince == 0, !disappeared { Self.offsets[row.id] = x }
+            }
             // Room after the last title (Steven: at a row's end the focus stopped at the margin and
             // ran on to the right): the last one can come to the margin too.
             .contentMargins(.leading, L.margin, for: .scrollContent)
@@ -414,9 +420,6 @@ struct OrbitNativeRow: View {
         .focusSection()
         .onAppear { restoreIfReturning() }
         .onDisappear { disappeared = true }
-        .onChange(of: anchor) { _, first in
-            if !pinned, let first { Self.firstVisible[row.id] = first }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
             guard note.object as? String == row.id else { return }
             focused = shown ?? row.cards.first?.id
@@ -451,7 +454,10 @@ struct OrbitNativeRow: View {
             // frame stays there too.
             // Rows without details under them scroll as Apple's app does (Steven): the focus runs
             // over the titles on screen, the row moves only at its edge.
-            if pinned, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
+            if pinned, anchor != new {
+                anchor = new
+                withAnimation(OrbitHomeLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+            }
             // Steven (simulator: moving right, the frame drifted off the margin, a poster left of
             // it): the scroll is aimed while the frame is still opening — once it has opened, the
             // title is brought back exactly to the margin.
@@ -459,12 +465,7 @@ struct OrbitNativeRow: View {
             if pinned, moving {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
                     guard shown == new, focused == new else { return }
-                    // Re-aimed through the anchor (it keeps the margin): cleared, then set again.
-                    anchor = nil
-                    DispatchQueue.main.async {
-                        guard shown == new else { return }
-                        withAnimation(.easeOut(duration: 0.16)) { anchor = new }
-                    }
+                    withAnimation(.easeOut(duration: 0.16)) { scroll.scrollTo(id: new, anchor: .leading) }
                 }
             }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
@@ -516,8 +517,8 @@ struct OrbitNativeRow: View {
     /// The title opened from Home (row, card): the focus is put back on it on the way back
     /// (Steven: it came back on the card to its left).
     @MainActor static var reopen: (row: String, card: String)?
-    /// Each unpinned row's first title on screen (where it comes back to on the way back).
-    @MainActor static var firstVisible: [String: String] = [:]
+    /// Each row's scroll (where it comes back to on the way back from a title).
+    @MainActor static var offsets: [String: CGFloat] = [:]
 
     /// Back from a title: its card, asked a few times (the system's own landing comes late).
     private func restoreIfReturning() {
@@ -528,11 +529,18 @@ struct OrbitNativeRow: View {
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
         // brought to its title; the others are where they were left.
-        if pinned { anchor = target.card }
+        disappeared = false
+        let kept = Self.offsets[row.id]
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                 if focused != target.card { focused = target.card }
+                // The row exactly where it was left, whatever the focus's own scroll did.
+                if let kept {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { scroll.scrollTo(x: kept) }
+                }
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {

@@ -730,6 +730,9 @@ private struct OrbitNativeStudioRow: View {
     @State private var holds = false
     @State private var shown: Int?
     @State private var anchor: Int?
+    @State private var scroll = ScrollPosition(idType: Int.self)
+    /// Each row's scroll (where it comes back to on the way back from a title).
+    @MainActor static var offsets: [String: CGFloat] = [:]
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     /// The title opened from a studio page (row, place): the focus goes back to it.
@@ -782,7 +785,12 @@ private struct OrbitNativeStudioRow: View {
             // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
             // binding kept the first title the system wrote back (one half off screen) and brought it
             // in on the way back from a title — the row moved by one (Steven, simulator).
-            .scrollPosition(id: row.showsInfo ? $anchor : .constant(nil), anchor: .leading)
+            .scrollPosition($scroll)
+            // Where the row is scrolled, kept (not while it comes back from a title): the way back
+            // puts it exactly there again (Steven, simulator: the return moved it right).
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
+                if restoringSince == 0, !disappeared { Self.offsets[row.id] = x }
+            }
             .contentMargins(.leading, L.margin, for: .scrollContent)
             // A saga's shelf keeps its logo panel in view (Steven's video: the panel left, an empty band
             // behind a few posters) — the system scrolls it only as far as needed.
@@ -842,7 +850,10 @@ private struct OrbitNativeStudioRow: View {
             }
             // Only a row with the title's details under it keeps it at the margin; the others scroll as
             // Apple's app does (Steven), the row moving only when the focus reaches its edge.
-            if row.showsInfo, anchor != new { withAnimation(OrbitStudioLayout.horizontal) { anchor = new } }
+            if row.showsInfo, anchor != new {
+                anchor = new
+                withAnimation(OrbitStudioLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+            }
             let ahead = row.items[new..<min(row.items.count, new + 6)]
             OrbitMetaStore.shared.request(Array(ahead))
         }
@@ -854,11 +865,17 @@ private struct OrbitNativeStudioRow: View {
         restoringSince = appeared
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.index
-        if row.showsInfo { anchor = target.index }
+        disappeared = false
+        let kept = Self.offsets[row.id]
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.index == target.index, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                 if focused != target.index { focused = target.index }
+                if let kept {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { scroll.scrollTo(x: kept) }
+                }
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {

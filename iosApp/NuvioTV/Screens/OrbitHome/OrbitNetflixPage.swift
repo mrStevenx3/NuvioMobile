@@ -741,9 +741,10 @@ private struct OrbitNetflixRowView: View {
                 .padding(.leading, L.margin + (row.top10 ? (lead == 9 ? L.rankWidthTen : L.rankWidth) : 0))
                 .padding(.top, 18)
                 .id("\(item.type):\(item.id)")
-                .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.2)), removal: .identity))
+                // Steven: as on Home — the details move with their row (no wait, no early fade).
+                .transition(.opacity.animation(.easeInOut(duration: 0.18)))
                 .opacity(isCurrent ? 1 : 0)
-                .animation(isCurrent ? .easeInOut(duration: 0.2).delay(0.34) : nil, value: isCurrent)
+                .animation(.easeInOut(duration: 0.18), value: isCurrent)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)

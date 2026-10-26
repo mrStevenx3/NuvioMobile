@@ -21,8 +21,8 @@ final class OrbitLeadBox: ObservableObject {
     @Published var focusRequest = 0
     /// The title opened from this row: the focus comes back on it on the way back.
     var reopen: Int?
-    /// An unpinned row's first title on screen (where it comes back to when rebuilt).
-    var firstVisible: Int?
+    /// Where the row is scrolled (where it comes back to when rebuilt or back from a title).
+    var offsetX: CGFloat?
     /// From the opening of a title until just after the way back (kept by the box: the row may be
     /// rebuilt meanwhile): only the reopened tile can take the focus.
     @Published var restoreLock = false
@@ -46,7 +46,10 @@ final class OrbitLeadStore {
     }
 
     func reset() {
-        for box in boxes.values where box.lead != 0 { box.lead = 0 }
+        for box in boxes.values {
+            if box.lead != 0 { box.lead = 0 }
+            box.offsetX = nil
+        }
     }
 }
 
@@ -229,6 +232,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
 
     @FocusState private var focus: Int?
     @State private var anchor: Int?
+    @State private var scroll = ScrollPosition(idType: Int.self)
     @State private var holds = false
 
     @State private var rowProxy: ScrollViewProxy?
@@ -266,7 +270,12 @@ struct OrbitNativeTileStrip<Tile: View>: View {
         .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !keepsLeadAtMargin))
         // (Only a pinned row is driven by its anchor; an unpinned one is not bound: the written-back
         // first title, half off screen, was brought in on the way back — Steven.)
-        .scrollPosition(id: keepsLeadAtMargin ? $anchor : .constant(nil), anchor: .leading)
+        .scrollPosition($scroll)
+        // Where the row is scrolled, kept in its box (not while it comes back from a title): the way
+        // back puts it exactly there again (Steven, simulator: every return moved it right).
+        .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
+            if restoringSince == 0, !disappeared { box.offsetX = x }
+        }
         .contentMargins(.leading, margin, for: .scrollContent)
         .contentMargins(.trailing, keepsLeadAtMargin ? max(margin, OrbitHomeLayout.screenWidth - margin - lastWidth) : margin,
                         for: .scrollContent)
@@ -301,25 +310,21 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 withAnimation(OrbitHomeLayout.horizontal) { box.lead = new }
                 onLeadChange(new)
             }
-            if keepsLeadAtMargin, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
+            if keepsLeadAtMargin, anchor != new {
+                anchor = new
+                withAnimation(OrbitHomeLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+            }
             // The open tile grows while the scroll is aimed: once open, the title back exactly at
             // the margin (Steven, simulator: it drifted right).
             if keepsLeadAtMargin, moving {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     guard focus == new else { return }
-                    anchor = nil
-                    DispatchQueue.main.async {
-                        guard focus == new else { return }
-                        withAnimation(.easeOut(duration: 0.16)) { anchor = new }
-                    }
+                    withAnimation(.easeOut(duration: 0.16)) { scroll.scrollTo(id: new, anchor: .leading) }
                 }
             }
         }
         // An unpinned row remembers where it was scrolled (its first title on screen): rebuilt —
         // back from a title, far from the page's section — it comes back there (Steven: it moved).
-        .onChange(of: anchor) { _, first in
-            if !keepsLeadAtMargin, let first { box.firstVisible = first }
-        }
         .onChange(of: box.focusRequest) { _, _ in
             let target = min(box.lead, max(0, count - 1))
             if focus != target { focus = target }
@@ -332,7 +337,16 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             // (Steven, simulator: back from a title an unpinned row jumped to its title, then slid
             // back to where it was: only a pinned row is brought to it.)
             // (An unpinned row is left where it is: re-anchored on its first title it moved — Steven.)
-            if keepsLeadAtMargin { anchor = lead }
+            disappeared = false
+            if let kept = box.offsetX {
+                // The row exactly where it was (rebuilt, or back from a title).
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { scroll.scrollTo(x: kept) }
+            } else if keepsLeadAtMargin {
+                anchor = lead
+                scroll.scrollTo(id: lead, anchor: .leading)
+            }
             // Back from a title opened here: its card takes the focus again (asked a few times,
             // the system's own landing comes late).
             if let back = box.reopen {
@@ -343,6 +357,11 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard box.reopen == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                         if focus != back { focus = back }
+                        if let kept = box.offsetX {
+                            var still = Transaction()
+                            still.disablesAnimations = true
+                            withTransaction(still) { scroll.scrollTo(x: kept) }
+                        }
                     }
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { if box.reopen == back { box.reopen = nil } }
