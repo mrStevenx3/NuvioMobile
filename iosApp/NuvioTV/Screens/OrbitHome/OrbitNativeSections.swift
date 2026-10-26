@@ -125,6 +125,9 @@ struct OrbitNativeSections<SectionContent: View>: View {
                             if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
                         }
                         .frame(width: W, height: height(s), alignment: .topLeading)
+                        // Back from a title, only the row it was opened from can take the focus a
+                        // moment (Steven's video, Disney+: it landed in the row above, then came back).
+                        .disabled(heroLocked && s != current)
                         .focusSection()
                         // Steven (simulator: Up in the platforms went astray): the row above is hidden
                         // (transparent: the system cannot focus it) — Up goes to it explicitly.

@@ -184,6 +184,8 @@ struct OrbitStudioPage: View {
     @State private var nativeOnHero = true
     @State private var nativePosition: String? = "hero"
     @State private var studioHeroLocked = false
+    /// Back from a title: the row it was opened from (the only one the focus can land in a moment).
+    @State private var returnRow: String?
     @State private var nativeRow: String?
     /// The native page's trailer (banner, featured cards) — a reference, never observed by the page.
     @State private var nativeTrailers = OrbitNativeTrailerHost()
@@ -278,8 +280,9 @@ struct OrbitStudioPage: View {
             nativeTrailers.suspended = false
             if let back = OrbitNativeStudioRow.reopen {
                 studioHeroLocked = true
+                returnRow = back.row
                 nativePosition = back.row
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { studioHeroLocked = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { studioHeroLocked = false; returnRow = nil }
             }
             DispatchQueue.main.async {
                  if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = 0 } 
@@ -357,6 +360,7 @@ struct OrbitStudioPage: View {
                         OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id, accent: brand, trailers: nativeTrailers,
                                              onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) })
                             .id(row.id)
+                            .disabled(returnRow != nil && returnRow != row.id)
                     }
                 }
                 .scrollTargetLayout()
@@ -451,12 +455,13 @@ struct OrbitStudioPage: View {
                                               showsStudioLogo: false, statsLine: model.statsLine,
                                               count: count, index: page, live: true)
                         .id(page)
-                        .transition(.opacity)
+                        // The fade alone carries the animation (Steven: it also zoomed — the whole
+                        // page animated, the new film's logo and art growing into their places).
+                        .transition(.opacity.animation(.easeInOut(duration: 0.45)))
                 }
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop,
                    alignment: .topLeading)
-            .animation(.easeInOut(duration: 0.45), value: page)
         }
         .buttonStyle(OrbitPlainStyle())
         .focused($nativeHeroFocus, equals: 0)

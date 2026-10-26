@@ -49,6 +49,8 @@ struct OrbitNativeHome: View {
     @State private var currentRow: String?
     /// The hero out of the focus's reach while a row takes back the title opened from it.
     @State private var heroLocked = false
+    /// Back from a title: the row it was opened from (the only one the focus can land in a moment).
+    @State private var returnRow: String?
 
     /// The line under the bar the page aligns its sections on (the bar's band is above it).
     static let topLine: CGFloat = 120
@@ -94,6 +96,9 @@ struct OrbitNativeHome: View {
                         OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
                                        onEnter: { enter(row.id) })
                             .id(row.id)
+                            // (Steven's videos: back from a title the focus landed a moment in the
+                            // row above, then came back.)
+                            .disabled(returnRow != nil && returnRow != row.id)
                     }
                 }
                 .scrollTargetLayout()
@@ -143,8 +148,9 @@ struct OrbitNativeHome: View {
         .onAppear {
             if let back = OrbitNativeRow.reopen, rows.contains(where: { $0.id == back.row }) {
                 heroLocked = true
+                returnRow = back.row
                 position = back.row
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false; returnRow = nil }
             }
             trailers.suspended = !active
             if active { OrbitBarLock.shared.set(!onHero) }

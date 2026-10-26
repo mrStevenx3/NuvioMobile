@@ -915,8 +915,15 @@ private struct OrbitPrimePoster: View {
         let poster: String? = meta?.localPoster ?? meta?.titledPoster
         ZStack(alignment: .bottomLeading) {
             Color(red: 0.10, green: 0.13, blue: 0.18)
+            // The poster always under (one view, open or closed: already loaded, it never blanks).
+            // Steven's video: the tile opening and the one closing went an empty grey a moment.
+            // (Decoded at the poster's size, open or not: a new size re-read it — blank meanwhile.)
+            OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: L.poster)
+                .frame(width: size.width, height: size.height, alignment: .leading)
+                .clipped()
             if open {
-                OrbitImage(url: item.banner ?? meta?.backdrop, fallback: poster, size: size)
+                OrbitImage(url: item.banner ?? meta?.backdrop, fallback: poster, size: size, placeholder: poster ?? item.poster)
+                    .transition(.opacity.animation(.easeOut(duration: 0.2)))
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -940,7 +947,6 @@ private struct OrbitPrimePoster: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(24)
             } else {
-                OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: size)
                 OrbitPrimeMark(size: 20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(16)
