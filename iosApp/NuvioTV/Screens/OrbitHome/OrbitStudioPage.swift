@@ -741,14 +741,22 @@ private struct OrbitNativeStudioRow: View {
     @State private var restoreLock = false
     @State private var disappeared = false
 
-    private func lockForReturn() {
-        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
-        // when the page came back — Steven: the row came back shifted, then corrected).
-        if let x = Self.offsets[row.id] {
-            var still = Transaction()
-            still.disablesAnimations = true
+    /// The row put back where it is shown: a row with details on its title at the margin (exact),
+    /// the others at their kept scroll.
+    private func settle(on index: Int?) {
+        var still = Transaction()
+        still.disablesAnimations = true
+        if row.showsInfo, let index {
+            withTransaction(still) { scroll.scrollTo(id: index, anchor: .leading) }
+        } else if let x = Self.offsets[row.id] {
             withTransaction(still) { scroll.scrollTo(x: x) }
         }
+    }
+
+    private func lockForReturn(_ index: Int) {
+        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
+        // when the page came back — Steven: the row came back shifted, then corrected).
+        settle(on: index)
         restoreLock = true
         disappeared = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
@@ -771,7 +779,7 @@ private struct OrbitNativeStudioRow: View {
                         let item = row.items[index]
                         Button {
                             Self.reopen = (row.id, index)
-                            lockForReturn()
+                            lockForReturn(index)
                             onOpen(item)
                         } label: {
                             OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
@@ -832,7 +840,9 @@ private struct OrbitNativeStudioRow: View {
         }
         .focusSection()
         .defaultFocus($focused, shown ?? 0, priority: .userInitiated)
-        .onAppear { restoreIfReturning() }
+        // (Every appearance: a row scrolled off the page and back stopped keeping where it was —
+        // Steven: back from a title the row came back far from where he left it.)
+        .onAppear { disappeared = false; restoreIfReturning() }
         .onDisappear { disappeared = true }
         .onChange(of: focused) { _, new in
             guard let new else {
@@ -847,6 +857,7 @@ private struct OrbitNativeStudioRow: View {
                 DispatchQueue.main.async { focused = back.index }
                 return
             }
+            let moving = holds
             if !holds {
                 holds = true
                 onEnter()
@@ -865,6 +876,14 @@ private struct OrbitNativeStudioRow: View {
                 anchor = new
                 withAnimation(OrbitStudioLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
             }
+            // As on Home: once the focus has settled, the title brought back exactly to the margin
+            // (Steven's video: the focused title stopped a poster right of it).
+            if row.showsInfo, moving {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
+                    guard shown == new, focused == new else { return }
+                    withAnimation(.easeOut(duration: 0.16)) { scroll.scrollTo(id: new, anchor: .leading) }
+                }
+            }
             let ahead = row.items[new..<min(row.items.count, new + 6)]
             OrbitMetaStore.shared.request(Array(ahead))
         }
@@ -877,16 +896,11 @@ private struct OrbitNativeStudioRow: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.index
         disappeared = false
-        let kept = Self.offsets[row.id]
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.index == target.index, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                 if focused != target.index { focused = target.index }
-                if let kept {
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { scroll.scrollTo(x: kept) }
-                }
+                settle(on: target.index)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {

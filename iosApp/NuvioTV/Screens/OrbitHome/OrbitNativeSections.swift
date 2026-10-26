@@ -240,14 +240,22 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     @State private var restoringSince: TimeInterval = 0
     @State private var disappeared = false
 
-    private func lockForReturn() {
-        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
-        // when the page came back — Steven: the row came back shifted, then corrected).
-        if let x = box.offsetX {
-            var still = Transaction()
-            still.disablesAnimations = true
+    /// The row put back where it is shown: a pinned row on its title at the margin (exact), the
+    /// others at their kept scroll.
+    private func settle(on index: Int?) {
+        var still = Transaction()
+        still.disablesAnimations = true
+        if keepsLeadAtMargin, let index {
+            withTransaction(still) { scroll.scrollTo(id: index, anchor: .leading) }
+        } else if let x = box.offsetX {
             withTransaction(still) { scroll.scrollTo(x: x) }
         }
+    }
+
+    private func lockForReturn(_ index: Int) {
+        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
+        // when the page came back — Steven: the row came back shifted, then corrected).
+        settle(on: index)
         box.restoreLock = true
         disappeared = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { box.restoreLock = false } }
@@ -260,13 +268,16 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 ForEach(0..<count, id: \.self) { i in
                     Button {
                         box.reopen = i
-                        lockForReturn()
+                        lockForReturn(i)
                         onSelect()
                     } label: {
                         OrbitNativeStripLabel { focused in tile(i, focused) }
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($focus, equals: i)
+                    // The focused tile above its neighbours (Steven, Paramount+: it went behind the
+                    // poster on its right).
+                    .zIndex(focus == i ? 1 : 0)
                     // Back from a title, only its tile can take the focus a moment.
                     .disabled(box.restoreLock && box.reopen != nil && box.reopen != i)
                 }
@@ -345,15 +356,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             // back to where it was: only a pinned row is brought to it.)
             // (An unpinned row is left where it is: re-anchored on its first title it moved — Steven.)
             disappeared = false
-            if let kept = box.offsetX {
-                // The row exactly where it was (rebuilt, or back from a title).
-                var still = Transaction()
-                still.disablesAnimations = true
-                withTransaction(still) { scroll.scrollTo(x: kept) }
-            } else if keepsLeadAtMargin {
-                anchor = lead
-                scroll.scrollTo(id: lead, anchor: .leading)
-            }
+            // The row exactly where it was (rebuilt, or back from a title).
+            if keepsLeadAtMargin { anchor = lead }
+            settle(on: box.reopen ?? lead)
             // Back from a title opened here: its card takes the focus again (asked a few times,
             // the system's own landing comes late).
             if let back = box.reopen {
@@ -364,11 +369,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard box.reopen == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                         if focus != back { focus = back }
-                        if let kept = box.offsetX {
-                            var still = Transaction()
-                            still.disablesAnimations = true
-                            withTransaction(still) { scroll.scrollTo(x: kept) }
-                        }
+                        settle(on: back)
                     }
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { if box.reopen == back { box.reopen = nil } }

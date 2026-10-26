@@ -456,6 +456,8 @@ struct OrbitCollectionGrid: View {
     @State private var haloColor: Color?
     /// The platform whose Top 20 is shown (marked while the focus is in its rows).
     @State private var selectedId: String?
+    /// The focus is down in the Top 20 (Steven: up on the bar, the platform stayed marked).
+    @State private var inRows = false
     /// Where the page is brought to: the focused row's line, or its top on the platforms.
     @State private var scrollLine: String?
 
@@ -488,7 +490,7 @@ struct OrbitCollectionGrid: View {
                                                       focused: focused == entry.id,
                                                       // Steven: the platform whose Top 20 shows stays
                                                       // marked when the focus is down in it.
-                                                      selected: focused != entry.id && selectedId == entry.id,
+                                                      selected: inRows && selectedId == entry.id,
                                                       tint: haloColor,
                                                       size: CGSize(width: Self.tileWidth, height: Self.tileHeight))
                                 }
@@ -510,7 +512,7 @@ struct OrbitCollectionGrid: View {
                     // Steven (device: the page scrolled on its own, the Top 10 cut at the top): it
                     // moves a row at a time — the focused row at its line, the platforms at the top.
                     // Steven: everything on one screen — the page no longer moves row by row.
-                    OrbitPlatformTrendingRow(accent: haloColor)
+                    OrbitPlatformTrendingRow(onRowFocus: { inRows = $0 != nil }, accent: haloColor)
                         // (Back from a platform: the rows below cannot take the focus either — Steven,
                         // simulator: it landed in the Top 20, then went back to the platform.)
                         .disabled(restoreTarget != nil)

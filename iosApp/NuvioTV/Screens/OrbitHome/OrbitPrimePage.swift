@@ -809,6 +809,9 @@ private struct OrbitPrimeRowView: View {
             OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: row.cardHeight,
                                  lastWidth: row.kind == .originals ? L.openWidth : row.x(of: 1, lead: 0, current: false) - L.gap,
                                  box: box, alignment: .top,
+                                 // Steven: the row of opening posters scrolls as Home's first row —
+                                 // the open one held at the margin, the row sliding under it.
+                                 keepsLeadAtMargin: row.kind == .originals,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
                                  onLeadChange: { _ in onLeadChange() }) { index, lit in
                 let item = row.items[index]

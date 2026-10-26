@@ -248,12 +248,16 @@ struct OrbitPlatformTrendingRow: View {
             guard let id else {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
                 model.resetSpotlight()
+                // Out of the rows for good (not only passing between two titles).
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    if focused == nil { onRowFocus(nil) }
+                }
                 return
             }
             Self.lastFocused = id
             if id == Self.restore { Self.restore = nil }
             let rowKey = String(id.prefix { $0 != "/" })
-            if old.map({ String($0.prefix { $0 != "/" }) }) != rowKey { onRowFocus(rowKey) }
+            if old == nil || old.map({ String($0.prefix { $0 != "/" }) }) != rowKey { onRowFocus(rowKey) }
             let items = items(rowKey)
             // The page's art follows the focused title.
             if let item = items.first(where: { "\(rowKey)/\($0.id)" == id }) {

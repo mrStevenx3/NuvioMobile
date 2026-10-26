@@ -310,14 +310,22 @@ struct OrbitNativeRow: View {
     @State private var restoreLock = false
     @State private var disappeared = false
 
-    private func lockForReturn() {
-        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
-        // when the page came back — Steven: the row came back shifted, then corrected).
-        if let x = Self.offsets[row.id] {
-            var still = Transaction()
-            still.disablesAnimations = true
+    /// The row put back where it is shown: a pinned row on its title at the margin (exact, whatever
+    /// was recorded), the others at their kept scroll.
+    private func settle(on card: String?) {
+        var still = Transaction()
+        still.disablesAnimations = true
+        if pinned, let card {
+            withTransaction(still) { scroll.scrollTo(id: card, anchor: .leading) }
+        } else if let x = Self.offsets[row.id] {
             withTransaction(still) { scroll.scrollTo(x: x) }
         }
+    }
+
+    private func lockForReturn(_ card: String) {
+        // The scroll's own remembered aim set to where the row is now (it re-applied an older aim
+        // when the page came back — Steven: the row came back shifted, then corrected).
+        settle(on: card)
         restoreLock = true
         disappeared = false
         // (No page came over it: unlocked.)
@@ -427,7 +435,9 @@ struct OrbitNativeRow: View {
             }
         }
         .focusSection()
-        .onAppear { restoreIfReturning() }
+        // (Every appearance: a row scrolled off the page and back stopped keeping where it was —
+        // Steven: back from a title the row came back far from where he left it.)
+        .onAppear { disappeared = false; restoreIfReturning() }
         .onDisappear { disappeared = true }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
             guard note.object as? String == row.id else { return }
@@ -539,17 +549,12 @@ struct OrbitNativeRow: View {
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
         // brought to its title; the others are where they were left.
         disappeared = false
-        let kept = Self.offsets[row.id]
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                 if focused != target.card { focused = target.card }
                 // The row exactly where it was left, whatever the focus's own scroll did.
-                if let kept {
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { scroll.scrollTo(x: kept) }
-                }
+                settle(on: target.card)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
@@ -559,7 +564,7 @@ struct OrbitNativeRow: View {
 
     private func open(_ card: OrbitCard) {
         Self.reopen = (row.id, card.id)
-        lockForReturn()
+        lockForReturn(card.id)
         trailers.stop(abort: true)
         trailers.suspended = true
         if let entry = card.entry {
