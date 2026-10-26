@@ -127,6 +127,8 @@ struct OrbitHBOPage: View {
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
     @State private var nativeHasFocus = false
+    @State private var nativeHeroFocused = false
+    @State private var nativeFocusStamp: TimeInterval = 0
     /// The page holds the focus (the canvas's, or one of the native sections').
     private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
@@ -431,7 +433,7 @@ struct OrbitHBOPage: View {
     private func nativeSections(_ rows: [OrbitHBORow]) -> some View {
         OrbitNativeSections(
             count: 1 + rows.count, hasHero: true,
-            height: { s in s == 0 ? OrbitHBOLayout.rowsTopOnArrival - nativeLine(rows) : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            height: { s in s == 0 ? OrbitHBOLayout.rowsTopOnArrival - OrbitHBOLayout.firstRowLine : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
             topLine: nativeLine(rows), current: current, hidesAbove: false,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
@@ -439,21 +441,34 @@ struct OrbitHBOPage: View {
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             onFocusChange: { has in
-                nativeHasFocus = has
-                refreshAfterMove()
-            }
+                nativeHeroFocused = has
+                if has { nativeEnter(0) } else { nativeLeave() }
+            },
+            rowsFocusable: true,
+            focusRow: { s in if rows.indices.contains(s - 1) { leads.box(rows[s - 1].id).focusRequest &+= 1 } },
+            line: nativeRowLine(rows)
         ) { s, focused in
             if s == 0 {
                 Color.clear
             } else if rows.indices.contains(s - 1) {
                 let row = rows[s - 1]
-                OrbitLeadReader(box: leads.box(row.id)) { _ in
-                    OrbitHBORowView(row: row, lead: lead(of: row), isCurrent: s == current,
-                                    focused: focused,
-                                    news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
-                                    metaStore: metaStore)
-                }
+                OrbitHBORowView(row: row, box: leads.box(row.id), isCurrent: s == current,
+                                focused: focused,
+                                news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
+                                metaStore: metaStore,
+                                onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
+                                onLeadChange: { refreshAfterMove() })
             }
+        }
+    }
+
+    /// Each section's line, as the drawn page had it: the hero and the first row high under the
+    /// bar, the next rows lower, the row above half in view (Steven: the first Down left the top empty).
+    private func nativeRowLine(_ rows: [OrbitHBORow]) -> (Int) -> CGFloat {
+        { s in
+            let L = OrbitHBOLayout.self
+            guard s >= 2, rows.indices.contains(s - 2) else { return L.firstRowLine }
+            return L.firstRowLine + rows[s - 2].height * L.aboveRowShows
         }
     }
 
@@ -462,6 +477,24 @@ struct OrbitHBOPage: View {
         let L = OrbitHBOLayout.self
         let average = rows.isEmpty ? 0 : rows.map(\.height).reduce(0, +) / CGFloat(rows.count)
         return L.firstRowLine + average * L.aboveRowShows
+    }
+
+    /// The focus came into section `s` (a row's title, or the hero).
+    private func nativeEnter(_ s: Int) {
+        nativeFocusStamp = ProcessInfo.processInfo.systemUptime
+        if !nativeHasFocus { nativeHasFocus = true }
+        if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
+        refreshAfterMove()
+    }
+
+    /// A section let the focus go: the page lost it unless another section took it just after.
+    private func nativeLeave() {
+        let left = ProcessInfo.processInfo.systemUptime
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard nativeFocusStamp < left, !nativeHeroFocused, nativeHasFocus else { return }
+            nativeHasFocus = false
+            refreshAfterMove()
+        }
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {
@@ -716,16 +749,18 @@ private struct OrbitHBOHero: View {
 /// A row: its heading, then its titles from the focused one (at the margin).
 private struct OrbitHBORowView: View {
     let row: OrbitHBORow
-    let lead: Int
+    @ObservedObject var box: OrbitLeadBox
     let isCurrent: Bool
     let focused: Bool
     let news: Set<String>
     @ObservedObject var metaStore: OrbitMetaStore
+    let onEnter: () -> Void
+    let onLeave: () -> Void
+    let onSelect: () -> Void
+    let onLeadChange: () -> Void
 
     var body: some View {
         let L = OrbitHBOLayout.self
-        let low = max(0, lead - 1)
-        let window = low...max(low, min(row.items.count - 1, lead + 8))
         VStack(alignment: .leading, spacing: 0) {
             Group {
                 if row.top10 {
@@ -739,32 +774,23 @@ private struct OrbitHBORowView: View {
             }
             .frame(height: row.headingHeight, alignment: .topLeading)
             .padding(.leading, L.margin)
-            ZStack(alignment: .topLeading) {
-                if !row.items.isEmpty {
-                    ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        let lit = focused && index == lead
-                        Group {
-                            if row.top10 {
-                                OrbitHBOTop10Card(item: item, meta: metaStore.meta(for: item), rank: index + 1, focused: lit)
-                            } else if row.wide {
-                                OrbitHBOTile(item: item, meta: metaStore.meta(for: item),
-                                             isNew: news.contains(item.id), focused: lit)
-                            } else {
-                                OrbitHBOPoster(item: item, meta: metaStore.meta(for: item),
-                                               isNew: news.contains(item.id), focused: lit)
-                            }
-                        }
-                        .offset(x: L.margin + row.x(of: index, lead: lead))
-                        .opacity(index < lead ? 0 : 1)
-                        .zIndex(lit ? 1 : 0)
-                    }
+            OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: row.cardHeight,
+                                 lastWidth: row.slot(max(0, row.items.count - 1)) - L.gap, box: box, alignment: .top,
+                                 onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
+                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                let item = row.items[index]
+                if row.top10 {
+                    OrbitHBOTop10Card(item: item, meta: metaStore.meta(for: item), rank: index + 1, focused: lit)
+                } else if row.wide {
+                    OrbitHBOTile(item: item, meta: metaStore.meta(for: item), isNew: news.contains(item.id), focused: lit)
+                } else {
+                    OrbitHBOPoster(item: item, meta: metaStore.meta(for: item), isNew: news.contains(item.id), focused: lit)
                 }
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: row.cardHeight, alignment: .topLeading)
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
-        .opacity(isCurrent || focused ? 1 : 0.85)
-        .allowsHitTesting(false)
+        .opacity(isCurrent ? 1 : 0.85)
     }
 }
 

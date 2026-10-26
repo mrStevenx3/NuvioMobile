@@ -268,12 +268,7 @@ struct OrbitBigCard: View {
                                textSize: 36, fallbackLogo: info.logoFallback, hugsLogo: true)
                     .frame(width: 290, alignment: .leading)
                 OrbitMetaLine(info: info, size: 20)
-                Text(info.synopsis)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.85))
-                    .lineLimit(2)
-                    .frame(width: OrbitTileLayout.card.width - 44, alignment: .leading)
-                    .opacity(focused ? 1 : 0)
+                // Steven: no synopsis on the card — the title, year and length sit lower.
             }
             .padding(22)
         }

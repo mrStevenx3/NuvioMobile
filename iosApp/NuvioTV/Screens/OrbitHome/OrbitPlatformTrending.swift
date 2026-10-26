@@ -249,13 +249,7 @@ struct OrbitPlatformTrendingRow: View {
             if let item = items.first(where: { "\(rowKey)/\($0.id)" == id }) {
                 model.spotlight = item.banner ?? metaStore.meta(for: item)?.backdrop ?? model.spotlight
             }
-            // Steven: coming into a row (down from the platforms, or from the other row) lands on
-            // its first title, far left, not the one under the previous focus.
-            let oldRow = old.map { String($0.prefix { $0 != "/" }) }
-            guard old != nil || !Self.restorePending else { return }
-            guard oldRow != rowKey, let first = items.first else { return }
-            let target = "\(rowKey)/\(first.id)"
-            if id != target { focused = target }
+            // Steven: no return to a row's start — the focus lands where the system puts it.
         }
     }
 

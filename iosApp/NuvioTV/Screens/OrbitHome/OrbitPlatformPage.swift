@@ -95,6 +95,8 @@ struct OrbitPlatformPage: View {
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
     @State private var nativeHasFocus = false
+    @State private var nativeHeroFocused = false
+    @State private var nativeFocusStamp: TimeInterval = 0
     /// The page holds the focus (the canvas's, or one of the native sections').
     private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
@@ -279,17 +281,37 @@ struct OrbitPlatformPage: View {
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(index: min(current, max(0, rows.count - 1))),
             onFocusChange: { has in
-                nativeHasFocus = has
-                refreshAfterMove()
-            }
+                nativeHeroFocused = has
+                if has { nativeEnter(0) } else { nativeLeave() }
+            },
+            rowsFocusable: true,
+            focusRow: { s in if rows.indices.contains(s) { leads.box(rows[s].id).focusRequest &+= 1 } }
         ) { s, focused in
             if rows.indices.contains(s) {
                 let row = rows[s]
-                OrbitLeadReader(box: leads.box(row.id)) { _ in
-                    OrbitPlatformRowView(row: row, lead: lead(of: row), isCurrent: s == current,
-                                         focused: focused)
-                }
+                OrbitPlatformRowView(row: row, box: leads.box(row.id), isCurrent: s == current,
+                                     focused: focused,
+                                onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
+                                onLeadChange: { refreshAfterMove() })
             }
+        }
+    }
+
+    /// The focus came into section `s` (a row's title, or the hero).
+    private func nativeEnter(_ s: Int) {
+        nativeFocusStamp = ProcessInfo.processInfo.systemUptime
+        if !nativeHasFocus { nativeHasFocus = true }
+        if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
+        refreshAfterMove()
+    }
+
+    /// A section let the focus go: the page lost it unless another section took it just after.
+    private func nativeLeave() {
+        let left = ProcessInfo.processInfo.systemUptime
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard nativeFocusStamp < left, !nativeHeroFocused, nativeHasFocus else { return }
+            nativeHasFocus = false
+            refreshAfterMove()
         }
     }
 
@@ -495,14 +517,17 @@ private struct OrbitPlatformInfo: View {
 /// before it slides out to the left.
 private struct OrbitPlatformRowView: View {
     let row: OrbitPlatformRow
-    let lead: Int
+    @ObservedObject var box: OrbitLeadBox
     let isCurrent: Bool
     let focused: Bool
+    let onEnter: () -> Void
+    let onLeave: () -> Void
+    let onSelect: () -> Void
+    let onLeadChange: () -> Void
 
     var body: some View {
         let L = OrbitPlatformLayout.self
         let size = row.cardSize
-        let window = max(0, lead - 1)...max(max(0, lead - 1), min(row.items.count - 1, lead + 9))
         ZStack(alignment: .topLeading) {
             Text(row.title)
                 .font(.system(size: 30, weight: .bold))
@@ -511,21 +536,16 @@ private struct OrbitPlatformRowView: View {
                 .lineLimit(1)
                 .frame(height: 40)
                 .offset(x: L.margin + 4, y: -20)
-            ZStack(alignment: .topLeading) {
-                if !row.items.isEmpty {
-                    ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        OrbitPlatformCard(item: item, size: size, transparent: row.transparent,
-                                          focused: focused && index == lead)
-                            .offset(x: L.margin + CGFloat(index - lead) * (size.width + L.gap))
-                            .opacity(index < lead ? 0 : 1)
-                            .transition(.identity)
-                    }
-                }
+            OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: size.height,
+                                 lastWidth: size.width, box: box, alignment: .top,
+                                 onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
+                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                OrbitPlatformCard(item: row.items[index], size: size, transparent: row.transparent, focused: lit)
             }
+            .frame(width: OrbitHomeLayout.screenWidth, height: size.height, alignment: .topLeading)
             .offset(y: L.cardsTop)
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
-        .allowsHitTesting(false)
     }
 }
 

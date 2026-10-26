@@ -369,40 +369,15 @@ struct OrbitDetailView: View {
                 // press made from it: ignored, the card is put back just after.
                 return
             }
-            let previous = old ?? lastFocus   // the engine can report a nil in between
             lastFocus = new
-            // Steven: up from the details block lands on the first studio (far left), not the one
-            // above the block's middle (the same section, so the rule below does not apply).
-            if previous == .about, case .company(let index) = new, index != 0 {
-                DispatchQueue.main.async { focus = .company(0) }
-                return
-            }
-            // Steven: coming into a row (from another section) lands on its first card, far left.
-            // `section`, not `old`: the engine can report a nil in between, which hid the change.
             // Steven: back up into the hero lands on Lire (it took the button above the card).
             if new.section == .hero, section != .hero, new != .play, !showSynopsis {
                 enter(.hero)
                 DispatchQueue.main.async { focus = .play }
                 return
             }
-            if new.section != section { resetRow(of: new.section) }
-            if new.section != section, new.section != .hero, new.section != .episodes,
-               let first = firstFocus(of: new.section), first != new {
-                // Not inside the focus engine's own update (a write there is dropped): next turn.
-                // Steven (device: up from "À voir aussi" didn't land far left): the row scrolls back
-                // to its start first, and its first card may not be built yet — asked a few times.
-                enter(new.section)
-                let target = new.section
-                let entered = ProcessInfo.processInfo.systemUptime
-                for delay in [0.0, 0.12, 0.25, 0.4] {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                        guard focus?.section == target, focus != first,
-                              !ViewerInputClock.shared.hasInput(since: entered + 0.05) else { return }
-                        focus = first
-                    }
-                }
-                return
-            }
+            // Steven: no return to a row's start — the rows keep where they were and the focus
+            // lands where the system puts it, as in Apple's app.
             enter(new.section)
         }
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }

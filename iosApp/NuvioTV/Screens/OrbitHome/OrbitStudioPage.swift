@@ -728,7 +728,8 @@ private struct OrbitNativeStudioRow: View {
             .contentMargins(.leading, L.margin, for: .scrollContent)
             // A saga's shelf keeps its logo panel in view (Steven's video: the panel left, an empty band
             // behind a few posters) — the system scrolls it only as far as needed.
-            .contentMargins(.trailing, saga ? L.margin : max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth), for: .scrollContent)
+            .contentMargins(.trailing, row.showsInfo ? max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth) : L.margin,
+                            for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
             .frame(height: size.height)
@@ -753,7 +754,7 @@ private struct OrbitNativeStudioRow: View {
             }
         }
         .focusSection()
-        .defaultFocus($focused, 0, priority: .userInitiated)
+        .defaultFocus($focused, shown ?? 0, priority: .userInitiated)
         .onAppear { restoreIfReturning() }
         .onChange(of: focused) { _, new in
             guard let new else {
@@ -765,20 +766,6 @@ private struct OrbitNativeStudioRow: View {
             if !holds {
                 holds = true
                 onEnter()
-                // Entering a row lands on its first title (asked again while it builds).
-                if Self.reopen?.row != row.id, new != 0 {
-                    shown = 0
-                    withAnimation(OrbitStudioLayout.horizontal) { anchor = 0 }
-                    let entered = ProcessInfo.processInfo.systemUptime
-                    for delay in [0.0, 0.12, 0.25, 0.4] {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                            guard holds, focused != nil, focused != 0,
-                                  !ViewerInputClock.shared.hasInput(since: entered + 0.05) else { return }
-                            focused = 0
-                        }
-                    }
-                    return
-                }
             }
             shown = new
             // The trailer plays in the featured cards only.
@@ -788,7 +775,9 @@ private struct OrbitNativeStudioRow: View {
             } else {
                 trailers.stop()
             }
-            if row.kind != .saga, anchor != new { withAnimation(OrbitStudioLayout.horizontal) { anchor = new } }
+            // Only a row with the title's details under it keeps it at the margin; the others scroll as
+            // Apple's app does (Steven), the row moving only when the focus reaches its edge.
+            if row.showsInfo, anchor != new { withAnimation(OrbitStudioLayout.horizontal) { anchor = new } }
             let ahead = row.items[new..<min(row.items.count, new + 6)]
             OrbitMetaStore.shared.request(Array(ahead))
         }

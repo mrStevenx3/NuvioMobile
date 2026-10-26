@@ -17,6 +17,10 @@ import SwiftUI
 @MainActor
 final class OrbitLeadBox: ObservableObject {
     @Published var lead = 0
+    /// Bumped to give the row the focus (on its lead): Menu back, the page's own moves.
+    @Published var focusRequest = 0
+    /// The title opened from this row: the focus comes back on it on the way back.
+    var reopen: Int?
 }
 
 /// The rows' leads, read by the page (never observed by it: a lead change redraws only its row).
@@ -75,21 +79,39 @@ struct OrbitNativeSections<SectionContent: View>: View {
     /// `focusHero` gives it the focus (Menu back to the top, the arrival).
     var customHero = false
     var focusHero: (() -> Void)? = nil
+    /// The rows hold their own buttons (`OrbitNativeTileStrip`): they report their focus through
+    /// `onFocus`, and `focusRow` gives a row the focus.
+    var rowsFocusable = false
+    var focusRow: ((Int) -> Void)? = nil
+    /// Each section's own line (nil: `topLine` for all).
+    var line: ((Int) -> CGFloat)? = nil
     @ViewBuilder let content: (Int, Bool) -> SectionContent
 
     @FocusState private var focus: Int?
-    @State private var position: Int?
+
+    private var heroCount: Int { hasHero ? 1 : 0 }
+
+    private func lineOf(_ s: Int) -> CGFloat { line?(s) ?? topLine }
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth
+        ScrollViewReader { proxy in
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(0..<count, id: \.self) { s in
+                    Group {
                     if customHero && s == 0 {
                         content(0, false)
                             .frame(width: W, height: height(0), alignment: .topLeading)
                             .focusSection()
-                            .id(0)
+                    } else if rowsFocusable && s >= heroCount {
+                        Group {
+                            if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
+                        }
+                        .frame(width: W, height: height(s), alignment: .topLeading)
+                        .opacity(hidesAbove && s < current ? 0 : 1)
+                        .animation(.easeOut(duration: 0.14), value: s < current)
+                        .focusSection()
                     } else {
                     Button(action: onSelect) {
                         OrbitNativeSectionLabel(live: abs(s - current) <= 3) { focused in
@@ -108,39 +130,155 @@ struct OrbitNativeSections<SectionContent: View>: View {
                         default: break
                         }
                     }
-                    .id(s)
+                    }
+                    }
+                    // The section's line: its top rests this far under the screen's top.
+                    .overlay(alignment: .top) {
+                        Color.clear.frame(width: 1, height: 1)
+                            .alignmentGuide(.top) { $0[.top] + lineOf(s) }
+                            .id("orbit-line-\(s)")
                     }
                 }
             }
-            .scrollTargetLayout()
             .padding(.bottom, OrbitHomeLayout.screenHeight)
         }
-        .scrollTargetBehavior(.viewAligned)
-        .scrollPosition(id: $position, anchor: .top)
-        .contentMargins(.top, topLine, for: .scrollContent)
+        // Steven (device: "le problème de coupure" on Up / Down — the system scrolled the page to
+        // show the focus, then the page scrolled it to its line: two moves, a jump). The page alone
+        // places itself, on one curve, each section at its own line.
+        .scrollDisabled(true)
         .scrollClipDisabled()
         .onExitCommand(perform: onExit)
         .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
         .onChange(of: focus) { old, s in
-            if (old == nil) != (s == nil) { onFocusChange?(s != nil) }
+            if (old == nil) != (s == nil), !rowsFocusable { onFocusChange?(s != nil) }
             guard let s else { return }
             if s != current { onFocus(s) }
-            if position != s { withAnimation(.easeInOut(duration: 0.34)) { position = s } }
         }
-        // The page moved its section itself (Menu back to the top, a filter reset).
+        // The section changed (the focus moved, Menu back to the top, a filter reset): the page
+        // slides to it, and a section the focus is not in yet takes it.
         .onChange(of: current) { _, c in
+            withAnimation(.easeInOut(duration: 0.34)) { proxy.scrollTo("orbit-line-\(c)", anchor: .top) }
             if customHero && c == 0 {
-                if focus != nil { focusHero?() }
-            } else if focus != nil, focus != c { focus = c }
-            if position != c { withAnimation(.easeInOut(duration: 0.34)) { position = c } }
+                focusHero?()
+            } else if rowsFocusable && c >= heroCount {
+                focusRow?(c)
+            } else if focus != c {
+                focus = c
+            }
         }
         .onAppear {
-            position = current
+            proxy.scrollTo("orbit-line-\(current)", anchor: .top)
             DispatchQueue.main.async {
-                if customHero && current == 0 { focusHero?() } else if focus == nil { focus = current }
+                if customHero && current == 0 { focusHero?() }
+                else if rowsFocusable && current >= heroCount { focusRow?(current) }
+                else if focus == nil { focus = current }
+            }
+        }
+        }
+    }
+}
+
+/// A platform row's titles as real buttons in a horizontal scroll view (Steven: the remote's touch
+/// surface slides them as on Home; the system slides the row on the GPU). The focused title stays
+/// at the margin (the row slides under it); its row's box follows it.
+struct OrbitNativeTileStrip<Tile: View>: View {
+    let count: Int
+    let spacing: CGFloat
+    let height: CGFloat
+    /// The last title's width (room after it, so it reaches the margin too).
+    let lastWidth: CGFloat
+    @ObservedObject var box: OrbitLeadBox
+    var margin: CGFloat = OrbitHomeLayout.margin
+    var alignment: VerticalAlignment = .bottom
+    /// The focused title comes to the margin — only where its synopsis sits under the row (Netflix).
+    /// Elsewhere the row scrolls as Apple's app does: the focus runs over the titles on screen and
+    /// the row moves only when it reaches the edge (Steven).
+    var keepsLeadAtMargin = false
+    /// The row took the focus (from outside it) / let it go.
+    let onEnter: () -> Void
+    var onLeave: () -> Void = {}
+    let onSelect: () -> Void
+    /// The focus moved to another title of the row (the page's look-ahead, its trailer).
+    var onLeadChange: (Int) -> Void = { _ in }
+    @ViewBuilder let tile: (_ index: Int, _ focused: Bool) -> Tile
+
+    @FocusState private var focus: Int?
+    @State private var anchor: Int?
+    @State private var holds = false
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: alignment, spacing: spacing) {
+                ForEach(0..<count, id: \.self) { i in
+                    Button {
+                        box.reopen = i
+                        onSelect()
+                    } label: {
+                        OrbitNativeStripLabel { focused in tile(i, focused) }
+                    }
+                    .buttonStyle(OrbitPlainStyle())
+                    .focused($focus, equals: i)
+                }
+            }
+            .scrollTargetLayout()
+            .padding(.vertical, 40)
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $anchor, anchor: .leading)
+        .contentMargins(.leading, margin, for: .scrollContent)
+        .contentMargins(.trailing, keepsLeadAtMargin ? max(margin, OrbitHomeLayout.screenWidth - margin - lastWidth) : margin,
+                        for: .scrollContent)
+        .scrollClipDisabled()
+        .padding(.vertical, -40)
+        .frame(height: height)
+        .defaultFocus($focus, min(box.lead, max(0, count - 1)), priority: .userInitiated)
+        .onChange(of: focus) { _, new in
+            guard let new else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    if focus == nil, holds { holds = false; onLeave() }
+                }
+                return
+            }
+            if !holds {
+                holds = true
+                onEnter()
+            }
+            if box.lead != new {
+                withAnimation(.easeOut(duration: 0.24)) { box.lead = new }
+                onLeadChange(new)
+            }
+            if keepsLeadAtMargin, anchor != new { withAnimation(.easeOut(duration: 0.24)) { anchor = new } }
+        }
+        .onChange(of: box.focusRequest) { _, _ in
+            let target = min(box.lead, max(0, count - 1))
+            if focus != target { focus = target }
+        }
+        .onAppear {
+            let lead = min(box.lead, max(0, count - 1))
+            // Pinned rows keep it at the margin; the others are brought back to it only when the
+            // row is rebuilt deep inside (its title must exist to take the focus back).
+            if keepsLeadAtMargin || lead > 0 { anchor = lead }
+            // Back from a title opened here: its card takes the focus again (asked a few times,
+            // the system's own landing comes late).
+            if let back = box.reopen {
+                let appeared = ProcessInfo.processInfo.systemUptime
+                for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        guard box.reopen == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                        if focus != back { focus = back }
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { if box.reopen == back { box.reopen = nil } }
             }
         }
     }
+}
+
+private struct OrbitNativeStripLabel<Content: View>: View {
+    @ViewBuilder let content: (Bool) -> Content
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View { content(isFocused) }
 }
 
 /// A section's content, drawn focused as its button is; empty while far from the focus.

@@ -10,7 +10,7 @@ import UIKit
 //  - the studios as landscape tiles, each its logo in white on its own colour;
 //  - one row of the studio's films in portrait posters: "Les incontournables" (Steven, 2026-10-25:
 //    on every studio; "Les plus populaires" when TMDB has too few).
-// Down from the bar lands on the first studio (far left); entering a row lands on its first film;
+// Down from the bar lands on the first studio (far left); entering a row lands where the system puts it;
 // up from the films, back on the studio whose films they are; back from a studio, the focus is
 // the studio it was opened from.
 
@@ -608,8 +608,8 @@ final class OrbitStudioFilmsModel: ObservableObject {
     }
 }
 
-/// A row of the studio's films in small portrait posters, scrolling sideways; entering it lands
-/// on its first film.
+/// A row of the studio's films in small portrait posters, scrolling sideways (no return to its
+/// start: the focus lands where the system puts it, as in Apple's app).
 struct OrbitStudioFilmsRow: View {
     /// 0: the upper row, 1: the lower one.
     let slot: Int
@@ -665,7 +665,6 @@ struct OrbitStudioFilmsRow: View {
             if old != nil, id == nil { Self.holders = max(0, Self.holders - 1) }
             Self.hasFocus = Self.holders > 0
             guard let id else { Self.lostAt = ProcessInfo.processInfo.systemUptime; return }
-            if old == nil, let first = items.first, id != first.id { focused = first.id }
         }
     }
 }

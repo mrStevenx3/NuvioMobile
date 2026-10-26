@@ -97,6 +97,8 @@ struct OrbitAppleTVPage: View {
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
     @State private var nativeHasFocus = false
+    @State private var nativeHeroFocused = false
+    @State private var nativeFocusStamp: TimeInterval = 0
     /// The page holds the focus (the canvas's, or one of the native sections').
     private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
@@ -368,37 +370,41 @@ struct OrbitAppleTVPage: View {
     private func nativeSections(_ rows: [OrbitAppleTVRow]) -> some View {
         OrbitNativeSections(
             count: 1 + rows.count, hasHero: true,
-            height: { s in s == 0 ? OrbitAppleTVLayout.rowsTopOnArrival - nativeBaseLine(rows) : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            height: { s in s == 0 ? OrbitAppleTVLayout.rowsTopOnArrival - OrbitAppleTVLayout.firstRowLine : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
             topLine: nativeLine(rows), current: current, hidesAbove: false,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
                 refreshAfterMove()
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
-            onFocusChange: { has in
-                nativeHasFocus = has || heroFocus != nil
-                refreshAfterMove()
-            },
             customHero: true,
-            focusHero: { heroFocus = min(heroIndex, max(0, heroItems.count - 1)) }
+            focusHero: { heroFocus = min(heroIndex, max(0, heroItems.count - 1)) },
+            rowsFocusable: true,
+            focusRow: { s in if rows.indices.contains(s - 1) { leads.box(rows[s - 1].id).focusRequest &+= 1 } },
+            line: { s in
+                let L = OrbitAppleTVLayout.self
+                guard s >= 1, rows.indices.contains(s - 1) else { return L.firstRowLine }
+                var line = s == 1 ? L.firstRowLine : L.firstRowLine + rows[s - 2].height * L.aboveRowShows
+                // A row of large cards keeps its whole height on screen, room for the zoom under it.
+                if rows[s - 1].kind == .cards { line = min(line, OrbitHomeLayout.screenHeight - rows[s - 1].height - 60) }
+                return line
+            }
         ) { s, focused in
             if s == 0 {
                 nativeHero
             } else if rows.indices.contains(s - 1) {
                 let row = rows[s - 1]
-                OrbitLeadReader(box: leads.box(row.id)) { _ in
-                OrbitLeadReader(box: firsts.box(row.id)) { _ in
-                    OrbitAppleTVRowView(row: row, lead: lead(of: row), first: first(of: row), isCurrent: s == current,
-                                        focused: focused,
-                                        newIDs: Set(row.items.filter(isNew).map(\.id)),
-                                        rankLine: { rankLine($0) },
-                                        trailerURL: s == current && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
-                                        onTrailerFailure: { trailer.playbackFailed($0) },
-                                        onTrailerEnded: { trailer.playbackFinished() },
-                                        zoomSpace: zoomSpace,
-                                        metaStore: metaStore)
-                }
-                }
+                OrbitAppleTVRowView(row: row, box: leads.box(row.id), isCurrent: s == current,
+                                    focused: focused,
+                                    newIDs: Set(row.items.filter(isNew).map(\.id)),
+                                    rankLine: { rankLine($0) },
+                                    trailerURL: s == current && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
+                                    onTrailerFailure: { trailer.playbackFailed($0) },
+                                    onTrailerEnded: { trailer.playbackFinished() },
+                                    zoomSpace: zoomSpace,
+                                    metaStore: metaStore,
+                                    onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
+                                    onLeadChange: { refreshAfterMove() })
             }
         }
     }
@@ -406,7 +412,7 @@ struct OrbitAppleTVPage: View {
     /// The native hero: a carousel of buttons the system slides (Left / Right), as Orbit Home's.
     private var nativeHero: some View {
         let items = heroItems
-        let line = nativeBaseLine(rows)
+        let line = OrbitAppleTVLayout.firstRowLine
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
@@ -434,11 +440,14 @@ struct OrbitAppleTVPage: View {
         .scrollTargetBehavior(.viewAligned)
         .scrollClipDisabled()
         .onChange(of: heroFocus) { _, page in
-            guard let page else { return }
-            nativeHasFocus = true
+            guard let page else {
+                nativeHeroFocused = false
+                nativeLeave()
+                return
+            }
+            nativeHeroFocused = true
             if heroIndex != page { heroIndex = page }
-            if current != 0 { withAnimation(.easeInOut(duration: 0.3)) { current = 0 } }
-            refreshAfterMove()
+            nativeEnter(0)
         }
         // The carousel's own clock (or a trailer's end) moves the page: the focus follows.
         .onChange(of: heroIndex) { _, page in
@@ -462,6 +471,24 @@ struct OrbitAppleTVPage: View {
             return min(line, OrbitHomeLayout.screenHeight - rows[r].height - 60)
         }
         return line
+    }
+
+    /// The focus came into section `s` (a row's title, or the hero).
+    private func nativeEnter(_ s: Int) {
+        nativeFocusStamp = ProcessInfo.processInfo.systemUptime
+        if !nativeHasFocus { nativeHasFocus = true }
+        if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
+        refreshAfterMove()
+    }
+
+    /// A section let the focus go: the page lost it unless another section took it just after.
+    private func nativeLeave() {
+        let left = ProcessInfo.processInfo.systemUptime
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard nativeFocusStamp < left, !nativeHeroFocused, nativeHasFocus else { return }
+            nativeHasFocus = false
+            refreshAfterMove()
+        }
     }
 
     private func trailerURL(for item: MetaPreview?) -> String? {
@@ -773,8 +800,7 @@ private struct OrbitAppleTVHero: View {
 /// A row: its heading, then its titles from the focused one (at the margin).
 private struct OrbitAppleTVRowView: View {
     let row: OrbitAppleTVRow
-    let lead: Int
-    let first: Int
+    @ObservedObject var box: OrbitLeadBox
     let isCurrent: Bool
     let focused: Bool
     let newIDs: Set<String>
@@ -784,6 +810,10 @@ private struct OrbitAppleTVRowView: View {
     let onTrailerEnded: () -> Void
     let zoomSpace: Namespace.ID?
     @ObservedObject var metaStore: OrbitMetaStore
+    let onEnter: () -> Void
+    let onLeave: () -> Void
+    let onSelect: () -> Void
+    let onLeadChange: () -> Void
 
     /// Half the focused title's growth, plus a little air.
     private var headingLift: CGFloat {
@@ -793,10 +823,7 @@ private struct OrbitAppleTVRowView: View {
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
-        // Steven's video (gaps while the row slid): titles already drawn off screen on both sides,
-        // so they slide in with the others instead of fading in at their place.
-        let low = max(0, first - 3)
-        let window = low...max(low, min(row.items.count - 1, first + row.visibleCount + 3))
+        let lead = min(box.lead, max(0, row.items.count - 1))
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 26, weight: .semibold))
@@ -807,40 +834,34 @@ private struct OrbitAppleTVRowView: View {
                 // As in the app (Steven): the focused title under the heading grows, the heading
                 // steps up out of its way, quickly, and comes back once it is no longer focused.
                 // Only when the focused title is the first on screen, right under the heading.
-                .offset(y: focused && lead == first ? -headingLift : 0)
-                .animation(.easeOut(duration: 0.16), value: focused && lead == first)
-            ZStack(alignment: .topLeading) {
-                if !row.items.isEmpty {
-                    ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        let lit = focused && index == lead
-                        Group {
-                            switch row.kind {
-                            case .cards:
-                                OrbitAppleTVCard(item: item, meta: metaStore.meta(for: item), isNew: newIDs.contains(item.id),
-                                                 line: rankLine(item), focused: lit,
-                                                 trailerURL: index == lead ? trailerURL : nil,
-                                                 onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
-                            case .top10:
-                                OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false)
-                            case .posters:
-                                let meta = metaStore.meta(for: item)
-                                OrbitAppleTVPoster(url: meta?.localPoster ?? item.poster, fallback: item.rawPosterUrl, focused: lit)
-                            }
-                        }
-                        // The zoom's source before the offset: after it, the source layer clipped every
-                        // title but the first to its own frame (Steven's video: one poster per row).
-                        .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
-                        .offset(x: L.margin + CGFloat(index - first) * row.slot)
-                        .opacity(index < first ? 0 : 1)
-                        .zIndex(lit ? 1 : 0)
-                        .transition(.identity)
+                .offset(y: isCurrent && lead == 0 ? -headingLift : 0)
+                .animation(.easeOut(duration: 0.16), value: isCurrent && lead == 0)
+            // As in Apple's app (Steven): the row scrolls only once the focus would leave the screen.
+            OrbitNativeTileStrip(count: row.items.count, spacing: row.slot - (row.kind == .cards ? L.card.width : L.poster.width),
+                                 height: row.cardHeight, lastWidth: row.kind == .cards ? L.card.width : L.poster.width,
+                                 box: box, alignment: .top, keepsLeadAtMargin: false,
+                                 onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
+                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                let item = row.items[index]
+                Group {
+                    switch row.kind {
+                    case .cards:
+                        OrbitAppleTVCard(item: item, meta: metaStore.meta(for: item), isNew: newIDs.contains(item.id),
+                                         line: rankLine(item), focused: lit,
+                                         trailerURL: index == lead ? trailerURL : nil,
+                                         onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                    case .top10:
+                        OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false)
+                    case .posters:
+                        let meta = metaStore.meta(for: item)
+                        OrbitAppleTVPoster(url: meta?.localPoster ?? item.poster, fallback: item.rawPosterUrl, focused: lit)
                     }
                 }
+                .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: row.cardHeight, alignment: .topLeading)
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
-        .allowsHitTesting(false)
     }
 }
 

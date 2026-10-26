@@ -97,6 +97,8 @@ struct OrbitDisneyPage: View {
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
     @State private var nativeHasFocus = false
+    @State private var nativeHeroFocused = false
+    @State private var nativeFocusStamp: TimeInterval = 0
     /// The page holds the focus (the canvas's, or one of the native sections').
     private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
@@ -370,19 +372,39 @@ struct OrbitDisneyPage: View {
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             onFocusChange: { has in
-                nativeHasFocus = has
-                refreshAfterMove()
-            }
+                nativeHeroFocused = has
+                if has { nativeEnter(0) } else { nativeLeave() }
+            },
+            rowsFocusable: true,
+            focusRow: { s in if rows.indices.contains(s - 1) { leads.box(rows[s - 1].id).focusRequest &+= 1 } }
         ) { s, focused in
             if s == 0 {
                 Color.clear
             } else if rows.indices.contains(s - 1) {
                 let row = rows[s - 1]
-                OrbitLeadReader(box: leads.box(row.id)) { _ in
-                    OrbitDisneyRowView(row: row, lead: lead(of: row), isCurrent: s == current,
-                                       focused: focused, metaStore: metaStore)
-                }
+                OrbitDisneyRowView(row: row, box: leads.box(row.id), isCurrent: s == current,
+                                   focused: focused, metaStore: metaStore,
+                                       onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
+                                       onLeadChange: { refreshAfterMove() })
             }
+        }
+    }
+
+    /// The focus came into section `s` (a row's title, or the hero).
+    private func nativeEnter(_ s: Int) {
+        nativeFocusStamp = ProcessInfo.processInfo.systemUptime
+        if !nativeHasFocus { nativeHasFocus = true }
+        if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
+        refreshAfterMove()
+    }
+
+    /// A section let the focus go: the page lost it unless another section took it just after.
+    private func nativeLeave() {
+        let left = ProcessInfo.processInfo.systemUptime
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard nativeFocusStamp < left, !nativeHeroFocused, nativeHasFocus else { return }
+            nativeHasFocus = false
+            refreshAfterMove()
         }
     }
 
@@ -684,15 +706,18 @@ private struct OrbitDisneyRating: View {
 /// A row: its heading, its cards from the focused one (at the margin) onwards.
 private struct OrbitDisneyRowView: View {
     let row: OrbitDisneyRow
-    let lead: Int
+    @ObservedObject var box: OrbitLeadBox
     let isCurrent: Bool
     let focused: Bool
     @ObservedObject var metaStore: OrbitMetaStore
+    let onEnter: () -> Void
+    let onLeave: () -> Void
+    let onSelect: () -> Void
+    let onLeadChange: () -> Void
 
     var body: some View {
         let L = OrbitDisneyLayout.self
         let size = row.cardSize
-        let window = max(0, lead - 1)...max(max(0, lead - 1), min(row.items.count - 1, lead + 6))
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 28, weight: .semibold))
@@ -700,30 +725,23 @@ private struct OrbitDisneyRowView: View {
                 .lineLimit(1)
                 .frame(height: L.headingHeight, alignment: .topLeading)
                 .padding(.leading, L.margin + 2)
-            ZStack(alignment: .topLeading) {
-                if !row.items.isEmpty {
-                    ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        let meta = metaStore.meta(for: item)
-                        Group {
-                            if row.top10 {
-                                OrbitDisneyTop10Card(item: item, rank: index + 1, meta: meta,
-                                                     focused: focused && index == lead)
-                            } else if row.portrait {
-                                OrbitDisneyPoster(item: item, focused: focused && index == lead)
-                            } else {
-                                OrbitDisneyTile(item: item, meta: meta, focused: focused && index == lead)
-                            }
-                        }
-                        .offset(x: L.margin + CGFloat(index - lead) * (size.width + (row.top10 ? L.top10Gap : L.gap)))
-                        .opacity(index < lead ? 0 : 1)
-                        .transition(.identity)
-                    }
+            OrbitNativeTileStrip(count: row.items.count, spacing: row.top10 ? L.top10Gap : L.gap, height: size.height,
+                                 lastWidth: size.width, box: box, alignment: .top,
+                                 onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
+                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                let item = row.items[index]
+                let meta = metaStore.meta(for: item)
+                if row.top10 {
+                    OrbitDisneyTop10Card(item: item, rank: index + 1, meta: meta, focused: lit)
+                } else if row.portrait {
+                    OrbitDisneyPoster(item: item, focused: lit)
+                } else {
+                    OrbitDisneyTile(item: item, meta: meta, focused: lit)
                 }
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: size.height, alignment: .topLeading)
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
-        .allowsHitTesting(false)
     }
 }
 

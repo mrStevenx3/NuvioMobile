@@ -57,11 +57,19 @@ struct OrbitNativeHome: View {
     /// (Steven: 12 points taken from here went above the details, so the rows stay in place.)
     static let sectionGap: CGFloat = 44
 
+    /// A section's line: brought to the screen's top, it leaves the section `topLine` under it.
+    static func lineMarker(_ id: String) -> some View {
+        Color.clear.frame(width: 1, height: 1)
+            .alignmentGuide(.top) { $0[.top] + topLine }
+            .id("line-\(id)")
+    }
+
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack(alignment: .topLeading) {
             OrbitNativeBackdrop(visible: !onHero)
 
+            ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 // Steven (device: now and then Up jumped in one go): a lazy column guesses the height
                 // of the rows it hasn't built yet and corrects it as one is built on the way up — the
@@ -69,36 +77,32 @@ struct OrbitNativeHome: View {
                 VStack(alignment: .leading, spacing: Self.sectionGap) {
                     if !heroItems.isEmpty {
                         hero
-                            .id("hero")
+                            .overlay(alignment: .top) { Self.lineMarker("hero") }
                     }
-                    ForEach(rows) { row in
+                    let currentIndex = rows.firstIndex { $0.id == currentRow } ?? -1
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                         OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
                                        onEnter: { enter(row.id) })
-                            .id(row.id)
+                            // Steven (device: the wash stopped short of the top under a dark band):
+                            // no band — the row above fades out as it leaves instead.
+                            .opacity(index < currentIndex ? 0 : 1)
+                            .animation(.easeOut(duration: 0.14), value: index < currentIndex)
+                            .overlay(alignment: .top) { Self.lineMarker(row.id) }
                     }
                 }
-                .scrollTargetLayout()
-                .padding(.bottom, 300)
+                .padding(.top, Self.topLine)
+                .padding(.bottom, OrbitHomeLayout.screenHeight)
             }
-            // Steven (device: the rows jumped on a quick Up / Down, as if the cursor didn't know
-            // where to stop): the system aligns the focused section on the line itself.
-            .scrollTargetBehavior(.viewAligned)
-            // Steven's video: a row entered while still on screen stayed where it was (the focus
-            // on the second row shown). The row the focus enters always comes to the line.
-            .scrollPosition(id: $position, anchor: .top)
-            .contentMargins(.top, Self.topLine, for: .scrollContent)
+            // Steven (device: "le problème de coupure" on Up / Down): the system scrolled the page to
+            // show the focus, then the page scrolled it to its line — two moves, a jump. The page
+            // alone places itself now, on one curve.
+            .scrollDisabled(true)
             .scrollClipDisabled()
-
-            // Steven's video: the row above showed sliced under the bar. Once off the hero, the
-            // band under the bar is the page's dark, melting down to the focused row's line.
-            LinearGradient(stops: [.init(color: OrbitHomeLayout.background, location: 0),
-                                   .init(color: OrbitHomeLayout.background, location: 0.55),
-                                   .init(color: OrbitHomeLayout.background.opacity(0), location: 1)],
-                           startPoint: .top, endPoint: .bottom)
-                .frame(width: L.screenWidth, height: Self.topLine + 10)
-                .opacity(onHero ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: onHero)
-                .allowsHitTesting(false)
+            .onChange(of: position) { _, target in
+                guard let target else { return }
+                withAnimation(.easeInOut(duration: 0.34)) { proxy.scrollTo("line-\(target)", anchor: .top) }
+            }
+            }
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
@@ -117,7 +121,7 @@ struct OrbitNativeHome: View {
             heroPage = page
             currentRow = nil
             setOnHero(true)
-            if position != "hero" { withAnimation(.easeInOut(duration: 0.32)) { position = "hero" } }
+            if position != "hero" { position = "hero" }
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
         .onAppear {
@@ -174,7 +178,7 @@ struct OrbitNativeHome: View {
     private func enter(_ rowID: String) {
         currentRow = rowID
         setOnHero(false)
-        if position != rowID { withAnimation(.easeInOut(duration: 0.32)) { position = rowID } }
+        if position != rowID { position = rowID }
     }
 
     private func setOnHero(_ value: Bool) {
@@ -257,6 +261,12 @@ struct OrbitNativeRow: View {
 
     static let infoHeight: CGFloat = 112
 
+    /// The focused title stays at the margin only where its details sit under the row.
+    private var pinned: Bool { showsDetails }
+    /// The focused title's details under the row — not under the large cards (they carry theirs)
+    /// nor under the great sagas (Steven).
+    private var showsDetails: Bool { row.style != .cards && row.style != .sagas }
+
     var body: some View {
         let L = OrbitHomeLayout.self
         let T = OrbitTileLayout.self
@@ -298,7 +308,8 @@ struct OrbitNativeRow: View {
             // Room after the last title (Steven: at a row's end the focus stopped at the margin and
             // ran on to the right): the last one can come to the margin too.
             .contentMargins(.leading, L.margin, for: .scrollContent)
-            .contentMargins(.trailing, L.screenWidth - L.margin - (classic ? L.frameWidth : size.width), for: .scrollContent)
+            .contentMargins(.trailing, pinned ? L.screenWidth - L.margin - (classic ? L.frameWidth : size.width) : L.margin,
+                            for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
             // Steven's video (the row below bounced on Left / Right): every part of a row has a
@@ -306,7 +317,7 @@ struct OrbitNativeRow: View {
             .frame(height: size.height)
 
             // The focused title's details under the row (large cards carry theirs).
-            if style != .cards {
+            if showsDetails {
                 ZStack(alignment: .topLeading) {
                     Color.clear
                     details(isCurrent ? shownCard : nil)
@@ -322,7 +333,8 @@ struct OrbitNativeRow: View {
         .focusSection()
         .onAppear { restoreIfReturning() }
         // Steven: coming into a row lands on its first title (the row back at its start).
-        .defaultFocus($focused, row.cards.first?.id, priority: .userInitiated)
+        // (Steven: no return to the row's start — the row keeps where it was, as in Apple's app.)
+        .defaultFocus($focused, shown ?? row.cards.first?.id, priority: .userInitiated)
         .onChange(of: focused) { _, new in
             guard let new else {
                 // Gone for good, or only passing between two titles?
@@ -334,28 +346,14 @@ struct OrbitNativeRow: View {
             if !holds {
                 holds = true
                 onEnter()
-                // Steven (device: entering a row didn't always land far left): the row goes back to
-                // its start and its first title is asked a few times (it may not be built yet, the
-                // row scrolled far). Not on the way back from a title (its own card is put back).
-                if Self.reopen?.row != row.id, let first = row.cards.first?.id, new != first {
-                    shown = first
-                    withAnimation(OrbitHomeLayout.horizontal) { anchor = first }
-                    let entered = ProcessInfo.processInfo.systemUptime
-                    for delay in [0.0, 0.12, 0.25, 0.4] {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                            guard holds, focused != nil, focused != first,
-                                  !ViewerInputClock.shared.hasInput(since: entered + 0.05) else { return }
-                            focused = first
-                        }
-                    }
-                    return
-                }
             }
             shown = new
             // Every row keeps its focused title at the margin, the row sliding under it (Steven: the
             // synopsis stayed on the left while the focus ran off to the right). The classic row's
             // frame stays there too.
-            if anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
+            // Rows without details under them scroll as Apple's app does (Steven): the focus runs
+            // over the titles on screen, the row moves only at its edge.
+            if pinned, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
             // The trailer plays in the classic frame and in the large cards only.

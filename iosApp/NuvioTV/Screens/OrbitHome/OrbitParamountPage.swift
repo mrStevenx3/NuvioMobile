@@ -93,6 +93,8 @@ struct OrbitParamountPage: View {
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
     @State private var nativeHasFocus = false
+    @State private var nativeHeroFocused = false
+    @State private var nativeFocusStamp: TimeInterval = 0
     /// The page holds the focus (the canvas's, or one of the native sections').
     private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
@@ -367,21 +369,45 @@ struct OrbitParamountPage: View {
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             onFocusChange: { has in
-                nativeHasFocus = has
-                refreshAfterMove()
+                nativeHeroFocused = has
+                if has { nativeEnter(0) } else { nativeLeave() }
+            },
+            rowsFocusable: true,
+            focusRow: { s in if rows.indices.contains(s - 1) { leads.box(rows[s - 1].id).focusRequest &+= 1 } },
+            line: { s in
+                guard s >= 1, rows.indices.contains(s - 1) else { return OrbitParamountLayout.rowLine }
+                return OrbitParamountLayout.rowLine - (rows[s - 1].top10 ? OrbitParamountLayout.top10Above * 0.6 : 0)
             }
         ) { s, focused in
             if s == 0 {
                 Color.clear
             } else if rows.indices.contains(s - 1) {
                 let row = rows[s - 1]
-                OrbitLeadReader(box: leads.box(row.id)) { _ in
-                    OrbitParamountRowView(row: row, lead: lead(of: row), isCurrent: s == current,
-                                          focused: focused,
-                                          news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
-                                          metaStore: metaStore)
-                }
+                OrbitParamountRowView(row: row, box: leads.box(row.id), isCurrent: s == current,
+                                      focused: focused,
+                                      news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
+                                      metaStore: metaStore,
+                                onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
+                                onLeadChange: { refreshAfterMove() })
             }
+        }
+    }
+
+    /// The focus came into section `s` (a row's title, or the hero).
+    private func nativeEnter(_ s: Int) {
+        nativeFocusStamp = ProcessInfo.processInfo.systemUptime
+        if !nativeHasFocus { nativeHasFocus = true }
+        if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
+        refreshAfterMove()
+    }
+
+    /// A section let the focus go: the page lost it unless another section took it just after.
+    private func nativeLeave() {
+        let left = ProcessInfo.processInfo.systemUptime
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard nativeFocusStamp < left, !nativeHeroFocused, nativeHasFocus else { return }
+            nativeHasFocus = false
+            refreshAfterMove()
         }
     }
 
@@ -630,19 +656,18 @@ private struct OrbitParamountTop: View {
 /// A row: its heading, then its titles from the focused one (at the margin).
 private struct OrbitParamountRowView: View {
     let row: OrbitParamountRow
-    let lead: Int
+    @ObservedObject var box: OrbitLeadBox
     let isCurrent: Bool
     let focused: Bool
     let news: Set<String>
     @ObservedObject var metaStore: OrbitMetaStore
+    let onEnter: () -> Void
+    let onLeave: () -> Void
+    let onSelect: () -> Void
+    let onLeadChange: () -> Void
 
     var body: some View {
         let L = OrbitParamountLayout.self
-        let low = max(0, lead - 1)
-        // Steven (device: at the right, a tile appeared under the next one before the row moved):
-        // the window reaches past the screen's edge, so tiles come and go off screen.
-        let ahead = Int(OrbitHomeLayout.screenWidth / row.slot) + 2
-        let window = low...max(low, min(row.items.count - 1, lead + ahead))
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 25, weight: .bold))
@@ -650,29 +675,21 @@ private struct OrbitParamountRowView: View {
                 .lineLimit(1)
                 .frame(height: row.headingHeight, alignment: .topLeading)
                 .padding(.leading, L.margin)
-            ZStack(alignment: .topLeading) {
-                if !row.items.isEmpty {
-                    ForEach(Array(zip(window, row.items[window])), id: \.1.id) { index, item in
-                        let lit = focused && index == lead
-                        Group {
-                            if row.top10 {
-                                OrbitParamountTop10Image(item: item, focused: lit)
-                            } else {
-                                OrbitParamountPoster(item: item, meta: metaStore.meta(for: item),
-                                                     isNew: news.contains(item.id), focused: lit)
-                            }
-                        }
-                        .offset(x: L.margin + CGFloat(index - lead) * row.slot)
-                        .opacity(index < lead ? 0 : 1)
-                        .zIndex(lit ? 1 : 0)
-                        .transition(.identity)
-                    }
+            OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: row.cardHeight,
+                                 lastWidth: row.slot - L.gap, box: box, alignment: .top,
+                                 onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
+                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                let item = row.items[index]
+                if row.top10 {
+                    OrbitParamountTop10Image(item: item, focused: lit)
+                } else {
+                    OrbitParamountPoster(item: item, meta: metaStore.meta(for: item),
+                                         isNew: news.contains(item.id), focused: lit)
                 }
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: row.cardHeight, alignment: .topLeading)
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
-        .allowsHitTesting(false)
     }
 }
 
