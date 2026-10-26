@@ -155,7 +155,10 @@ struct OrbitNativeHome: View {
         .scrollClipDisabled()
         .frame(width: OrbitHomeLayout.screenWidth, height: Self.heroHeight)
         .focusSection()
-        .defaultFocus($heroFocus, heroPage, priority: .userInitiated)
+        .defaultFocus($heroFocus, heroPage,
+                      // Back from a title opened in a row: the hero must not take the focus first
+                      // (Steven: it went elsewhere, then came back to the title).
+                      priority: OrbitNativeRow.reopen == nil ? .userInitiated : .automatic)
     }
 
     // MARK: Moves
@@ -267,6 +270,8 @@ struct OrbitNativeRow: View {
     @State private var shown: String?
     /// The classic row: the title it is scrolled to (its frame at the margin).
     @State private var anchor: String?
+    /// The row's own scroll (a last correction once the frame has opened).
+    @State private var rowProxy: ScrollViewProxy?
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     private var style: OrbitRowStyle { row.style }
@@ -293,6 +298,7 @@ struct OrbitNativeRow: View {
                 .padding(.leading, L.margin + 4)
 
             let lead = shown ?? row.cards.first?.id
+            ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .bottom, spacing: T.gap(style)) {
                     ForEach(Array(row.cards.enumerated()), id: \.element.id) { index, card in
@@ -332,6 +338,8 @@ struct OrbitNativeRow: View {
             .contentMargins(.trailing, pinned ? L.screenWidth - L.margin - size.width : L.margin,
                             for: .scrollContent)
             .scrollClipDisabled()
+            .onAppear { rowProxy = proxy }
+            }
             .padding(.vertical, -34)
             // Steven's video (the row below bounced on Left / Right): every part of a row has a
             // fixed height — nothing in it can change the rows' places.
@@ -379,6 +387,15 @@ struct OrbitNativeRow: View {
             // Rows without details under them scroll as Apple's app does (Steven): the focus runs
             // over the titles on screen, the row moves only at its edge.
             if pinned, anchor != new { withAnimation(OrbitHomeLayout.horizontal) { anchor = new } }
+            // Steven (simulator: moving right, the frame drifted off the margin, a poster left of
+            // it): the scroll is aimed while the frame is still opening — once it has opened, the
+            // title is brought back exactly to the margin.
+            if pinned {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
+                    guard shown == new, focused == new else { return }
+                    withAnimation(.easeOut(duration: 0.16)) { rowProxy?.scrollTo(new, anchor: .leading) }
+                }
+            }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
             // The trailer plays in the classic frame and in the large cards only.

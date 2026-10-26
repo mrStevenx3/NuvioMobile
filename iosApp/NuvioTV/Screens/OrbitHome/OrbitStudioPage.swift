@@ -444,7 +444,9 @@ struct OrbitStudioPage: View {
         .scrollClipDisabled()
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop)
         .focusSection()
-        .defaultFocus($nativeHeroFocus, nativeHeroPage, priority: .userInitiated)
+        .defaultFocus($nativeHeroFocus, nativeHeroPage,
+                      // (Back from a title of a row: its card takes the focus, not the banner first.)
+                      priority: OrbitNativeStudioRow.reopen == nil ? .userInitiated : .automatic)
     }
 
     /// Menu: from a row, back to the banner; on the banner (or with none), the page closes.
