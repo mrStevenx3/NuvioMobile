@@ -29,6 +29,8 @@ struct OrbitStudiosPage: View {
     @State private var tints: [String: Color] = [:]
     /// The way the focus went along the tiles (right: true): the studio's name slides that way.
     @State private var forward = true
+    /// The tile a studio was opened from, while the page comes back.
+    @State private var restoreTarget: String?
 
     @MainActor private static var lastFocused: String?
     @MainActor private static var leftWithFocus = false
@@ -166,11 +168,16 @@ struct OrbitStudiosPage: View {
                 films.focus(title: folder.title)
             }
         }
+        // Back from a studio, the system lands on its tile straight away (Steven, simulator: it
+        // went to another studio first, then came back).
+        .defaultFocus($focused, restoreTarget, priority: .userInitiated)
         .onAppear {
             if Self.leftWithFocus, let last = Self.lastFocused, folders.contains(where: { $0.id == last }) {
                 Self.leftWithFocus = false
                 shownId = last
+                restoreTarget = last
                 restore(last)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { restoreTarget = nil }
             } else {
                 shownId = folders.first?.id
             }
