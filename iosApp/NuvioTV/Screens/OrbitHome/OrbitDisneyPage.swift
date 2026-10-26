@@ -608,23 +608,20 @@ private struct OrbitDisneyHero: View {
         let info = OrbitInfo.make(item, meta: meta)
         return VStack(alignment: .leading, spacing: 0) {
             // The platform's mark sits right on the title's logo, both at the box's bottom (Steven:
-            // the Hulu mark floated high above a short logo). "Nouveau sur Disney+" in text (Steven).
+            // the Hulu mark floated high above a short logo).
             VStack(alignment: .leading, spacing: 18) {
                 Group {
                     if isHulu {
                         Text("hulu")
                             .font(.system(size: 40, weight: .black, design: .rounded))
                             .foregroundStyle(Color(red: 0.11, green: 0.91, blue: 0.51))
+                    } else if orbitIsDisneyOwn(meta) {
+                        // Steven: the Disney+ mark only on its own programmes, no "Nouveau".
+                        Text("Disney+")
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.white)
                     } else {
-                        // Steven: as before — black text on a white framed label.
-                        Text(String(localized: "Nouveau sur Disney+"))
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(Color.black)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white))
-                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .strokeBorder(Color.black.opacity(0.25), lineWidth: 1))
+                        Color.clear
                     }
                 }
                 .frame(height: 52, alignment: .bottomLeading)
@@ -848,6 +845,9 @@ private struct OrbitDisneyPoster: View {
                 .lineLimit(3)
                 .padding(20)
             OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
+            if orbitIsFresh(item) {
+                OrbitNewBadge().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
@@ -876,6 +876,9 @@ private struct OrbitDisneyTile: View {
                                fallbackLogo: info.logoFallback)
                     .padding(.leading, 16)
                     .padding(.bottom, 14)
+                if orbitIsFresh(item) {
+                    OrbitNewBadge().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
+                }
             }
             .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
@@ -1016,5 +1019,39 @@ final class OrbitHuluRowsModel: ObservableObject {
             guard items.count >= 5 else { return nil }
             return Row(id: spec.id, title: spec.title, items: Array(items.prefix(20)))
         }
+    }
+}
+
+
+/// Steven: "Nouveau", black on white, on the titles out lately (the last three months).
+struct OrbitNewBadge: View {
+    var body: some View {
+        Text(String(localized: "Nouveau"))
+            .font(.system(size: 16, weight: .bold))
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.white))
+    }
+}
+
+/// Out in the last 90 days (its release, or a series' first airing).
+func orbitIsFresh(_ item: MetaPreview) -> Bool {
+    guard let raw = item.rawReleaseDate, raw.count >= 10 else { return false }
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    guard let date = formatter.date(from: String(raw.prefix(10))) else { return false }
+    let age = Date().timeIntervalSince(date)
+    return age >= 0 && age < 90 * 24 * 3600
+}
+
+/// A Disney+ programme of its own: made by Disney's studios or for Disney+ (TMDB's producers).
+func orbitIsDisneyOwn(_ meta: OrbitMeta?) -> Bool {
+    guard let producers = meta?.producers, !producers.isEmpty else { return false }
+    let marks = ["disney", "pixar", "marvel studios", "lucasfilm", "national geographic"]
+    return producers.contains { name in
+        let lower = name.lowercased()
+        return marks.contains { lower.contains($0) }
     }
 }
