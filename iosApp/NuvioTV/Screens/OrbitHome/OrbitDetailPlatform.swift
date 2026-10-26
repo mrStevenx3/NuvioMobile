@@ -87,7 +87,7 @@ struct OrbitDetailPlatformMark: View {
         .shadow(color: .black.opacity(0.5), radius: 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .padding(.top, 40)
-        .padding(.trailing, 72)
+        .padding(.trailing, OrbitPlatformIntro.cornerTrailing)
         .allowsHitTesting(false)
     }
 }

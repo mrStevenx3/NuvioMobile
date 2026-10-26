@@ -88,74 +88,66 @@ struct OrbitNativeSections<SectionContent: View>: View {
     @ViewBuilder let content: (Int, Bool) -> SectionContent
 
     @FocusState private var focus: Int?
-    /// Bumped at each section change (a late re-ask for an older one is dropped).
-    @State private var takeTicket = 0
 
     private var heroCount: Int { hasHero ? 1 : 0 }
 
     private func lineOf(_ s: Int) -> CGFloat { line?(s) ?? topLine }
 
-    /// A section's top in the column (the sections have fixed heights).
-    private func topOf(_ s: Int) -> CGFloat { (0..<max(0, s)).reduce(0) { $0 + height($1) } }
-
-    /// Up / Down pressed in section `s`: the section above / below (explicitly — one off screen is
-    /// still reached). Idempotent: computed from the section the press came from.
-    private func vertical(_ direction: MoveCommandDirection, from s: Int) {
-        switch direction {
-        case .up where s == 0: onUpFromTop?()
-        case .up: if current != s - 1 { onFocus(s - 1) }
-        case .down where s + 1 < count: if current != s + 1 { onFocus(s + 1) }
-        default: break
-        }
-    }
+    /// The section the page is aligned on.
+    @State private var position: Int?
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth
-        // Steven (device: "le problème de coupure" — the system scrolled to the focus, then the page
-        // aligned the section: two moves): no vertical scroll view. The column is slid by the page
-        // alone, on one curve, each section's top to its line; Up / Down are the page's own.
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(0..<count, id: \.self) { s in
-                Group {
-                if customHero && s == 0 {
-                    content(0, false)
-                        .frame(width: W, height: height(0), alignment: .topLeading)
-                        .focusSection()
-                        .onMoveCommand { vertical($0, from: 0) }
-                } else if rowsFocusable && s >= heroCount {
+        // Steven (device, 2026-10-26: "le défilement dans le studio fonctionne parfaitement, il faut
+        // mettre ce défilement partout"): the studio page's scroll — a vertical scroll view aligned on
+        // its sections, the page bringing the focused one to its line on one curve (the line is the
+        // top margin, so each section keeps its own). Touch and Up to the bar are the system's again.
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(0..<count, id: \.self) { s in
                     Group {
-                        if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
+                    if customHero && s == 0 {
+                        content(0, false)
+                            .frame(width: W, height: height(0), alignment: .topLeading)
+                            .focusSection()
+                    } else if rowsFocusable && s >= heroCount {
+                        Group {
+                            if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
+                        }
+                        .frame(width: W, height: height(s), alignment: .topLeading)
+                        .opacity(hidesAbove && s < current ? 0 : 1)
+                        .animation(.easeOut(duration: 0.14), value: s < current)
+                        .focusSection()
+                    } else {
+                    Button(action: onSelect) {
+                        OrbitNativeSectionLabel(live: abs(s - current) <= 3) { focused in
+                            content(s, focused)
+                        }
+                        .frame(width: W, height: height(s), alignment: .topLeading)
+                        .opacity(hidesAbove && s < current ? 0 : 1)
+                        .animation(.easeOut(duration: 0.14), value: s < current)
                     }
-                    .frame(width: W, height: height(s), alignment: .topLeading)
-                    .opacity(hidesAbove && s < current ? 0 : 1)
-                    .animation(.easeOut(duration: 0.14), value: s < current)
-                    .focusSection()
-                    .onMoveCommand { vertical($0, from: s) }
-                } else {
-                Button(action: onSelect) {
-                    OrbitNativeSectionLabel(live: abs(s - current) <= 3) { focused in
-                        content(s, focused)
+                    .buttonStyle(OrbitPlainStyle())
+                    .focused($focus, equals: s)
+                    .onMoveCommand { direction in
+                        switch direction {
+                        case .left, .right: onMove(direction)
+                        case .up where s == 0: onUpFromTop?()
+                        default: break
+                        }
                     }
-                    .frame(width: W, height: height(s), alignment: .topLeading)
-                    .opacity(hidesAbove && s < current ? 0 : 1)
-                    .animation(.easeOut(duration: 0.14), value: s < current)
-                }
-                .buttonStyle(OrbitPlainStyle())
-                .focused($focus, equals: s)
-                .onMoveCommand { direction in
-                    switch direction {
-                    case .left, .right: onMove(direction)
-                    default: vertical(direction, from: s)
                     }
-                }
-                }
+                    }
+                    .id(s)
                 }
             }
+            .scrollTargetLayout()
+            .padding(.bottom, OrbitHomeLayout.screenHeight)
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .offset(y: lineOf(current) - topOf(current))
-        .animation(.easeInOut(duration: 0.34), value: current)
-        .frame(width: W, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $position, anchor: .top)
+        .contentMargins(.top, lineOf(position ?? current), for: .scrollContent)
+        .scrollClipDisabled()
         .onExitCommand(perform: onExit)
         .defaultFocus($focus, customHero && current == 0 ? nil : current, priority: .userInitiated)
         .onChange(of: focus) { old, s in
@@ -163,20 +155,14 @@ struct OrbitNativeSections<SectionContent: View>: View {
             guard let s else { return }
             if s != current { onFocus(s) }
         }
-        // The section changed (the focus moved, Up / Down, Menu back to the top, a filter reset): the
-        // column slides to it, and a section the focus is not in yet takes it (asked again once the
-        // column has slid: a section still off screen may not take it the first time).
+        // The section changed (the focus moved, Menu back to the top, a filter reset): the page
+        // slides to it, and a section the focus is not in yet takes it.
         .onChange(of: current) { _, c in
+            if position != c { withAnimation(.easeInOut(duration: 0.32)) { position = c } }
             take(c)
-            takeTicket &+= 1
-            let ticket = takeTicket
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
-                // (`current` is a copy here: the ticket says whether the section changed since.)
-                guard takeTicket == ticket else { return }
-                take(c)
-            }
         }
         .onAppear {
+            position = current
             DispatchQueue.main.async { take(current) }
         }
     }

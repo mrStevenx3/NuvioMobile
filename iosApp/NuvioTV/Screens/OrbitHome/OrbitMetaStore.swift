@@ -35,6 +35,8 @@ nonisolated struct OrbitMeta: Equatable, Sendable, Codable {
     /// Steven (Orbit Home, 2026-10-25): TMDB's subscription platforms for the title in France
     /// (watch-provider ids), for its platform badge. Empty for a title on none.
     var platforms: [Int] = []
+    /// The release (a series' first airing), "yyyy-MM-dd" — the "Nouveau" badges.
+    var released: String? = nil
 }
 
 @MainActor
@@ -410,7 +412,8 @@ final class OrbitMetaStore: ObservableObject {
                          producers: ((d.production_companies ?? []) + (d.networks ?? [])).compactMap(\.name),
                          seasons: d.number_of_seasons,
                          platforms: ((try? JSONDecoder().decode(ProvidersOnly.self, from: body))?.providers?.results?[region]?
-                             .flatrate ?? []).map(\.provider_id)))
+                             .flatrate ?? []).map(\.provider_id),
+                         released: d.release_date ?? d.first_air_date))
     }
 }
 

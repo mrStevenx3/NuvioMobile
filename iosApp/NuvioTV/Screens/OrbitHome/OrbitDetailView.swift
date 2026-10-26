@@ -592,7 +592,9 @@ struct OrbitDetailView: View {
         heroRestTask?.cancel()
         let coldStart = !heroTrailerOn
         if coldStart {
-            holdArt = true
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { holdArt = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
                 withAnimation(.easeInOut(duration: 1.0)) { holdArt = false }
             }
@@ -1036,7 +1038,9 @@ private struct OrbitDetailBackground: View {
             // moment after the trailer's first frame.
             OrbitSwapImage(url: url, fallback: nil, size: size)
                 .scaleEffect(cinema ? 1.05 : 1)
-                .opacity(holdArt && trailerURL != nil ? 1 : 0)
+                // (Not tied to the trailer's arrival: that came in the same animated change, so the art
+                // faded in with the trailer and its first frames showed through.)
+                .opacity(holdArt ? 1 : 0)
                 .allowsHitTesting(false)
             // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
             Group {

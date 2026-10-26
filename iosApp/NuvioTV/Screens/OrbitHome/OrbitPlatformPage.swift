@@ -677,7 +677,8 @@ struct OrbitPlatformIntro: View {
     static let cornerScale: CGFloat = 0.36
     /// The corner: level with the bar's centre line, at the right margin.
     static let cornerCentreY: CGFloat = 59
-    static let cornerTrailing: CGFloat = 72
+    /// Steven (device: not far enough right): level with the bar's right end.
+    static let cornerTrailing: CGFloat = 50
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight

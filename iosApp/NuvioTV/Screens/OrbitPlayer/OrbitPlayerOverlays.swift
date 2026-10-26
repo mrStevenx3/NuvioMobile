@@ -15,7 +15,7 @@ struct OrbitPauseCard: View {
             LinearGradient(colors: [Color.black.opacity(0.7), Color.black.opacity(0)],
                            startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.4))
                 .ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
                 title
                 if !details.isEmpty {
                     Text(details.joined(separator: "  ·  "))
@@ -38,8 +38,10 @@ struct OrbitPauseCard: View {
     @ViewBuilder
     private var title: some View {
         if let logo = context.logo, !logo.isEmpty {
-            CachedAsyncImage(string: logo, contentMode: .fit, decodeSize: .points(width: 560, height: 200))
-                .frame(maxWidth: 560, maxHeight: 160, alignment: .leading)
+            // Steven: the details right under the title — the logo takes its own height (no empty
+            // box under a wide logo).
+            OrbitTitleMark(name: context.title, logo: logo, maxSize: CGSize(width: 560, height: 160), textSize: 64,
+                           hugsLogo: true)
         } else {
             Text(context.title)
                 .font(.system(size: 64, weight: .heavy))
@@ -49,11 +51,21 @@ struct OrbitPauseCard: View {
         }
     }
 
+    /// Steven ("130 minutes" for Superman): hours and minutes — "2 h 10", "45 min".
+    static func hoursAndMinutes(_ runtime: String) -> String {
+        let digits = runtime.prefix { $0.isNumber }
+        guard let minutes = Int(digits), minutes > 0,
+              !runtime.contains("h") else { return runtime }
+        if minutes < 60 { return "\(minutes) min" }
+        let rest = minutes % 60
+        return rest == 0 ? "\(minutes / 60) h" : String(format: "%d h %02d", minutes / 60, rest)
+    }
+
     private var details: [String] {
         var parts: [String] = []
         if let line = OrbitPlayerText.episodeLine(context) { parts.append(line) }
         if let year = context.meta?.year { parts.append(year) }
-        if let runtime = context.meta?.runtime { parts.append(runtime) }
+        if let runtime = context.meta?.runtime { parts.append(Self.hoursAndMinutes(runtime)) }
         if let genre = context.meta?.genres.first { parts.append(genre) }
         return parts
     }

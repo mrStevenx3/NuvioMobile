@@ -617,9 +617,18 @@ private struct OrbitDisneyHero: View {
                             .foregroundStyle(Color(red: 0.11, green: 0.91, blue: 0.51))
                     } else if orbitIsDisneyOwn(meta) {
                         // Steven: the Disney+ mark only on its own programmes, no "Nouveau".
-                        Text("Disney+")
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.white)
+                        // (Steven: its logo, not a text — right on the title's logo, whatever its height.)
+                        if let logo = OrbitPlatformLogos.url(.disney) {
+                            CachedAsyncImage(string: logo, contentMode: .fit,
+                                             decodeSize: .points(width: 300, height: 110),
+                                             loading: { Color.clear },
+                                             failure: { Text("Disney+").font(.system(size: 34, weight: .bold, design: .rounded)) })
+                                .frame(width: 150, height: 52, alignment: .bottomLeading)
+                        } else {
+                            Text("Disney+")
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.white)
+                        }
                     } else {
                         Color.clear
                     }
@@ -831,6 +840,7 @@ private struct OrbitDisneyTop10Card: View {
 private struct OrbitDisneyPoster: View {
     let item: MetaPreview
     let focused: Bool
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     var body: some View {
         let L = OrbitDisneyLayout.self
@@ -845,13 +855,14 @@ private struct OrbitDisneyPoster: View {
                 .lineLimit(3)
                 .padding(20)
             OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
-            if orbitIsFresh(item) {
+            if orbitIsFresh(item, metaStore.meta(for: item)) {
                 OrbitNewBadge().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
             }
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         .modifier(OrbitDisneyFocus(focused: focused))
+        .onAppear { OrbitMetaStore.shared.request([item]) }
     }
 }
 
@@ -876,7 +887,7 @@ private struct OrbitDisneyTile: View {
                                fallbackLogo: info.logoFallback)
                     .padding(.leading, 16)
                     .padding(.bottom, 14)
-                if orbitIsFresh(item) {
+                if orbitIsFresh(item, meta) {
                     OrbitNewBadge().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
                 }
             }
@@ -1036,8 +1047,10 @@ struct OrbitNewBadge: View {
 }
 
 /// Out in the last 90 days (its release, or a series' first airing).
-func orbitIsFresh(_ item: MetaPreview) -> Bool {
-    guard let raw = item.rawReleaseDate, raw.count >= 10 else { return false }
+func orbitIsFresh(_ item: MetaPreview, _ meta: OrbitMeta? = nil) -> Bool {
+    // (Steven: none on Disney+'s own rows — his catalogs carry no date; TMDB's is used then.)
+    let known: String? = item.rawReleaseDate
+    guard let raw = (known?.count ?? 0) >= 10 ? known : meta?.released, raw.count >= 10 else { return false }
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd"
     formatter.locale = Locale(identifier: "en_US_POSIX")

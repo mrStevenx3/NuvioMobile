@@ -381,9 +381,30 @@ struct OrbitSwapImage: View {
     @State private var shown: UIImage?
     @State private var shownShift: CGFloat = 0
     @State private var generation = 0
+    /// The first image was already in memory: drawn at once, no fade (Steven: Netflix's open tile
+    /// redrew itself at each step).
+    @State private var instant = false
+
+    /// What memory already holds for this frame (drawn in the very first frame, before `load`).
+    private var seed: UIImage? {
+        let frame = ArtworkDecodeRequest(size: .points(width: size.width, height: size.height), fill: true, scale: displayScale)
+        let main = url.flatMap(URL.init(string:))
+        if let best = main.flatMap({ ArtworkURLUpgrade.upgraded($0, role: .backdrop) }),
+           let image = ArtworkStore.cached(best, decode: frame) { return image }
+        if let main, let image = ArtworkStore.cached(main, decode: frame) { return image }
+        if let backup = fallback.flatMap(URL.init(string:)) { return ArtworkStore.cachedLargest(backup) }
+        return nil
+    }
 
     var body: some View {
         ZStack {
+            if shown == nil, let seed {
+                Image(uiImage: seed)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+            }
             if let shown {
                 Image(uiImage: shown)
                     .resizable()
@@ -393,8 +414,9 @@ struct OrbitSwapImage: View {
                     .offset(y: shownShift)
                     .id(generation)
                     .zIndex(Double(generation))
-                    .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
-                                            removal: .opacity.animation(.linear(duration: 0.01).delay(0.26))))
+                    .transition(instant ? .identity
+                                : .asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
+                                              removal: .opacity.animation(.linear(duration: 0.01).delay(0.26))))
             }
         }
         .frame(width: size.width, height: size.height)
@@ -402,7 +424,8 @@ struct OrbitSwapImage: View {
         .task(id: "\(url ?? "-")|\(fallback ?? "-")") { await load() }
     }
 
-    private func show(_ image: UIImage) {
+    private func show(_ image: UIImage, instantly: Bool = false) {
+        instant = instantly && shown == nil
         generation &+= 1
         shownShift = shiftY
         shown = image
@@ -417,12 +440,12 @@ struct OrbitSwapImage: View {
         // Steven (device: the best images): a full-screen art is TMDB's original, not its 1280 px
         // copy (soft on a 4K TV); the 1280 one if the original fails.
         let best = main.flatMap { ArtworkURLUpgrade.upgraded($0, role: .backdrop) }
-        if let best, let image = ArtworkStore.cached(best, decode: frame) { show(image); return }
-        if let main, let image = ArtworkStore.cached(main, decode: frame) { show(image) }
+        if let best, let image = ArtworkStore.cached(best, decode: frame) { show(image, instantly: true); return }
+        if let main, let image = ArtworkStore.cached(main, decode: frame) { show(image, instantly: true) }
         else if shown == nil, let backup,
                 let image = ArtworkStore.cached(backup, decode: poster) ?? ArtworkStore.cachedLargest(backup) {
             // (Any size of the poster already drawn: Netflix's tiles decode it at their own.)
-            show(image)
+            show(image, instantly: true)
         }
         for candidate in [best, main, backup].compactMap({ $0 }) {
             if let image = try? await ArtworkStore.fetch(candidate, decode: frame) {
