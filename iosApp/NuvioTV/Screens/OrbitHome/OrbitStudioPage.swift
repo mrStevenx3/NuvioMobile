@@ -735,6 +735,14 @@ private struct OrbitNativeStudioRow: View {
     /// The title opened from a studio page (row, place): the focus goes back to it.
     @MainActor static var reopen: (row: String, index: Int)?
     @State private var restoringSince: TimeInterval = 0
+    @State private var restoreLock = false
+    @State private var disappeared = false
+
+    private func lockForReturn() {
+        restoreLock = true
+        disappeared = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
+    }
 
     var body: some View {
         let L = OrbitStudioLayout.self
@@ -753,6 +761,7 @@ private struct OrbitNativeStudioRow: View {
                         let item = row.items[index]
                         Button {
                             Self.reopen = (row.id, index)
+                            lockForReturn()
                             onOpen(item)
                         } label: {
                             OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
@@ -760,6 +769,7 @@ private struct OrbitNativeStudioRow: View {
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
+                        .disabled(restoreLock && Self.reopen?.row == row.id && Self.reopen?.index != index)
                         .onAppear { OrbitMetaStore.shared.request([item]) }
                     }
                 }
@@ -799,6 +809,7 @@ private struct OrbitNativeStudioRow: View {
         .focusSection()
         .defaultFocus($focused, shown ?? 0, priority: .userInitiated)
         .onAppear { restoreIfReturning() }
+        .onDisappear { disappeared = true }
         .onChange(of: focused) { _, new in
             guard let new else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
@@ -836,7 +847,7 @@ private struct OrbitNativeStudioRow: View {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
         restoringSince = appeared
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.index
         if row.showsInfo { anchor = target.index }
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {

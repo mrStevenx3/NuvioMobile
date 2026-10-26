@@ -231,6 +231,15 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     @State private var rowProxy: ScrollViewProxy?
     /// When the way back from a title began (0: not coming back).
     @State private var restoringSince: TimeInterval = 0
+    /// From the opening of a title until just after the way back: only its tile can take the focus.
+    @State private var restoreLock = false
+    @State private var disappeared = false
+
+    private func lockForReturn() {
+        restoreLock = true
+        disappeared = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -239,12 +248,15 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 ForEach(0..<count, id: \.self) { i in
                     Button {
                         box.reopen = i
+                        lockForReturn()
                         onSelect()
                     } label: {
                         OrbitNativeStripLabel { focused in tile(i, focused) }
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($focus, equals: i)
+                    // Back from a title, only its tile can take the focus a moment.
+                    .disabled(restoreLock && box.reopen != nil && box.reopen != i)
                 }
             }
             .scrollTargetLayout()
@@ -309,6 +321,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             let target = min(box.lead, max(0, count - 1))
             if focus != target { focus = target }
         }
+        .onDisappear { disappeared = true }
         .onAppear {
             let lead = min(box.lead, max(0, count - 1))
             // Pinned rows keep it at the margin; the others are brought back to it only when the
@@ -322,7 +335,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             if let back = box.reopen {
                 let appeared = ProcessInfo.processInfo.systemUptime
                 restoringSince = appeared
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
                 for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard box.reopen == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }

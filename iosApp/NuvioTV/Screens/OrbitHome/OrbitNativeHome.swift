@@ -305,6 +305,16 @@ struct OrbitNativeRow: View {
     @State private var rowProxy: ScrollViewProxy?
     /// When the way back from a title began (0: not coming back).
     @State private var restoringSince: TimeInterval = 0
+    /// From the opening of a title until just after the way back: only its card can take the focus.
+    @State private var restoreLock = false
+    @State private var disappeared = false
+
+    private func lockForReturn() {
+        restoreLock = true
+        disappeared = false
+        // (No page came over it: unlocked.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { if !disappeared { restoreLock = false } }
+    }
     @ObservedObject private var metaStore = OrbitMetaStore.shared
 
     private var style: OrbitRowStyle { row.style }
@@ -349,6 +359,9 @@ struct OrbitNativeRow: View {
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: card.id)
+                        // Back from a title, only its card can take the focus a moment: a landing on
+                        // a neighbour scrolled the row to it (Steven, simulator: the row moved).
+                        .disabled(restoreLock && Self.reopen?.row == row.id && Self.reopen?.card != card.id)
                         .onAppear { OrbitMetaStore.shared.request([card.preview]) }
                     }
                 }
@@ -397,6 +410,7 @@ struct OrbitNativeRow: View {
         }
         .focusSection()
         .onAppear { restoreIfReturning() }
+        .onDisappear { disappeared = true }
         .onChange(of: anchor) { _, first in
             if !pinned, let first { Self.firstVisible[row.id] = first }
         }
@@ -507,7 +521,7 @@ struct OrbitNativeRow: View {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
         restoringSince = appeared
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
         // brought to its title; the others are where they were left.
@@ -525,6 +539,7 @@ struct OrbitNativeRow: View {
 
     private func open(_ card: OrbitCard) {
         Self.reopen = (row.id, card.id)
+        lockForReturn()
         trailers.stop(abort: true)
         trailers.suspended = true
         if let entry = card.entry {
