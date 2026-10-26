@@ -253,6 +253,8 @@ struct OrbitTitleMark: View {
     var hugsLogo = false
 
     @State private var aspect: CGFloat?
+    /// Logos' shapes, by address, once measured.
+    @MainActor static var aspects: [String: CGFloat] = [:]
 
     private var candidates: [String] {
         var seen = Set<String>()
@@ -268,13 +270,17 @@ struct OrbitTitleMark: View {
                                          loading: { Color.clear }, failure: { rest(list) })
             if hugsLogo {
                 // Fitted by hand: the logo's own width and height inside the box, nothing above it.
-                let fitted: CGSize = aspect.map { a in
+                // The shape already measured for this logo (a tile opened again, another page):
+                // fitted from its first frame, never the full box first (Steven: the N tag floated).
+                let known = aspect ?? Self.aspects[first]
+                let fitted: CGSize = known.map { a in
                     let h = min(maxSize.height, maxSize.width / max(a, 0.01))
                     return CGSize(width: h * a, height: h)
                 } ?? maxSize
                 image
                     .onImageLoaded { loaded in
                         let a = loaded.size.width / max(loaded.size.height, 1)
+                        Self.aspects[first] = a
                         if aspect != a { aspect = a }
                     }
                     .frame(width: fitted.width, height: fitted.height, alignment: .bottomLeading)

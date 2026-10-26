@@ -361,6 +361,25 @@ struct OrbitStudioPage: View {
                 .animation(.easeInOut(duration: 0.25), value: nativeOnHero)
                 .allowsHitTesting(false)
 
+            // The studio's logo stays top right while the page moves (Steven).
+            Group {
+                if let logo = model.logo ?? route.logo, !logo.isEmpty {
+                    OrbitBalancedLogo(url: logo, area: 17_000, maxSize: CGSize(width: 300, height: 100),
+                                      whiten: OrbitBalancedLogo.isGrey(model.name), alignment: .topTrailing)
+                } else {
+                    Text(model.name)
+                        .font(.system(size: 40, weight: .heavy))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .frame(width: 300, height: 100, alignment: .topTrailing)
+                }
+            }
+            .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
+            .opacity(introDone && (hasHero || !nativeOnHero) ? 1 : 0)
+            .offset(x: OrbitHomeLayout.screenWidth - L.margin - 300, y: OrbitStudioIntro.cornerTop)
+            .allowsHitTesting(false)
+
             if sectionCount == 0 {
                 Group {
                     if model.loading {
@@ -405,7 +424,7 @@ struct OrbitStudioPage: View {
                     } label: {
                         OrbitNativeStudioHeroPage(item: item, meta: metaStore.meta(for: item), trailers: nativeTrailers,
                                                   studioName: model.name, studioLogo: model.logo ?? route.logo,
-                                                  showsStudioLogo: introDone, statsLine: model.statsLine,
+                                                  showsStudioLogo: false, statsLine: model.statsLine,
                                                   count: count, index: index,
                                                   live: abs(index - nativeHeroPage) <= 1)
                     }

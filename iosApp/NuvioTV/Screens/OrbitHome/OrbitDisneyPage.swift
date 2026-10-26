@@ -607,36 +607,25 @@ private struct OrbitDisneyHero: View {
         let L = OrbitDisneyLayout.self
         let info = OrbitInfo.make(item, meta: meta)
         return VStack(alignment: .leading, spacing: 0) {
-            // Steven (device: a text label): the platforms' own marks — "Nouveau sur" and Disney+'s
-            // logo (his collection's), Hulu's green word mark.
-            Group {
-                if isHulu {
-                    Text("hulu")
-                        .font(.system(size: 40, weight: .black, design: .rounded))
-                        .foregroundStyle(Color(red: 0.11, green: 0.91, blue: 0.51))
-                } else {
-                    HStack(spacing: 12) {
-                        Text(String(localized: "Nouveau sur"))
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.9))
-                        if let logo = OrbitPlatformLogos.url(.disney) {
-                            CachedAsyncImage(string: logo, contentMode: .fit,
-                                             decodeSize: .points(width: 240, height: 90),
-                                             loading: { Color.clear },
-                                             failure: { Text("Disney+").font(.system(size: 30, weight: .bold, design: .rounded)) })
-                                .frame(width: 130, height: 50, alignment: .leading)
-                        } else {
-                            Text("Disney+").font(.system(size: 30, weight: .bold, design: .rounded))
-                        }
+            // The platform's mark sits right on the title's logo, both at the box's bottom (Steven:
+            // the Hulu mark floated high above a short logo). "Nouveau sur Disney+" in text (Steven).
+            VStack(alignment: .leading, spacing: 18) {
+                Group {
+                    if isHulu {
+                        Text("hulu")
+                            .font(.system(size: 40, weight: .black, design: .rounded))
+                            .foregroundStyle(Color(red: 0.11, green: 0.91, blue: 0.51))
+                    } else {
+                        Text(String(localized: "Nouveau sur Disney+"))
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.92))
                     }
-                    .foregroundStyle(Color.white)
                 }
+                .frame(height: 52, alignment: .bottomLeading)
+                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
+                               fallbackLogo: info.logoFallback, hugsLogo: true)
             }
-            .frame(height: 52, alignment: .leading)
-            .padding(.bottom, 18)
-            OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
-                           fallbackLogo: info.logoFallback)
-                .frame(width: L.logoSize.width, height: L.logoSize.height, alignment: .bottomLeading)
+            .frame(width: L.logoSize.width, height: 52 + 18 + L.logoSize.height, alignment: .bottomLeading)
             OrbitDisneyMetaLine(certification: meta?.certification, parts: info.parts)
                 .padding(.top, 24)
             Text(info.synopsis)

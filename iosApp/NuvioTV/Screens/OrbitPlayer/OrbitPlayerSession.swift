@@ -243,6 +243,35 @@ final class OrbitPlayerSession: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] time in self?.clockTick(time) }
             .store(in: &bag)
+        // Steven: turning subtitles on in Apple's menu did nothing, they went back to off. The
+        // engine holds Apple's subtitle choice off (it expects the app to draw subtitles itself) and
+        // only reports what was asked; Orbit lets Apple's player draw them, so the pick is handed back
+        // to the engine as the app's own — from then on the choice is the viewer's.
+        engine.systemCaptionRequest
+            .receive(on: RunLoop.main)
+            .sink { [weak engine] request in
+                guard let engine else { return }
+                let tracks = engine.nativeSubtitleTracks
+                let wanted = Self.primaryLanguage(request.language)
+                let ordinal = tracks.first { Self.primaryLanguage($0.language) == wanted && wanted != nil }?.ordinal
+                    ?? (tracks.count == 1 ? tracks[0].ordinal : nil)
+                guard let ordinal else { return }
+                engine.setNativeSubtitleSelected(track: ordinal)
+            }
+            .store(in: &bag)
+    }
+
+    /// "fre", "fra", "fr-FR" → "fr" (the forms the stream and Apple's player each use).
+    nonisolated static func primaryLanguage(_ tag: String?) -> String? {
+        guard let tag, !tag.isEmpty, tag != "und" else { return nil }
+        let head = String(tag.split(whereSeparator: { $0 == "-" || $0 == "_" }).first ?? Substring(tag)).lowercased()
+        let bibliographic = ["fre": "fr", "ger": "de", "dut": "nl", "chi": "zh", "cze": "cs", "gre": "el",
+                             "per": "fa", "rum": "ro", "slo": "sk", "alb": "sq", "arm": "hy", "baq": "eu",
+                             "bur": "my", "geo": "ka", "ice": "is", "mac": "mk", "mao": "mi", "may": "ms",
+                             "tib": "bo", "wel": "cy"]
+        if let mapped = bibliographic[head] { return mapped }
+        if head.count == 3, let alpha2 = Locale.LanguageCode(head).identifier(.alpha2) { return alpha2 }
+        return head
     }
 
     private func stateChanged(_ state: PlaybackState) {

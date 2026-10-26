@@ -5,7 +5,7 @@ import UIKit
 // What Orbit draws over Apple's player (Steven's mockup, 2026-10-25). None of it is focusable or
 // hit-tested: the remote always reaches the player underneath.
 
-/// Paused: the title's logo top left, its details, the picture and sound formats, the end time.
+/// Paused: the title's logo top left, its details, the end time.
 struct OrbitPauseCard: View {
     let context: PlaybackContext
     @ObservedObject var session: OrbitPlayerSession
@@ -22,13 +22,7 @@ struct OrbitPauseCard: View {
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.75))
                 }
-                if !badges.isEmpty {
-                    HStack(spacing: 12) {
-                        ForEach(badges, id: \.self) { badge in
-                            OrbitPlayerBadge(text: badge)
-                        }
-                    }
-                }
+                // Steven: no picture / sound formats on the pause card.
                 if let endsAt = OrbitPlayerText.endsAt(remainingSec: session.durationSec - session.positionSec) {
                     Text(endsAt)
                         .font(.system(size: 24, weight: .medium))

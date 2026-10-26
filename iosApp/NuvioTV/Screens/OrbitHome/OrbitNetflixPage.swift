@@ -578,6 +578,11 @@ private func netflixMeta(_ item: MetaPreview, _ meta: OrbitMeta?) -> String {
 /// Netflix's own title: Steven's add-on marks it in its poster's address ("/n/v13/…" in the lists,
 /// "/poster/v13/o3/…" in the Top 10 — the posters with its N), else TMDB lists Netflix as a producer.
 private func isNetflixOwn(_ item: MetaPreview, _ meta: OrbitMeta?) -> Bool {
+    // Steven: OFFICIER CID (1998) showed N SÉRIE — Netflix only carries it. Netflix's own titles
+    // start in 2012 (Lilyhammer): anything older is never one of them.
+    if let info = item.releaseInfo,
+       let range = info.range(of: #"(19|20)\d{2}"#, options: .regularExpression),
+       let year = Int(info[range]), year < 2012 { return false }
     let poster: String = item.poster ?? ""
     if poster.contains("/n/v") || poster.range(of: #"/poster/v\d+/o"#, options: .regularExpression) != nil { return true }
     return meta?.producers.contains { $0.lowercased().contains("netflix") } ?? false
