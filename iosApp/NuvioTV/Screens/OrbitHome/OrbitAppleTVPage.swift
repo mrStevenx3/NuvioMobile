@@ -96,10 +96,9 @@ struct OrbitAppleTVPage: View {
     @State private var firsts = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @State private var nativeHasFocus = false
     /// The page holds the focus (the canvas's, or one of the native sections').
-    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
+    private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -295,47 +294,15 @@ struct OrbitAppleTVPage: View {
         ZStack(alignment: .topLeading) {
             OrbitAppleTVAmbient(item: ambient, meta: ambient.flatMap { metaStore.meta(for: $0) })
 
-            if !nativeHome, let hero = heroItem {
-                OrbitAppleTVHero(item: hero, meta: metaStore.meta(for: hero), isNew: isNew(hero), line: rankLine(hero),
-                                 buttonLit: pageFocused && onArrival,
-                                 count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
-                                 trailerURL: onArrival ? trailerURL(for: hero) : nil,
-                                 onTrailerFailure: { trailer.playbackFailed($0) },
-                                 onTrailerEnded: {
-                                     trailer.playbackFinished()
-                                     advanceHero()
-                                 })
-                    // The carousel's art grows into its detail page too (before the offset, see the rows).
-                    .modifier(OrbitAppleTVZoomSource(id: onArrival ? "\(hero.type):\(hero.id)" : "hero", space: zoomSpace))
-                    // Steven (device): the art stays in place and fades; only the rows move.
-                    .opacity(onArrival ? 1 : 0)
-            }
 
-            if nativeHome {
-                nativeSections(rows)
+                            nativeSections(rows)
                     .disabled(search != nil)
-            } else {
-            rowsLayer(rows)
-                .offset(y: -offset)
-            }
+            
 
             if rows.isEmpty, model.isLoading {
                 ProgressView().frame(width: W, height: H)
             }
 
-            if !nativeHome {
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitAppleTVCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction())
-            .offset(y: 110)
-            .disabled(search != nil)
-            }
 
             // Steven: the app mixes films and series, with no Accueil / Films / Séries.
             CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false)
@@ -393,33 +360,6 @@ struct OrbitAppleTVPage: View {
             leads.reset()
             firsts.reset()
             refreshAfterMove()
-        }
-    }
-
-    @ViewBuilder
-    private func rowsLayer(_ rows: [OrbitAppleTVRow]) -> some View {
-        let tops = rowTops(rows)
-        let currentRow = rowIndex(of: current) ?? -1
-        let low = max(0, currentRow - 1)
-        let high = min(rows.count - 1, max(currentRow, 0) + 3)
-        ZStack(alignment: .topLeading) {
-            if low <= high {
-                ForEach(low...high, id: \.self) { i in
-                    let row = rows[i]
-                    OrbitAppleTVRowView(row: row, lead: lead(of: row), first: first(of: row), isCurrent: i == currentRow,
-                                        focused: pageFocused && i == currentRow,
-                                        newIDs: Set(row.items.filter(isNew).map(\.id)),
-                                        rankLine: { rankLine($0) },
-                                        trailerURL: i == currentRow && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
-                                        onTrailerFailure: { trailer.playbackFailed($0) },
-                                        onTrailerEnded: { trailer.playbackFinished() },
-                                        zoomSpace: zoomSpace,
-                                        metaStore: metaStore)
-                        .offset(y: tops[i])
-                        .id(row.id)
-                        .transition(.identity)
-                }
-            }
         }
     }
 
@@ -640,10 +580,6 @@ struct OrbitAppleTVPage: View {
         trailerKey = "\(item.type):\(item.id)"
         trailer.focusChanged(true, item: item)
     }
-}
-
-private struct OrbitAppleTVCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
 
 // MARK: - Pieces

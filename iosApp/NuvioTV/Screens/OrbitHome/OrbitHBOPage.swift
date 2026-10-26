@@ -126,10 +126,9 @@ struct OrbitHBOPage: View {
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @State private var nativeHasFocus = false
     /// The page holds the focus (the canvas's, or one of the native sections').
-    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
+    private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -352,13 +351,9 @@ struct OrbitHBOPage: View {
                     .opacity(onArrival ? 1 : 0)
             }
 
-            if nativeHome {
-                nativeSections(rows)
+                            nativeSections(rows)
                     .disabled(search != nil)
-            } else {
-            rowsLayer(rows)
-                .offset(y: -offset)
-            }
+            
 
             // Under the bar: the night blue, so the row above fades out under it.
             LinearGradient(colors: [OrbitHBOLayout.background, OrbitHBOLayout.background.opacity(0.85),
@@ -372,19 +367,6 @@ struct OrbitHBOPage: View {
                 ProgressView().frame(width: W, height: H)
             }
 
-            if !nativeHome {
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitHBOCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction())
-            .offset(y: 110)
-            .disabled(search != nil)
-            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, showsHBO: true)
                 .disabled(search != nil || (pageFocused && current > 0))
@@ -441,30 +423,6 @@ struct OrbitHBOPage: View {
             heroIndex = 0
             leads.reset()
             refreshAfterMove()
-        }
-    }
-
-    @ViewBuilder
-    private func rowsLayer(_ rows: [OrbitHBORow]) -> some View {
-        let tops = rowTops(rows)
-        let currentRow = rowIndex(of: current) ?? -1
-        // The row above stays in view over the current one.
-        let low = max(0, currentRow - 1)
-        let high = min(rows.count - 1, max(currentRow, 0) + 3)
-        ZStack(alignment: .topLeading) {
-            if low <= high {
-                ForEach(low...high, id: \.self) { i in
-                    let row = rows[i]
-                    OrbitHBORowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
-                                    focused: pageFocused && i == currentRow,
-                                    // Not on the Nouveautés rows themselves (every poster said it).
-                                    news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
-                                    metaStore: metaStore)
-                        .offset(y: tops[i])
-                        .id(row.id)
-                        .transition(.identity)
-                }
-            }
         }
     }
 
@@ -618,10 +576,6 @@ struct OrbitHBOPage: View {
         trailerKey = "\(item.type):\(item.id)"
         trailer.focusChanged(true, item: item)
     }
-}
-
-private struct OrbitHBOCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
 
 // MARK: - Pieces

@@ -96,10 +96,9 @@ struct OrbitDisneyPage: View {
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @State private var nativeHasFocus = false
     /// The page holds the focus (the canvas's, or one of the native sections').
-    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
+    private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -281,16 +280,9 @@ struct OrbitDisneyPage: View {
                 .opacity(offset < 1 ? 1 : 0)
                 .animation(reduceMotion ? nil : OrbitDisneyLayout.vertical, value: offset < 1)
 
-            if nativeHome {
-                nativeSections(rows)
+                            nativeSections(rows)
                     .disabled(search != nil)
-            } else {
-            ZStack(alignment: .topLeading) {
-                rowsLayer(rows)
-            }
-            .offset(y: -offset)
-            .animation(reduceMotion ? nil : OrbitDisneyLayout.vertical, value: offset)
-            }
+            
 
             // Under the bar: a shade so the rows never run under it unreadable.
             LinearGradient(colors: [OrbitDisneyLayout.background, OrbitDisneyLayout.background.opacity(0)],
@@ -312,19 +304,6 @@ struct OrbitDisneyPage: View {
             }
 
             // The page's one focusable stop, under the bar's band.
-            if !nativeHome {
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitDisneyCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction())
-            .offset(y: 110)
-            .disabled(search != nil)
-            }
 
             CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false,
                                 switchItems: ["Disney+", "Hulu"], switchSelection: $mode)
@@ -376,27 +355,6 @@ struct OrbitDisneyPage: View {
             refreshAfterMove()
         }
         .onChange(of: mode) { _, _ in resetPage() }
-    }
-
-    @ViewBuilder
-    private func rowsLayer(_ rows: [OrbitDisneyRow]) -> some View {
-        let tops = rowTops(rows)
-        let currentRow = rowIndex(of: current) ?? -1
-        // Only the rows around the current one are drawn.
-        let low = max(0, currentRow - 1)
-        let high = min(rows.count - 1, max(currentRow, 0) + 3)
-        ZStack(alignment: .topLeading) {
-            if low <= high {
-                ForEach(low...high, id: \.self) { i in
-                    let row = rows[i]
-                    OrbitDisneyRowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
-                                       focused: pageFocused && i == currentRow, metaStore: metaStore)
-                        .offset(y: tops[i])
-                        .opacity(i < currentRow ? 0 : 1)
-                        .animation(.easeOut(duration: 0.2), value: currentRow)
-                }
-            }
-        }
     }
 
     /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
@@ -559,10 +517,6 @@ struct OrbitDisneyPage: View {
         trailerKey = "\(item.type):\(item.id)"
         trailer.focusChanged(true, item: item)
     }
-}
-
-private struct OrbitDisneyCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
 
 // MARK: - Hero

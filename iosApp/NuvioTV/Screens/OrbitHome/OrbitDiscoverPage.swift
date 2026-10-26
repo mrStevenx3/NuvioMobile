@@ -36,150 +36,16 @@ struct OrbitDiscoverPage: View {
     @State private var index = 0
     /// Native grid (Steven, 2026-10-26: as fluid as Home): real buttons in a grid the system
     /// scrolls (Settings ▸ Nouvel accueil off brings the drawn grid back).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
 
     private var items: [MetaPreview] { model.items }
     private var line: Int { index / OrbitDiscoverLayout.columns }
 
     var body: some View {
-        if nativeHome {
-            OrbitNativeDiscover(model: model, onOpen: onOpen, header: { header })
-        } else {
-            canvasBody
-        }
-    }
-
-    private var canvasBody: some View {
-        let D = OrbitDiscoverLayout.self
-        let L = OrbitHomeLayout.self
-        let line = self.line
-        // The selected line rests on the second line once the grid has left its top.
-        let restLine = min(line, 1)
-        let scroll = CGFloat(restLine - line) * D.pitch
-        let lines = items.isEmpty ? 0 : (items.count + D.columns - 1) / D.columns
-        let window = max(0, line - 2)...max(max(0, line - 2), min(lines - 1, line + 5))
-
-        return ZStack(alignment: .topLeading) {
-            L.background.ignoresSafeArea()
-            // The selected title's art behind the page (Orbit's look, as on Home).
-            if items.indices.contains(index) {
-                OrbitFocusBackdrop(item: items[index])
-                    .ignoresSafeArea()
-            }
-
-            // The grid: every line at its own place, all moving on the selection's curve.
-            ZStack(alignment: .topLeading) {
-                if lines > 0 {
-                    ForEach(Array(window), id: \.self) { l in
-                        lineView(l, selectedLine: line)
-                            .offset(x: L.margin, y: D.gridTop + scroll + CGFloat(l) * D.pitch)
-                            .opacity(l < line - 1 ? 0 : 1)
-                            .transition(.identity)
-                    }
-                }
-            }
-            .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
-            // The lines leaving upward fade out under the header.
-            .mask {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: D.gridTop - 40)
-                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 40)
-                    Color.black
-                }
-                .ignoresSafeArea()
-            }
-
-            if model.selectedType == nil || model.phase != .loaded {
-                statusPanel
-                    .padding(.leading, L.margin)
-                    .padding(.top, D.gridTop)
-            }
-
-            // The page's one focusable stop for the grid, under the header.
-            Button { if items.indices.contains(index) { onOpen(items[index]) } } label: {
-                Color.clear
-                    .frame(width: L.screenWidth, height: L.screenHeight - D.gridTop + 20)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitDiscoverCanvasStyle())
-            .focused($canvasFocused)
-            .disabled(items.isEmpty)
-            .onMoveCommand(perform: move)
-            // Steven: Menu sent the cursor to the hidden system tab bar (it vanished). Menu now goes
-            // back to the first line, then to the bar.
-            .onExitCommand {
-                if line > 0 {
-                    withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { index = index % D.columns }
-                    syncLock()
-                } else {
-                    NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
-                }
-            }
-            .offset(y: D.gridTop - 20)
-
-            header
-                .padding(.leading, L.margin)
-                .padding(.top, D.headerTop)
-                // Out of reach while the grid is scrolled (Up is the grid's own).
-                .disabled(canvasFocused && line > 0)
-        }
-        .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
-        .ignoresSafeArea()
-        .onChange(of: model.gridKey) { _, _ in index = 0 }
-        .onChange(of: canvasFocused) { _, _ in syncLock() }
-        .onDisappear { OrbitBarLock.shared.set(false) }
-    }
-
-    private func lineView(_ l: Int, selectedLine: Int) -> some View {
-        let D = OrbitDiscoverLayout.self
-        let start = l * D.columns
-        let end = min(items.count, start + D.columns)
-        return ZStack(alignment: .topLeading) {
-            if start < end {
-                ForEach(start..<end, id: \.self) { i in
-                    OrbitDiscoverTile(item: items[i], focused: canvasFocused && i == index)
-                        .offset(x: CGFloat(i - start) * (D.tileWidth + D.gap))
-                        .zIndex(i == index ? 1 : 0)
-                        .onAppear { model.itemAppeared(at: i) }
-                }
-            }
-        }
-        .frame(width: OrbitHomeLayout.screenWidth, height: D.pitch, alignment: .topLeading)
+                    OrbitNativeDiscover(model: model, onOpen: onOpen, header: { header })
+        
     }
 
     // MARK: Input
-
-    private func move(_ direction: MoveCommandDirection) {
-        let D = OrbitDiscoverLayout.self
-        guard !items.isEmpty else { return }
-        var next = index
-        switch direction {
-        case .left:
-            guard index % D.columns > 0 else { return }
-            next = index - 1
-        case .right:
-            guard index % D.columns < D.columns - 1, index + 1 < items.count else { return }
-            next = index + 1
-        case .down:
-            guard (line + 1) * D.columns < items.count else { return }
-            next = min(items.count - 1, index + D.columns)
-        case .up:
-            guard line > 0 else { return }   // the pills take it (unlocked on the first line)
-            next = index - D.columns
-        @unknown default:
-            return
-        }
-        let vertical = direction == .up || direction == .down
-        withAnimation(reduceMotion ? nil : (vertical ? OrbitHomeLayout.vertical : .easeOut(duration: 0.16))) {
-            index = next
-        }
-        model.itemAppeared(at: min(items.count - 1, next + D.columns * 3))
-        syncLock()
-    }
-
-    private func syncLock() {
-        OrbitBarLock.shared.set(canvasFocused && line > 0)
-    }
 
     // MARK: Header
 
@@ -443,6 +309,3 @@ private struct OrbitNativeDiscoverTile: View {
     }
 }
 
-private struct OrbitDiscoverCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
-}

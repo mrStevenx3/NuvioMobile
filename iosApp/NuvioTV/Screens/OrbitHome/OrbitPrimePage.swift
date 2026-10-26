@@ -120,10 +120,9 @@ struct OrbitPrimePage: View {
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @State private var nativeHasFocus = false
     /// The page holds the focus (the canvas's, or one of the native sections').
-    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
+    private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -326,38 +325,20 @@ struct OrbitPrimePage: View {
                     // plays in the opened one).
                     // (Native: the Amazon Original row sits on the rows' line — the top stays, its
                     // art the focused title's: Steven, the row showed no image above it.)
-                    .opacity(onOriginals && !nativeHome ? 0 : 1)
+                    
                     .animation(.easeInOut(duration: 0.3), value: onOriginals)
             }
             }
 
 
-            if nativeHome {
-                nativeSections(rows)
+                            nativeSections(rows)
                     .disabled(search != nil)
-            } else {
-            rowsLayer(rows)
-                .offset(y: -offset)
-                .animation(reduceMotion ? nil : OrbitPrimeLayout.vertical, value: offset)
-            }
+            
 
             if rows.isEmpty, model.isLoading {
                 ProgressView().frame(width: W, height: H)
             }
 
-            if !nativeHome {
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitPrimeCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction())
-            .offset(y: 110)
-            .disabled(search != nil)
-            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
                 .disabled(search != nil || (pageFocused && current > 0))
@@ -410,38 +391,6 @@ struct OrbitPrimePage: View {
             leads.reset()
             refreshAfterMove()
         }
-    }
-
-    @ViewBuilder
-    private func rowsLayer(_ rows: [OrbitPrimeRow]) -> some View {
-        let tops = rowTops(rows)
-        let currentRow = rowIndex(of: current) ?? -1
-        // Steven (device: Up / Down went through an empty screen on the platforms): the row above
-        // stays mounted and fades out fast as it leaves, back in coming up.
-        let low = max(0, currentRow - 1)
-        let high = min(rows.count - 1, max(currentRow, 0) + 3)
-        ZStack(alignment: .topLeading) {
-            if low <= high {
-                ForEach(Array(zip(low...high, rows[low...high])), id: \.1.id) { i, row in
-                    let rowLead = lead(of: row)
-                    let leadItem: MetaPreview? = row.items.indices.contains(rowLead) ? row.items[rowLead] : nil
-                    OrbitPrimeRowView(row: row, lead: rowLead, isCurrent: i == currentRow,
-                                      focused: pageFocused && i == currentRow,
-                                      trailerURL: i == currentRow && row.kind == .originals ? trailerURL(for: leadItem) : nil,
-                                      onTrailerFailure: { trailer.playbackFailed($0) },
-                                      onTrailerEnded: { trailer.playbackFinished() },
-                                      badges: Dictionary(row.items.map { ($0.id, badge($0) ?? "") },
-                                                         uniquingKeysWith: { a, _ in a }),
-                                      metaStore: metaStore)
-                        .offset(y: tops[i])
-                        .opacity(i < currentRow ? 0 : 1)
-                        .animation(.easeOut(duration: 0.14), value: i < currentRow)
-                        .id(row.id)
-                        .transition(.identity)
-                }
-            }
-        }
-        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
     }
 
     /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
@@ -597,10 +546,6 @@ struct OrbitPrimePage: View {
         trailerKey = "\(item.type):\(item.id)"
         trailer.focusChanged(true, item: item)
     }
-}
-
-private struct OrbitPrimeCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
 
 // MARK: - Pieces

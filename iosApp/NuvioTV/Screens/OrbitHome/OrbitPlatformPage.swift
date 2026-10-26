@@ -94,10 +94,9 @@ struct OrbitPlatformPage: View {
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @State private var nativeHasFocus = false
     /// The page holds the focus (the canvas's, or one of the native sections').
-    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
+    private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -199,12 +198,9 @@ struct OrbitPlatformPage: View {
             }
 
             // The rows.
-            if nativeHome {
-                nativeSections(rows)
+                            nativeSections(rows)
                     .disabled(search != nil)
-            } else {
-            rowsLayer(rows, index: index)
-            }
+            
 
             if rows.isEmpty, model.isLoading {
                 ProgressView()
@@ -212,19 +208,6 @@ struct OrbitPlatformPage: View {
             }
 
             // The page's one focusable stop, under the bar's band.
-            if !nativeHome {
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitPlatformCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction(index: index))
-            .offset(y: 110)
-            .disabled(search != nil)
-            }
 
             // Search, Films, Séries — out of reach once the page has gone below its first row.
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch)
@@ -280,48 +263,6 @@ struct OrbitPlatformPage: View {
                !CollectionTypeFilter.rows(all, filter: "series").isEmpty {
                 typeFilter = "series"
             }
-        }
-    }
-
-    /// The current row at its line, the rows after it below (the next one's heading peeks), the
-    /// ones above faded out as they leave.
-    @ViewBuilder
-    private func rowsLayer(_ rows: [OrbitPlatformRow], index: Int) -> some View {
-        let L = OrbitPlatformLayout.self
-        // Each row's heading centre, relative to the current row's.
-        let offsets: [CGFloat] = {
-            var out = Array(repeating: CGFloat(0), count: rows.count)
-            guard rows.indices.contains(index) else { return out }
-            var y: CGFloat = 0
-            for i in index..<rows.count { out[i] = y; y += rows[i].pitch }
-            y = 0
-            for i in stride(from: index - 1, through: 0, by: -1) { y -= rows[i].pitch; out[i] = y }
-            return out
-        }()
-        // Steven's video: the row leaving upwards faded across the next one (a ghost of the Top 10
-        // over the posters). The rows above the current one are not drawn at all: one leaving
-        // goes at once, one coming back down appears in place.
-        let window = index...max(index, min(rows.count - 1, index + 2))
-        ZStack(alignment: .topLeading) {
-            if !rows.isEmpty {
-                ForEach(Array(zip(window, rows[window])), id: \.1.id) { i, row in
-                    OrbitPlatformRowView(row: row, lead: lead(of: row), isCurrent: i == index,
-                                         focused: i == index && pageFocused)
-                        .offset(y: L.rowLine + offsets[i])
-                        .transition(.identity)
-                }
-            }
-        }
-        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
-        // Steven's video: the row leaving upwards crossed the synopsis as a ghost. Nothing of the
-        // rows shows above the current row's heading.
-        .mask {
-            LinearGradient(stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .clear, location: (L.rowLine - 60) / OrbitHomeLayout.screenHeight),
-                .init(color: .black, location: (L.rowLine - 30) / OrbitHomeLayout.screenHeight),
-                .init(color: .black, location: 1),
-            ], startPoint: .top, endPoint: .bottom)
         }
     }
 
@@ -464,13 +405,6 @@ struct OrbitPlatformPage: View {
                 trailer.focusChanged(true, item: item)
             }
         }
-    }
-}
-
-/// No system focus effect: the page draws its own.
-private struct OrbitPlatformCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
     }
 }
 

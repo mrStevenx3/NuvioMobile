@@ -179,7 +179,6 @@ struct OrbitStudioPage: View {
 
     // Native page (Steven, 2026-10-25: as fluid as Home): real rows of real buttons, moved by the
     // system (Settings ▸ Nouvel accueil off brings the canvas page back).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @FocusState private var nativeHeroFocus: Int?
     @State private var nativeHeroPage = 0
     @State private var nativeOnHero = true
@@ -252,83 +251,8 @@ struct OrbitStudioPage: View {
         ZStack(alignment: .topLeading) {
             OrbitStudioBackground(brand: brand)
 
-            if nativeHome {
-                nativeContent
-            } else {
-            ZStack(alignment: .topLeading) {
-                if hasHero {
-                    OrbitStudioHero(item: heroItem, meta: heroItem.flatMap { metaStore.meta(for: $0) },
-                                    studioName: model.name, studioLogo: model.logo ?? route.logo,
-                                    showsStudioLogo: introDone,
-                                    statsLine: model.statsLine, focused: onHero && canvasFocused,
-                                    count: heroItems.count, index: heroIndex % max(1, heroItems.count),
-                                    trailerURL: onHero ? trailerURL(for: heroItem) : nil,
-                                    onTrailerFailure: { trailer.playbackFailed($0) },
-                                    onTrailerEnded: { trailer.playbackFinished() })
-                        // Steven (device: the banner came back up in two steps): it stays in place
-                        // (the column's move undone) and fades — gone before the rows reach it,
-                        // back once they have moved off it.
-                        .offset(y: -scroll)
-                        .opacity(onHero ? 1 : 0)
-                        .animation(onHero ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onHero)
-                } else {
-                    OrbitStudioHeader(name: model.name, logo: model.logo ?? route.logo, line: nil)
-                        .offset(x: L.margin, y: 90)
-                        .opacity(index == 0 ? 1 : 0)
-                }
-                if count > 0 {
-                    // Steven (device: the saga's band rose before the rest, the row above vanished):
-                    // the row above stays mounted and fades fast as it leaves; the one coming in
-                    // from below is mounted before it shows.
-                    let first = max(hasHero ? 1 : 0, index - 1)
-                    let last = min(count - 1, index + 3)
-                    if first <= last {
-                        ForEach(first...last, id: \.self) { s in
-                            if let sectionRow = row(at: s) {
-                                let row = sectionRow
-                                OrbitStudioRowView(row: row, lead: lead(of: row), isCurrent: s == index,
-                                                   focused: s == index && canvasFocused, accent: brand,
-                                                   trailerURL: s == index && row.kind == .featured
-                                                       ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil)
-                                                       : nil,
-                                                   onTrailerFailure: { trailer.playbackFailed($0) },
-                                                   onTrailerEnded: { trailer.playbackFinished() })
-                                    .offset(y: anchors[s])
-                                    .opacity(s < index ? 0 : 1)
-                                    .animation(.easeOut(duration: 0.14), value: s < index)
-                                    .id(row.id)
-                                    .transition(.identity)
-                            }
-                        }
-                    }
-                }
-            }
-            .offset(y: scroll)
-
-            if count == 0 {
-                Group {
-                    if model.loading {
-                        ProgressView()
-                    } else {
-                        Text(String(localized: "Aucun film trouvé pour \(model.name)."))
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.6))
-                    }
-                }
-                .frame(width: W, height: H)
-            }
-
-            // The page's one focusable stop.
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitStudioCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction(index: index))
-            }
+                            nativeContent
+            
 
             // The studio's opening, over everything from the first frame (the catalogue never
             // shows before it).
@@ -351,8 +275,7 @@ struct OrbitStudioPage: View {
             model.start()
             trailer.restSource = .custom(motion)
             DispatchQueue.main.async {
-                if nativeHome { if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = nativeHeroPage } }
-                else { canvasFocused = true }
+                 if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = nativeHeroPage } 
             }
             refreshAfterMove()
         }
@@ -597,12 +520,6 @@ struct OrbitStudioPage: View {
         trailer.restSource = .custom(motion)
         trailerKey = "\(item.type):\(item.id)"
         trailer.focusChanged(true, item: item)
-    }
-}
-
-private struct OrbitStudioCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
     }
 }
 

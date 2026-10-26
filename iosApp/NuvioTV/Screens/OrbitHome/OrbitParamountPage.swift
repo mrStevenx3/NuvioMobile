@@ -92,10 +92,9 @@ struct OrbitParamountPage: View {
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @State private var nativeHasFocus = false
     /// The page holds the focus (the canvas's, or one of the native sections').
-    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
+    private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -293,32 +292,14 @@ struct OrbitParamountPage: View {
             }
             }
 
-            if nativeHome {
-                nativeSections(rows)
+                            nativeSections(rows)
                     .disabled(search != nil)
-            } else {
-            rowsLayer(rows)
-                .offset(y: -offset)
-                .animation(reduceMotion ? nil : OrbitParamountLayout.vertical, value: offset)
-            }
+            
 
             if rows.isEmpty, model.isLoading {
                 ProgressView().frame(width: W, height: H)
             }
 
-            if !nativeHome {
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitParamountCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction())
-            .offset(y: 110)
-            .disabled(search != nil)
-            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
                 .disabled(search != nil || (pageFocused && current > 0))
@@ -371,33 +352,6 @@ struct OrbitParamountPage: View {
             leads.reset()
             refreshAfterMove()
         }
-    }
-
-    @ViewBuilder
-    private func rowsLayer(_ rows: [OrbitParamountRow]) -> some View {
-        let tops = rowTops(rows)
-        let currentRow = rowIndex(of: current) ?? -1
-        // Steven (device: Up / Down looked odd — the rows vanished, then the next one rose from the
-        // bottom): the row above stays mounted and fades as it leaves (and back in coming up),
-        // and the rows are keyed by their own id, as on Home.
-        let low = max(0, currentRow - 1)
-        let high = min(rows.count - 1, max(currentRow, 0) + 3)
-        ZStack(alignment: .topLeading) {
-            if low <= high {
-                ForEach(Array(zip(low...high, rows[low...high])), id: \.1.id) { i, row in
-                    OrbitParamountRowView(row: row, lead: lead(of: row), isCurrent: i == currentRow,
-                                          focused: pageFocused && i == currentRow,
-                                          news: freshRowIDs.contains(row.id) ? [] : Set(row.items.filter(isNew).map(\.id)),
-                                          metaStore: metaStore)
-                        .offset(y: tops[i])
-                        .opacity(i < currentRow ? 0 : 1)
-                        .animation(.easeOut(duration: 0.14), value: i < currentRow)
-                        .id(row.id)
-                        .transition(.identity)
-                }
-            }
-        }
-        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
     }
 
     /// The native page: the sections (an invisible stop for the hero, whose art stays behind, then
@@ -539,10 +493,6 @@ struct OrbitParamountPage: View {
         trailerKey = "\(item.type):\(item.id)"
         trailer.focusChanged(true, item: item)
     }
-}
-
-private struct OrbitParamountCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
 
 // MARK: - Pieces

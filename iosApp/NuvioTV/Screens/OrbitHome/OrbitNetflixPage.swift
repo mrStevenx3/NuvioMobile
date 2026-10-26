@@ -110,10 +110,9 @@ struct OrbitNetflixPage: View {
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
     /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @State private var nativeHasFocus = false
     /// The page holds the focus (the canvas's, or one of the native sections').
-    private var pageFocused: Bool { nativeHome ? nativeHasFocus : canvasFocused }
+    private var pageFocused: Bool { nativeHasFocus }
     @State private var motion = OrbitHomeMotion()
     @State private var trailerKey: String?
     @State private var search: OrbitPlatformSearchModel?
@@ -247,30 +246,9 @@ struct OrbitNetflixPage: View {
         ZStack(alignment: .topLeading) {
             OrbitNetflixLayout.background
 
-            if nativeHome {
-                nativeSections(rows, billboard: billboard)
+                            nativeSections(rows, billboard: billboard)
                     .disabled(search != nil)
-            } else {
-            ZStack(alignment: .topLeading) {
-                if let billboard {
-                    OrbitNetflixBillboard(item: billboard, meta: metaStore.meta(for: billboard),
-                                          rank: topRank(billboard), series: billboard.type != "movie",
-                                          focused: pageFocused && current == 0,
-                                          trailerURL: current == 0 ? trailerURL(for: billboard) : nil,
-                                          onTrailerFailure: { trailer.playbackFailed($0) },
-                                          onTrailerEnded: { trailer.playbackFinished() })
-                        .offset(x: OrbitNetflixLayout.margin, y: OrbitNetflixLayout.billboardTop)
-                        // Steven (taller billboard): its bottom showed under the bar once scrolled.
-                        .opacity(current == 0 ? 1 : 0)
-                        // Leaving, gone before the rows reach it; back once they have moved off.
-                        .animation(current == 0 ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.12), value: current == 0)
-                        .opacity(current <= 1 ? 1 : 0)
-                }
-                rowsLayer(rows)
-            }
-            .offset(y: -offset)
-            .animation(reduceMotion ? nil : OrbitNetflixLayout.vertical, value: offset)
-            }
+            
 
             // Under the bar: black, so the row above never shows through.
             LinearGradient(colors: [.black, .black.opacity(0.9), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
@@ -282,19 +260,6 @@ struct OrbitNetflixPage: View {
                 ProgressView().frame(width: W, height: H)
             }
 
-            if !nativeHome {
-            Button(action: select) {
-                Color.clear
-                    .frame(width: W, height: H - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitNetflixCanvasStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction())
-            .offset(y: 110)
-            .disabled(search != nil)
-            }
 
             CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
                 .disabled(search != nil || (pageFocused && current > 0))
@@ -342,38 +307,6 @@ struct OrbitNetflixPage: View {
             leads.reset()
             refreshAfterMove()
         }
-    }
-
-    @ViewBuilder
-    private func rowsLayer(_ rows: [OrbitNetflixRow]) -> some View {
-        let tops = rowTops(rows)
-        let currentRow = current - 1
-        // Steven (device: Down went through an empty screen): the row above stays mounted and
-        // fades out fast as it leaves (it no longer overlaps the new one), back in coming up.
-        let low = max(0, currentRow - 1)
-        let high = min(rows.count - 1, max(currentRow, 0) + 2)
-        ZStack(alignment: .topLeading) {
-            if low <= high {
-                ForEach(Array(zip(low...high, rows[low...high])), id: \.1.id) { i, row in
-                    let lead = lead(of: row)
-                    let item: MetaPreview? = row.items.indices.contains(lead) ? row.items[lead] : nil
-                    OrbitNetflixRowView(row: row, lead: lead, isCurrent: i == currentRow,
-                                        focused: pageFocused && i == currentRow,
-                                        series: item.map { $0.type != "movie" } ?? series,
-                                        rank: item.flatMap { topRank($0) },
-                                        trailerURL: i == currentRow ? trailerURL(for: item) : nil,
-                                        onTrailerFailure: { trailer.playbackFailed($0) },
-                                        onTrailerEnded: { trailer.playbackFinished() },
-                                        metaStore: metaStore)
-                        .offset(y: tops[i])
-                        .opacity(i < currentRow ? 0 : 1)
-                        .animation(.easeOut(duration: 0.14), value: i < currentRow)
-                        .id(row.id)
-                        .transition(.identity)
-                }
-            }
-        }
-        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
     }
 
     /// The native page: the billboard and the rows as sections the system moves.
@@ -506,10 +439,6 @@ struct OrbitNetflixPage: View {
         trailerKey = "\(item.type):\(item.id)"
         trailer.focusChanged(true, item: item)
     }
-}
-
-private struct OrbitNetflixCanvasStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
 
 // MARK: - Pieces

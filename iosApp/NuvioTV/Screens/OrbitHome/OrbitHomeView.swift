@@ -113,35 +113,8 @@ struct OrbitHomeView: View {
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var current = 0
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
-    /// Steven (device, still a hitch on Up/Down): the rows mounted follow the row the page last
-    /// settled on, not the one it is moving to — the row coming into the window is built once the
-    /// move is over, not in the frame the move starts.
-    @State private var settled = 0
-    @State private var leads: [String: Int] = [:]
-    @State private var heroIndex = 0
-    @FocusState private var canvasFocused: Bool
-    @StateObject private var trailer = OrbitNativeTrailerHost()
     /// The page's own rows (TMDB): the Top 10 across the platforms, each platform's new titles.
     @StateObject private var extras = OrbitHomeExtrasModel()
-    @State private var motion = OrbitHomeMotion()
-    /// "<section>|<card>" the trailer is armed for.
-    @State private var trailerKey: String?
-
-    private enum Section: Equatable {
-        case hero
-        case genres
-        case row(OrbitRow)
-
-        var id: String {
-            switch self {
-            case .hero: return "hero"
-            case .genres: return "genres"
-            case .row(let row): return row.id
-            }
-        }
-    }
 
     // MARK: Data
 
@@ -281,89 +254,11 @@ struct OrbitHomeView: View {
         return cards.filter { seen.insert($0.id).inserted }
     }
 
-    private var sections: [Section] {
-        var out: [Section] = []
-        if !heroItems.isEmpty { out.append(.hero) }
-        // Steven: no genre chips (Découvrir covers it).
-        out.append(contentsOf: rows.map(Section.row))
-        return out
-    }
-
-    // MARK: Geometry
-
-    /// Each section's anchor in the column (hero top, chips top, row heading centre).
-    private func anchors(_ sections: [Section]) -> [CGFloat] {
-        let L = OrbitHomeLayout.self
-        var y: CGFloat = 0
-        var out: [CGFloat] = []
-        for section in sections {
-            out.append(y)
-            switch section {
-            case .hero: y += L.heroPitch
-            case .genres: y += L.genresPitch
-            case .row(let row): y += OrbitTileLayout.pitch(row.style)
-            }
-        }
-        return out
-    }
-
-    private func screenLine(_ section: Section) -> CGFloat {
-        switch section {
-        case .hero: return OrbitHomeLayout.heroTop
-        case .genres: return OrbitHomeLayout.chipsTop
-        case .row: return OrbitHomeLayout.rowAnchor
-        }
-    }
-
     // MARK: Body
 
     var body: some View {
-        let sections = sections
-        let anchors = anchors(sections)
-        let index = min(current, max(0, sections.count - 1))
-        let scroll = sections.isEmpty ? 0 : screenLine(sections[index]) - anchors[index]
-        let base = abs(settled - index) <= 1 ? settled : index
-        let low = max(0, min(base - 1, index))
-        let window = low...max(low, min(sections.count - 1, max(base + 2, index + 1)))
-        let heroItem = heroItems.isEmpty ? nil : heroItems[heroIndex % heroItems.count]
-
-        ZStack(alignment: .topLeading) {
-            if nativeHome {
-                OrbitNativeHome(heroItems: heroItems, rows: rows, actions: actions, isScrolledDown: $isScrolledDown)
-            } else {
-            // (The blurred ambient behind the hero is gone: the full-screen hero covers it, it was
-            // fetched and blurred for nothing on every title.)
-            // Steven (2026-10-25, pass 2: the rows left the screen half black): the focused title's
-            // art fills the top right behind the rows, fading to the left and down.
-            OrbitRowsBackdrop(url: rowsBackdropURL(sections: sections, index: index))
-                .opacity(index > 0 ? 1 : 0)
-                .animation(.easeInOut(duration: 0.35), value: index > 0)
-
-            ZStack(alignment: .topLeading) {
-                if !sections.isEmpty {
-                    ForEach(Array(zip(window, sections[window])), id: \.1.id) { i, section in
-                        sectionView(section, isCurrent: i == index, heroItem: heroItem)
-                            .offset(y: anchors[i])
-                            .opacity(i < index ? 0 : 1)
-                            .transition(.identity)
-                    }
-                }
-            }
-            .offset(y: scroll)
-
-            // The page's one focusable stop, under the bar's band.
-            Button(action: select) {
-                Color.clear
-                    .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight - 110)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(OrbitCanvasButtonStyle())
-            .focused($canvasFocused)
-            .onMoveCommand(perform: move)
-            .onExitCommand(perform: exitAction(index: index))
-            .offset(y: 110)
-            }
-        }
+        // Steven (2026-10-26): Home built like Apple's TV app — the drawn Home is gone.
+        OrbitNativeHome(heroItems: heroItems, rows: rows, actions: actions, isScrolledDown: $isScrolledDown)
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .topLeading)
         .background(OrbitHomeLayout.background)
         .ignoresSafeArea()
@@ -373,221 +268,13 @@ struct OrbitHomeView: View {
             WatchedRepository.shared.ensureLoaded()
             extras.loadBecause(seed: becauseSeed(series: series), series: series)
             OrbitPlatformLogos.update()
-            trailer.restSource = .custom(motion)
-            refreshAfterMove()
         }
         .onDisappear {
-            trailer.reset(abortStages: true)
             OrbitBarLock.shared.set(false)
         }
-        .onChange(of: canvasFocused) { _, _ in refreshAfterMove() }
         .onChange(of: model.continueWatching.count) { _, _ in
             extras.loadBecause(seed: becauseSeed(series: series), series: series)
         }
-        .onChange(of: sections.map(\.id)) { _, _ in
-            if current >= sections.count { current = max(0, sections.count - 1) }
-            if settled >= sections.count { settled = max(0, sections.count - 1) }
-            refreshAfterMove()
-        }
-    }
-
-    @ViewBuilder
-    private func sectionView(_ section: Section, isCurrent: Bool, heroItem: MetaPreview?) -> some View {
-        let focusedHere = isCurrent && canvasFocused
-        switch section {
-        case .hero:
-            OrbitHomeHeroView(item: heroItem, focused: focusedHere,
-                              count: heroItems.count, index: heroItems.isEmpty ? 0 : heroIndex % heroItems.count,
-                              trailerURL: trailerURL(for: "hero", id: heroItem.map { "\($0.type):\($0.id)" }),
-                              onTrailerFailure: { trailer.playbackFailed($0) },
-                              onTrailerEnded: { trailer.playbackFinished() })
-        case .genres:
-            OrbitGenresView(genres: genres, lead: leads["genres"] ?? 0, focused: focusedHere)
-        case .row(let row):
-            let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
-            let rowTrailer = row.cards.indices.contains(lead) ? trailerURL(for: row.id, id: row.cards[lead].id) : nil
-            if row.style == .classic {
-                OrbitHomeRowView(row: row, lead: lead, isCurrent: isCurrent, focused: focusedHere,
-                                 trailerURL: rowTrailer,
-                                 onTrailerFailure: { trailer.playbackFailed($0) },
-                                 onTrailerEnded: { trailer.playbackFinished() })
-            } else {
-                OrbitHomeTileRowView(row: row, lead: lead, isCurrent: isCurrent, focused: focusedHere,
-                                     trailerURL: rowTrailer,
-                                     onTrailerFailure: { trailer.playbackFailed($0) },
-                                     onTrailerEnded: { trailer.playbackFinished() })
-            }
-        }
-    }
-
-    /// The current row's focused title's art (nil on the hero).
-    private func rowsBackdropURL(sections: [Section], index: Int) -> String? {
-        guard sections.indices.contains(index), case .row(let row) = sections[index] else { return nil }
-        let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
-        guard row.cards.indices.contains(lead) else { return nil }
-        let card = row.cards[lead]
-        // The card's own art first (known at once: no swap when TMDB's arrives).
-        return card.landscape ?? OrbitMetaStore.shared.meta(for: card.preview)?.backdrop
-    }
-
-    private func trailerURL(for section: String, id: String?) -> String? {
-        guard let id, trailerKey == "\(section)|\(id)" else { return nil }
-        return trailer.playingURL
-    }
-
-    // MARK: Input
-
-    private func move(_ direction: MoveCommandDirection) {
-        let sections = sections
-        guard !sections.isEmpty else { return }
-        let index = min(current, sections.count - 1)
-        switch direction {
-        case .down:
-            guard index + 1 < sections.count else { return }
-            withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = index + 1 }
-            settleLater()
-        case .up:
-            guard index > 0 else { return }   // the bar takes it (unlocked at the top)
-            withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = index - 1 }
-            settleLater()
-        case .left, .right:
-            let delta = direction == .right ? 1 : -1
-            switch sections[index] {
-            case .hero:
-                let count = heroItems.count
-                guard count > 1 else { return }
-                withAnimation(OrbitHomeLayout.horizontal) { heroIndex = (heroIndex + delta + count) % count }
-            case .genres:
-                let lead = (leads["genres"] ?? 0) + delta
-                guard genres.indices.contains(lead) else { return }
-                withAnimation(OrbitHomeLayout.horizontal) { leads["genres"] = lead }
-            case .row(let row):
-                let lead = min(leads[row.id] ?? 0, row.cards.count - 1) + delta
-                guard row.cards.indices.contains(lead) else { return }
-                // TMDB's results wait for the slide to end (a redraw of every row mid-slide).
-                OrbitMetaStore.shared.holdPublishing(for: 0.3)
-                withAnimation(OrbitHomeLayout.horizontal) { leads[row.id] = lead }
-            }
-        @unknown default:
-            return
-        }
-        refreshAfterMove()
-    }
-
-    private func select() {
-        let sections = sections
-        guard !sections.isEmpty else { return }
-        switch sections[min(current, sections.count - 1)] {
-        case .hero:
-            guard !heroItems.isEmpty else { return }
-            actions.push(TitleRoute(preview: heroItems[heroIndex % heroItems.count]))
-        case .genres:
-            let lead = leads["genres"] ?? 0
-            if genres.indices.contains(lead) { pushGenre(genres[lead]) }
-        case .row(let row):
-            let lead = min(leads[row.id] ?? 0, row.cards.count - 1)
-            guard row.cards.indices.contains(lead) else { return }
-            let card = row.cards[lead]
-            if let entry = card.entry {
-                actions.resume(ResumeTarget(entry: entry))
-            } else {
-                actions.push(TitleRoute(preview: card.preview))
-            }
-        }
-    }
-
-    /// Menu: back to the top from below it; at the top, the system's own (the bar, then out).
-    private func exitAction(index: Int) -> (() -> Void)? {
-        guard index > 0 else {
-            return { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
-        }
-        return { goTop() }
-    }
-
-    /// Once no vertical move has come for the length of one: the window catches up (idle).
-    private func settleLater() {
-        // TMDB's results wait for the move to end (a redraw of every row mid-move is the hitch).
-        OrbitMetaStore.shared.holdPublishing(for: 0.45)
-        let stamp = ProcessInfo.processInfo.systemUptime
-        motion.verticalStamp = stamp
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            guard motion.verticalStamp == stamp, settled != current else { return }
-            settled = current
-        }
-    }
-
-    private func goTop() {
-        settled = 0
-        withAnimation(reduceMotion ? nil : OrbitHomeLayout.vertical) { current = 0 }
-        refreshAfterMove()
-    }
-
-    /// After any move: the bar's lock, Home's scrolled flag, the trailer dwell, the look-ahead.
-    private func refreshAfterMove() {
-        // The native Home moves, locks the bar and looks ahead on its own.
-        guard !nativeHome else { return }
-        let sections = sections
-        let index = min(current, max(0, sections.count - 1))
-        OrbitBarLock.shared.set(canvasFocused && index > 0)
-        if isScrolledDown != (index > 0) { isScrolledDown = index > 0 }
-        motion.stamp()
-
-        // The look-ahead: TMDB meta and frame art for the titles around each nearby row's lead.
-        var metaItems: [MetaPreview] = []
-        if !heroItems.isEmpty {
-            metaItems.append(contentsOf: (0..<min(3, heroItems.count)).map { heroItems[(heroIndex + $0) % heroItems.count] })
-        }
-        for i in max(0, index - 1)...max(0, min(sections.count - 1, index + 1)) where sections.indices.contains(i) {
-            guard case .row(let row) = sections[i] else { continue }
-            let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
-            let around = row.cards.indices.filter { $0 >= lead - 1 && $0 <= lead + 3 }
-            metaItems.append(contentsOf: around.map { row.cards[$0].preview })
-            let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.frameWidth, height: OrbitHomeLayout.cardHeight),
-                                               fill: true, scale: UIScreen.main.scale)
-            ArtworkStore.prefetch(around.compactMap { j in
-                row.cards[j].landscape.flatMap(URL.init(string:)).map { ArtworkPrefetchItem(url: $0, decode: request) }
-            })
-            if let key = row.sectionKey { model.rowAppeared(sectionKey: key) }
-        }
-        // Steven: the Top 10's details were late on each move — its ten titles are looked up all
-        // at once, as soon as the page has them (after the nearby ones).
-        for section in sections {
-            guard case .row(let row) = section, row.style == .ranked else { continue }
-            metaItems.append(contentsOf: row.cards.prefix(10).map(\.preview))
-        }
-        OrbitMetaStore.shared.request(metaItems)
-
-        // The trailer: re-armed on the current title, or stopped.
-        trailer.reset()
-        trailerKey = nil
-        guard trailersOn, canvasFocused, UIAccessibility.isVideoAutoplayEnabled,
-              sections.indices.contains(index) else { return }
-        trailer.prefersReducedMotion = reduceMotion
-        trailer.restSource = .custom(motion)
-        switch sections[index] {
-        case .hero:
-            guard !heroItems.isEmpty else { return }
-            let item = heroItems[heroIndex % heroItems.count]
-            trailerKey = "hero|\(item.type):\(item.id)"
-            trailer.focusChanged(true, item: item)
-        case .row(let row):
-            // The trailer plays in the classic frame and in the large cards only.
-            guard row.style == .classic || row.style == .cards else { return }
-            let lead = min(leads[row.id] ?? 0, max(0, row.cards.count - 1))
-            guard row.cards.indices.contains(lead) else { return }
-            let card = row.cards[lead]
-            trailerKey = "\(row.id)|\(card.id)"
-            trailer.focusChanged(true, item: card.preview)
-        case .genres:
-            return
-        }
-    }
-}
-
-/// No system focus effect: the page draws its own.
-private struct OrbitCanvasButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
     }
 }
 

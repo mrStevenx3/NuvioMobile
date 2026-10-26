@@ -96,7 +96,6 @@ struct OrbitPlaybackSection: View {
     @ObservedObject var model: SettingsViewModel
     @AppStorage(OrbitHomeSetting.trailersKey) private var previews = true
     @AppStorage(OrbitHomeSetting.trailerSoundKey) private var previewSound = false
-    @AppStorage(OrbitHomeSetting.nativeKey) private var nativeHome = true
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
     @AppStorage(TrailerStartDelay.storageKey) private var previewDelay = TrailerStartDelay.automatic.rawValue
     @AppStorage(OrbitPlayerSettings.objectAudioKey) private var objectAudio = true
@@ -116,12 +115,6 @@ struct OrbitPlaybackSection: View {
             OrbitSettingsToggle(title: String(localized: "Préparer l'épisode suivant"),
                                 subtitle: String(localized: "Cherche les sources du prochain épisode avant la fin, pour qu'il démarre tout de suite."),
                                 isOn: Binding(get: { model.preloadNextEpisodeSources }, set: { model.setPreloadNextEpisodeSources($0) }))
-        }
-
-        OrbitSettingsGroup(title: String(localized: "Accueil")) {
-            OrbitSettingsToggle(title: String(localized: "Nouvel accueil"),
-                                subtitle: String(localized: "Activé : le nouvel accueil, fluide comme l'app Apple TV. Désactivé : l'ancien accueil."),
-                                isOn: $nativeHome)
         }
 
         OrbitSettingsGroup(title: String(localized: "Aperçus et épisodes")) {
