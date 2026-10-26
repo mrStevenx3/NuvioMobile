@@ -315,8 +315,13 @@ final class OrbitNativeTrailerHost: ObservableObject {
     }
 
     /// The focus stopped on a title that plays its trailer here (after the usual rest).
+    /// The page is covered by a title (or gone): nothing starts behind it (Steven: a thumbnail's
+    /// trailer kept playing, its sound under the title's page).
+    var suspended = false
+
     func arm(_ key: String, item: MetaPreview, reduceMotion: Bool = false) {
         motion.stamp()
+        guard !suspended else { return }
         guard self.key != key else { return }
         model.reset()
         self.key = nil

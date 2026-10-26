@@ -81,6 +81,9 @@ struct OrbitAppleTVPage: View {
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
+    /// A title was opened over the page: no trailer starts again behind it (Steven: Prime's kept
+    /// playing, its sound under the title's page).
+    @State private var covered = false
 
     /// nil: Accueil; "movie"; "series".
     @State private var typeFilter: String? = nil
@@ -333,6 +336,7 @@ struct OrbitAppleTVPage: View {
         // once they have moved off it.
         .animation(onArrival ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onArrival)
         .onAppear {
+            covered = false
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -343,6 +347,7 @@ struct OrbitAppleTVPage: View {
             refreshAfterMove()
         }
         .onDisappear {
+            covered = true
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
@@ -532,6 +537,8 @@ struct OrbitAppleTVPage: View {
     }
 
     private func select() {
+        covered = true
+        trailer.reset(abortStages: true)
         if let focusedItem { push(TitleRoute(preview: focusedItem, zoom: zoomSpace != nil, platform: OrbitDetailPlatform(theme: .appletv))) }
     }
 
@@ -592,7 +599,7 @@ struct OrbitAppleTVPage: View {
 
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, search == nil, UIAccessibility.isVideoAutoplayEnabled else { return }
+        guard trailersOn, !covered, search == nil, UIAccessibility.isVideoAutoplayEnabled else { return }
         // The carousel's trailer; in a row of large cards, the focused card's (Steven: as in the app).
         var target: MetaPreview?
         if current == 0 {

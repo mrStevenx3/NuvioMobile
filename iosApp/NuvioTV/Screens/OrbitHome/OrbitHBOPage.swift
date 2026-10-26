@@ -116,6 +116,9 @@ struct OrbitHBOPage: View {
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
+    /// A title was opened over the page: no trailer starts again behind it (Steven: Prime's kept
+    /// playing, its sound under the title's page).
+    @State private var covered = false
 
     /// nil: Accueil; "movie"; "series".
     @State private var typeFilter: String? = nil
@@ -396,6 +399,7 @@ struct OrbitHBOPage: View {
         // once they have moved off it.
         .animation(onArrival ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onArrival)
         .onAppear {
+            covered = false
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -407,6 +411,7 @@ struct OrbitHBOPage: View {
             refreshAfterMove()
         }
         .onDisappear {
+            covered = true
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
@@ -542,6 +547,8 @@ struct OrbitHBOPage: View {
     }
 
     private func select() {
+        covered = true
+        trailer.reset(abortStages: true)
         if let focusedItem { push(TitleRoute(preview: focusedItem, platform: detailPlatform(focusedItem))) }
     }
 
@@ -602,7 +609,7 @@ struct OrbitHBOPage: View {
         trailer.reset()
         trailerKey = nil
         // The carousel's trailer plays whether or not it has the focus (the bar can).
-        guard trailersOn, search == nil, current == 0, UIAccessibility.isVideoAutoplayEnabled,
+        guard trailersOn, !covered, search == nil, current == 0, UIAccessibility.isVideoAutoplayEnabled,
               let item = heroItem else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)

@@ -274,6 +274,7 @@ struct OrbitStudioPage: View {
             OrbitHomeButtonHost.shared.enter(.onRequest)
             model.start()
             trailer.restSource = .custom(motion)
+            nativeTrailers.suspended = false
             DispatchQueue.main.async {
                  if hasHero, nativeHeroFocus == nil, OrbitNativeStudioRow.reopen == nil { nativeHeroFocus = nativeHeroPage } 
             }
@@ -284,6 +285,7 @@ struct OrbitStudioPage: View {
             OrbitHomeButtonHost.shared.leave(.onRequest)
             trailer.reset(abortStages: true)
             nativeTrailers.stop(abort: true)
+            nativeTrailers.suspended = true
             // Steven (device: entering a studio, its page showed — with its logo — before the
             // opening): the system can show a closed page's view again for a moment on the next
             // visit. Closed (not covered by a title), it goes back to its black opening.

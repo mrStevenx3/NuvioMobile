@@ -125,12 +125,14 @@ struct OrbitNativeHome: View {
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
         .onAppear {
+            trailers.suspended = false
             OrbitBarLock.shared.set(!onHero)
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
         }
         .onDisappear {
             OrbitBarLock.shared.set(false)
             trailers.stop(abort: true)
+            trailers.suspended = true
         }
     }
 
@@ -423,6 +425,8 @@ struct OrbitNativeRow: View {
 
     private func open(_ card: OrbitCard) {
         Self.reopen = (row.id, card.id)
+        trailers.stop(abort: true)
+        trailers.suspended = true
         if let entry = card.entry {
             actions.resume(ResumeTarget(entry: entry))
         } else {

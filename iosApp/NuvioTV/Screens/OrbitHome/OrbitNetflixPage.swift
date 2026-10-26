@@ -101,6 +101,9 @@ struct OrbitNetflixPage: View {
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
+    /// A title was opened over the page: no trailer starts again behind it (Steven: Prime's kept
+    /// playing, its sound under the title's page).
+    @State private var covered = false
 
     /// nil: Accueil (films and series together, Steven 2026-10-25); "movie"; "series".
     @State private var typeFilter: String? = nil
@@ -284,6 +287,7 @@ struct OrbitNetflixPage: View {
         .ignoresSafeArea()
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .onAppear {
+            covered = false
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -293,6 +297,7 @@ struct OrbitNetflixPage: View {
             refreshAfterMove()
         }
         .onDisappear {
+            covered = true
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
@@ -412,6 +417,8 @@ struct OrbitNetflixPage: View {
     }
 
     private func select() {
+        covered = true
+        trailer.reset(abortStages: true)
         if let focusedItem { push(TitleRoute(preview: focusedItem, platform: detailPlatform(focusedItem))) }
     }
 
@@ -455,7 +462,7 @@ struct OrbitNetflixPage: View {
 
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+        guard trailersOn, !covered, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = focusedItem else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)

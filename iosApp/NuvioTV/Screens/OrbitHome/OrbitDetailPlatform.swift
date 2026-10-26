@@ -70,6 +70,12 @@ struct OrbitDetailPlatformMark: View {
                     .scaledToFit()
                     .foregroundStyle(Color.white)
                     .frame(height: 44)
+            } else if platform.theme == .netflix {
+                // Steven: just his N, larger, not the whole Netflix word.
+                Image("NetflixN")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 76)
             } else if let url = platform.logoUrl, !url.isEmpty {
                 CachedAsyncImage(string: url, contentMode: .fit,
                                  decodeSize: .points(width: 380, height: 140),

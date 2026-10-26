@@ -82,6 +82,9 @@ struct OrbitParamountPage: View {
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
+    /// A title was opened over the page: no trailer starts again behind it (Steven: Prime's kept
+    /// playing, its sound under the title's page).
+    @State private var covered = false
 
     /// nil: Accueil; "movie"; "series".
     @State private var typeFilter: String? = nil
@@ -325,6 +328,7 @@ struct OrbitParamountPage: View {
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .animation(.easeInOut(duration: 0.25), value: onArrival)
         .onAppear {
+            covered = false
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -335,6 +339,7 @@ struct OrbitParamountPage: View {
             refreshAfterMove()
         }
         .onDisappear {
+            covered = true
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
@@ -452,6 +457,8 @@ struct OrbitParamountPage: View {
     }
 
     private func select() {
+        covered = true
+        trailer.reset(abortStages: true)
         if let shownItem { push(TitleRoute(preview: shownItem, platform: detailPlatform(shownItem))) }
     }
 
@@ -512,7 +519,7 @@ struct OrbitParamountPage: View {
         trailer.reset()
         trailerKey = nil
         // The arrival's trailer plays whether or not it has the focus (the bar can).
-        guard trailersOn, search == nil, current == 0, UIAccessibility.isVideoAutoplayEnabled,
+        guard trailersOn, !covered, search == nil, current == 0, UIAccessibility.isVideoAutoplayEnabled,
               let item = heroItem else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)

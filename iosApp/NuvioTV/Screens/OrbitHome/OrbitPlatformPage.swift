@@ -87,6 +87,9 @@ struct OrbitPlatformPage: View {
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
+    /// A title was opened over the page: no trailer starts again behind it (Steven: Prime's kept
+    /// playing, its sound under the title's page).
+    @State private var covered = false
 
     @State private var typeFilter: String? = "movie"
     @State private var current = 0
@@ -231,6 +234,7 @@ struct OrbitPlatformPage: View {
         .ignoresSafeArea()
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .onAppear {
+            covered = false
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)   // the house is in the page's own bar
             model.buildsStripState = true
@@ -240,6 +244,7 @@ struct OrbitPlatformPage: View {
             refreshAfterMove()
         }
         .onDisappear {
+            covered = true
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
@@ -345,6 +350,8 @@ struct OrbitPlatformPage: View {
     }
 
     private func select() {
+        covered = true
+        trailer.reset(abortStages: true)
         let rows = rows
         guard rows.indices.contains(current) else { return }
         let row = rows[current]
@@ -412,7 +419,7 @@ struct OrbitPlatformPage: View {
         dwellRetry?.cancel()
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+        guard trailersOn, !covered, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = focusedItem(rows) else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)

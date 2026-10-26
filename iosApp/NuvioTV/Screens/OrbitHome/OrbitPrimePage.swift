@@ -110,6 +110,9 @@ struct OrbitPrimePage: View {
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
+    /// A title was opened over the page: no trailer starts again behind it (Steven: Prime's kept
+    /// playing, its sound under the title's page).
+    @State private var covered = false
 
     /// nil: Tout; "movie"; "series".
     @State private var typeFilter: String? = nil
@@ -364,6 +367,7 @@ struct OrbitPrimePage: View {
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .animation(.easeInOut(duration: 0.25), value: onArrival)
         .onAppear {
+            covered = false
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -374,6 +378,7 @@ struct OrbitPrimePage: View {
             refreshAfterMove()
         }
         .onDisappear {
+            covered = true
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
@@ -493,6 +498,8 @@ struct OrbitPrimePage: View {
     }
 
     private func select() {
+        covered = true
+        trailer.reset(abortStages: true)
         if let shownItem { push(TitleRoute(preview: shownItem, platform: detailPlatform(shownItem))) }
     }
 
@@ -554,7 +561,7 @@ struct OrbitPrimePage: View {
         trailerKey = nil
         // The hero's trailer plays whether or not it has the focus (the bar can); on the Amazon
         // Original row, the opened poster's.
-        guard trailersOn, search == nil, UIAccessibility.isVideoAutoplayEnabled else { return }
+        guard trailersOn, !covered, search == nil, UIAccessibility.isVideoAutoplayEnabled else { return }
         var target: MetaPreview?
         if current == 0 {
             target = heroItem

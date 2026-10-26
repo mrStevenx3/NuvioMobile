@@ -86,6 +86,9 @@ struct OrbitDisneyPage: View {
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
+    /// A title was opened over the page: no trailer starts again behind it (Steven: Prime's kept
+    /// playing, its sound under the title's page).
+    @State private var covered = false
 
     /// 0: Disney+, 1: Hulu.
     @State private var mode = 0
@@ -329,6 +332,7 @@ struct OrbitDisneyPage: View {
         .ignoresSafeArea()
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .onAppear {
+            covered = false
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -340,6 +344,7 @@ struct OrbitDisneyPage: View {
             refreshAfterMove()
         }
         .onDisappear {
+            covered = true
             tabBarVisibility.popImmersive()
             OrbitHomeButtonHost.shared.leave(.ownBar)
             trailer.reset(abortStages: true)
@@ -461,6 +466,8 @@ struct OrbitDisneyPage: View {
     }
 
     private func select() {
+        covered = true
+        trailer.reset(abortStages: true)
         if current == 0 {
             if let heroItem { push(TitleRoute(preview: heroItem, platform: detailPlatform)) }
         } else if let r = rowIndex(of: current), rows.indices.contains(r) {
@@ -532,7 +539,7 @@ struct OrbitDisneyPage: View {
 
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, pageFocused, current == 0, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+        guard trailersOn, !covered, pageFocused, current == 0, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = heroItem else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
