@@ -670,15 +670,14 @@ private struct OrbitHBOMark: View {
     var size: CGFloat = 20
 
     var body: some View {
-        HStack(spacing: size * 0.4) {
-            Text(own == .hbo ? "HBO" : "HBO max")
-                .font(.system(size: size * 1.15, weight: .black))
-            Text(String(localized: "ORIGINAL"))
-                .font(.system(size: size * 0.8, weight: .semibold))
-                .kerning(size * 0.3)
-        }
-        .foregroundStyle(Color.white)
-        .shadow(color: .black.opacity(0.5), radius: 4)
+        // Steven's own files: "HBO ORIGINAL", and Max's own "max ORIGINAL".
+        Image(own == .hbo ? "HBOOriginalLogo" : "MaxOriginalLogo")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(Color.white)
+            .frame(height: own == .hbo ? size * 1.1 : size * 1.9)
+            .shadow(color: .black.opacity(0.5), radius: 4)
     }
 }
 
@@ -975,7 +974,7 @@ struct OrbitHBOBrand {
         .init(name: "HBO", ids: "49", isNetwork: true,
               colours: [Color(white: 0.28), Color(white: 0.10)], asset: "HBOMark"),
         .init(name: "Max Originals", ids: "3186", isNetwork: true,
-              colours: [Color(white: 0.22), Color(white: 0.06)], asset: "HBOMaxLogoWide"),
+              colours: [Color(white: 0.22), Color(white: 0.06)], asset: "MaxOriginalLogo"),
         .init(name: "Warner Bros.", ids: "174", isNetwork: false,
               colours: [Color(red: 0.10, green: 0.42, blue: 0.95), Color(red: 0.03, green: 0.20, blue: 0.60)],
               text: "WB"),
