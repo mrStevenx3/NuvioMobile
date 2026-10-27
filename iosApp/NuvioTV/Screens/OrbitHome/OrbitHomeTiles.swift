@@ -48,7 +48,8 @@ enum OrbitTileLayout {
 
     static func gap(_ style: OrbitRowStyle) -> CGFloat {
         switch style {
-        case .landscape: return 24
+        // (Steven, 2026-10-27: the 16:9 images a little apart — the focused one nearly touched its neighbours.)
+        case .landscape: return 36
         case .cards: return 30
         case .posters: return 22
         case .ranked: return 18
