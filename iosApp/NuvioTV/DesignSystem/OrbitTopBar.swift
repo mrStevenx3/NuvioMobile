@@ -758,8 +758,10 @@ struct CollectionFilterBar: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
+            // Steven (2026-10-27: the house too far right): the house's circle at the same left as
+            // Home's own house (the corner's inset, mirroring the platform's logo).
             leftPill
-                .padding(.leading, OrbitBarMetrics.leading)
+                .padding(.leading, OrbitPlatformIntro.cornerInset - OrbitBarMetrics.pillPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if !switchItems.isEmpty {
                 centrePill
