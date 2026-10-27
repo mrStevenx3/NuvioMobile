@@ -1581,6 +1581,9 @@ private struct OrbitDisneyOpenRow: View {
                     .animation(isLead ? .linear(duration: 0.01).delay(0.4) : nil, value: isLead)
                 }
                 .frame(width: isLead ? L.open.width : nil, height: isLead ? L.open.height : nil, alignment: .trailing)
+                // The room changes at once, only the row slides (Steven: Left had no slide left — the
+                // room growing while the row was aimed).
+                .transaction(value: isLead) { $0.animation = nil }
             }
             // Arriving on the row, it is open at once (only Left / Right move the frame's content).
             .animation(nil, value: isCurrent)
