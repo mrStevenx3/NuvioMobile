@@ -198,7 +198,10 @@ struct OrbitDetailView: View {
     private var quickBackdropURL: String? {
         let raw: String? = keptBackdrop ?? realBackdrop ?? preview.poster
         guard let raw, !raw.isEmpty else { return nil }
-        return raw
+        // (Search's titles carry TMDB's full-size art already — the trace: Smallville, Monstres &
+        // Cie: its 1280 copy first, as everywhere.)
+        return raw.replacingOccurrences(of: "/t/p/original/", with: "/t/p/w1280/")
+            .replacingOccurrences(of: "/background/large/", with: "/background/medium/")
     }
     private var streamVideoId: String { meta?.id ?? preview.id }
     private var playbackMeta: PlaybackMeta {
