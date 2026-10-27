@@ -1021,7 +1021,7 @@ struct OrbitHBOBrand {
               colours: [Color(white: 0.22), Color(white: 0.06)], asset: "MaxOriginalLogo"),
         .init(name: "Warner Bros.", ids: "174", isNetwork: false,
               colours: [Color(red: 0.10, green: 0.42, blue: 0.95), Color(red: 0.03, green: 0.20, blue: 0.60)],
-              text: "WB"),
+              asset: "WarnerBrosLogo"),
         .init(name: "DC", ids: "128064|9993", isNetwork: false,
               colours: [Color(red: 0.08, green: 0.38, blue: 0.90), Color(red: 0.02, green: 0.14, blue: 0.45)]),
         .init(name: "Discovery", ids: "64", isNetwork: true,
