@@ -923,7 +923,7 @@ private struct OrbitNetflixRank: View {
     /// The gap between the previous tile and the figure.
     static let lead: CGFloat = 30
     /// Netflix's figures are wider than the system's.
-    static let widening: CGFloat = 1.2
+    static let widening: CGFloat = 1.1
 
     static func figureWidth(_ rank: Int) -> CGFloat {
         figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.11 : 0) * widening
@@ -940,14 +940,10 @@ private struct OrbitNetflixRank: View {
         let visible = 1 - Self.tuckShare
         ZStack {
             shape.fill(Color.black)
-            // Netflix: a faint light inside the figure, along its edges (its hollows catch it).
-            shape.stroke(Color.white.opacity(0.16), lineWidth: 14)
-                .blur(radius: 6)
-                .mask(shape.fill(Color.black))
             // The line: lighter at the top, a little darker at the foot…
             shape.stroke(LinearGradient(colors: [Color(white: 0.66), Color(white: 0.42)],
                                         startPoint: .top, endPoint: .bottom),
-                         style: StrokeStyle(lineWidth: 4, lineJoin: .round))
+                         style: StrokeStyle(lineWidth: 3, lineJoin: .round))
         }
         // …and fading into the tile's shadow just before the tile.
         .mask {
@@ -976,7 +972,9 @@ struct OrbitGlyphShape: Shape {
     static func outline(_ text: String, tracking: CGFloat) -> CGPath {
         let key = "\(text)|\(tracking)"
         if let path = cache[key] { return path }
-        let font = UIFont.systemFont(ofSize: 200, weight: .black)
+        // Netflix's figures are geometric and round (Netflix Sans): Avenir Next is the closest the
+        // system has (the system's own heavy figures came out fat and squat — Steven).
+        let font = UIFont(name: "AvenirNext-Bold", size: 200) ?? UIFont.systemFont(ofSize: 200, weight: .bold)
         let ctFont = font as CTFont
         let chars = Array(text.utf16)
         var glyphs = [CGGlyph](repeating: 0, count: chars.count)
@@ -989,13 +987,6 @@ struct OrbitGlyphShape: Shape {
             if let g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
                 // Flipped: CoreText draws upwards.
                 combined.addPath(g, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
-                // Steven: Netflix's 1 stands on a foot (a flat base across its stem).
-                if chars[i] == UInt16(UInt8(ascii: "1")) {
-                    let box = g.boundingBoxOfPath
-                    let foot = box.height * 0.15
-                    let reach = box.width * 0.22
-                    combined.addRect(CGRect(x: x + box.minX, y: -foot, width: box.width + reach, height: foot))
-                }
             }
             x += advances[i].width + tracking * 200
         }
