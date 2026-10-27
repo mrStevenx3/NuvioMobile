@@ -1600,6 +1600,7 @@ enum OrbitDisneyTop10Corner {
     struct Cut: ViewModifier {
         let extent: CGFloat
 
+        @ViewBuilder
         func body(content: Content) -> some View {
             if extent > 0 {
                 content.mask {
