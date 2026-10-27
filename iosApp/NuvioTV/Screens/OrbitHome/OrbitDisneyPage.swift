@@ -175,16 +175,56 @@ struct OrbitDisneyPage: View {
 
     private var rows: [OrbitDisneyRow] {
         guard !isHulu else { return huluRows }
-        var list = disneyRows
-        // Steven: the franchises' band on Accueil only, after the first two rows; Hulu's newest
-        // under it.
-        guard mode == 0 else { return list }
-        let at = min(2, list.count)
-        list.insert(Self.brandsRow, at: at)
-        let huluNew = (hulu.seriesRows + hulu.movieRows).filter { $0.id.hasPrefix("hulu-new-") }
-            .map { OrbitDisneyRow(id: "home-" + $0.id, title: $0.title, items: $0.items, top10: false) }
-        list.insert(contentsOf: huluNew, at: min(at + 1, list.count))
+        // Steven: the franchises' band on Accueil only, after the first two rows.
+        guard mode == 0 else { return disneyRows }
+        var list = homeRows
+        list.insert(Self.brandsRow, at: min(2, list.count))
         return list
+    }
+
+    /// Accueil (Steven: "il faut que les rangées mélangent les contenus Hulu et Disney+, sinon cet
+    /// onglet n'a plus d'intérêt"): each Disney+ row with Hulu's of the same kind, in turn — the
+    /// Top 10 with Hulu's most popular, the Nouveautés with Hulu's newest, a genre with Hulu's.
+    @State private var homeMemo = OrbitRowsMemo<[OrbitDisneyRow]>()
+
+    private var homeRows: [OrbitDisneyRow] {
+        let huluExtras = (hulu.seriesRows + hulu.movieRows).map {
+            OrbitPlatformExtrasModel.Extra(id: $0.id, title: $0.title, items: $0.items)
+        }
+        return homeMemo.get(OrbitRowsKey(rows: model.stripRows, filter: nil,
+                                         extras: extras.movieRows + extras.seriesRows + huluExtras,
+                                         variant: "home")) { buildHomeRows() }
+    }
+
+    private func buildHomeRows() -> [OrbitDisneyRow] {
+        func fold(_ s: String) -> String {
+            s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        }
+        var used = Set<String>()
+        return disneyRows.map { row in
+            let h = fold(row.title)
+            let series = h.contains("serie")
+            let pool = series ? hulu.seriesRows : hulu.movieRows
+            var mates: [MetaPreview] = []
+            if row.top10 {
+                mates = pool.first(where: { $0.id.hasPrefix("hulu-popular-") })?.items ?? []
+            } else if h.contains("nouveau") || h.contains("nouvelle") {
+                mates = pool.first(where: { $0.id.hasPrefix("hulu-new-") })?.items ?? []
+            } else {
+                // A genre: Hulu's films and series of that genre.
+                let same = (hulu.seriesRows + hulu.movieRows).filter {
+                    $0.id.contains("genre") && fold($0.title) == h && !used.contains($0.id)
+                }
+                same.forEach { used.insert($0.id) }
+                mates = Self.alternate(same.first?.items ?? [], same.dropFirst().first?.items ?? [])
+            }
+            guard !mates.isEmpty else { return row }
+            var seen = Set<String>()
+            let mixed = Self.alternate(row.items, mates).filter { seen.insert(Self.identity($0)).inserted }
+            return OrbitDisneyRow(id: row.id, title: row.title,
+                                  items: row.top10 ? Array(mixed.prefix(10)) : Array(mixed.prefix(30)),
+                                  top10: row.top10, portrait: row.portrait)
+        }
     }
 
     private static let brandsRow = OrbitDisneyRow(id: "disney-brands", title: "", items: [], top10: false, brands: true)
