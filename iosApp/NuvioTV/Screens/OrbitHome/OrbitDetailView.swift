@@ -483,6 +483,7 @@ struct OrbitDetailView: View {
         }
         // The first real backdrop shown stays (TMDB's, then the add-on's came and replaced it).
         .onChange(of: realBackdrop, initial: true) { _, v in
+            OrbitTrace.log("detail backdrop \(preview.name): \(v ?? "nil") (meta \(meta?.background != nil), banner \(preview.banner != nil), tmdb \(tmdbBackdrop != nil))")
             if keptBackdrop == nil, let v { keptBackdrop = v }
         }
         // Steven (device): the house hides while the trailer plays full screen.
@@ -992,6 +993,19 @@ struct OrbitDetailView: View {
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .similar(item.id))
                             .onAppear { OrbitMetaStore.shared.request([item]) }
+                            // Its art fetched once it is focused (Steven: the page opened from it
+                            // waited for its image).
+                            .onChange(of: focus == .similar(item.id)) { _, on in
+                                guard on else { return }
+                                let banner: String? = item.banner
+                                let raw = banner ?? OrbitMetaStore.shared.metas[OrbitMetaStore.key(item)]?.backdrop
+                                if let raw, let url = URL(string: raw) {
+                                    Task(priority: .utility) {
+                                        _ = try? await ArtworkStore.fetch(url, decode: ArtworkDecodeRequest(
+                                            size: .points(width: 1280, height: 720), fill: true, scale: UIScreen.main.scale))
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, OrbitDetailLayout.margin)
