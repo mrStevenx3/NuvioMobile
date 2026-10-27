@@ -948,7 +948,7 @@ private struct OrbitHBOGlassText: View {
         }
         let rim = LinearGradient(colors: [Color(white: 0.97), Color(white: 0.55), Color(white: 0.3), Color(white: 0.85)],
                                  startPoint: .bottomLeading, endPoint: .topTrailing)
-        let glass = LinearGradient(colors: bright ? [Color(red: 0.16, green: 0.18, blue: 0.26), Color(red: 0.34, green: 0.37, blue: 0.46)]
+        let glass = LinearGradient(colors: bright ? [Color(red: 0.06, green: 0.07, blue: 0.11), Color(red: 0.20, green: 0.22, blue: 0.30)]
                                           : [Color(red: 0.03, green: 0.04, blue: 0.06), Color(red: 0.15, green: 0.17, blue: 0.24)],
                                    startPoint: .top, endPoint: .bottom)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
