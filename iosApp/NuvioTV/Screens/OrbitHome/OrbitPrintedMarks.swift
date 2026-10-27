@@ -35,10 +35,12 @@ final class OrbitPrintedMarks: ObservableObject {
         Task { [weak self] in
             let request = ArtworkDecodeRequest(size: .points(width: 360, height: 540), fill: false, scale: 1).normalized
             guard let image = try? await ArtworkStore.fetch(address, decode: request), let cg = image.cgImage else {
+                OrbitTrace.log("printed \(url) unreadable")
                 self?.words[url] = []
                 return
             }
             let found = await Task.detached(priority: .utility) { Self.recognise(cg) }.value
+            OrbitTrace.log("printed \(url) \(found.sorted().joined(separator: ","))")
             self?.words[url] = found
         }
     }
