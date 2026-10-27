@@ -464,7 +464,11 @@ struct OrbitDetailView: View {
                 cinema = false
                 HeroTrailerAudioState.shared.setMuted(value: true)
             }
-            model.stop()
+            // Left for an actor, a saga, a similar title (from a row): the page stays under it —
+            // its data kept, not reloaded on the way back (Steven: back from an actor the focus
+            // could not move for seconds while the whole page was loaded again). Closed (from
+            // the hero), it stops as before.
+            if section == .hero { model.stop() }
             tabBarVisibility.popImmersive()
             stopHeroTrailer()
         }
