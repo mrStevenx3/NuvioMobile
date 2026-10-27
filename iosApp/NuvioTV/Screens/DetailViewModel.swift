@@ -226,6 +226,7 @@ final class DetailViewModel: ObservableObject {
                 if self.isLoading != state.isLoading { self.isLoading = state.isLoading }
                 return
             }
+            OrbitTrace.log("detail meta \(self.type):\(self.id) loading=\(state.isLoading) meta=\(state.meta != nil) cast=\(state.meta?.cast.count ?? -1) error=\(state.errorMessage ?? "-")")
             self.isLoading = state.isLoading
             // BUG-187: an equal meta (the reload's copy of the one on screen) is not re-published.
             if state.meta != self.meta { self.meta = state.meta }
