@@ -749,6 +749,9 @@ struct CollectionFilterBar: View {
     var switchLogo: ((_ index: Int, _ lit: Bool) -> AnyView)? = nil
     /// Steven (Disney+): Search and Accueil lead the centre pill (the house alone on the left).
     var centreLeads = false
+    /// Steven (Netflix): the platform's pill (Search · Accueil · Films · Séries) at the screen's
+    /// centre, the house alone on the left.
+    var centred = false
 
     @FocusState private var focused: OrbitBarItem?
     @FocusState private var switchFocused: Int?
@@ -767,6 +770,10 @@ struct CollectionFilterBar: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             if !switchItems.isEmpty {
                 centrePill
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else if centred {
+                pill(for: items.filter { $0 != .home })
+                    .defaultFocus($focused, entryItem, priority: .userInitiated)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
         }
@@ -847,7 +854,7 @@ struct CollectionFilterBar: View {
     private var leftPill: some View {
         HStack(spacing: 14) {
             pill(for: [.home])
-            if !centreLeads { pill(for: items.filter { $0 != .home }) }
+            if !centreLeads && !(centred && switchItems.isEmpty) { pill(for: items.filter { $0 != .home }) }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
@@ -855,7 +862,7 @@ struct CollectionFilterBar: View {
         // Steven: the engine's first pick (Search, top-left) flashed before Films.
         // (Steven, Disney+: Left from Search never reached the house — the left pill holds the house
         // alone there, its default was Accueil, in the centre pill: the move was sent back.)
-        .defaultFocus($focused, centreLeads ? .home : entryItem, priority: .userInitiated)
+        .defaultFocus($focused, centreLeads || (centred && switchItems.isEmpty) ? .home : entryItem, priority: .userInitiated)
         // Steven: Films / Séries switch on focus, no press (as Disney+ / Hulu), after a short rest.
         .onChange(of: focused) { _, item in
             guard let item, item == .everything || type(of: item) != nil else { return }

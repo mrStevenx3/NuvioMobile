@@ -284,7 +284,7 @@ struct OrbitNetflixPage: View {
             }
 
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
+            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, centred: true)
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
