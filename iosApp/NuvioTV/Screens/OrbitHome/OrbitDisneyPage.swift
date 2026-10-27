@@ -319,7 +319,7 @@ struct OrbitDisneyPage: View {
             // The page's one focusable stop, under the bar's band.
 
             CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false, showsAll: true,
-                                switchItems: ["Disney+", "Hulu"], switchSelection: $mode,
+                                switchItems: ["Disney+", "Hulu"], switchSelection: $mode, centreLeads: true,
                                 switchLogo: { index, lit in
                                     AnyView(OrbitDisneyBrandLogo(hulu: index == 1, logoURL: brandLogoURL,
                                                                  height: 34, dark: lit, alignment: .center))
@@ -1087,9 +1087,13 @@ struct OrbitDisneyBrandLogo: View {
     var body: some View {
         Group {
             if hulu {
-                Text("hulu")
-                    .font(.system(size: height * 0.95, weight: .black, design: .rounded))
-                    .fixedSize()
+                // Hulu's own logo (Steven's file), drawn white.
+                Image("HuluLogo")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: height * 0.82)
+                    .frame(height: height, alignment: alignment)
             } else if let logoURL {
                 CachedAsyncImage(string: logoURL, contentMode: .fit,
                                  decodeSize: .points(width: height * 3.2, height: height * 1.2),

@@ -747,6 +747,8 @@ struct CollectionFilterBar: View {
     var switchSelection: Binding<Int>? = nil
     /// Steven (Disney+): each switch item drawn as its logo (`lit`: on the white focused pill).
     var switchLogo: ((_ index: Int, _ lit: Bool) -> AnyView)? = nil
+    /// Steven (Disney+): Search and Accueil lead the centre pill (the house alone on the left).
+    var centreLeads = false
 
     @FocusState private var focused: OrbitBarItem?
     @FocusState private var switchFocused: Int?
@@ -778,6 +780,9 @@ struct CollectionFilterBar: View {
     /// "Disney+ · Hulu": the selected one light, the focused one white.
     private var centrePill: some View {
         HStack(spacing: 4) {
+            if centreLeads {
+                barButtons(items.filter { $0 != .home })
+            }
             ForEach(Array(switchItems.enumerated()), id: \.offset) { index, title in
                 let selected = switchSelection?.wrappedValue == index
                 let lit = switchFocused == index
@@ -829,7 +834,7 @@ struct CollectionFilterBar: View {
     private var leftPill: some View {
         HStack(spacing: 14) {
             pill(for: [.home])
-            pill(for: items.filter { $0 != .home })
+            if !centreLeads { pill(for: items.filter { $0 != .home }) }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
@@ -866,7 +871,15 @@ struct CollectionFilterBar: View {
     }
 
     private func pill(for group: [OrbitBarItem]) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 4) { barButtons(group) }
+        .padding(OrbitBarMetrics.pillPadding)
+        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func barButtons(_ group: [OrbitBarItem]) -> some View {
             ForEach(group, id: \.self) { item in
                 Button { select(item) } label: {
                     OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
@@ -877,11 +890,6 @@ struct CollectionFilterBar: View {
                 .disabled((item == .search || item == .home) && !searchReady)
                 .accessibilityLabel(item.accessibilityName)
             }
-        }
-        .padding(OrbitBarMetrics.pillPadding)
-        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
     }
 
     private var items: [OrbitBarItem] {
