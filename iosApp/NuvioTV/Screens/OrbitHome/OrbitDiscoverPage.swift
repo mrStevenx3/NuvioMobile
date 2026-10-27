@@ -234,6 +234,10 @@ private struct OrbitNativeDiscover<Header: View>: View {
                                 }
                                 .buttonStyle(OrbitPlainStyle())
                                 .focused($focused, equals: i)
+                                // Back from a title, only its tile is drawn focused a moment (the
+                                // system's landing on the first film was seen — Steven).
+                                .environment(\.orbitFocusHidden, restoringSince > 0 && OrbitDiscoverReturn.opened != nil
+                                             && OrbitDiscoverReturn.opened != i)
                                 // The focused tile above its neighbours (it grows over them).
                                 .zIndex(focused == i ? 1 : 0)
                                 .id(i)
@@ -349,7 +353,9 @@ private struct OrbitNativeDiscoverBackdrop: View {
 /// One Discover tile, focused as its button is.
 private struct OrbitNativeDiscoverTile: View {
     let item: MetaPreview
-    @Environment(\.isFocused) private var isFocused
+    @Environment(\.isFocused) private var systemFocused
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    private var isFocused: Bool { systemFocused && !focusHidden }
 
     var body: some View {
         OrbitDiscoverTile(item: item, focused: isFocused)

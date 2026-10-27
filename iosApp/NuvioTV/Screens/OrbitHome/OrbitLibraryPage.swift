@@ -179,7 +179,9 @@ struct OrbitLibraryPage<Cloud: View>: View {
             OrbitLibraryReturn.opened = i
             onOpen(preview)
         } label: {
-            OrbitLibraryTile(entry: entry, focused: focusedIndex == i)
+            // (Back from a title, only its poster is drawn focused a moment.)
+            OrbitLibraryTile(entry: entry, focused: focusedIndex == i
+                             && !(restoringSince > 0 && OrbitLibraryReturn.opened != nil && OrbitLibraryReturn.opened != i))
         }
         .buttonStyle(OrbitLibraryPosterStyle())
         .focused($focusedIndex, equals: i)
