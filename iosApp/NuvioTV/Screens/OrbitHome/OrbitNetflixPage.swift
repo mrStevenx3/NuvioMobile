@@ -926,8 +926,8 @@ private struct OrbitNetflixRank: View {
         let width = figureWidth(rank)
         switch rank {
         case 10: return width * 0.2
-        // Its stem is on its right: Netflix shows it whole, just before the tile (Steven).
-        case 4: return 12
+        // Its stem is on its right: Netflix shows it whole, its bar's end behind the tile (Steven).
+        case 4: return width * 0.17
         default: return max(12, width - 115)
         }
     }
@@ -997,27 +997,36 @@ struct OrbitGlyphShape: Shape {
         CTFontGetAdvancesForGlyphs(ctFont, .horizontal, glyphs, &advances, glyphs.count)
         let combined = CGMutablePath()
         var x: CGFloat = 0
+        /// The right edge of the figure drawn just before (the next one sits against it).
+        var previousRight: CGFloat?
         for (i, glyph) in glyphs.enumerated() {
-            // Steven (side by side with Netflix's): Netflix's 1 is its own — a straight stem, a short
-            // square flag with its corner cut. Drawn here, at Avenir's height.
+            // Steven (side by side with Netflix's): Netflix's 1 is its own — a straight stem, a flag
+            // whose top slopes up to the stem's top, its foot sloping up into the stem. Measured on
+            // his photo (in the figure's height): flag 13 % wide, its left side 22 % tall.
             if chars[i] == UInt16(UInt8(ascii: "1")) {
                 let h = CTFontGetCapHeight(ctFont)
-                let xs = h * 0.17, xr = xs + h * 0.26
+                let xs = h * 0.13, xr = xs + h * 0.3
                 let one = CGMutablePath()
                 one.addLines(between: [
-                    CGPoint(x: xs, y: 0), CGPoint(x: xr, y: 0), CGPoint(x: xr, y: h), CGPoint(x: xs, y: h),
-                    CGPoint(x: 0, y: h * 0.83), CGPoint(x: 0, y: h * 0.72), CGPoint(x: xs, y: h * 0.72),
+                    CGPoint(x: xs, y: 0), CGPoint(x: xr, y: 0), CGPoint(x: xr, y: h),
+                    CGPoint(x: 0, y: h * 0.927), CGPoint(x: 0, y: h * 0.706), CGPoint(x: xs, y: h * 0.74),
                 ])
                 one.closeSubpath()
-                combined.addPath(one, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
-                x += xr + h * 0.1 + tracking * 200
+                let start = previousRight.map { $0 + h * 0.02 } ?? x
+                combined.addPath(one, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: start, ty: 0))
+                previousRight = start + xr
+                x = start + xr
                 continue
             }
             if let g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
+                let box = g.boundingBoxOfPath
+                // Steven: the 1 and the 0 of 10 against each other, as on Netflix.
+                let start = previousRight.map { $0 + CTFontGetCapHeight(ctFont) * 0.02 - box.minX } ?? x
                 // Flipped: CoreText draws upwards.
-                combined.addPath(g, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
+                combined.addPath(g, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: start, ty: 0))
+                previousRight = start + box.maxX
+                x = start + advances[i].width + tracking * 200
             }
-            x += advances[i].width + tracking * 200
         }
         // (The system font's contours overlap — stroked, the overlaps showed inside the figure.)
         let whole = combined.normalized(using: .winding)
