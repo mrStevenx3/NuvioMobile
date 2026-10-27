@@ -1680,9 +1680,10 @@ private struct OrbitDisneyPosterNew: View {
 enum OrbitDisneyTop10Corner {
     static var ground: some View {
         LinearGradient(stops: [
-            .init(color: Color(red: 0.02, green: 0.36, blue: 0.58), location: 0),
-            .init(color: Color(red: 0.04, green: 0.22, blue: 0.38), location: 0.45),
-            .init(color: Color(red: 0.07, green: 0.13, blue: 0.24), location: 1),
+            // (Steven, side by side with the app's video: a teal, not a blue — measured on it.)
+            .init(color: Color(red: 0.02, green: 0.62, blue: 0.67), location: 0),
+            .init(color: Color(red: 0.00, green: 0.36, blue: 0.40), location: 0.5),
+            .init(color: Color(red: 0.00, green: 0.21, blue: 0.25), location: 1),
         ], startPoint: .topLeading, endPoint: UnitPoint(x: 0.35, y: 0.5))
     }
 
@@ -1691,7 +1692,7 @@ enum OrbitDisneyTop10Corner {
             // (Steven, side by side with the app: geometric, not round.)
             .font(.custom("AvenirNext-Bold", size: rank >= 10 ? size * 0.78 : size))
             .kerning(rank >= 10 ? -size * 0.05 : 0)
-            .foregroundStyle(Color(red: 0.15, green: 0.80, blue: 0.92))
+            .foregroundStyle(Color(red: 0.02, green: 0.76, blue: 0.83))
     }
 
     /// The art inside a circle through (extent, 0) and (0, extent), bulging slightly towards the
