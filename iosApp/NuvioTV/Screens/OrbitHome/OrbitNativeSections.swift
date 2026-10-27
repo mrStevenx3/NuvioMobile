@@ -104,6 +104,8 @@ struct OrbitNativeSections<SectionContent: View>: View {
     /// The section the page is aligned on.
     @State private var position: Int?
     @State private var heroLocked = false
+    /// The section last asked to take the focus (read live by the retries below).
+    @State private var wanted: Int?
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth
@@ -192,6 +194,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
         // it (Steven, simulator: back from a title the page came back on its hero).
         .defaultFocus($focus, !customHero && current == 0 ? 0 : nil, priority: .userInitiated)
         .onChange(of: focus) { old, s in
+            OrbitTrace.log("sections focus \(String(describing: old)) -> \(String(describing: s)) current=\(current)")
             // (With rows of their own buttons, this focus is the hero's alone: Steven, simulator —
             // DÉTAILS no longer lit when the hero took the focus.)
             if (old == nil) != (s == nil) { onFocusChange?(s != nil) }
@@ -217,12 +220,25 @@ struct OrbitNativeSections<SectionContent: View>: View {
 
     /// Section `c` takes the focus (if it does not hold it already).
     private func take(_ c: Int) {
+        wanted = c
+        OrbitTrace.log("sections take \(c) focus=\(String(describing: focus))")
         if customHero && c == 0 {
             focusHero?()
         } else if rowsFocusable && c >= heroCount {
             focusRow?(c)
         } else if focus != c {
             focus = c
+            // Steven (Disney+ / Hulu: Up from the first row, the page went up but the focus stayed
+            // in the row — the next Down went further down): the hero was still fading in (hidden,
+            // not focusable) at the ask. Asked again until it holds.
+            let asked = ProcessInfo.processInfo.systemUptime
+            for delay in [0.06, 0.18, 0.35, 0.6] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    guard wanted == c, focus != c, !ViewerInputClock.shared.hasInput(since: asked) else { return }
+                    OrbitTrace.log("sections retake \(c) after \(delay)")
+                    focus = c
+                }
+            }
         }
     }
 }
