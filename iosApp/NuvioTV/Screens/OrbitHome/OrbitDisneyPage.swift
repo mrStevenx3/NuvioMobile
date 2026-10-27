@@ -1954,8 +1954,12 @@ private struct OrbitDisneyBrandsHub: View {
                             }
                             .padding(.vertical, 30)
                         }
+                        .contentMargins(.leading, 24, for: .scrollContent)
                         .contentMargins(.trailing, L.margin, for: .scrollContent)
                         .scrollClipDisabled()
+                        // (Steven: scrolled, the titles ran over the brand's logo and TOUT PARCOURIR:
+                        // cut at the column's edge, free above and below for the focused one.)
+                        .mask(Rectangle().padding(.vertical, -40))
                         .padding(.vertical, -30)
                         .id(brand.name + "|\(titles.count)")
                         .transition(.opacity)
