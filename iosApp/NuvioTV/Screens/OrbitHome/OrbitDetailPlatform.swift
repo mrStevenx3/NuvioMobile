@@ -121,8 +121,8 @@ struct OrbitDetailOwnTag: View {
                     .foregroundStyle(Color.white.opacity(0.9))
             }
         case .prime:
-            // Steven: the Prime Video page's own mark — "prime" with Amazon's smile under it.
-            OrbitPrimeMark(size: 34 * k)
+            // Steven: "prime original", Amazon's smile under it (the page's hero keeps "prime").
+            OrbitPrimeOriginalMark(size: 34 * k)
         case .hbo, .hboMax:
             HStack(spacing: 10) {
                 Text(own == .hbo ? "HBO" : "HBO max")
@@ -140,5 +140,21 @@ struct OrbitDetailOwnTag: View {
                 .foregroundStyle(Color.white)
                 .frame(height: 56 * k)
         }
+    }
+}
+
+/// "prime original", Amazon's smile under "prime" as on Prime Video's own mark (a Prime title's page).
+struct OrbitPrimeOriginalMark: View {
+    var size: CGFloat = 34
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: size * 0.3) {
+            OrbitPrimeMark(size: size)
+            Text("original")
+                .font(.system(size: size, weight: .regular))
+                .foregroundStyle(Color.white)
+                .shadow(color: .black.opacity(0.5), radius: 4)
+        }
+        .fixedSize()
     }
 }
