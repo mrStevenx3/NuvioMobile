@@ -708,7 +708,9 @@ struct OrbitNativeRankedOpenTile: View {
         OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused && !open, showsBadge: showsBadge, scale: scale,
                         openWidth: open ? frame.width : nil,
                         openFrame: open ? { AnyView(Color.clear) } : nil)
-            .animation(.easeOut(duration: 0.18), value: isFocused)
+            // The room changes at once (Steven: Left left a hole — the room shrank on the focus's
+            // own little curve while the row was put where it ends).
+            .transaction(value: open) { $0.animation = nil }
     }
 }
 
