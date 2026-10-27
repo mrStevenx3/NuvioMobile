@@ -1,6 +1,8 @@
 import Combine
+import CoreText
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit × Netflix (Steven, 2026-10-25, after Netflix's 2025 TV app): the Netflix folder in
 // Netflix's look, Orbit's DNA kept (one focusable canvas — the page moves, the focus stays; the
@@ -32,8 +34,8 @@ enum OrbitNetflixLayout {
     static let headingHeight: CGFloat = 54
     static let tileHeight: CGFloat = 506
     static var openWidth: CGFloat { tileHeight * 16 / 9 }
-    /// Netflix's posters (a touch narrower than 2:3).
-    static let posterWidth: CGFloat = 310
+    /// 2:3, the posters' own shape (Steven: narrower, their N, drawn in the art, was cut at the left).
+    static let posterWidth: CGFloat = 337
     static let gap: CGFloat = 18
     /// The open tile's meta line and synopsis (three lines), then the gap to the next heading.
     static let infoHeight: CGFloat = 205
@@ -911,31 +913,61 @@ private struct OrbitNetflixRowView: View {
     }
 }
 
-/// Netflix's rank (its own app, Steven's video): a tall number in a thin grey outline, black inside,
-/// standing at the top of the tile beside it (its top level with the tile's).
+/// Netflix's rank (its own app, Steven's video): a tall figure drawn as a thin grey line, black
+/// inside, its top level with the tile's top, its foot well above the tile's middle, close to the tile.
+/// Steven ("les chiffres du Top 10 sont ratés"): the figure is the glyph's own outline now (a clean
+/// stroke), placed by its drawn edges, not by its text box.
 private struct OrbitNetflixRank: View {
     let rank: Int
 
     var body: some View {
         let L = OrbitNetflixLayout.self
-        let size = L.tileHeight * (rank == 10 ? 0.52 : 0.58)
-        let text = Text("\(rank)")
-            .font(.system(size: size, weight: .heavy).width(.condensed))
-            .kerning(rank == 10 ? -size * 0.08 : 0)
+        let height = L.tileHeight * 0.44
+        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.04 : 0)
         ZStack {
-            // The outline: the number drawn around itself in grey, then black inside.
-            ForEach(0..<8, id: \.self) { i in
-                let angle = Double(i) * .pi / 4
-                text.foregroundStyle(Color(white: 0.6))
-                    .fixedSize()
-                    .offset(x: cos(angle) * 2, y: sin(angle) * 2)
-            }
-            text.foregroundStyle(Color.black)
-                .fixedSize()
+            shape.fill(Color.black)
+            shape.stroke(Color(white: 0.62), style: StrokeStyle(lineWidth: 3, lineJoin: .round))
         }
-        // (The glyph's top sits under its line's ascent: raised so the figure's top meets the tile's.)
-        .offset(x: 8, y: -size * 0.2)
-        .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .topTrailing)
+        .frame(width: (rank == 10 ? L.rankWidthTen : L.rankWidth) - 14, height: height)
+        .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .topLeading)
+        .padding(.top, 2)
+    }
+}
+
+/// A text's glyphs as one shape, scaled to the frame's height (its drawn top and foot on the frame's),
+/// against the frame's right edge.
+struct OrbitGlyphShape: Shape {
+    let text: String
+    var tracking: CGFloat = 0
+    var narrowing: CGFloat = 0.8
+
+    func path(in rect: CGRect) -> Path {
+        let font = UIFont.systemFont(ofSize: 200, weight: .bold)
+        let ctFont = font as CTFont
+        var glyphs = [CGGlyph](repeating: 0, count: text.utf16.count)
+        let chars = Array(text.utf16)
+        CTFontGetGlyphsForCharacters(ctFont, chars, &glyphs, chars.count)
+        var advances = [CGSize](repeating: .zero, count: glyphs.count)
+        CTFontGetAdvancesForGlyphs(ctFont, .horizontal, glyphs, &advances, glyphs.count)
+        let combined = CGMutablePath()
+        var x: CGFloat = 0
+        for (i, glyph) in glyphs.enumerated() {
+            if let g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
+                // Flipped: CoreText draws upwards.
+                combined.addPath(g, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
+            }
+            x += advances[i].width + tracking * 200
+        }
+        let box = combined.boundingBoxOfPath
+        guard box.height > 0 else { return Path() }
+        let k = rect.height / box.height
+        // (Netflix's figures are narrower than the system's.)
+        let kx = k * narrowing
+        let width = box.width * kx
+        var t = CGAffineTransform(translationX: rect.maxX - width, y: rect.minY)
+            .scaledBy(x: kx, y: k)
+            .translatedBy(x: -box.minX, y: -box.minY)
+        return Path(combined.copy(using: &t) ?? combined)
     }
 }
 
