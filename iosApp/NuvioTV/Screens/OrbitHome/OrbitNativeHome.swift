@@ -524,7 +524,8 @@ struct OrbitNativeRow: View {
                 let old = anchor.flatMap { id in row.cards.firstIndex(where: { $0.id == id }) }
                 let now = row.cards.firstIndex(where: { $0.id == new })
                 anchor = new
-                if rankedOpen, let old, let now, now < old, old - now <= 3 {
+                // (Steven: Left as Right — the same slide; the put-at-once-then-slid trick is off.)
+                if false, rankedOpen, let old, let now, now < old, old - now <= 3 {
                     // (Steven: Left as Netflix's — at once where it ends, slid there.)
                     let distance = (now..<old).reduce(CGFloat(0)) {
                         $0 + OrbitRankedTile.closedWidth($1 + 1) + T.gap(style)

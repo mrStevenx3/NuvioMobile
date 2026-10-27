@@ -964,7 +964,8 @@ private struct OrbitNativeStudioRow: View {
             if row.pinned, anchor != new {
                 let old = anchor
                 anchor = new
-                if row.opensRanked, let old, new < old, old - new <= 3 {
+                // (Steven: Left as Right — the same slide.)
+                if false, row.opensRanked, let old, new < old, old - new <= 3 {
                     // (Steven: Left as Netflix's — at once where it ends, slid there.)
                     let scale = OrbitStudioRow.rankedScale
                     let distance = (new..<old).reduce(CGFloat(0)) {
