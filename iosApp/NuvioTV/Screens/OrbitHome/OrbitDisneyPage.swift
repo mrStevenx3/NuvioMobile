@@ -443,9 +443,17 @@ struct OrbitDisneyPage: View {
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .onAppear {
             covered = false
+            // Back from a franchise: the focus put back on its brand (the system's own landing in
+            // the bar overruled). The bar itself never locked (Steven: the house out of reach).
             if studioOpened {
                 studioOpened = false
-                OrbitTitleGate.shared.closed()
+                let appeared = ProcessInfo.processInfo.systemUptime
+                for delay in [0.1, 0.3, 0.6, 0.9] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        guard !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                        leads.box(Self.brandsRow.id).focusRequest &+= 1
+                    }
+                }
             }
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
@@ -628,7 +636,6 @@ struct OrbitDisneyPage: View {
                 // coming back (the way back counts as a title's).
                 if let pushStudio {
                     studioOpened = true
-                    OrbitTitleGate.shared.opened()
                     OrbitStudioIntro.skipNext = true
                     OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
                     pushStudio(route)
