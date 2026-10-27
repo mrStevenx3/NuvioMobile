@@ -313,6 +313,10 @@ struct OrbitRankedTile: View {
     var showsBadge = true
     /// Steven: smaller under the platforms, larger on a studio's page (`OrbitTileLayout.rankedSlot`).
     var scale: CGFloat = 1
+    /// Steven (Home's Top 10, as Nouveaux films): the focused title open in a 16:9 frame of the
+    /// poster's height in the poster's place, its rank beside it.
+    var openWidth: CGFloat? = nil
+    var openFrame: (() -> AnyView)? = nil
 
     @State private var tone: Color?
 
@@ -357,18 +361,26 @@ struct OrbitRankedTile: View {
                 .frame(width: rankWidth + 34 * scale + (rank >= 10 ? tenExtra : 0) - oneLess, alignment: .trailing)
                 .offset(y: size.height * 0.12)
                 .animation(.easeInOut(duration: 0.4), value: tone)
-            ZStack(alignment: .bottom) {
-                Color(white: 0.1)
-                OrbitStablePoster(card: card, meta: meta, size: size)
-                if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
-                    OrbitPlatformBadge(kind: kind, size: 16)
-                        .padding(.bottom, 14)
+            if let openFrame, let openWidth {
+                openFrame()
+                    .frame(width: openWidth, height: size.height)
+                    .transition(.opacity)
+            } else {
+                ZStack(alignment: .bottom) {
+                    Color(white: 0.1)
+                    OrbitStablePoster(card: card, meta: meta, size: size)
+                    if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
+                        OrbitPlatformBadge(kind: kind, size: 16)
+                            .padding(.bottom, 14)
+                    }
                 }
+                .frame(width: size.width, height: size.height)
+                .modifier(OrbitTileFocus(focused: focused, radius: 12))
+                .transition(.opacity)
             }
-            .frame(width: size.width, height: size.height)
-            .modifier(OrbitTileFocus(focused: focused, radius: 12))
         }
-        .frame(width: rankWidth + size.width + (rank >= 10 ? tenExtra : 0) - oneLess, height: size.height, alignment: .bottomLeading)
+        .frame(width: rankWidth + (openFrame != nil ? (openWidth ?? size.width) : size.width) + (rank >= 10 ? tenExtra : 0) - oneLess,
+               height: size.height, alignment: .bottomLeading)
         .task(id: poster ?? "-") {
             guard let poster else { return }
             tone = await OrbitDominantColor.color(for: poster)

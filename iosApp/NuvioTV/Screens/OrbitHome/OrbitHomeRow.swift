@@ -170,10 +170,12 @@ struct OrbitLeadFrame: View {
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
+    /// Another size than the first row's (the Top 10's open title keeps its poster's height).
+    var frameSize: CGSize? = nil
 
     var body: some View {
         let L = OrbitHomeLayout.self
-        let size = CGSize(width: L.frameWidth, height: L.cardHeight)
+        let size = frameSize ?? CGSize(width: L.frameWidth, height: L.cardHeight)
         ZStack(alignment: .topLeading) {
             // Opaque at all times: the row slides under it.
             Color(white: 0.1)

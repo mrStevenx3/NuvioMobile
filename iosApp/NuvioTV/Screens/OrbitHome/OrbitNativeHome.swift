@@ -350,11 +350,18 @@ struct OrbitNativeRow: View {
     /// Steven: the first row as before — the focused title open in a large 16:9 frame at the left
     /// margin, the others as posters after it, the row sliding under it (Netflix).
     private var classic: Bool { row.style == .classic }
+    /// Steven (2026-10-27, to try): the Top 10 moves as Nouveaux films — its focused title open in a
+    /// 16:9 frame (its trailer there), at the margin, the row sliding under it; same height.
+    /// `false` puts back his Top 10 as it was (posters, the row scrolled freely).
+    static let rankedOpens = true
+    private var rankedOpen: Bool { row.style == .ranked && Self.rankedOpens }
+    /// The opening rows (the frame on the new title, on the row's curve).
+    private var opens: Bool { classic || rankedOpen }
 
     static let infoHeight: CGFloat = 112
 
     /// The focused title stays at the margin only where its details sit under the row.
-    private var pinned: Bool { showsDetails }
+    private var pinned: Bool { showsDetails || rankedOpen }
     /// The focused title's details under the row — not under the large cards (they carry theirs)
     /// nor under the great sagas (Steven).
     /// (Steven, 2026-10-27: only under the first row's open 16:9 frame — the posters' rows are
@@ -383,6 +390,10 @@ struct OrbitNativeRow: View {
                                 OrbitNativeClassicTile(card: card, meta: metaStore.meta(for: card.preview),
                                                        trailers: trailers, trailerKey: "\(row.id)|\(card.id)",
                                                        open: card.id == lead)
+                            } else if rankedOpen {
+                                OrbitNativeRankedOpenTile(card: card, meta: metaStore.meta(for: card.preview), rank: index + 1,
+                                                          trailers: trailers, trailerKey: "\(row.id)|\(card.id)",
+                                                          open: card.id == lead)
                             } else {
                                 OrbitNativeTile(card: card, meta: metaStore.meta(for: card.preview), style: style, rank: index + 1,
                                                 trailers: trailers, trailerKey: "\(row.id)|\(card.id)")
@@ -405,7 +416,7 @@ struct OrbitNativeRow: View {
                 .scrollTargetLayout()
                 .padding(.vertical, 34)
                 // The frame opening on the new title and closing on the old one, on the row's curve.
-                .animation(classic ? OrbitHomeLayout.horizontal : nil, value: lead)
+                .animation(opens ? OrbitHomeLayout.horizontal : nil, value: lead)
             }
             // Steven (simulator: always a whole poster left of the focused title): the alignment on
             // the tiles snapped the pinned row back while its frame was opening — a pinned row is
@@ -517,7 +528,7 @@ struct OrbitNativeRow: View {
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
             // The trailer plays in the classic frame and in the large cards only.
-            if row.style == .classic || row.style == .cards {
+            if row.style == .classic || row.style == .cards || rankedOpen {
                 trailers.arm("\(row.id)|\(card.id)", item: card.preview)
             } else {
                 trailers.stop()
@@ -632,6 +643,47 @@ struct OrbitNativeClassicTile: View {
             OrbitPosterCard(card: card)
                 .transition(.opacity)
         }
+    }
+}
+
+/// The Top 10 opening as Nouveaux films (`OrbitNativeRow.rankedOpens`): its rank, then the focused
+/// title's 16:9 frame of the poster's height (its trailer), the others as his ranked posters.
+struct OrbitNativeRankedOpenTile: View {
+    let card: OrbitCard
+    let meta: OrbitMeta?
+    let rank: Int
+    let trailers: OrbitNativeTrailerHost
+    let trailerKey: String
+    let open: Bool
+    @Environment(\.isFocused) private var systemFocused
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    private var isFocused: Bool { systemFocused && !focusHidden }
+
+    private static var frame: CGSize {
+        let height = OrbitTileLayout.rankedPoster.height
+        return CGSize(width: (height * 16 / 9).rounded(), height: height)
+    }
+
+    private var openFrame: (() -> AnyView)? {
+        guard open else { return nil }
+        let focused = isFocused
+        return {
+            AnyView(
+                OrbitNativeTrailerReader(host: trailers, key: trailerKey) { url in
+                    OrbitLeadFrame(card: card, meta: meta, focused: focused, trailerURL: url,
+                                   onTrailerFailure: { trailers.model.playbackFailed($0) },
+                                   onTrailerEnded: { trailers.model.playbackFinished() },
+                                   frameSize: Self.frame)
+                }
+                .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
+            )
+        }
+    }
+
+    var body: some View {
+        OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused,
+                        openWidth: open ? Self.frame.width : nil, openFrame: openFrame)
+            .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
 
