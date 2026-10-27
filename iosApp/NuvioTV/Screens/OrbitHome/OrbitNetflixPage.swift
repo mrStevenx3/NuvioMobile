@@ -40,7 +40,7 @@ enum OrbitNetflixLayout {
     /// The open tile's meta line and synopsis (three lines), then the gap to the next heading.
     static let infoHeight: CGFloat = 205
     static let rowGap: CGFloat = 33
-    static let radius: CGFloat = 12
+    static let radius: CGFloat = 8
     static let horizontal = Animation.easeOut(duration: 0.26)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -830,8 +830,7 @@ private struct OrbitNetflixRowView: View {
         let lead = row.item(atSlot: leadSlot)
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
-                // (Measured on Netflix, side by side: a little larger and bolder.)
-                .font(.system(size: 33, weight: .bold))
+                .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.55))
                 .lineLimit(1)
                 .frame(height: L.headingHeight, alignment: .topLeading)
@@ -932,9 +931,8 @@ private struct OrbitNetflixRank: View {
         default: return max(12, width - 115)
         }
     }
-    /// The gap between the previous tile and the figure, on top of the row's own gap (measured on
-    /// Netflix: 6 % of the tile's height in all).
-    static let lead: CGFloat = 12
+    /// The gap between the previous tile and the figure.
+    static let lead: CGFloat = 30
     /// Netflix's figures are wider than the system's.
     static let widening: CGFloat = 1.1
 
@@ -990,7 +988,7 @@ struct OrbitGlyphShape: Shape {
         if let path = cache[key] { return path }
         // Netflix's figures are geometric and round (Netflix Sans): Avenir Next is the closest the
         // system has (the system's own heavy figures came out fat and squat — Steven).
-        let font = UIFont(name: "AvenirNext-Heavy", size: 200) ?? UIFont(name: "AvenirNext-Bold", size: 200) ?? UIFont.systemFont(ofSize: 200, weight: .bold)
+        let font = UIFont(name: "AvenirNext-Bold", size: 200) ?? UIFont.systemFont(ofSize: 200, weight: .bold)
         let ctFont = font as CTFont
         let chars = Array(text.utf16)
         var glyphs = [CGGlyph](repeating: 0, count: chars.count)
@@ -1141,11 +1139,9 @@ private struct OrbitNetflixTile: View {
                 .overlay { shape.strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3) }
                 // (Steven: the open art came in dark, then lit up — a quicker fade. Steven's video:
                 // the frame left behind lingered over the next titles as the row moved — it goes at once.)
-                .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.easeIn(duration: 0.26))))
-                // (Steven's video, after the tile was clipped to its width: black holes — the
-                // closing tile had lost its art at once, the opening one waited for its fade. Now the
-                // opening tile shows its art at once as it widens, and the closing one keeps its art
-                // while it narrows, both within their own width.)
+.transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.easeIn(duration: 0.26))))
+                // (Steven's videos: the opening tile shows its art at once as it widens, the closing
+                // one keeps its art while it narrows, both within their own width — no black holes.)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
