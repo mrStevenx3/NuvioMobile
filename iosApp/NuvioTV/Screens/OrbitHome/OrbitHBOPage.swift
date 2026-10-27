@@ -685,21 +685,26 @@ struct OrbitHBOPage: View {
 private struct OrbitHBOPosterMark: View {
     let own: OrbitHBOOwn
     let width: CGFloat
+    /// Steven: where the poster leaves room — its top (its title at its foot), else its foot.
+    var atTop = true
+    /// The "NOUVEAU" tag sits at the top left: the mark under it.
+    var belowTag = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-                .frame(height: 60)
+        ZStack(alignment: atTop ? .top : .bottom) {
+            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: atTop ? .bottom : .top,
+                           endPoint: atTop ? .top : .bottom)
+                .frame(height: atTop ? 70 : 60)
             Image(own == .hbo ? "HBOOriginalLogo" : "MaxOriginalLogo")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(Color.white)
                 .frame(width: width * (own == .hbo ? 0.5 : 0.36), height: own == .hbo ? 13 : 22)
-                .padding(.bottom, 12)
+                .padding(atTop ? .top : .bottom, atTop && belowTag ? 38 : 12)
         }
         .frame(width: width)
-        .frame(maxHeight: .infinity, alignment: .bottom)
+        .frame(maxHeight: .infinity, alignment: atTop ? .top : .bottom)
         .allowsHitTesting(false)
     }
 }
@@ -990,8 +995,8 @@ private struct OrbitHBOTop10Card: View {
                     OrbitImage(url: poster, fallback: nil, mode: .fill, size: L.poster)
                 }
                 if let own = OrbitHBOOwn.made(meta) {
-                    OrbitPrintedReader(url: poster, marks: ["hbo", "max"]) { printed in
-                        if printed != true { OrbitHBOPosterMark(own: own, width: L.poster.width) }
+                    OrbitPrintedReader(url: poster, marks: ["hbo", "max"]) { printed, atTop in
+                        if printed != true { OrbitHBOPosterMark(own: own, width: L.poster.width, atTop: atTop) }
                     }
                 }
             }
@@ -1194,7 +1199,7 @@ private struct OrbitHBOPoster: View {
         let ranked = (item.poster ?? "").contains("/poster/v")
         // Steven: TMDB's poster (no platform mark printed on it), HBO's / Max's mark drawn by Orbit.
         let url: String? = meta?.localPoster ?? meta?.titledPoster ?? meta?.cleanPoster ?? (ranked ? nil : item.poster)
-        let _ = OrbitTrace.log("hbo poster \(item.name) meta=\(meta != nil) made=\(String(describing: OrbitHBOOwn.made(meta))) producers=\(meta?.producers.joined(separator: "|") ?? "-")")
+
         ZStack(alignment: .topLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
             // (Steven's video: an empty frame at a row's end — no poster known yet: TMDB's, else his.)
@@ -1203,8 +1208,11 @@ private struct OrbitHBOPoster: View {
             if let own = OrbitHBOOwn.made(meta) {
                 // Drawn only when the poster does not print it already (Steven: doubles).
                 // (Orbit's at once; gone only when the poster is read to print it already.)
-                OrbitPrintedReader(url: url, marks: ["hbo", "max"]) { printed in
-                    if printed != true { OrbitHBOPosterMark(own: own, width: size.width) }
+                OrbitPrintedReader(url: url, marks: ["hbo", "max"]) { printed, atTop in
+                    if printed != true {
+                        OrbitHBOPosterMark(own: own, width: size.width, atTop: atTop,
+                                           belowTag: orbitHBOLabel(item, meta, isNew: isNew) != nil)
+                    }
                 }
             }
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
