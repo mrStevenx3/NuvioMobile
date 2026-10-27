@@ -1573,6 +1573,8 @@ private struct OrbitDisneyOpenRow: View {
                         }
                     }
                     .opacity(isLead ? 0 : 1)
+                    // (Steven's video: the poster faded in with the row's slide — a hole a beat. At once.)
+                    .animation(nil, value: isLead)
                 }
                 .frame(width: isLead ? L.open.width : nil, height: isLead ? L.open.height : nil, alignment: .leading)
             }
