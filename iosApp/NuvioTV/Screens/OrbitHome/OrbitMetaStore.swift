@@ -70,7 +70,7 @@ final class OrbitMetaStore: ObservableObject {
     private var saveScheduled = false
     private static let cacheFile: URL? = FileManager.default
         .urls(for: .cachesDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("orbit-meta-v1.json")
+        .appendingPathComponent("orbit-meta-v2.json")
     private static let cacheLimit = 4000
 
     private init() {
@@ -286,6 +286,10 @@ final class OrbitMetaStore: ObservableObject {
         let genres: [Genre]?
         let images: Images?
         let backdrop_path: String?
+        let title: String?
+        let original_title: String?
+        let name: String?
+        let original_name: String?
     }
 
     nonisolated enum Outcome: Sendable {
@@ -375,8 +379,16 @@ final class OrbitMetaStore: ObservableObject {
             english = en.overview.flatMap { $0.isEmpty ? nil : $0 }
         }
         let logos = d.images?.logos ?? []
-        var logo = (logos.first { $0.iso_639_1 == short } ?? logos.first { $0.iso_639_1 == "en" } ?? logos.first)?.file_path
-        if logo == nil,
+        // Steven (Klara et le Soleil showed "KLARA AND THE SUN"): a logo in another language only
+        // when the title is not translated (its French name is its original one) — else the French
+        // name in text beats a logo saying something else.
+        let shown = (d.title ?? d.name)?.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let original = (d.original_title ?? d.original_name)?.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let translated = short != "en" && shown != nil && original != nil && shown != original
+        let localLogo = logos.first { $0.iso_639_1 == short }?.file_path
+        let foreignLogo = translated ? nil : (logos.first { $0.iso_639_1 == "en" } ?? logos.first)?.file_path
+        var logo = localLogo ?? foreignLogo
+        if logo == nil, !translated,
            let imagesURL = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)/images?api_key=\(apiKey)"),
            let body = await fetch(imagesURL).data,
            let all = try? JSONDecoder().decode(ImagesResponse.self, from: body) {
