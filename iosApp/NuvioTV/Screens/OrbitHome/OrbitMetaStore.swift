@@ -37,6 +37,9 @@ nonisolated struct OrbitMeta: Equatable, Sendable, Codable {
     var platforms: [Int] = []
     /// The release (a series' first airing), "yyyy-MM-dd" — the "Nouveau" badges.
     var released: String? = nil
+    /// The title is translated and TMDB has no logo in the user's language: no logo at all (the
+    /// add-on's would be the original language's too) — the French name in text.
+    var textTitle: Bool = false
 }
 
 @MainActor
@@ -425,7 +428,8 @@ final class OrbitMetaStore: ObservableObject {
                          seasons: d.number_of_seasons,
                          platforms: ((try? JSONDecoder().decode(ProvidersOnly.self, from: body))?.providers?.results?[region]?
                              .flatrate ?? []).map(\.provider_id),
-                         released: d.release_date ?? d.first_air_date))
+                         released: d.release_date ?? d.first_air_date,
+                         textTitle: translated && localLogo == nil))
     }
 }
 
@@ -450,8 +454,8 @@ nonisolated struct OrbitInfo: Equatable {
         let logo: String? = item.logo
         return OrbitInfo(percent: rating, parts: parts,
                          synopsis: meta?.overview ?? (own?.isEmpty == false ? own : nil) ?? meta?.overviewEnglish ?? "",
-                         logo: meta?.logo ?? ((logo?.isEmpty ?? true) ? nil : logo),
-                         logoFallback: meta?.logo == nil || (logo?.isEmpty ?? true) ? nil : logo)
+                         logo: meta?.textTitle == true ? nil : (meta?.logo ?? ((logo?.isEmpty ?? true) ? nil : logo)),
+                         logoFallback: meta?.textTitle == true || meta?.logo == nil || (logo?.isEmpty ?? true) ? nil : logo)
     }
 }
 

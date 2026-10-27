@@ -175,6 +175,8 @@ struct OrbitDetailView: View {
     /// add-on's is often a link that does not resolve yet for a new title.
     private var logoCandidates: [String] {
         var seen = Set<String>()
+        // (A translated title with no logo in French: its name in text — Klara et le Soleil.)
+        if OrbitMetaStore.shared.metas[OrbitMetaStore.key(preview)]?.textTitle == true { return [] }
         let previewLogo: String? = preview.logo
         let metaLogo: String? = meta?.logo
         return [tmdbLogo, previewLogo, metaLogo].compactMap { $0 }.filter { !$0.isEmpty && seen.insert($0).inserted }
