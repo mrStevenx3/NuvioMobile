@@ -610,7 +610,6 @@ struct OrbitNativeRow: View {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
         restoringSince = appeared
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { restoreLock = false }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
@@ -618,14 +617,7 @@ struct OrbitNativeRow: View {
         disappeared = false
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                // (Steven: back from a page, the other titles out of reach a while — the lock goes at
-                // the viewer's first press.)
-                if ViewerInputClock.shared.hasInput(since: appeared) {
-                    restoreLock = false
-                    restoringSince = 0
-                    return
-                }
-                guard Self.reopen?.card == target.card else { return }
+                guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                 if focused != target.card { focused = target.card }
                 // The row exactly where it was left, whatever the focus's own scroll did.
                 settle(on: target.card)

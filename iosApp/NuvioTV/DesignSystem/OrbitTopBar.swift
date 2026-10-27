@@ -641,24 +641,14 @@ struct OrbitCollectionGrid: View {
             // Pass 3 (Steven's video: still the first tile): the engine's own restoration lands
             // late, after the first asks. Ask again over the first second and a half, until the
             // viewer presses anything.
-            // (Steven: back from a platform, the other tiles were out of reach a while — the lock
-            // goes at the viewer's first press.)
             for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    if ViewerInputClock.shared.hasInput(since: appeared) {
-                        if Self.appearedAt == appeared { restoreTarget = nil }
-                        return
-                    }
-                    if focused != last { focused = last }
+                    guard !ViewerInputClock.shared.hasInput(since: appeared), focused != last else { return }
+                    focused = last
                 }
             }
-            // (Steven: the other tiles out of reach too long — the lock only for the system's
-            // own first landing; the re-asks above go on, until a press.)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                if Self.appearedAt == appeared { restoreTarget = nil }
-            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-                guard Self.appearedAt == appeared else { return }
+                restoreTarget = nil
                 Self.pushedFrom = nil
             }
         }
