@@ -1945,7 +1945,7 @@ private struct OrbitDisneyBrandsHub: View {
                         .buttonStyle(OrbitPlainStyle())
                         .focused($browseFocused)
                         // (Steven: Up from the row below took two presses — it stopped here first.)
-                        .disabled(!isCurrent)
+                        .disabled(!isCurrent || reopenFilm != nil)
                     }
                     .frame(width: 720)
                     // Steven: the band's titles scroll (Right from TOUT PARCOURIR), each opens its page.
@@ -1971,7 +1971,9 @@ private struct OrbitDisneyBrandsHub: View {
                                     }
                                     .buttonStyle(OrbitPlainStyle())
                                     .focused($filmFocused, equals: i)
-                                    .disabled(!isCurrent)
+                                    // Back from it, its poster alone can take the focus (Steven: a
+                                    // beat on TOUT PARCOURIR first).
+                                    .disabled(reopenFilm.map { $0 != i } ?? !isCurrent)
                                 }
                             }
                             .padding(.vertical, 30)
