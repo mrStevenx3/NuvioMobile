@@ -142,6 +142,8 @@ struct OrbitDetailView: View {
     /// TMDB's logo for the title (`OrbitMetaStore`), kept apart so the store's other titles never
     /// redraw the page.
     @State private var tmdbLogo: String?
+    @State private var tmdbBackdrop: String?
+    @State private var keptBackdrop: String?
     /// Per row ("cast", "saga", "similar"): bumped to bring the row back to its start.
     @State private var rowResets: [String: Int] = [:]
 
@@ -175,8 +177,16 @@ struct OrbitDetailView: View {
         return [tmdbLogo, previewLogo, metaLogo].compactMap { $0 }.filter { !$0.isEmpty && seen.insert($0).inserted }
     }
     private var posterURL: String? { meta?.poster ?? preview.poster }
+    /// Steven (a page opened from À voir aussi stayed black for seconds): the add-on's details
+    /// come late — TMDB's backdrop (asked for as the page opens, often already known from the row)
+    /// shows at once; the first real backdrop shown is kept (no second image replacing it).
+    private var realBackdrop: String? {
+        let raw: String? = meta?.background ?? preview.banner ?? tmdbBackdrop
+        guard let raw, !raw.isEmpty else { return nil }
+        return raw
+    }
     private var backdropURL: String? {
-        let raw: String? = meta?.background ?? preview.banner ?? preview.poster
+        let raw: String? = keptBackdrop ?? realBackdrop ?? preview.poster
         guard let raw, !raw.isEmpty else { return nil }
         return DetailBackdropURL.upgraded(raw)
     }
@@ -200,7 +210,7 @@ struct OrbitDetailView: View {
     var body: some View {
         let L = OrbitDetailLayout.self
         ZStack(alignment: .topLeading) {
-            OrbitDetailBackground(url: backdropURL, placeholder: preview.poster,
+            OrbitDetailBackground(url: backdropURL,
                                   trailerURL: cinema || (heroTrailerOn && section == .hero && !coverUp) ? model.trailerVideoURL : nil,
                                   zoomKey: model.trailerZoomKey,
                                   dimmed: section != .hero && !cinema,
@@ -396,6 +406,10 @@ struct OrbitDetailView: View {
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
         .onReceive(OrbitMetaStore.shared.$metas.map { [key = OrbitMetaStore.key(preview)] in $0[key]?.logo }.removeDuplicates()) { logo in
             if tmdbLogo != logo { tmdbLogo = logo }
+            if tmdbBackdrop == nil, let backdrop = OrbitMetaStore.shared.metas[OrbitMetaStore.key(preview)]?.backdrop,
+               !backdrop.isEmpty {
+                tmdbBackdrop = backdrop
+            }
         }
         .onAppear {
             OrbitMetaStore.shared.request([preview])
@@ -445,6 +459,13 @@ struct OrbitDetailView: View {
             armHeroTrailer()
         }
         .onChange(of: qualityRequest, initial: true) { _, _ in requestQuality() }
+        .onReceive(OrbitMetaStore.shared.$metas.map { [key = OrbitMetaStore.key(preview)] in $0[key]?.backdrop }.removeDuplicates()) { b in
+            if tmdbBackdrop == nil, let b, !b.isEmpty { tmdbBackdrop = b }
+        }
+        // The first real backdrop shown stays (TMDB's, then the add-on's came and replaced it).
+        .onChange(of: realBackdrop, initial: true) { _, v in
+            if keptBackdrop == nil, let v { keptBackdrop = v }
+        }
         // Steven (device): the house hides while the trailer plays full screen.
         .onChange(of: cinema) { _, on in OrbitHomeButtonHost.shared.hidden = on }
         .onDisappear {
@@ -1013,9 +1034,6 @@ struct OrbitDetailView: View {
 /// hero with a left and bottom shade for the text, dark and soft under the sections.
 private struct OrbitDetailBackground: View {
     let url: String?
-    /// Shown, blurred, until the art has come (Steven: a page opened from À voir aussi stayed
-    /// black for seconds): the poster, already loaded by the row it was opened from.
-    var placeholder: String? = nil
     let trailerURL: String?
     let zoomKey: String
     let dimmed: Bool
@@ -1035,13 +1053,6 @@ private struct OrbitDetailBackground: View {
             // Fluidity: the dimmed art is a pre-blurred copy cross-faded in (an animated live blur of
             // the whole screen made the move to the sections stutter).
             ZStack {
-                if let placeholder, !placeholder.isEmpty {
-                    OrbitImage(url: placeholder, mode: .fill, size: CGSize(width: 400, height: 600))
-                        .frame(width: size.width, height: size.height)
-                        .blur(radius: 40)
-                        .clipped()
-                        .opacity(0.8)
-                }
                 OrbitSwapImage(url: url, fallback: nil, size: size)
                 // Steven (device: not dark or blurred enough under the sections).
                 OrbitPreBlurred(url: url, radius: 44)
