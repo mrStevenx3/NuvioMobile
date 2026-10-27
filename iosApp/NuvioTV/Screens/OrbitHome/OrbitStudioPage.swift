@@ -202,7 +202,8 @@ struct OrbitStudioPage: View {
     @State private var nativeRow: String?
     /// The native page's trailer (banner, featured cards) — a reference, never observed by the page.
     @State private var nativeTrailers = OrbitNativeTrailerHost()
-    private static let nativeTop: CGFloat = 120
+    /// (Steven: the house sat right on the row's heading — the rows' line lower, room under it.)
+    private static let nativeTop: CGFloat = 165
 
     init(route: OrbitStudioRoute) {
         self.route = route
