@@ -1114,6 +1114,7 @@ private struct OrbitNetflixTile: View {
         }
     }
 
+    @ViewBuilder
     private var tile: some View {
         let L = OrbitNetflixLayout.self
         let size = CGSize(width: open ? L.openWidth : L.posterWidth, height: L.tileHeight)
