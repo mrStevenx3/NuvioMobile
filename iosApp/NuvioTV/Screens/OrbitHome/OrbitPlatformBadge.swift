@@ -141,9 +141,10 @@ struct OrbitPlatformBadge: View {
     }
 
     private var primeText: some View {
+        // Steven: white, as Amazon's own mark now is (no longer blue).
         Text("prime video")
             .font(.system(size: size, weight: .heavy))
-            .foregroundStyle(OrbitPrimeLayout.blue)
+            .foregroundStyle(Color.white)
     }
 
     private var disneyText: some View {
