@@ -37,6 +37,10 @@ enum OrbitHBOLayout {
     static let rankUnderPoster: CGFloat = 34
     /// Steven (official screenshots): some rows are wide tiles (the genres here).
     static let tile = CGSize(width: 400, height: 225)
+    /// "Sello HBO" (the app's own): its large landscape cards.
+    static let featured = CGSize(width: 640, height: 360)
+    /// "Universo Max": its round brand tiles.
+    static let universe: CGFloat = 210
     static let gap: CGFloat = 24
     static let rowGap: CGFloat = 44
     static let radius: CGFloat = 6
@@ -51,12 +55,23 @@ struct OrbitHBORow: Identifiable, Equatable {
     let items: [MetaPreview]
     let top10: Bool
     var wide: Bool = false
+    /// HBO Max's "Sello HBO": large landscape cards of HBO's own.
+    var featured: Bool = false
+    /// HBO Max's "Universo Max": the round brands (each opens its studio).
+    var universe: Bool = false
 
     static func == (a: OrbitHBORow, b: OrbitHBORow) -> Bool {
-        a.id == b.id && a.top10 == b.top10 && a.wide == b.wide && a.items.map(\.id) == b.items.map(\.id)
+        a.id == b.id && a.top10 == b.top10 && a.wide == b.wide && a.featured == b.featured && a.universe == b.universe
+            && a.items.map(\.id) == b.items.map(\.id)
     }
 
-    var cardHeight: CGFloat { wide ? OrbitHBOLayout.tile.height : OrbitHBOLayout.poster.height }
+    var count: Int { universe ? OrbitHBOBrand.all.count : items.count }
+
+    var cardHeight: CGFloat {
+        if universe { return OrbitHBOLayout.universe }
+        if featured { return OrbitHBOLayout.featured.height }
+        return wide ? OrbitHBOLayout.tile.height : OrbitHBOLayout.poster.height
+    }
     var headingHeight: CGFloat { top10 ? OrbitHBOLayout.top10HeadingHeight : OrbitHBOLayout.headingHeight }
     var height: CGFloat { headingHeight + cardHeight + OrbitHBOLayout.rowGap }
 
@@ -67,6 +82,8 @@ struct OrbitHBORow: Identifiable, Equatable {
 
     func slot(_ index: Int) -> CGFloat {
         let L = OrbitHBOLayout.self
+        if universe { return L.universe + L.gap }
+        if featured { return L.featured.width + L.gap }
         return rankWidth(index) + (wide ? L.tile.width : L.poster.width) + L.gap
     }
 
@@ -113,6 +130,7 @@ struct OrbitHBOPage: View {
     @StateObject private var originals = OrbitHBOOriginalsModel()
     @StateObject private var trailer = OrbitNativeTrailerHost()
     @ObservedObject private var metaStore = OrbitMetaStore.shared
+    @Environment(\.orbitPushStudio) private var pushStudio
     @Environment(\.tabBarVisibility) private var tabBarVisibility
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OrbitHomeSetting.trailersKey) private var trailersOn = true
@@ -243,6 +261,18 @@ struct OrbitHBOPage: View {
                                    title: isSeries ? String(localized: "Top 10 des séries aujourd'hui")
                                                    : String(localized: "Top 10 des films aujourd'hui"),
                                    items: Array(c.items.prefix(10)), top10: true))
+        }
+        // HBO Max's own rows (Steven's video): "Universo Max", then "Sello HBO" (HBO's own, large).
+        if typeFilter == nil {
+            out.append(OrbitHBORow(id: "hbo-universe", title: String(localized: "Univers HBO Max"), items: [], top10: false,
+                                   universe: true))
+            var seal = Set<String>()
+            let finest = all.filter { !$0.top10 }.flatMap(\.items)
+                .filter { OrbitHBOOwn.of($0) == .hbo && $0.banner != nil && seal.insert(Self.identity($0)).inserted }
+            if finest.count >= 3 {
+                out.append(OrbitHBORow(id: "hbo-seal", title: String(localized: "Le label HBO : vos incontournables"),
+                                       items: Array(finest.prefix(12)), top10: false, featured: true))
+            }
         }
         if extraRows.isEmpty {
             for c in all where !c.fresh && !c.top10 {
@@ -549,6 +579,18 @@ struct OrbitHBOPage: View {
     }
 
     private func select() {
+        if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].universe {
+            let brands = OrbitHBOBrand.all
+            let brand = brands[min(max(0, leads[rows[r].id] ?? 0), brands.count - 1)]
+            guard let pushStudio else { return }
+            covered = true
+            trailer.reset(abortStages: true)
+            // As Disney+'s brands (Steven): no opening going in, nor HBO Max's coming back.
+            OrbitStudioIntro.skipNext = true
+            OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
+            pushStudio(brand.route)
+            return
+        }
         covered = true
         trailer.reset(abortStages: true)
         if let focusedItem { push(TitleRoute(preview: focusedItem, platform: detailPlatform(focusedItem))) }
@@ -799,16 +841,23 @@ private struct OrbitHBORowView: View {
             }
             .frame(height: row.headingHeight, alignment: .topLeading)
             .padding(.leading, L.margin)
-            OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: row.cardHeight,
-                                 lastWidth: row.slot(max(0, row.items.count - 1)) - L.gap, box: box, alignment: .top,
+            OrbitNativeTileStrip(count: row.count, spacing: L.gap, height: row.cardHeight,
+                                 lastWidth: row.slot(max(0, row.count - 1)) - L.gap, box: box, alignment: .top,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
                                  onLeadChange: { _ in onLeadChange() }) { index, lit in
-                let item = row.items[index]
-                if row.top10 {
+                if row.universe {
+                    OrbitHBOBrandTile(brand: OrbitHBOBrand.all[index], focused: lit)
+                } else if row.featured {
+                    let item = row.items[index]
+                    OrbitHBOFeaturedCard(item: item, meta: metaStore.meta(for: item), focused: lit)
+                } else if row.top10 {
+                    let item = row.items[index]
                     OrbitHBOTop10Card(item: item, meta: metaStore.meta(for: item), rank: index + 1, focused: lit)
                 } else if row.wide {
+                    let item = row.items[index]
                     OrbitHBOTile(item: item, meta: metaStore.meta(for: item), isNew: news.contains(item.id), focused: lit)
                 } else {
+                    let item = row.items[index]
                     OrbitHBOPoster(item: item, meta: metaStore.meta(for: item), isNew: news.contains(item.id), focused: lit)
                 }
             }
@@ -900,6 +949,131 @@ private struct OrbitHBOTop10Card: View {
             .offset(x: rankW - L.rankUnderPoster)
         }
         .frame(width: rankW - L.rankUnderPoster + L.poster.width, height: L.poster.height, alignment: .bottomLeading)
+    }
+}
+
+/// "Universo Max"'s brands: HBO Max's own circles, each its studio page (TMDB's network or company).
+struct OrbitHBOBrand {
+    let name: String
+    let ids: String
+    let isNetwork: Bool
+    let colours: [Color]
+
+    var route: OrbitStudioRoute {
+        OrbitStudioRoute(name: name, companies: ids, isNetwork: isNetwork, logo: OrbitHBOBrandLogos.shared.logos[name],
+                         collectionId: nil, folderId: nil)
+    }
+
+    static let all: [OrbitHBOBrand] = [
+        .init(name: "HBO", ids: "49", isNetwork: true,
+              colours: [Color(white: 0.28), Color(white: 0.10)]),
+        .init(name: "Max Originals", ids: "3186", isNetwork: true,
+              colours: [Color(white: 0.22), Color(white: 0.06)]),
+        .init(name: "Warner Bros.", ids: "174", isNetwork: false,
+              colours: [Color(red: 0.10, green: 0.42, blue: 0.95), Color(red: 0.03, green: 0.20, blue: 0.60)]),
+        .init(name: "DC", ids: "128064|9993", isNetwork: false,
+              colours: [Color(red: 0.08, green: 0.38, blue: 0.90), Color(red: 0.02, green: 0.14, blue: 0.45)]),
+        .init(name: "Discovery", ids: "64", isNetwork: true,
+              colours: [Color(red: 0.10, green: 0.45, blue: 0.95), Color(red: 0.02, green: 0.20, blue: 0.55)]),
+        .init(name: "Cartoon Network", ids: "56", isNetwork: true,
+              colours: [Color(white: 0.20), Color(white: 0.02)]),
+        .init(name: "Adult Swim", ids: "80", isNetwork: true,
+              colours: [Color(red: 0.12, green: 0.30, blue: 0.55), Color(red: 0.03, green: 0.08, blue: 0.20)]),
+    ]
+}
+
+/// The brands' logos (TMDB's), fetched once.
+@MainActor
+final class OrbitHBOBrandLogos: ObservableObject {
+    static let shared = OrbitHBOBrandLogos()
+    @Published private(set) var logos: [String: String] = [:]
+    private var started = false
+
+    nonisolated private struct Entity: Decodable { let logo_path: String? }
+
+    func load() {
+        guard !started else { return }
+        started = true
+        let key = TmdbSettingsRepository.shared.effectiveApiKey()
+        guard !key.isEmpty else { return }
+        Task { [weak self] in
+            for brand in OrbitHBOBrand.all {
+                let first = brand.ids.split(separator: "|").first.map(String.init) ?? brand.ids
+                guard let url = URL(string: "https://api.themoviedb.org/3/\(brand.isNetwork ? "network" : "company")/\(first)?api_key=\(key)"),
+                      let (data, _) = try? await URLSession.shared.data(from: url),
+                      let entity = try? JSONDecoder().decode(Entity.self, from: data),
+                      let path = entity.logo_path else { continue }
+                self?.logos[brand.name] = "https://image.tmdb.org/t/p/w500\(path)"
+            }
+        }
+    }
+}
+
+/// A brand's circle: its colour, its logo in white (its name while none).
+private struct OrbitHBOBrandTile: View {
+    let brand: OrbitHBOBrand
+    let focused: Bool
+    @ObservedObject private var logos = OrbitHBOBrandLogos.shared
+
+    var body: some View {
+        let d = OrbitHBOLayout.universe
+        let box = CGSize(width: d * 0.62, height: d * 0.36)
+        ZStack {
+            Circle().fill(RadialGradient(colors: brand.colours, center: .topLeading, startRadius: 0, endRadius: d))
+            if let logo = logos.logos[brand.name] {
+                Color.white
+                    .frame(width: box.width, height: box.height)
+                    .mask {
+                        CachedAsyncImage(string: logo, contentMode: .fit,
+                                         decodeSize: .points(width: box.width, height: box.height),
+                                         loading: { Color.clear }, failure: { Color.clear })
+                            .frame(width: box.width, height: box.height)
+                    }
+            } else {
+                Text(brand.name)
+                    .font(.system(size: 26, weight: .heavy))
+                    .foregroundStyle(Color.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                    .frame(width: d * 0.75)
+            }
+        }
+        .frame(width: d, height: d)
+        .overlay { Circle().strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 4) }
+        .shadow(color: .black.opacity(focused ? 0.5 : 0.2), radius: focused ? 16 : 6, y: focused ? 8 : 3)
+        .scaleEffect(focused ? OrbitHBOLayout.focusScale : 1)
+        .animation(.easeOut(duration: 0.18), value: focused)
+        .onAppear { logos.load() }
+    }
+}
+
+/// "Sello HBO": a large landscape card of HBO's own — its art, "HBO ORIGINAL", its logo.
+private struct OrbitHBOFeaturedCard: View {
+    let item: MetaPreview
+    let meta: OrbitMeta?
+    let focused: Bool
+
+    var body: some View {
+        let L = OrbitHBOLayout.self
+        let size = L.featured
+        let info = OrbitInfo.make(item, meta: meta)
+        ZStack(alignment: .bottomLeading) {
+            Color(red: 0.08, green: 0.10, blue: 0.20)
+            OrbitImage(url: meta?.backdrop ?? item.banner, fallback: item.banner, size: size)
+            LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 8) {
+                OrbitHBOMark(own: .hbo, size: 16)
+                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 340, height: 110), textSize: 36,
+                               fallbackLogo: info.logoFallback, hugsLogo: true)
+                    .frame(width: 340, alignment: .leading)
+            }
+            .padding(.leading, 24)
+            .padding(.bottom, 22)
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+        .modifier(OrbitHBOFocus(focused: focused))
     }
 }
 
