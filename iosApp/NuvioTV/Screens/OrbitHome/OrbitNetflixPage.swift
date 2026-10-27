@@ -932,7 +932,7 @@ private struct OrbitNetflixRank: View {
     static let widening: CGFloat = 1.1
 
     static func figureWidth(_ rank: Int) -> CGFloat {
-        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.2 : 0) * widening
+        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.02 : 0) * widening
     }
 
     /// The room the figure takes before its tile.
@@ -941,7 +941,7 @@ private struct OrbitNetflixRank: View {
     var body: some View {
         let height = Self.figureHeight
         let width = Self.figureWidth(rank)
-        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.2 : 0)
+        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0)
         // The visible part's end (where the tile's shadow takes the line).
         let visible = 1 - Self.tuck(rank) / max(1, width)
         ZStack {
@@ -993,14 +993,22 @@ struct OrbitGlyphShape: Shape {
         let combined = CGMutablePath()
         var x: CGFloat = 0
         for (i, glyph) in glyphs.enumerated() {
-            if var g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
-                // Steven: Netflix's 1 has a short flag — Avenir's ran far to the left. Cut, square.
-                if chars[i] == UInt16(UInt8(ascii: "1")) {
-                    let box = g.boundingBoxOfPath
-                    let keep = CGRect(x: box.minX + box.width * 0.34, y: box.minY - 1,
-                                      width: box.width * 0.66 + 1, height: box.height + 2)
-                    g = g.intersection(CGPath(rect: keep, transform: nil))
-                }
+            // Steven (side by side with Netflix's): Netflix's 1 is its own — a straight stem, a short
+            // square flag with its corner cut. Drawn here, at Avenir's height.
+            if chars[i] == UInt16(UInt8(ascii: "1")) {
+                let h = CTFontGetCapHeight(ctFont)
+                let xs = h * 0.17, xr = xs + h * 0.26
+                let one = CGMutablePath()
+                one.addLines(between: [
+                    CGPoint(x: xs, y: 0), CGPoint(x: xr, y: 0), CGPoint(x: xr, y: h), CGPoint(x: xs, y: h),
+                    CGPoint(x: 0, y: h * 0.83), CGPoint(x: 0, y: h * 0.72), CGPoint(x: xs, y: h * 0.72),
+                ])
+                one.closeSubpath()
+                combined.addPath(one, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
+                x += xr + h * 0.1 + tracking * 200
+                continue
+            }
+            if let g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
                 // Flipped: CoreText draws upwards.
                 combined.addPath(g, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
             }
