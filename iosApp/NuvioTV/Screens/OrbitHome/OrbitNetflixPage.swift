@@ -211,13 +211,7 @@ struct OrbitNetflixPage: View {
     private var billboardItem: MetaPreview? {
         let rows = rows
         let source = rows.first(where: \.fresh) ?? rows.first
-        // Steven (every platform): a title with its logo (once its details are known).
-        let hasLogo: (MetaPreview) -> Bool = { item in
-            guard let meta = metaStore.meta(for: item) else { return true }
-            return OrbitInfo.make(item, meta: meta).logo != nil
-        }
-        return source?.items.first { $0.banner != nil && hasLogo($0) } ?? source?.items.first { $0.banner != nil }
-            ?? source?.items.first
+        return source?.items.first { $0.banner != nil } ?? source?.items.first
     }
 
     /// "N° 3 des films" for a title of the Top 10.

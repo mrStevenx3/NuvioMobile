@@ -724,7 +724,7 @@ private struct OrbitPrimeTop: View {
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .topLeading) {
             ZStack {
-                OrbitSwapImage(url: meta?.backdrop ?? banner, fallback: nil, size: size)
+                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),

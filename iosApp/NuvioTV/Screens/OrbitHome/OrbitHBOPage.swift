@@ -327,14 +327,7 @@ struct OrbitHBOPage: View {
             : catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
         // Steven (the HBO tab showed only documentaries): fiction first, documentaries after.
-        let pictured = items.filter { $0.banner != nil }
-        // Steven (every platform): no title without its logo in the hero, once its details are known
-        // (never an empty hero: all of them when none has one).
-        let logoed = pictured.filter { item in
-            guard let meta = metaStore.meta(for: item) else { return true }
-            return OrbitInfo.make(item, meta: meta).logo != nil
-        }
-        let withArt = logoed.isEmpty ? pictured : logoed
+        let withArt = items.filter { $0.banner != nil }
         let isDoc: (MetaPreview) -> Bool = { item in item.genres.contains { $0.hasPrefix("Documentaire") } }
         return Array((withArt.filter { !isDoc($0) } + withArt.filter(isDoc)).prefix(6))
     }
@@ -775,7 +768,7 @@ private struct OrbitHBOHero: View {
         let own = OrbitHBOOwn.made(meta)
         ZStack(alignment: .topLeading) {
             ZStack {
-                OrbitSwapImage(url: meta?.backdrop ?? item.banner, fallback: nil, size: size)
+                OrbitSwapImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -995,9 +988,7 @@ private struct OrbitHBOTop10Card: View {
                     OrbitImage(url: poster, fallback: nil, mode: .fill, size: L.poster)
                 }
                 if let own = OrbitHBOOwn.made(meta) {
-                    OrbitPrintedReader(url: poster, marks: ["hbo", "max"]) { printed, atTop in
-                        if printed != true { OrbitHBOPosterMark(own: own, width: L.poster.width, atTop: atTop) }
-                    }
+                    OrbitHBOPosterMark(own: own, width: L.poster.width, atTop: false)
                 }
             }
             .frame(width: L.poster.width, height: L.poster.height)
@@ -1207,13 +1198,7 @@ private struct OrbitHBOPoster: View {
                        mode: .fill, size: size, lastResort: meta?.backdrop ?? item.banner)
             if let own = OrbitHBOOwn.made(meta) {
                 // Drawn only when the poster does not print it already (Steven: doubles).
-                // (Orbit's at once; gone only when the poster is read to print it already.)
-                OrbitPrintedReader(url: url, marks: ["hbo", "max"]) { printed, atTop in
-                    if printed != true {
-                        OrbitHBOPosterMark(own: own, width: size.width, atTop: atTop,
-                                           belowTag: orbitHBOLabel(item, meta, isNew: isNew) != nil)
-                    }
-                }
+                OrbitHBOPosterMark(own: own, width: size.width, atTop: false)
             }
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
                 OrbitHBONewTag(text: text, size: 13, white: true)
