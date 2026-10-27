@@ -813,6 +813,8 @@ private struct OrbitNativeStudioRow: View {
     @State private var disappeared = false
     /// The Top 10's Left: the row put at once where it ends, slid there (Netflix's).
     @State private var slideX: CGFloat = 0
+    /// Where the Top 10's open title is in the row: the frame follows it (Netflix's).
+    @State private var openX: CGFloat?
 
     /// The row put back where it is shown: a row with details on its title at the margin (exact),
     /// the others at their kept scroll.
@@ -855,6 +857,9 @@ private struct OrbitNativeStudioRow: View {
                             OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
                                                   trailers: trailers,
                                                   open: (row.kind == .classic || row.opensRanked) && index == (shown ?? 0))
+                                .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named("rankedStudioRow")).minX }) { x in
+                                    if row.opensRanked, index == (shown ?? 0), openX != x { openX = x }
+                                }
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
@@ -893,7 +898,8 @@ private struct OrbitNativeStudioRow: View {
             .scrollClipDisabled()
             .padding(.vertical, -34)
             .frame(height: size.height)
-            // The Top 10's open frame, fixed at the margin beside its rank (Netflix's Top 10).
+            .coordinateSpace(.named("rankedStudioRow"))
+            // The Top 10's open frame beside its rank, following its title (Netflix's Top 10).
             .overlay(alignment: .topLeading) {
                 let index = shown ?? 0
                 if row.opensRanked, row.items.indices.contains(index) {
@@ -903,8 +909,8 @@ private struct OrbitNativeStudioRow: View {
                                          focused: isCurrent && focused != nil,
                                          trailers: trailers, trailerKey: "\(row.id)|\(item.type):\(item.id)",
                                          size: OrbitNativeRankedOpenTile.frame(scale: OrbitStudioRow.rankedScale))
-                        .offset(x: L.margin + OrbitRankedTile.rankRoom(index + 1, scale: OrbitStudioRow.rankedScale))
-                        .animation(OrbitHomeLayout.horizontal, value: index)
+                        .offset(x: (openX ?? L.margin) + OrbitRankedTile.rankRoom(index + 1, scale: OrbitStudioRow.rankedScale))
+                        .animation(OrbitHomeLayout.horizontal, value: openX)
                 }
             }
 
