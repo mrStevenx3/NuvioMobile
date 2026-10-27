@@ -990,7 +990,7 @@ struct OrbitGlyphShape: Shape {
         if let path = cache[key] { return path }
         // Netflix's figures are geometric and round (Netflix Sans): Avenir Next is the closest the
         // system has (the system's own heavy figures came out fat and squat — Steven).
-        let font = UIFont(name: "AvenirNext-Bold", size: 200) ?? UIFont.systemFont(ofSize: 200, weight: .bold)
+        let font = UIFont(name: "AvenirNext-Heavy", size: 200) ?? UIFont(name: "AvenirNext-Bold", size: 200) ?? UIFont.systemFont(ofSize: 200, weight: .bold)
         let ctFont = font as CTFont
         let chars = Array(text.utf16)
         var glyphs = [CGGlyph](repeating: 0, count: chars.count)
