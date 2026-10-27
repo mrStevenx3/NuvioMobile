@@ -777,7 +777,8 @@ struct OrbitDetailView: View {
             Group {
                 if cinema {
                     Color.clear
-                } else if let own = platform?.own {
+                } else if let own = platform?.own, own != .prime {
+                    // Steven: no Prime mark on a Prime title's page.
                     // The platform's "original" tag right on top of the title (Steven: above the
                     // title's box it floated high over a wide logo).
                     VStack(alignment: .leading, spacing: 16) {
