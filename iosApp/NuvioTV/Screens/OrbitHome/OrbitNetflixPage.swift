@@ -21,27 +21,26 @@ enum OrbitNetflixLayout {
     static let red = Color(red: 0.90, green: 0.04, blue: 0.08)
     static let margin: CGFloat = OrbitHomeLayout.margin
     /// The billboard.
-    static let billboardTop: CGFloat = 112
-    /// Steven (2026-10-25): much taller, as on the real app — the screen nearly to the bottom.
-    static let billboardSize = CGSize(width: OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin, height: 830)
+    // Steven (2026-10-27, Netflix's own app on video: "un maximum proche de l'application
+    // officielle"): every size below measured on it (1080p).
+    static let billboardTop: CGFloat = 143
+    static let billboardSize = CGSize(width: OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin, height: 765)
     /// The first row's heading under the billboard (it peeks on the first screen).
-    static let rowsTop: CGFloat = 990
+    static let rowsTop: CGFloat = 946
     /// The current row's heading once the billboard has gone.
-    static let restTop: CGFloat = 118
-    static let headingHeight: CGFloat = 50
-    /// Steven (device, 2026-10-25): the rows 15 % smaller — one row filled the screen.
-    static let tileHeight: CGFloat = 425
+    static let restTop: CGFloat = 148
+    static let headingHeight: CGFloat = 54
+    static let tileHeight: CGFloat = 506
     static var openWidth: CGFloat { tileHeight * 16 / 9 }
-    /// 2:3, the posters' own shape (narrower, their sides were cut: Friends' F).
-    static let posterWidth: CGFloat = 283
-    static let gap: CGFloat = 16
-    /// The open tile's meta line and synopsis.
-    /// Steven (device: the row below barely showed): tighter, so more than half of its posters show.
-    static let infoHeight: CGFloat = 140
-    static let rowGap: CGFloat = 30
+    /// Netflix's posters (a touch narrower than 2:3).
+    static let posterWidth: CGFloat = 310
+    static let gap: CGFloat = 18
+    /// The open tile's meta line and synopsis (three lines), then the gap to the next heading.
+    static let infoHeight: CGFloat = 205
+    static let rowGap: CGFloat = 33
     static let radius: CGFloat = 8
-    static let rankWidth: CGFloat = 145
-    static let rankWidthTen: CGFloat = 306
+    static let rankWidth: CGFloat = 128
+    static let rankWidthTen: CGFloat = 236
     static let horizontal = Animation.easeOut(duration: 0.26)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -260,6 +259,13 @@ struct OrbitNetflixPage: View {
 
         ZStack(alignment: .topLeading) {
             OrbitNetflixLayout.background
+            // Netflix's own app: around its billboard the page is a deep grey-violet, black under
+            // the rows.
+            LinearGradient(colors: [Color(red: 0.15, green: 0.14, blue: 0.2), .black],
+                           startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.9))
+                .opacity(offset > 0 ? 0 : 1)
+                .animation(.easeInOut(duration: 0.35), value: offset > 0)
+                .allowsHitTesting(false)
 
                             nativeSections(rows, billboard: billboard)
                     .disabled(search != nil)
@@ -364,7 +370,7 @@ struct OrbitNetflixPage: View {
                 OrbitNetflixRowView(row: row, box: leads.box(row.id), isCurrent: s == current, focused: focused,
                                     series: item.map { $0.type != "movie" } ?? series,
                                     rank: item.flatMap { topRank($0) },
-                                    isTop: { topRank($0) != nil },
+                                    rankOf: { topRank($0) },
                                     trailerURL: s == current ? trailerURL(for: item) : nil,
                                     onTrailerFailure: { trailer.playbackFailed($0) },
                                     onTrailerEnded: { trailer.playbackFinished() },
@@ -557,18 +563,64 @@ private struct OrbitNetflixPosterN: View {
     }
 }
 
-/// Netflix's small red pill ("Récemment ajouté", "N° 3 des séries").
-private struct OrbitNetflixBadge: View {
+/// One of Netflix's pills: its small icon, then its words.
+struct OrbitNetflixPillInfo {
+    enum Icon { case new, top10, liked }
+    let icon: Icon?
     let text: String
+}
+
+/// Netflix's pill (its own app): a dark translucent box, a small coloured icon, white words.
+private struct OrbitNetflixPill: View {
+    let info: OrbitNetflixPillInfo
+    var size: CGFloat = 20
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 17, weight: .bold))
-            .foregroundStyle(Color.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 4).fill(OrbitNetflixLayout.red))
+        HStack(spacing: 8) {
+            if let icon = info.icon { OrbitNetflixPillIcon(icon: icon, size: size) }
+            Text(info.text)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.black.opacity(0.62)))
     }
+}
+
+/// The pills' icons: the TOP 10 square, the new one, the thumb.
+private struct OrbitNetflixPillIcon: View {
+    let icon: OrbitNetflixPillInfo.Icon
+    let size: CGFloat
+
+    var body: some View {
+        switch icon {
+        case .top10:
+            VStack(spacing: -size * 0.12) {
+                Text("TOP").font(.system(size: size * 0.32, weight: .heavy))
+                Text("10").font(.system(size: size * 0.6, weight: .black))
+            }
+            .foregroundStyle(Color.white)
+            .frame(width: size * 0.95, height: size * 1.05)
+            .background(RoundedRectangle(cornerRadius: 2).fill(OrbitNetflixLayout.red))
+        case .new:
+            Image(systemName: "sparkles")
+                .font(.system(size: size * 0.8, weight: .bold))
+                .foregroundStyle(LinearGradient(colors: [Color(red: 1, green: 0.25, blue: 0.45), OrbitNetflixLayout.red],
+                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+        case .liked:
+            Image(systemName: "hand.thumbsup.fill")
+                .font(.system(size: size * 0.8, weight: .bold))
+                .foregroundStyle(LinearGradient(colors: [Color(red: 0.95, green: 0.3, blue: 0.6), Color(red: 0.55, green: 0.3, blue: 0.95)],
+                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+    }
+}
+
+/// "N° 3 des séries".
+private func netflixRankLabel(_ rank: Int, series: Bool) -> String {
+    series ? String(localized: "N° \(String(rank)) des séries") : String(localized: "N° \(String(rank)) des films")
 }
 
 /// Netflix's words for what is new.
@@ -580,35 +632,27 @@ private func netflixNewsLabel(_ news: OrbitTitleNews) -> String {
     }
 }
 
-/// Netflix's TOP 10 mark: a small red square, TOP over 10, in the poster's top right corner.
-private struct OrbitNetflixTopMark: View {
-    var body: some View {
-        VStack(spacing: -3) {
-            Text("TOP").font(.system(size: 11, weight: .heavy))
-            Text("10").font(.system(size: 21, weight: .black))
-        }
-        .foregroundStyle(Color.white)
-        .frame(width: 38, height: 46)
-        .background(Rectangle().fill(OrbitNetflixLayout.red))
-        .allowsHitTesting(false)
-    }
-}
-
-/// Netflix's label at the foot of a poster: a red band across its bottom, white text.
+/// Netflix's label at the foot of a poster (its own app): white words over the poster's dark foot,
+/// with the TOP 10 square before a rank.
 private struct OrbitNetflixFootLabel: View {
-    let text: String
+    let info: OrbitNetflixPillInfo
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(Color.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 3).fill(OrbitNetflixLayout.red))
-            .padding(.bottom, 10)
-            .allowsHitTesting(false)
+        HStack(spacing: 6) {
+            if let icon = info.icon { OrbitNetflixPillIcon(icon: icon, size: 16) }
+            Text(info.text)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .shadow(color: .black.opacity(0.8), radius: 4)
+        .padding(.horizontal, 8)
+        .padding(.top, 30)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
+        .background(LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom))
+        .allowsHitTesting(false)
     }
 }
 
@@ -625,7 +669,7 @@ private func netflixMeta(_ item: MetaPreview, _ meta: OrbitMeta?) -> String {
     if let certification = meta?.certification {
         parts.append(certification == "TP" ? String(localized: "Tous publics") : "\(certification)+")
     }
-    return parts.joined(separator: "  ·  ")
+    return parts.joined(separator: "  •  ")
 }
 
 /// Netflix's own title: Steven's add-on marks it in its poster's address ("/n/v13/…" in the lists,
@@ -673,35 +717,70 @@ private struct OrbitNetflixBillboard: View {
                 .init(color: .black.opacity(0.2), location: 0.5),
                 .init(color: .clear, location: 0.8),
             ], startPoint: .bottomLeading, endPoint: .topTrailing)
-            VStack(alignment: .leading, spacing: 14) {
-                if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 22) }
-                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 700, height: 230), textSize: 72,
+            // Netflix's own billboard (Steven's video): the logo, the meta line, three lines of
+            // synopsis, then Lecture and Plus d'infos; a pill bottom right.
+            VStack(alignment: .leading, spacing: 0) {
+                if isNetflixOwn(item, meta) {
+                    OrbitNetflixTag(series: item.type != "movie", size: 22)
+                        .padding(.bottom, 12)
+                }
+                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 560, height: 200), textSize: 72,
                                fallbackLogo: info.logoFallback, hugsLogo: true)
                     // Its own height (Steven: a wide logo left N FILM floating high above it).
-                    .frame(width: 700, alignment: .leading)
+                    .frame(width: 560, alignment: .leading)
                 Text(netflixMeta(item, meta))
-                    .font(.system(size: 23, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.9))
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.95))
                     .lineLimit(1)
+                    .padding(.top, 22)
+                Text(info.synopsis)
+                    .font(.system(size: 27, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.9))
+                    .lineSpacing(4)
+                    .lineLimit(3)
+                    .frame(width: 640, alignment: .topLeading)
+                    .padding(.top, 14)
+                HStack(spacing: 16) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "play.fill").font(.system(size: 24, weight: .bold))
+                        Text(String(localized: "Lecture")).font(.system(size: 28, weight: .semibold))
+                    }
+                    .foregroundStyle(focused ? Color.black : Color.white)
+                    .padding(.horizontal, 34)
+                    .frame(height: 76)
+                    .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.22)))
+                    Text(String(localized: "Plus d'infos"))
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 34)
+                        .frame(height: 76)
+                        .background(Capsule().fill(Color.white.opacity(0.22)))
+                }
+                .padding(.top, 34)
             }
-            .padding(.leading, 56)
-            .padding(.bottom, 56)
-            if let text = rank.map({ series ? String(localized: "N° \(String($0)) des séries")
-                                             : String(localized: "N° \(String($0)) des films") })
-                ?? OrbitTitleNews.of(item, meta).map(netflixNewsLabel) {
-                OrbitNetflixBadge(text: text)
+            .padding(.leading, 30)
+            .padding(.bottom, 32)
+            if let pill = billboardPill {
+                OrbitNetflixPill(info: pill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(32)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        // (Netflix: no frame around it — its Lecture button shows the focus.)
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 4)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1.5)
         }
         .animation(.easeOut(duration: 0.18), value: focused)
         .allowsHitTesting(false)
+    }
+
+    private var billboardPill: OrbitNetflixPillInfo? {
+        if let rank { return .init(icon: .top10, text: netflixRankLabel(rank, series: series)) }
+        if let news = OrbitTitleNews.of(item, meta) { return .init(icon: .new, text: netflixNewsLabel(news)) }
+        return .init(icon: .liked, text: String(localized: "Vous devriez aimer"))
     }
 }
 
@@ -733,7 +812,7 @@ private struct OrbitNetflixRowView: View {
     let series: Bool
     let rank: Int?
     /// The title is in one of the page's Top 10s (Netflix's red TOP 10 mark on its poster).
-    var isTop: (MetaPreview) -> Bool = { _ in false }
+    var rankOf: (MetaPreview) -> Int? = { _ in nil }
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -749,7 +828,7 @@ private struct OrbitNetflixRowView: View {
         let lead = row.item(atSlot: leadSlot)
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
-                .font(.system(size: 27, weight: .bold))
+                .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.55))
                 .lineLimit(1)
                 .frame(height: L.headingHeight, alignment: .topLeading)
@@ -772,9 +851,8 @@ private struct OrbitNetflixRowView: View {
                     let meta = metaStore.meta(for: item)
                     OrbitNetflixTile(item: item, meta: meta, open: open, focused: lit,
                                      top10: row.top10,
-                                     badge: open ? badge(rank: rank, fresh: row.fresh, news: OrbitTitleNews.of(item, meta)) : nil,
-                                     topMark: !row.top10 && isTop(item),
-                                     news: OrbitTitleNews.of(item, meta).map(netflixNewsLabel),
+                                     badges: open ? badges(rank: rank, fresh: row.fresh, news: OrbitTitleNews.of(item, meta)) : [],
+                                     foot: footLabel(item, meta),
                                      trailerURL: open ? trailerURL : nil,
                                      onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                 }
@@ -787,23 +865,22 @@ private struct OrbitNetflixRowView: View {
                 let item = row.items[lead]
                 let meta = metaStore.meta(for: item)
                 let info = OrbitInfo.make(item, meta: meta)
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text(netflixMeta(item, meta))
-                        .font(.system(size: 23, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.9))
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.95))
                         .lineLimit(1)
                     Text(info.synopsis)
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.75))
-                        .lineSpacing(3)
+                        .font(.system(size: 27, weight: .regular))
+                        .foregroundStyle(Color.white.opacity(0.78))
+                        .lineSpacing(4)
                         .lineLimit(3)
-                        .frame(width: 1000, alignment: .topLeading)
+                        .frame(width: 990, alignment: .topLeading)
                 }
                 .padding(.leading, L.margin + (row.top10 ? (lead == 9 ? L.rankWidthTen : L.rankWidth) : 0))
                 // (Steven: further from the open tile, which grows when focused; the row's height
                 // unchanged — taken from the gap under it.)
-                .padding(.top, 30)
-                .padding(.bottom, -12)
+                .padding(.top, 26)
                 .id("\(item.type):\(item.id)")
                 // Steven (video: two synopses over each other, the one left over the next row's
                 // title): the old text goes at once, the new one fades in; leaving the row, at once.
@@ -815,39 +892,50 @@ private struct OrbitNetflixRowView: View {
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
     }
 
-    private func badge(rank: Int?, fresh: Bool, news: OrbitTitleNews?) -> String? {
-        if let rank, !row.top10 {
-            return series ? String(localized: "N° \(String(rank)) des séries") : String(localized: "N° \(String(rank)) des films")
+    /// The open tile's pills, as Netflix shows them side by side: what is new, then its rank.
+    private func badges(rank: Int?, fresh: Bool, news: OrbitTitleNews?) -> [OrbitNetflixPillInfo] {
+        var out: [OrbitNetflixPillInfo] = []
+        if let news { out.append(.init(icon: .new, text: netflixNewsLabel(news))) }
+        else if fresh { out.append(.init(icon: .new, text: String(localized: "Récemment ajouté"))) }
+        if let rank, !row.top10 { out.append(.init(icon: .top10, text: netflixRankLabel(rank, series: series))) }
+        return out
+    }
+
+    /// The label at a poster's foot (Netflix: "Nouvelle saison", or its rank "N° 7 des séries").
+    private func footLabel(_ item: MetaPreview, _ meta: OrbitMeta?) -> OrbitNetflixPillInfo? {
+        if let news = OrbitTitleNews.of(item, meta) { return .init(icon: nil, text: netflixNewsLabel(news)) }
+        if !row.top10, let rank = rankOf(item) {
+            return .init(icon: .top10, text: netflixRankLabel(rank, series: item.type != "movie"))
         }
-        if let news { return netflixNewsLabel(news) }
-        return fresh ? String(localized: "Récemment ajouté") : nil
+        return nil
     }
 }
 
-/// Netflix's rank: huge, outlined in grey, black inside.
+/// Netflix's rank (its own app, Steven's video): a tall number in a thin grey outline, black inside,
+/// standing at the top of the tile beside it (its top level with the tile's).
 private struct OrbitNetflixRank: View {
     let rank: Int
 
     var body: some View {
         let L = OrbitNetflixLayout.self
-        // Steven: "10" showed as "…" (too wide for its room, the text truncated): never truncated,
-        // and "10" drawn a bit narrower (tighter, slightly smaller) in a wider room.
+        let size = L.tileHeight * (rank == 10 ? 0.52 : 0.58)
         let text = Text("\(rank)")
-            .font(.system(size: L.tileHeight * (rank == 10 ? 0.56 : 0.62), weight: .black))
-            .kerning(rank == 10 ? -22 : -10)
+            .font(.system(size: size, weight: .heavy).width(.condensed))
+            .kerning(rank == 10 ? -size * 0.08 : 0)
         ZStack {
             // The outline: the number drawn around itself in grey, then black inside.
             ForEach(0..<8, id: \.self) { i in
                 let angle = Double(i) * .pi / 4
-                text.foregroundStyle(Color(white: 0.55))
+                text.foregroundStyle(Color(white: 0.6))
                     .fixedSize()
-                    .offset(x: cos(angle) * 3, y: sin(angle) * 3)
+                    .offset(x: cos(angle) * 2, y: sin(angle) * 2)
             }
             text.foregroundStyle(Color.black)
                 .fixedSize()
         }
-        .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .bottomTrailing)
-        .offset(x: 24, y: 34)
+        // (The glyph's top sits under its line's ascent: raised so the figure's top meets the tile's.)
+        .offset(x: 8, y: -size * 0.2)
+        .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .topTrailing)
     }
 }
 
@@ -859,12 +947,12 @@ private struct OrbitNetflixTile: View {
     let open: Bool
     let focused: Bool
     let top10: Bool
-    let badge: String?
-    /// Netflix's red TOP 10 mark, top right of the poster (a title of the Top 10, in another row).
-    var topMark = false
+    /// The open tile's pills (bottom right).
+    var badges: [OrbitNetflixPillInfo] = []
     /// Netflix's label at the foot of the poster ("Nouvelle saison", "Nouveaux épisodes",
     /// "Bientôt disponible").
-    var news: String? = nil
+    /// The label at the poster's foot.
+    var foot: OrbitNetflixPillInfo? = nil
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -894,12 +982,8 @@ private struct OrbitNetflixTile: View {
                 // (Before TMDB answers for a Top 10 title, the catalog's poster rather than black.)
                 OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: closedSize)
                 if drawsN { OrbitNetflixPosterN(size: closedSize) }
-                if topMark {
-                    OrbitNetflixTopMark()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                }
-                if let news {
-                    OrbitNetflixFootLabel(text: news)
+                if let foot {
+                    OrbitNetflixFootLabel(info: foot)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
             }
@@ -928,10 +1012,12 @@ private struct OrbitNetflixTile: View {
                     }
                     .padding(.leading, 24)
                     .padding(.bottom, 22)
-                    if let badge {
-                        OrbitNetflixBadge(text: badge)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                            .padding(22)
+                    if !badges.isEmpty {
+                        HStack(spacing: 10) {
+                            ForEach(badges.indices, id: \.self) { OrbitNetflixPill(info: badges[$0]) }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .padding(20)
                     }
                 }
                 .frame(width: openSize.width, height: openSize.height)
