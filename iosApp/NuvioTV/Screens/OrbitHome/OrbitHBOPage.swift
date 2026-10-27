@@ -1077,7 +1077,8 @@ private struct OrbitHBOBrandTile: View {
                     .resizable()
                     .scaledToFit()
                     .foregroundStyle(Color.white)
-                    .frame(width: box.width, height: box.height)
+                    // (Warner Bros.' shield is tall: its own room.)
+                    .frame(width: box.width, height: asset == "WarnerBrosLogo" ? d * 0.5 : box.height)
             } else if brand.text != nil {
                 // Steven: Warner Bros.' own shield — white, its WB cut out in the circle's blue.
                 ZStack {
