@@ -319,11 +319,11 @@ struct OrbitDisneyPage: View {
             // The page's one focusable stop, under the bar's band.
 
             CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false, showsAll: true,
-                                switchItems: ["Disney+", "Hulu"], switchSelection: $mode, centreLeads: true,
+                                switchItems: ["Disney+", "Hulu"], switchSelection: $mode,
                                 switchLogo: { index, lit in
                                     AnyView(OrbitDisneyBrandLogo(hulu: index == 1, logoURL: brandLogoURL,
                                                                  height: 34, dark: lit, alignment: .center))
-                                })
+                                }, centreLeads: true)
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
