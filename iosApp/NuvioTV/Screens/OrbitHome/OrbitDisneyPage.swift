@@ -26,7 +26,8 @@ enum OrbitDisneyLayout {
     static let huluGreen = Color(red: 0.11, green: 0.91, blue: 0.51)
     static let margin: CGFloat = OrbitHomeLayout.margin
     /// The hero's art (full width), its text block.
-    static let heroArtHeight: CGFloat = 900
+    /// Steven: the hero larger, its art running on under the first row's posters.
+    static let heroArtHeight: CGFloat = 1080
     static let infoTop: CGFloat = 200
     static let logoSize = CGSize(width: 620, height: 190)
     static let synopsisWidth: CGFloat = 820
@@ -101,7 +102,8 @@ struct OrbitDisneyRow: Identifiable, Equatable {
     var classic: Bool { top10 && OrbitDisneyLayout.classicTop10 }
     var height: CGFloat {
         let L = OrbitDisneyLayout.self
-        if brands { return L.hubHeight }
+        // (Steven: the next row's title was against the band.)
+        if brands { return L.hubHeight + 64 }
         if classic { return L.headingHeight + cardSize.height + L.rowGap }
         return L.headingNew + L.open.height + L.metaNew + L.rowGapNew
     }
@@ -279,7 +281,8 @@ struct OrbitDisneyPage: View {
         }.map { $0.section?.items ?? [] }
         var items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : fresh.first ?? []
         if items.isEmpty { items = rows.first(where: { !$0.top10 && !$0.brands })?.items ?? [] }
-        return Array(items.filter { $0.banner != nil }.prefix(6))
+        // Steven: Swiping Right on the Devil (Hulu's) in Disney+'s hero — Hulu's titles left out.
+        return Array(items.filter { $0.banner != nil && !orbitIsHuluTitle(metaStore.meta(for: $0)) }.prefix(6))
     }
 
     private var sectionCount: Int { 1 + rows.count }
@@ -706,9 +709,9 @@ private struct OrbitDisneyHero: View {
                     .init(color: .clear, location: 0.7),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
-                    .init(color: .clear, location: 0.45),
-                    .init(color: L.background.opacity(0.75), location: 0.75),
-                    .init(color: L.background, location: 1),
+                    .init(color: .clear, location: 0.5),
+                    .init(color: L.background.opacity(0.45), location: 0.78),
+                    .init(color: L.background.opacity(0.85), location: 1),
                 ], startPoint: .top, endPoint: .bottom)
             }
             .frame(width: size.width, height: size.height)
@@ -753,13 +756,8 @@ private struct OrbitDisneyHero: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Steven: Disney+'s in white over its own programmes; Hulu's only at the hero's
                 // bottom right.
-                Group {
-                    if !isHulu, orbitIsDisneyOwn(meta) {
-                        OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: 44, huluInColour: true)
-                    } else {
-                        Color.clear
-                    }
-                }
+                // (Steven: no logo over the title — the platform's is at the bottom right already.)
+                Color.clear
                 .frame(height: 52, alignment: .bottomLeading)
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
                                fallbackLogo: info.logoFallback, hugsLogo: true)
@@ -1259,6 +1257,12 @@ struct OrbitDisneyBrand {
     /// The hub's band (Disney+'s newest app: each brand its colour) and its line.
     let colours: [Color]
     let tagline: String
+    /// Steven's own file for this brand (Star Wars, National Geographic), and whether it keeps its
+    /// colours (National Geographic's yellow frame).
+    var asset: String? = nil
+    var assetInColour = false
+    /// The folder's logo keeps its colours (Marvel's red box).
+    var logoInColour = false
 
     static let all: [OrbitDisneyBrand] = [
         .init(name: "Disney", keys: ["walt disney", "disney"], company: "2",
@@ -1269,13 +1273,13 @@ struct OrbitDisneyBrand {
               tagline: String(localized: "Des histoires pour tous les âges")),
         .init(name: "Marvel", keys: ["marvel"], company: "420",
               colours: [Color(red: 0.62, green: 0.06, blue: 0.08), Color(red: 0.22, green: 0.02, blue: 0.04)],
-              tagline: String(localized: "L'univers Marvel")),
+              tagline: String(localized: "L'univers Marvel"), logoInColour: true),
         .init(name: "Star Wars", keys: ["star wars", "lucasfilm"], company: "1",
               colours: [Color(red: 0.14, green: 0.15, blue: 0.20), Color(red: 0.02, green: 0.02, blue: 0.05)],
-              tagline: String(localized: "Il y a bien longtemps, dans une galaxie lointaine…")),
+              tagline: String(localized: "Il y a bien longtemps, dans une galaxie lointaine…"), asset: "StarWarsLogo"),
         .init(name: "National Geographic", keys: ["national geographic", "nat geo"], company: "7521",
               colours: [Color(red: 0.55, green: 0.45, blue: 0.05), Color(red: 0.16, green: 0.13, blue: 0.03)],
-              tagline: String(localized: "Explorez notre monde")),
+              tagline: String(localized: "Explorez notre monde"), asset: "NatGeoLogo", assetInColour: true),
     ]
 
     /// His folder for this studio (never Disney+ itself).
@@ -1391,7 +1395,7 @@ private struct OrbitDisneyOpenRow: View {
         let lead = row.item(atSlot: leadSlot)
         // (Newest app: the row above shows at the screen's top, closed.)
         let opens = isCurrent
-        let frameX = row.top10 ? (openX ?? L.margin) : L.margin
+        let frameX = row.top10 ? top10FrameX(lead: lead) : L.margin
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 26, weight: .medium))
@@ -1445,7 +1449,8 @@ private struct OrbitDisneyOpenRow: View {
                 let info = OrbitInfo.make(item, meta: meta)
                 HStack(spacing: 12) {
                     if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 15) }
-                    Text(info.parts.joined(separator: " • "))
+                    // (Steven: the Top 10 says its genre only, under the open title.)
+                    Text(row.top10 ? (meta?.genre ?? item.genres.first ?? "") : info.parts.joined(separator: " • "))
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.75))
                         .lineLimit(1)
@@ -1460,6 +1465,20 @@ private struct OrbitDisneyOpenRow: View {
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
         .onAppear { prefetch(around: lead, includingIt: true) }
+    }
+
+    /// Where the Top 10's open title is: at the margin, or further right once the row has reached
+    /// its end (it no longer scrolls). Worked out from the row's own sizes (Steven's photo: the frame,
+    /// read off the screen, landed over the next title).
+    private func top10FrameX(lead: Int) -> CGFloat {
+        let L = OrbitDisneyLayout.self
+        let n = row.items.count
+        guard n > 0 else { return L.margin }
+        let slot = L.posterNew.width + L.gapNew
+        let content = CGFloat(n - 1) * slot + L.open.width
+        let maxOffset = max(0, L.margin + content + L.margin - OrbitHomeLayout.screenWidth)
+        let x = CGFloat(lead) * slot
+        return L.margin + x - min(x, maxOffset)
     }
 
     /// The open art of the focused title and its neighbours, decoded before the focus gets there.
@@ -1571,10 +1590,6 @@ private struct OrbitDisneyPosterNew: View {
                     .padding(.leading, 12)
                     .padding(.bottom, 14)
             }
-            OrbitDisneyBrandLogo(hulu: isHulu || orbitIsHuluTitle(meta), logoURL: nil, height: 28, alignment: .trailing, huluInColour: true)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 12)
-                .padding(.bottom, 14)
             if let rank {
                 Text("\(rank)")
                     .font(.system(size: 46, weight: .heavy))
@@ -1604,7 +1619,8 @@ enum OrbitDisneyTop10Corner {
 
     static func rankText(_ rank: Int, size: CGFloat) -> some View {
         Text("\(rank)")
-            .font(.system(size: rank >= 10 ? size * 0.78 : size, weight: .heavy, design: .rounded))
+            // (Steven, side by side with the app: geometric, not round.)
+            .font(.custom("AvenirNext-Bold", size: rank >= 10 ? size * 0.78 : size))
             .kerning(rank >= 10 ? -size * 0.05 : 0)
             .foregroundStyle(Color(red: 0.15, green: 0.80, blue: 0.92))
     }
@@ -1639,35 +1655,40 @@ private struct OrbitDisneyTop10Poster: View {
 
     var body: some View {
         let L = OrbitDisneyLayout.self
-        // Steven: the rating and the genre under the poster, not on it.
-        let label: CGFloat = 44
-        let size = CGSize(width: L.posterNew.width, height: L.posterNew.height - label)
+        let size = L.posterNew
         let genre: String? = meta?.genre ?? item.genres.first
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                OrbitDisneyTop10Corner.ground
-                OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
-                    .frame(width: size.width, height: size.height)
-                    .modifier(OrbitDisneyTop10Corner.Cut(extent: size.width * 0.47))
-                OrbitDisneyTop10Corner.rankText(rank, size: 66)
-                    .padding(.leading, size.width * 0.055)
-                    .padding(.top, 4)
-            }
-            .frame(width: size.width, height: size.height, alignment: .topLeading)
-            .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-            .modifier(OrbitDisneyFocus(focused: focused, lifts: false))
-            HStack(spacing: 10) {
-                if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 15) }
-                if let genre {
-                    Text(genre)
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .lineLimit(1)
+        // (Steven: some posters came up empty — TMDB's when the catalog has none.)
+        let poster: String? = item.poster ?? meta?.titledPoster ?? meta?.cleanPoster
+        ZStack(alignment: .topLeading) {
+            OrbitDisneyTop10Corner.ground
+            OrbitImage(url: poster, fallback: meta?.cleanPoster ?? item.rawPosterUrl, mode: .fill, size: size)
+                .frame(width: size.width, height: size.height)
+                .modifier(OrbitDisneyTop10Corner.Cut(extent: size.width * 0.47))
+            OrbitDisneyTop10Corner.rankText(rank, size: 66)
+                .padding(.leading, size.width * 0.055)
+                .padding(.top, 4)
+            // Steven: on the poster (its foot), the rating and the genre only.
+            VStack {
+                Spacer(minLength: 0)
+                HStack(spacing: 10) {
+                    if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 15) }
+                    if let genre {
+                        Text(genre)
+                            .font(.system(size: 19, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.92))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+                .padding(.top, 40)
+                .background(LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom))
             }
-            .frame(width: size.width, height: label, alignment: .bottomLeading)
         }
-        .frame(width: L.posterNew.width, height: L.posterNew.height, alignment: .topLeading)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+        .modifier(OrbitDisneyFocus(focused: focused, lifts: false))
     }
 }
 
@@ -1680,6 +1701,7 @@ private struct OrbitDisneyBrandsHub: View {
     let onLeave: () -> Void
     let onSelect: () -> Void
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
+    @FocusState private var browseFocused: Bool
 
     var body: some View {
         let L = OrbitDisneyLayout.self
@@ -1688,11 +1710,15 @@ private struct OrbitDisneyBrandsHub: View {
         let brand = brands[min(max(0, box.lead), brands.count - 1)]
         let titles = films.title == brand.name ? (films.rows.first?.items ?? []) : []
         ZStack(alignment: .topLeading) {
-            LinearGradient(colors: brand.colours, startPoint: .topLeading, endPoint: .bottomTrailing)
-                .frame(width: W, height: L.hubHeight)
-                .opacity(isCurrent ? 1 : 0)
-                .animation(.easeInOut(duration: 0.35), value: brand.name)
-                .animation(.easeInOut(duration: 0.3), value: isCurrent)
+            // Steven: the band there as soon as the brands come in sight; a brand to the next, a
+            // plain cross-fade (its colour, its logo, its titles).
+            ZStack {
+                LinearGradient(colors: brand.colours, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .id(brand.name)
+                    .transition(.opacity)
+            }
+            .frame(width: W, height: L.hubHeight)
+            .animation(.easeInOut(duration: 0.4), value: brand.name)
             VStack(alignment: .leading, spacing: 0) {
                 // Steven: the pills centred on the screen.
                 let pillsWidth = CGFloat(brands.count) * L.pill.width + CGFloat(brands.count - 1) * 18
@@ -1707,34 +1733,48 @@ private struct OrbitDisneyBrandsHub: View {
                 .padding(.top, 26)
                 HStack(alignment: .center, spacing: 0) {
                     VStack(spacing: 26) {
-                        OrbitDisneyBrandLogoBig(brand: brand)
-                        Text(brand.tagline)
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundStyle(Color.white)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                        Text(String(localized: "TOUT PARCOURIR"))
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(Color.white)
-                            .padding(.horizontal, 40)
-                            .frame(height: 70)
-                            .background(Capsule().fill(Color.white.opacity(0.16)))
+                        ZStack {
+                            VStack(spacing: 26) {
+                                OrbitDisneyWhiteLogo(brand: brand, box: CGSize(width: 460, height: 190), nameSize: 80)
+                                Text(brand.tagline)
+                                    .font(.system(size: 26, weight: .semibold))
+                                    .foregroundStyle(Color.white)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            }
+                            .id(brand.name)
+                            .transition(.opacity)
+                        }
+                        // Steven: TOUT PARCOURIR can be pressed (Down from the pills): the brand's page.
+                        Button(action: onSelect) {
+                            Text(String(localized: "TOUT PARCOURIR"))
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(browseFocused ? Color.black : Color.white)
+                                .padding(.horizontal, 40)
+                                .frame(height: 70)
+                                .background(Capsule().fill(browseFocused ? Color.white : Color.white.opacity(0.16)))
+                                .scaleEffect(browseFocused ? 1.06 : 1)
+                                .animation(.easeOut(duration: 0.18), value: browseFocused)
+                        }
+                        .buttonStyle(OrbitPlainStyle())
+                        .focused($browseFocused)
                     }
                     .frame(width: 720)
-                    HStack(spacing: 32) {
-                        ForEach(Array(titles.prefix(5).enumerated()), id: \.offset) { _, item in
-                            OrbitImage(url: item.poster, fallback: nil, mode: .fill, size: CGSize(width: 295, height: 440))
-                                .frame(width: 295, height: 440)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    ZStack(alignment: .leading) {
+                        HStack(spacing: 32) {
+                            ForEach(Array(titles.prefix(5).enumerated()), id: \.offset) { _, item in
+                                OrbitImage(url: item.poster, fallback: nil, mode: .fill, size: CGSize(width: 295, height: 440))
+                                    .frame(width: 295, height: 440)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
                         }
+                        .id(brand.name + "|\(titles.count)")
+                        .transition(.opacity)
                     }
-                    .id(brand.name)
-                    .transition(.opacity)
                 }
                 .padding(.top, 34)
-                .opacity(isCurrent ? 1 : 0)
-                .animation(.easeInOut(duration: 0.3), value: isCurrent)
-                .animation(.easeInOut(duration: 0.3), value: brand.name)
+                .animation(.easeInOut(duration: 0.4), value: brand.name)
+                .animation(.easeInOut(duration: 0.3), value: titles.count)
             }
         }
         .frame(width: W, height: L.hubHeight, alignment: .topLeading)
@@ -1782,7 +1822,20 @@ private struct OrbitDisneyWhiteLogo: View {
     let nameSize: CGFloat
 
     var body: some View {
-        if let logo = brand.logoURL {
+        if let asset = brand.asset {
+            // Steven's own files (Star Wars, National Geographic).
+            Image(asset)
+                .renderingMode(brand.assetInColour ? .original : .template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(Color.white)
+                .frame(width: box.width, height: box.height)
+        } else if let logo = brand.logoURL, brand.logoInColour {
+            CachedAsyncImage(string: logo, contentMode: .fit,
+                             decodeSize: .points(width: box.width, height: box.height),
+                             loading: { Color.clear }, failure: { name })
+                .frame(width: box.width, height: box.height)
+        } else if let logo = brand.logoURL {
             Color.white
                 .frame(width: box.width, height: box.height)
                 .mask {
