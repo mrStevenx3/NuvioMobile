@@ -298,12 +298,17 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     let onSelect: () -> Void
     /// The focus moved to another title of the row (the page's look-ahead, its trailer).
     var onLeadChange: (Int) -> Void = { _ in }
+    /// A pinned row's Left: the closed width (with its gap) of the title the focus goes to. The row
+    /// is put at once where it ends and slid there from where it was (Steven: Right slid, Left
+    /// jumped — the title growing before the scroll's aim, the system dropped the slide).
+    var leftSlide: ((Int) -> CGFloat)? = nil
     @ViewBuilder let tile: (_ index: Int, _ focused: Bool) -> Tile
 
     @FocusState private var focus: Int?
     @State private var anchor: Int?
     @State private var scroll = ScrollPosition(idType: Int.self)
     @State private var holds = false
+    @State private var slideX: CGFloat = 0
 
     @State private var rowProxy: ScrollViewProxy?
     /// When the way back from a title began (0: not coming back).
@@ -355,6 +360,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             }
             .scrollTargetLayout()
             .padding(.vertical, 40)
+            .offset(x: slideX)
         }
         .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !keepsLeadAtMargin))
         // (Only a pinned row is driven by its anchor; an unpinned one is not bound: the written-back
@@ -400,8 +406,20 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                 onLeadChange(new)
             }
             if keepsLeadAtMargin, anchor != new {
+                let old = anchor
                 anchor = new
-                withAnimation(OrbitHomeLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+                if let leftSlide, let old, new < old, old - new <= 3 {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    let distance = (new..<old).reduce(CGFloat(0)) { $0 + leftSlide($1) }
+                    withTransaction(still) {
+                        slideX = -distance
+                        scroll.scrollTo(id: new, anchor: .leading)
+                    }
+                    withAnimation(OrbitHomeLayout.horizontal) { slideX = 0 }
+                } else {
+                    withAnimation(OrbitHomeLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+                }
             }
             // The open tile grows while the scroll is aimed: once open, the title back exactly at
             // the margin (Steven, simulator: it drifted right).

@@ -850,6 +850,11 @@ private struct OrbitNetflixRowView: View {
                                  onLeadChange: { new in
                                      onLeadChange()
                                      prefetchOpenArt(around: row.item(atSlot: new))
+                                 },
+                                 // (Steven: Right is perfect, Left the same now.)
+                                 leftSlide: { slot in
+                                     L.posterWidth + L.gap
+                                         + (row.top10 ? OrbitNetflixRank.width(row.item(atSlot: slot) + 1) : 0)
                                  }) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
