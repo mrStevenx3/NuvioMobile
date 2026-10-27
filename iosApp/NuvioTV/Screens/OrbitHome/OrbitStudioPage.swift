@@ -103,7 +103,9 @@ struct OrbitStudioRow: Identifiable, Equatable {
     }
 
     /// The focused film's info shows under the row (not for a saga's shelf: its band is the info).
-    var showsInfo: Bool { kind != .saga }
+    /// (Steven, 2026-10-27, as on Home: the title's details only under the 16:9 cards — Les
+    /// incontournables; the posters' rows are cleaner without, and scroll as Apple's app does.)
+    var showsInfo: Bool { kind == .featured }
 
     static let rankedScale: CGFloat = 1.15
 
