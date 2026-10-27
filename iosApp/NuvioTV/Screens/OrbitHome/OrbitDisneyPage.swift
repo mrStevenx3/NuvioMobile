@@ -20,6 +20,8 @@ enum OrbitDisneyLayout {
     static let background = Color(red: 0.047, green: 0.055, blue: 0.086)
     static let turquoise = Color(red: 0.13, green: 0.73, blue: 0.80)
     static let brandBlue = Color(red: 0.06, green: 0.22, blue: 0.62)
+    /// Hulu's green (#1CE783).
+    static let huluGreen = Color(red: 0.11, green: 0.91, blue: 0.51)
     static let margin: CGFloat = OrbitHomeLayout.margin
     /// The hero's art (full width), its text block.
     static let heroArtHeight: CGFloat = 900
@@ -626,7 +628,7 @@ private struct OrbitDisneyHero: View {
             // Steven: the platform's logo at the hero's bottom right, in white (where the opening's
             // logo glides to).
             OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: L.cornerLogo.height,
-                                 alignment: .center)
+                                 alignment: .center, huluInColour: true)
                 .frame(width: L.cornerLogo.width, height: L.cornerLogo.height)
                 .shadow(color: .black.opacity(0.45), radius: 8)
                 .position(L.cornerLogoCentre)
@@ -648,7 +650,7 @@ private struct OrbitDisneyHero: View {
                 // Steven: in white — Hulu's over its titles, Disney+'s over its own programmes.
                 Group {
                     if isHulu || orbitIsDisneyOwn(meta) {
-                        OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: 44)
+                        OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: 44, huluInColour: true)
                     } else {
                         Color.clear
                     }
@@ -1109,6 +1111,8 @@ struct OrbitDisneyBrandLogo: View {
     var height: CGFloat = 44
     var dark = false
     var alignment: Alignment = .bottomLeading
+    /// Steven: Hulu's own green on the hero (white in the bar).
+    var huluInColour = false
 
     var body: some View {
         Group {
@@ -1120,6 +1124,7 @@ struct OrbitDisneyBrandLogo: View {
                     .scaledToFit()
                     .frame(height: height * 0.62)
                     .frame(height: height, alignment: alignment)
+                    .foregroundStyle(huluInColour && !dark ? OrbitDisneyLayout.huluGreen : (dark ? Color.black : Color.white))
             } else if let logoURL {
                 CachedAsyncImage(string: logoURL, contentMode: .fit,
                                  decodeSize: .points(width: height * 3.2, height: height * 1.2),
