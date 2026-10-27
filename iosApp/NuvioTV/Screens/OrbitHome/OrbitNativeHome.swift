@@ -327,6 +327,8 @@ struct OrbitNativeRow: View {
     /// From the opening of a title until just after the way back: only its card can take the focus.
     @State private var restoreLock = false
     @State private var disappeared = false
+    /// The Top 10's Left: the row put at once where it ends, slid there (as Netflix's).
+    @State private var slideX: CGFloat = 0
 
     /// The row put back where it is shown: a pinned row on its title at the margin (exact, whatever
     /// was recorded), the others at their kept scroll.
@@ -415,8 +417,10 @@ struct OrbitNativeRow: View {
                 }
                 .scrollTargetLayout()
                 .padding(.vertical, 34)
+                .offset(x: slideX)
                 // The frame opening on the new title and closing on the old one, on the row's curve.
-                .animation(opens ? OrbitHomeLayout.horizontal : nil, value: lead)
+                // (The Top 10: its room changes at once, only the row slides — Netflix's.)
+                .animation(classic ? OrbitHomeLayout.horizontal : nil, value: lead)
             }
             // Steven (simulator: always a whole poster left of the focused title): the alignment on
             // the tiles snapped the pinned row back while its frame was opening — a pinned row is
@@ -449,6 +453,18 @@ struct OrbitNativeRow: View {
             // Steven's video (the row below bounced on Left / Right): every part of a row has a
             // fixed height — nothing in it can change the rows' places.
             .frame(height: size.height)
+            // The Top 10's open frame, fixed at the margin beside its rank (Netflix's Top 10).
+            .overlay(alignment: .topLeading) {
+                if rankedOpen, let index = row.cards.firstIndex(where: { $0.id == lead }) {
+                    let card = row.cards[index]
+                    OrbitRankedOpenFrame(card: card, meta: metaStore.meta(for: card.preview),
+                                         focused: isCurrent && focused != nil,
+                                         trailers: trailers, trailerKey: "\(row.id)|\(card.id)",
+                                         size: OrbitNativeRankedOpenTile.frame(scale: 1))
+                        .offset(x: L.margin + OrbitRankedTile.rankRoom(index + 1))
+                        .animation(OrbitHomeLayout.horizontal, value: index)
+                }
+            }
 
             // The focused title's details under the row (large cards carry theirs).
             if showsDetails {
@@ -512,8 +528,24 @@ struct OrbitNativeRow: View {
             // Rows without details under them scroll as Apple's app does (Steven): the focus runs
             // over the titles on screen, the row moves only at its edge.
             if pinned, anchor != new {
+                let old = anchor.flatMap { id in row.cards.firstIndex(where: { $0.id == id }) }
+                let now = row.cards.firstIndex(where: { $0.id == new })
                 anchor = new
-                withAnimation(OrbitHomeLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+                if rankedOpen, let old, let now, now < old, old - now <= 3 {
+                    // (Steven: Left as Netflix's — at once where it ends, slid there.)
+                    let distance = (now..<old).reduce(CGFloat(0)) {
+                        $0 + OrbitRankedTile.closedWidth($1 + 1) + T.gap(style)
+                    }
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) {
+                        slideX = -distance
+                        scroll.scrollTo(id: new, anchor: .leading)
+                    }
+                    withAnimation(OrbitHomeLayout.horizontal) { slideX = 0 }
+                } else {
+                    withAnimation(OrbitHomeLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+                }
             }
             // Steven (simulator: moving right, the frame drifted off the margin, a poster left of
             // it): the scroll is aimed while the frame is still opening — once it has opened, the
@@ -662,32 +694,44 @@ struct OrbitNativeRankedOpenTile: View {
     @Environment(\.orbitFocusHidden) private var focusHidden
     private var isFocused: Bool { systemFocused && !focusHidden }
 
-    private var frame: CGSize {
+    private var frame: CGSize { Self.frame(scale: scale) }
+
+    /// The frame size of the open title (16:9, the poster's height).
+    static func frame(scale: CGFloat) -> CGSize {
         let height = OrbitTileLayout.rankedPoster.height * scale
         return CGSize(width: (height * 16 / 9).rounded(), height: height)
     }
 
-    private var openFrame: (() -> AnyView)? {
-        guard open else { return nil }
-        let focused = isFocused
-        let frame = frame
-        return {
-            AnyView(
-                OrbitNativeTrailerReader(host: trailers, key: trailerKey) { url in
-                    OrbitLeadFrame(card: card, meta: meta, focused: focused, trailerURL: url,
-                                   onTrailerFailure: { trailers.model.playbackFailed($0) },
-                                   onTrailerEnded: { trailers.model.playbackFinished() },
-                                   frameSize: frame)
-                }
-                .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
-            )
-        }
+    var body: some View {
+        // As Netflix's Top 10 (Steven): the open title's tile is only its rank and its room — the
+        // row draws the frame itself, fixed at the margin, the art changing inside it.
+        OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused && !open, showsBadge: showsBadge, scale: scale,
+                        openWidth: open ? frame.width : nil,
+                        openFrame: open ? { AnyView(Color.clear) } : nil)
+            .animation(.easeOut(duration: 0.18), value: isFocused)
     }
+}
+
+/// The open title's frame, drawn once by its row at the margin (Netflix's Top 10): the art and the
+/// trailer change inside it as the focus moves.
+struct OrbitRankedOpenFrame: View {
+    let card: OrbitCard
+    let meta: OrbitMeta?
+    let focused: Bool
+    let trailers: OrbitNativeTrailerHost
+    let trailerKey: String
+    let size: CGSize
 
     var body: some View {
-        OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused, showsBadge: showsBadge, scale: scale,
-                        openWidth: open ? frame.width : nil, openFrame: openFrame, opens: true)
-            .animation(.easeOut(duration: 0.18), value: isFocused)
+        OrbitNativeTrailerReader(host: trailers, key: trailerKey) { url in
+            OrbitLeadFrame(card: card, meta: meta, focused: focused, trailerURL: url,
+                           onTrailerFailure: { trailers.model.playbackFailed($0) },
+                           onTrailerEnded: { trailers.model.playbackFinished() },
+                           frameSize: size)
+        }
+        .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
+        .animation(.easeOut(duration: 0.18), value: focused)
+        .allowsHitTesting(false)
     }
 }
 

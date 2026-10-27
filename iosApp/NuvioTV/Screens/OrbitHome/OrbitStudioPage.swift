@@ -811,6 +811,8 @@ private struct OrbitNativeStudioRow: View {
     @State private var restoringSince: TimeInterval = 0
     @State private var restoreLock = false
     @State private var disappeared = false
+    /// The Top 10's Left: the row put at once where it ends, slid there (Netflix's).
+    @State private var slideX: CGFloat = 0
 
     /// The row put back where it is shown: a row with details on its title at the margin (exact),
     /// the others at their kept scroll.
@@ -867,8 +869,9 @@ private struct OrbitNativeStudioRow: View {
                 }
                 .scrollTargetLayout()
                 .padding(.vertical, 34)
+                .offset(x: slideX)
                 // The frame opening on the new title and closing on the old one, on the row's curve.
-                .animation(row.kind == .classic || row.opensRanked ? OrbitHomeLayout.horizontal : nil, value: shown)
+                .animation(row.kind == .classic ? OrbitHomeLayout.horizontal : nil, value: shown)
             }
             // A row with its title's details under it is pinned: placed by its anchor alone (the
             // alignment snapped it back — Steven, simulator: the title stopped second).
@@ -890,6 +893,20 @@ private struct OrbitNativeStudioRow: View {
             .scrollClipDisabled()
             .padding(.vertical, -34)
             .frame(height: size.height)
+            // The Top 10's open frame, fixed at the margin beside its rank (Netflix's Top 10).
+            .overlay(alignment: .topLeading) {
+                let index = shown ?? 0
+                if row.opensRanked, row.items.indices.contains(index) {
+                    let item = row.items[index]
+                    OrbitRankedOpenFrame(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                         meta: metaStore.meta(for: item),
+                                         focused: isCurrent && focused != nil,
+                                         trailers: trailers, trailerKey: "\(row.id)|\(item.type):\(item.id)",
+                                         size: OrbitNativeRankedOpenTile.frame(scale: OrbitStudioRow.rankedScale))
+                        .offset(x: L.margin + OrbitRankedTile.rankRoom(index + 1, scale: OrbitStudioRow.rankedScale))
+                        .animation(OrbitHomeLayout.horizontal, value: index)
+                }
+            }
 
             if row.showsInfo {
                 ZStack(alignment: .topLeading) {
@@ -955,8 +972,24 @@ private struct OrbitNativeStudioRow: View {
             // Only a row with the title's details under it keeps it at the margin; the others scroll as
             // Apple's app does (Steven), the row moving only when the focus reaches its edge.
             if row.pinned, anchor != new {
+                let old = anchor
                 anchor = new
-                withAnimation(OrbitStudioLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+                if row.opensRanked, let old, new < old, old - new <= 3 {
+                    // (Steven: Left as Netflix's — at once where it ends, slid there.)
+                    let scale = OrbitStudioRow.rankedScale
+                    let distance = (new..<old).reduce(CGFloat(0)) {
+                        $0 + OrbitRankedTile.closedWidth($1 + 1, scale: scale) + row.gap
+                    }
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) {
+                        slideX = -distance
+                        scroll.scrollTo(id: new, anchor: .leading)
+                    }
+                    withAnimation(OrbitStudioLayout.horizontal) { slideX = 0 }
+                } else {
+                    withAnimation(OrbitStudioLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
+                }
             }
             // As on Home: once the focus has settled, the title brought back exactly to the margin
             // (Steven's video: the focused title stopped a poster right of it).

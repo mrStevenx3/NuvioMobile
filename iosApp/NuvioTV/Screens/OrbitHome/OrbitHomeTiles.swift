@@ -324,6 +324,17 @@ struct OrbitRankedTile: View {
 
     @State private var tone: Color?
 
+    /// Where its poster (or open room) starts: the rank's room.
+    static func rankRoom(_ rank: Int, scale: CGFloat = 1) -> CGFloat {
+        let T = OrbitTileLayout.self
+        return T.rankWidth * scale + (rank >= 10 ? T.tenExtra * scale : 0) - (rank == 1 ? 72 * scale : 0)
+    }
+
+    /// The closed tile's whole width (its rank and its poster).
+    static func closedWidth(_ rank: Int, scale: CGFloat = 1) -> CGFloat {
+        rankRoom(rank, scale: scale) + OrbitTileLayout.rankedPoster.width * scale
+    }
+
     var body: some View {
         let T = OrbitTileLayout.self
         let size = CGSize(width: T.rankedPoster.width * scale, height: T.rankedPoster.height * scale)
@@ -389,7 +400,7 @@ struct OrbitRankedTile: View {
             } else if let openFrame, let openWidth {
                 openFrame()
                     .frame(width: openWidth, height: size.height)
-                    .transition(.opacity)
+                    .transition(.identity)
             } else {
                 ZStack(alignment: .bottom) {
                     Color(white: 0.1)
@@ -401,7 +412,7 @@ struct OrbitRankedTile: View {
                 }
                 .frame(width: size.width, height: size.height)
                 .modifier(OrbitTileFocus(focused: focused, radius: 12))
-                .transition(.opacity)
+                .transition(.identity)
             }
         }
         .frame(width: rankWidth + (openFrame != nil ? (openWidth ?? size.width) : size.width) + (rank >= 10 ? tenExtra : 0) - oneLess,
