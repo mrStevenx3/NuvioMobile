@@ -692,7 +692,7 @@ private struct OrbitPrimeTop: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 if orbitPrimeIsOwn(item) {
-                    OrbitPrimeMark(size: 28)
+                    OrbitPrimeMark(size: 28, color: L.blue)
                         .padding(.bottom, 10)
                 }
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: onArrival ? L.logoSize : CGSize(width: 440, height: 140),
