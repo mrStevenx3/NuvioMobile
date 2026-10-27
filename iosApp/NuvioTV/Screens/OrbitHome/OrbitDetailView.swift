@@ -389,16 +389,23 @@ struct OrbitDetailView: View {
         .onChange(of: focus) { old, new in
             OrbitTrace.log("detail focus \(String(describing: old)) -> \(String(describing: new)) resuming=\(resuming) back=\(String(describing: resumeFocus)) section=\(section)")
             guard let new else { return }
-            if resuming {
-                if new == resumeFocus {
-                    // Back on the card left from: done, the section stays pinned where it was.
+            if resuming, let back = resumeFocus {
+                if new == back {
+                    // Back on the card left from. Not done yet (the trace, 2026-10-27: the
+                    // system's own landing came 10 ms after it, on the row's first card, and won):
+                    // the return lasts its moment, a press of his ends it.
+                    lastFocus = new
+                    enter(new.section)
+                } else if !ViewerInputClock.shared.hasInput(since: resumeStart + 0.3) {
+                    // The system's landing (the row's first card, Lire): the card put back at once.
+                    DispatchQueue.main.async { if resuming { focus = back } }
+                } else {
+                    // His own move: the focus is his.
                     resuming = false
                     resumeFocus = nil
                     lastFocus = new
                     enter(new.section)
                 }
-                // Else the engine's own landing (the row's first card, Lire), or the move of a
-                // press made from it: ignored, the card is put back just after.
                 return
             }
             lastFocus = new
