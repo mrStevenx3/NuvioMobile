@@ -1961,8 +1961,22 @@ struct OrbitStudioIntroLogo: View {
     let logoUrl: String?
     let corner: Bool
 
+    private var isNatGeo: Bool {
+        let n = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        return n.contains("national geographic") || n.contains("nat geo")
+    }
+
     var body: some View {
-        if let logoUrl, !logoUrl.isEmpty {
+        if isNatGeo {
+            // (Steven: its name, black, sank into the dark page — his own file, white name and
+            // yellow frame.)
+            Image("NatGeoLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: OrbitStudioIntro.cornerBox.width, maxHeight: OrbitStudioIntro.cornerBox.height * 0.8)
+                .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height,
+                       alignment: corner ? .topTrailing : .center)
+        } else if let logoUrl, !logoUrl.isEmpty {
             OrbitBalancedLogo(url: logoUrl, area: 13_000, maxSize: OrbitStudioIntro.cornerBox,
                               whiten: OrbitBalancedLogo.isGrey(name), alignment: corner ? .topTrailing : .center)
         } else {
