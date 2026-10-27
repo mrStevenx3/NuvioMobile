@@ -1684,7 +1684,7 @@ private struct OrbitDisneyOpenFrame: View {
         let info = OrbitInfo.make(item, meta: meta)
         let banner: String? = item.banner
         return ZStack(alignment: .bottomLeading) {
-            if rank != nil { OrbitDisneyTop10Corner.ground } else { Color(red: 0.07, green: 0.08, blue: 0.12) }
+            if rank != nil { OrbitDisneyTop10Corner.ground(extent: L.open.height * 0.34, size: L.open) } else { Color(red: 0.07, green: 0.08, blue: 0.12) }
             // (Steven: Disney+'s and Hulu's marks on every focused title — the catalog's art: TMDB's first.)
             OrbitSwapImage(url: meta?.backdrop ?? banner, fallback: nil, size: L.open)
                 .modifier(OrbitDisneyTop10Corner.Cut(extent: rank == nil ? 0 : L.open.height * 0.34))
@@ -1769,13 +1769,16 @@ private struct OrbitDisneyPosterNew: View {
 /// The newest app's Top 10 corner: the title's art cut by a large circle across its top left
 /// corner, a turquoise-blue gradient there, the rank in turquoise (as Steven's own cards).
 enum OrbitDisneyTop10Corner {
-    static var ground: some View {
+    /// `extent`: the cut's reach on the edges; `size`: the card's. The teal darkens from the corner
+    /// right to the cut (Steven: "trop uni" — it spread over the whole card, the corner one shade).
+    static func ground(extent: CGFloat, size: CGSize) -> some View {
         LinearGradient(stops: [
             // (Steven, side by side with the app's video: a teal, not a blue — measured on it.)
             .init(color: Color(red: 0.02, green: 0.62, blue: 0.67), location: 0),
-            .init(color: Color(red: 0.00, green: 0.36, blue: 0.40), location: 0.5),
-            .init(color: Color(red: 0.00, green: 0.21, blue: 0.25), location: 1),
-        ], startPoint: .topLeading, endPoint: UnitPoint(x: 0.35, y: 0.5))
+            .init(color: Color(red: 0.00, green: 0.36, blue: 0.40), location: 0.55),
+            .init(color: Color(red: 0.00, green: 0.19, blue: 0.23), location: 1),
+        ], startPoint: .topLeading,
+           endPoint: UnitPoint(x: extent / 2 / max(1, size.width), y: extent / 2 / max(1, size.height)))
     }
 
     static func rankText(_ rank: Int, size: CGFloat) -> some View {
@@ -1821,7 +1824,7 @@ private struct OrbitDisneyTop10Poster: View {
         // (Steven: some posters came up empty — TMDB's when the catalog has none.)
         let poster: String? = meta?.localPoster ?? meta?.titledPoster ?? item.poster ?? meta?.cleanPoster
         ZStack(alignment: .topLeading) {
-            OrbitDisneyTop10Corner.ground
+            OrbitDisneyTop10Corner.ground(extent: size.width * 0.47, size: size)
             OrbitImage(url: poster, fallback: meta?.cleanPoster ?? item.rawPosterUrl, mode: .fill, size: size)
                 .frame(width: size.width, height: size.height)
                 .modifier(OrbitDisneyTop10Corner.Cut(extent: size.width * 0.47))
