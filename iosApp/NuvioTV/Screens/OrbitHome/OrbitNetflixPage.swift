@@ -40,7 +40,7 @@ enum OrbitNetflixLayout {
     /// The open tile's meta line and synopsis (three lines), then the gap to the next heading.
     static let infoHeight: CGFloat = 205
     static let rowGap: CGFloat = 33
-    static let radius: CGFloat = 8
+    static let radius: CGFloat = 12
     static let horizontal = Animation.easeOut(duration: 0.26)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -830,7 +830,8 @@ private struct OrbitNetflixRowView: View {
         let lead = row.item(atSlot: leadSlot)
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
-                .font(.system(size: 30, weight: .semibold))
+                // (Measured on Netflix, side by side: a little larger and bolder.)
+                .font(.system(size: 33, weight: .bold))
                 .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.55))
                 .lineLimit(1)
                 .frame(height: L.headingHeight, alignment: .topLeading)
@@ -931,8 +932,9 @@ private struct OrbitNetflixRank: View {
         default: return max(12, width - 115)
         }
     }
-    /// The gap between the previous tile and the figure.
-    static let lead: CGFloat = 30
+    /// The gap between the previous tile and the figure, on top of the row's own gap (measured on
+    /// Netflix: 6 % of the tile's height in all).
+    static let lead: CGFloat = 12
     /// Netflix's figures are wider than the system's.
     static let widening: CGFloat = 1.1
 
