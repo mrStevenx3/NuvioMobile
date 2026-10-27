@@ -93,6 +93,13 @@ func orbitPrimeIsOwn(_ item: MetaPreview) -> Bool {
     return poster.range(of: #"/img/v\d+/(movie|tv)/\d+/o"#, options: .regularExpression) != nil
 }
 
+/// Steven: the "prime" mark only on Amazon's own productions (TMDB's producers) — the add-on's
+/// "Amazon Original et exclusivités" also holds titles it only carries.
+@MainActor
+func orbitPrimeIsMade(_ item: MetaPreview) -> Bool {
+    OrbitPlatformBadgeKind.original(OrbitMetaStore.shared.meta(for: item)) == .prime
+}
+
 struct OrbitPrimePage: View {
     let route: FolderRoute
     let push: (TitleRoute) -> Void
@@ -247,7 +254,19 @@ struct OrbitPrimePage: View {
     private var heroItems: [MetaPreview] {
         let fresh = catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
-        return Array(items.prefix(6))
+        // Steven (as on Disney+): a title without its logo (its name written instead) left out of
+        // the hero once its details are known.
+        return Array(items.filter { item in
+            guard let meta = metaStore.meta(for: item) else { return true }
+            return OrbitInfo.make(item, meta: meta).logo != nil
+        }.prefix(6))
+    }
+
+    /// The hero's candidates (their details asked, the ones without a logo found out).
+    private var heroCandidates: [MetaPreview] {
+        let fresh = catalogs.filter(\.fresh).map(\.items)
+        let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
+        return Array(items.prefix(16))
     }
 
     private var heroItem: MetaPreview? {
@@ -379,7 +398,8 @@ struct OrbitPrimePage: View {
         .background(OrbitPrimeLayout.background)
         .ignoresSafeArea()
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
-        .animation(.easeInOut(duration: 0.25), value: onArrival)
+        // (Steven: the vertical move stuttered — the whole page animated with it; the top's own
+        // fades carry the change.)
         .onAppear {
             covered = false
             tabBarVisibility.pushImmersive()
@@ -517,14 +537,18 @@ struct OrbitPrimePage: View {
 
     /// The detail page's Prime Video touch.
     private func detailPlatform(_ item: MetaPreview) -> OrbitDetailPlatform {
-        OrbitDetailPlatform(theme: .prime, own: orbitPrimeIsOwn(item) ? .prime : nil,
+        OrbitDetailPlatform(theme: .prime, own: orbitPrimeIsMade(item) ? .prime : nil,
                             logoUrl: model.titleLogoUrl ?? route.titleLogoUrl)
     }
 
     private func select() {
         covered = true
         trailer.reset(abortStages: true)
-        if let shownItem { push(TitleRoute(preview: shownItem, platform: detailPlatform(shownItem))) }
+        guard let shownItem else { return }
+        var platform = detailPlatform(shownItem)
+        // Steven: the hero's Lecture plays the title at once; ⓘ opens its page.
+        platform.autoPlay = current == 0 && !heroOnInfo
+        push(TitleRoute(preview: shownItem, platform: platform))
     }
 
     private func exitAction() -> (() -> Void)? {
@@ -572,7 +596,7 @@ struct OrbitPrimePage: View {
     private func refreshAfterMove() {
         let rows = rows
         motion.stamp()
-        var metaItems: [MetaPreview] = heroItems
+        var metaItems: [MetaPreview] = heroItems + heroCandidates
         let r = rowIndex(of: current) ?? 0
         for i in r...max(r, min(rows.count - 1, r + 2)) where rows.indices.contains(i) {
             let row = rows[i]
@@ -720,9 +744,10 @@ private struct OrbitPrimeTop: View {
             }
             .frame(width: size.width, height: size.height)
             .clipped()
+            .animation(.easeInOut(duration: 0.3), value: onArrival)
 
             VStack(alignment: .leading, spacing: 0) {
-                if orbitPrimeIsOwn(item) {
+                if orbitPrimeIsMade(item) {
                     OrbitPrimeMark(size: 28, color: L.blue)
                         .padding(.bottom, 10)
                 }
@@ -860,7 +885,8 @@ private struct OrbitPrimeRowView: View {
                                  // the open one held at the margin, the row sliding under it.
                                  keepsLeadAtMargin: row.kind == .originals,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
-                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                                 onLeadChange: { _ in onLeadChange() },
+                                 leftSlide: row.kind == .originals ? { _ in L.poster.width + L.gap } : nil) { index, lit in
                 let item = row.items[index]
                 let meta = metaStore.meta(for: item)
                 let badge = badges[item.id].flatMap { $0.isEmpty ? nil : $0 }
@@ -868,14 +894,48 @@ private struct OrbitPrimeRowView: View {
                 case .tiles:
                     OrbitPrimeTile(item: item, meta: meta, badge: badge, focused: lit)
                 case .originals:
-                    OrbitPrimePoster(item: item, meta: meta, badge: badge, open: isCurrent && index == lead,
-                                     focused: lit, trailerURL: index == lead ? trailerURL : nil,
-                                     onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                    // Steven: as Netflix's — the open frame drawn by the row, fixed at the margin;
+                    // the lead keeps its room (its poster at the room's right, under the frame).
+                    if isCurrent && index == lead {
+                        ZStack(alignment: .trailing) {
+                            OrbitPrimePoster(item: item, meta: meta, badge: badge, open: false, focused: false,
+                                             trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
+                        }
+                        .frame(width: L.openWidth, height: L.poster.height, alignment: .trailing)
+                        .transition(.identity)
+                    } else {
+                        OrbitPrimePoster(item: item, meta: meta, badge: badge, open: false,
+                                         focused: lit, trailerURL: nil,
+                                         onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                            .transition(.identity)
+                    }
                 case .top10:
                     OrbitPrimeTop10Image(item: item, meta: meta, focused: lit)
                 }
             }
+            .animation(nil, value: isCurrent)
             .frame(width: OrbitHomeLayout.screenWidth, height: row.cardHeight, alignment: .topLeading)
+            .overlay(alignment: .topLeading) {
+                if row.kind == .originals, isCurrent, row.items.indices.contains(lead) {
+                    let item = row.items[lead]
+                    ZStack(alignment: .topLeading) {
+                        Color(white: 0.09)
+                        // The next title fades in over the last one (Netflix's own frame).
+                        OrbitPrimePoster(item: item, meta: metaStore.meta(for: item),
+                                         badge: badges[item.id].flatMap { $0.isEmpty ? nil : $0 }, open: true,
+                                         focused: focused, trailerURL: trailerURL,
+                                         onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                            .id("\(item.type):\(item.id)")
+                            .zIndex(1)
+                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22)),
+                                                    removal: .opacity.animation(.linear(duration: 0.01).delay(0.24))))
+                    }
+                    .frame(width: L.openWidth, height: L.poster.height, alignment: .topLeading)
+                    .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+                    .offset(x: L.margin)
+                    .allowsHitTesting(false)
+                }
+            }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
     }
@@ -933,7 +993,7 @@ private struct OrbitPrimeTile: View {
                            fallbackLogo: info.logoFallback)
                 .padding(.leading, 14)
                 .padding(.bottom, 14)
-            if orbitPrimeIsOwn(item) {
+            if orbitPrimeIsMade(item) {
                 OrbitPrimeMark(size: 18)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(12)
@@ -976,9 +1036,11 @@ private struct OrbitPrimePoster: View {
             ZStack {
                 Color(red: 0.10, green: 0.13, blue: 0.18)
                 OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: L.poster)
-                OrbitPrimeMark(size: 20)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(16)
+                if orbitPrimeIsMade(item) {
+                    OrbitPrimeMark(size: 20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .padding(16)
+                }
                 if let badge {
                     OrbitPrimeBadge(text: badge)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -1005,7 +1067,7 @@ private struct OrbitPrimePoster: View {
                     // Prime's own app (Steven's video): the mark above the logo, then "✓ Inclus avec
                     // Prime", the rating, the age and the genres.
                     VStack(alignment: .leading, spacing: 12) {
-                        OrbitPrimeMark(size: 22, color: L.blue)
+                        if orbitPrimeIsMade(item) { OrbitPrimeMark(size: 22, color: L.blue) }
                         OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 420, height: 130), textSize: 44,
                                        fallbackLogo: info.logoFallback, hugsLogo: true)
                             .frame(width: 420, alignment: .leading)

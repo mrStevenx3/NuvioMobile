@@ -116,6 +116,8 @@ struct OrbitNetflixPage: View {
     @State private var typeFilter: String? = nil
     /// 0: the billboard; then the rows.
     @State private var current = 0
+    /// Steven: on the billboard, Plus d'infos lit (Right from Lecture).
+    @State private var billboardOnInfo = false
     /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
@@ -359,7 +361,8 @@ struct OrbitNetflixPage: View {
                 if let billboard {
                     OrbitNetflixBillboard(item: billboard, meta: metaStore.meta(for: billboard),
                                           rank: topRank(billboard), series: billboard.type != "movie",
-                                          focused: focused,
+                                          focused: focused && !billboardOnInfo,
+                                          infoFocused: focused && billboardOnInfo,
                                           trailerURL: current == 0 ? trailerURL(for: billboard) : nil,
                                           onTrailerFailure: { trailer.playbackFailed($0) },
                                           onTrailerEnded: { trailer.playbackFinished() })
@@ -419,6 +422,12 @@ struct OrbitNetflixPage: View {
             guard current > 0 else { return }
             withAnimation(reduceMotion ? nil : OrbitNetflixLayout.vertical) { current -= 1 }
         case .left, .right:
+            // Steven: on the billboard, Right goes to Plus d'infos, Left back to Lecture.
+            if current == 0 {
+                let info = direction == .right
+                if billboardOnInfo != info { withAnimation(.easeOut(duration: 0.18)) { billboardOnInfo = info } }
+                return
+            }
             let r = current - 1
             guard rows.indices.contains(r) else { return }
             let row = rows[r]
@@ -440,7 +449,11 @@ struct OrbitNetflixPage: View {
     private func select() {
         covered = true
         trailer.reset(abortStages: true)
-        if let focusedItem { push(TitleRoute(preview: focusedItem, platform: detailPlatform(focusedItem))) }
+        guard let focusedItem else { return }
+        var platform = detailPlatform(focusedItem)
+        // Steven: the billboard's Lecture plays the title at once; Plus d'infos opens its page.
+        platform.autoPlay = current == 0 && !billboardOnInfo
+        push(TitleRoute(preview: focusedItem, platform: platform))
     }
 
     private func exitAction() -> (() -> Void)? {
@@ -695,6 +708,7 @@ private struct OrbitNetflixBillboard: View {
     let rank: Int?
     let series: Bool
     let focused: Bool
+    var infoFocused = false
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -754,10 +768,10 @@ private struct OrbitNetflixBillboard: View {
                     .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.22)))
                     Text(String(localized: "Plus d'infos"))
                         .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(infoFocused ? Color.black : Color.white)
                         .padding(.horizontal, 34)
                         .frame(height: 76)
-                        .background(Capsule().fill(Color.white.opacity(0.22)))
+                        .background(Capsule().fill(infoFocused ? Color.white : Color.white.opacity(0.22)))
                 }
                 .padding(.top, 34)
             }
@@ -777,6 +791,7 @@ private struct OrbitNetflixBillboard: View {
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1.5)
         }
         .animation(.easeOut(duration: 0.18), value: focused)
+        .animation(.easeOut(duration: 0.18), value: infoFocused)
         .allowsHitTesting(false)
     }
 

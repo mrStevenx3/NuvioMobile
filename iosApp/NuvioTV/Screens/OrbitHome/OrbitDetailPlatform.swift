@@ -59,6 +59,8 @@ struct OrbitDetailPlatform: Hashable {
     var logoUrl: String? = nil
     /// Disney+: a Hulu title (its page carries Hulu's logo).
     var hulu = false
+    /// A platform hero's Lecture: the page goes straight into the player.
+    var autoPlay = false
 }
 
 /// The platform's logo, small in the top right corner (where its page had it).
@@ -144,7 +146,8 @@ struct OrbitDetailOwnTag: View {
             }
         case .prime:
             // Steven: "prime original", Amazon's smile under it (the page's hero keeps "prime").
-            OrbitPrimeOriginalMark(size: 34 * k)
+            // (Steven: a little big over the title — as tall as the title's own capitals.)
+            OrbitPrimeOriginalMark(size: 26 * k)
         case .hbo, .hboMax:
             HStack(spacing: 10) {
                 Text(own == .hbo ? "HBO" : "HBO max")

@@ -131,6 +131,11 @@ struct OrbitDetailView: View {
     @State private var visible = false
 
     @State private var showStreams = false
+    /// Steven: a platform hero's Lecture plays at once (the page opens straight into its player and
+    /// closes behind it).
+    @State private var autoPlayStarted = false
+    @State private var autoPlayVeil = true
+    @Environment(\.dismiss) private var dismissPage
     @State private var movieRestart = false
     @State private var seriesPlay: OrbitSeriesPlayRoute?
     @State private var postPlayPending: MetaPreview?
@@ -462,6 +467,22 @@ struct OrbitDetailView: View {
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }
         .animation(.easeInOut(duration: 0.3), value: model.trailerNotice)
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
+        .onReceive(model.objectWillChange) { _ in DispatchQueue.main.async { startAutoPlay() } }
+        .onAppear {
+            startAutoPlay()
+            // No source found in time: the page shows as usual.
+            if platform?.autoPlay == true {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                    if !autoPlayStarted { withAnimation(.easeOut(duration: 0.3)) { autoPlayVeil = false } }
+                }
+            }
+        }
+        // While it goes straight to the player, the page itself is not seen.
+        .overlay {
+            if platform?.autoPlay == true, autoPlayVeil {
+                Color.black.ignoresSafeArea().allowsHitTesting(false)
+            }
+        }
         .onReceive(OrbitMetaStore.shared.$metas.map { [key = OrbitMetaStore.key(preview)] in $0[key]?.logo }.removeDuplicates()) { logo in
             if tmdbLogo != logo { tmdbLogo = logo }
             if tmdbBackdrop == nil, let backdrop = OrbitMetaStore.shared.metas[OrbitMetaStore.key(preview)]?.backdrop,
@@ -557,6 +578,7 @@ struct OrbitDetailView: View {
         // Playback: the film's source picker, a series episode's, the full-screen trailer.
         .fullScreenCover(isPresented: $showStreams, onDismiss: {
             movieRestart = false
+            if closeAfterAutoPlay() { return }
             openPostPlayPick()
         }) {
             StreamPickerView(type: preview.type, videoId: streamVideoId, title: title,
@@ -565,7 +587,7 @@ struct OrbitDetailView: View {
                              startFromBeginning: movieRestart,
                              onOpenTitle: { postPlayPending = $0 })
         }
-        .fullScreenCover(item: $seriesPlay, onDismiss: openPostPlayPick) { route in
+        .fullScreenCover(item: $seriesPlay, onDismiss: { if !closeAfterAutoPlay() { openPostPlayPick() } }) { route in
             StreamPickerView(type: route.meta.type, videoId: route.videoId, title: route.pickerTitle,
                              parentMetaId: route.meta.id,
                              season: route.season,
@@ -761,6 +783,27 @@ struct OrbitDetailView: View {
     private func stopHeroTrailer() {
         heroRestTask?.cancel()
         if heroTrailerOn { withAnimation(.easeInOut(duration: 0.4)) { heroTrailerOn = false } }
+    }
+
+    /// Opened by a platform hero's Lecture: straight into the player, once the title is known.
+    private func startAutoPlay() {
+        guard platform?.autoPlay == true, !autoPlayStarted, meta != nil, model.isPlayEnabled else { return }
+        if isSeries {
+            guard let action = model.seriesAction, let meta else { return }
+            autoPlayStarted = true
+            model.noteSeriesPlayStarted(action)
+            seriesPlay = OrbitSeriesPlayRoute(meta: meta, action: action)
+        } else {
+            autoPlayStarted = true
+            showStreams = true
+        }
+    }
+
+    /// Back from a player started by a platform hero: back on the platform's page (no title page).
+    private func closeAfterAutoPlay() -> Bool {
+        guard platform?.autoPlay == true, autoPlayStarted, postPlayPending == nil else { return false }
+        dismissPage()
+        return true
     }
 
     private func openPostPlayPick() {
