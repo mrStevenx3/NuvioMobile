@@ -56,6 +56,8 @@ struct OrbitDetailPlatform: Hashable {
     let theme: OrbitPlatformTheme
     var own: OrbitDetailOwn? = nil
     var logoUrl: String? = nil
+    /// Disney+: a Hulu title (its page carries Hulu's logo).
+    var hulu = false
 }
 
 /// The platform's logo, small in the top right corner (where its page had it).
@@ -72,6 +74,15 @@ struct OrbitDetailPlatformMark: View {
                     .foregroundStyle(Color.white)
                     .frame(height: 44)
                     .frame(height: OrbitPlatformIntro.cornerHeight, alignment: .top)
+            } else if platform.theme == .disney, platform.hulu {
+                // Steven: a Hulu title opened from Disney+ — Hulu's logo, in its green (as everywhere).
+                Image("HuluLogo")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(OrbitDisneyLayout.huluGreen)
+                    .frame(height: OrbitPlatformIntro.cornerHeight * 0.62)
+                    .frame(width: 190, height: OrbitPlatformIntro.cornerHeight, alignment: .topTrailing)
             } else if platform.theme == .disney {
                 // Steven: Disney+ in white, the same drawing as its page's (his own file).
                 Image("DisneyPlusLogo")

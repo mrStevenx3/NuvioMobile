@@ -474,7 +474,7 @@ struct OrbitDisneyPage: View {
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
-                                         onOpen: { push(TitleRoute(preview: $0, platform: detailPlatform)) },
+                                         onOpen: { push(TitleRoute(preview: $0, platform: detailPlatform(for: $0))) },
                                          onClose: closeSearch)
                     .transition(.opacity)
                     .zIndex(10)
@@ -561,7 +561,7 @@ struct OrbitDisneyPage: View {
                                          onOpen: { item in
                                              covered = true
                                              trailer.reset(abortStages: true)
-                                             push(TitleRoute(preview: item, platform: detailPlatform))
+                                             push(TitleRoute(preview: item, platform: detailPlatform(for: item)))
                                          })
                 } else if row.classic {
                     OrbitDisneyRowView(row: row, box: leads.box(row.id), isCurrent: s == current,
@@ -666,11 +666,18 @@ struct OrbitDisneyPage: View {
         OrbitDetailPlatform(theme: .disney, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl)
     }
 
+    /// Steven: a Hulu title's page carries Hulu's logo, not Disney+'s.
+    private func detailPlatform(for item: MetaPreview) -> OrbitDetailPlatform {
+        var platform = detailPlatform
+        platform.hulu = isHulu || orbitIsHuluTitle(metaStore.meta(for: item))
+        return platform
+    }
+
     private func select() {
         covered = true
         trailer.reset(abortStages: true)
         if current == 0 {
-            if let heroItem { push(TitleRoute(preview: heroItem, platform: detailPlatform)) }
+            if let heroItem { push(TitleRoute(preview: heroItem, platform: detailPlatform(for: heroItem))) }
         } else if let r = rowIndex(of: current), rows.indices.contains(r) {
             let row = rows[r]
             if row.brands {
@@ -687,7 +694,7 @@ struct OrbitDisneyPage: View {
                 return
             }
             guard row.items.indices.contains(lead(of: row)) else { return }
-            push(TitleRoute(preview: row.items[lead(of: row)], platform: detailPlatform))
+            push(TitleRoute(preview: row.items[lead(of: row)], platform: detailPlatform(for: row.items[lead(of: row)])))
         }
     }
 
