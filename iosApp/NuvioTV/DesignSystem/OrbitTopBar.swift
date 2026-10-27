@@ -853,7 +853,9 @@ struct CollectionFilterBar: View {
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
         // Once: a pop back from Detail keeps its own restore.
         // Steven: the engine's first pick (Search, top-left) flashed before Films.
-        .defaultFocus($focused, entryItem, priority: .userInitiated)
+        // (Steven, Disney+: Left from Search never reached the house — the left pill holds the house
+        // alone there, its default was Accueil, in the centre pill: the move was sent back.)
+        .defaultFocus($focused, centreLeads ? .home : entryItem, priority: .userInitiated)
         // Steven: Films / Séries switch on focus, no press (as Disney+ / Hulu), after a short rest.
         .onChange(of: focused) { _, item in
             guard let item, item == .everything || type(of: item) != nil else { return }
