@@ -335,6 +335,8 @@ extension View {
     func orbitHouseFollows(_ depth: Int) -> some View {
         onChange(of: depth) { old, new in
             if new == 0, old > 0 { OrbitHomeButtonHost.shared.poppingToRoot = true }
+            // A page pushed again: the house is its own again.
+            if new > old { OrbitHomeButtonHost.shared.poppingToRoot = false }
         }
     }
 }
