@@ -1252,7 +1252,11 @@ private struct OrbitNetflixTile: View {
                 .overlay { shape.strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3) }
                 // (Steven: the open art came in dark, then lit up — a quicker fade. Steven's video:
                 // the frame left behind lingered over the next titles as the row moved — it goes at once.)
-                .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.14)), removal: .identity))
+                .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.easeIn(duration: 0.26))))
+                // (Steven's video, after the tile was clipped to its width: black holes — the
+                // closing tile had lost its art at once, the opening one waited for its fade. Now the
+                // opening tile shows its art at once as it widens, and the closing one keeps its art
+                // while it narrows, both within their own width.)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
