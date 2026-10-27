@@ -1007,7 +1007,7 @@ struct OrbitGlyphShape: Shape {
             // his photo (in the figure's height): flag 13 % wide, its left side 22 % tall.
             if chars[i] == UInt16(UInt8(ascii: "1")) {
                 let h = CTFontGetCapHeight(ctFont)
-                let xs = h * 0.13, xr = xs + h * 0.3
+                let xs = h * 0.13, xr = xs + h * 0.27
                 let one = CGMutablePath()
                 one.addLines(between: [
                     CGPoint(x: xs, y: 0), CGPoint(x: xr, y: 0), CGPoint(x: xr, y: h),
@@ -1018,6 +1018,16 @@ struct OrbitGlyphShape: Shape {
                 combined.addPath(one, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: start, ty: 0))
                 previousRight = start + xr
                 x = start + xr
+                continue
+            }
+            // Steven: every figure drawn as Netflix's (flat ends, even strokes), as the 1 is.
+            if let scalar = Unicode.Scalar(chars[i]), let digit = netflixDigit(Character(scalar)) {
+                let h = CTFontGetCapHeight(ctFont)
+                let box = digit.path.boundingBoxOfPath
+                let start = previousRight.map { $0 + h * 0.02 - box.minX * h } ?? x
+                combined.addPath(digit.path, transform: CGAffineTransform(a: h, b: 0, c: 0, d: h, tx: start, ty: -h))
+                previousRight = start + box.maxX * h
+                x = start + (digit.width + 0.08) * h + tracking * 200
                 continue
             }
             if let g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
@@ -1037,6 +1047,107 @@ struct OrbitGlyphShape: Shape {
         let path = whole.copy(using: &t) ?? whole
         cache[key] = path
         return path
+    }
+
+    /// Netflix's figures, 0 and 2…9, drawn from their centre lines in a box one high (y down): even
+    /// strokes 19 % of the height, ends cut flat, bowls round. Nil for anything else.
+    static func netflixDigit(_ c: Character) -> (path: CGPath, width: CGFloat)? {
+        let t: CGFloat = 0.19, e = t / 2
+        let line = CGMutablePath()
+        func arc(_ cx: CGFloat, _ cy: CGFloat, _ rx: CGFloat, _ ry: CGFloat, _ a0: CGFloat, _ a1: CGFloat, start: Bool) {
+            let steps = 40
+            for k in 0...steps {
+                let a = a0 + (a1 - a0) * CGFloat(k) / CGFloat(steps)
+                let p = CGPoint(x: cx + rx * cos(a), y: cy + ry * sin(a))
+                if k == 0, start { line.move(to: p) } else { line.addLine(to: p) }
+            }
+        }
+        let pi = CGFloat.pi
+        let width: CGFloat
+        switch c {
+        case "0":
+            width = 0.74
+            let rx = (width - t) / 2 * 0.999
+            line.addPath(CGPath(roundedRect: CGRect(x: e, y: e, width: width - t, height: 1 - t),
+                                cornerWidth: rx, cornerHeight: rx, transform: nil))
+        case "2":
+            width = 0.68
+            let r = (width - t) / 2
+            arc(width / 2, e + r, r, r, pi, 2 * pi + 0.62, start: true)
+            line.addLine(to: CGPoint(x: e, y: 1 - e))
+            line.addLine(to: CGPoint(x: width, y: 1 - e))
+        case "3":
+            width = 0.68
+            let mid: CGFloat = 0.45
+            let rx1 = (width - t) / 2 * 0.9, ry1 = (mid - e) / 2
+            let cx1 = width - e - rx1
+            arc(cx1, e + ry1, rx1, ry1, pi, 2.5 * pi, start: true)
+            line.addLine(to: CGPoint(x: cx1 - rx1 * 0.45, y: mid))
+            let rx2 = (width - t) / 2, ry2 = (1 - e - mid) / 2
+            let cx2 = width - e - rx2
+            arc(cx2, mid + ry2, rx2, ry2, 1.5 * pi, 3 * pi, start: true)
+            line.move(to: CGPoint(x: cx1, y: mid))
+            line.addLine(to: CGPoint(x: cx2, y: mid))
+        case "4":
+            width = 0.74
+            let stem = width * 0.68
+            line.move(to: CGPoint(x: stem, y: -0.3))
+            line.addLine(to: CGPoint(x: stem, y: 1.3))
+            line.move(to: CGPoint(x: stem, y: e))
+            line.addLine(to: CGPoint(x: e, y: 0.7))
+            line.addLine(to: CGPoint(x: width, y: 0.7))
+        case "5":
+            width = 0.68
+            let top: CGFloat = 0.36
+            let rx = (width - t) / 2, ry = (1 - e - top) / 2
+            let cx = width - e - rx, cy = top + ry
+            let a0 = 1.5 * pi - 0.75
+            let p0 = CGPoint(x: cx + rx * cos(a0), y: cy + ry * sin(a0))
+            line.move(to: CGPoint(x: width - 0.02, y: e))
+            line.addLine(to: CGPoint(x: p0.x, y: e))
+            line.addLine(to: p0)
+            arc(cx, cy, rx, ry, a0, 3 * pi, start: false)
+        case "6", "9":
+            width = 0.7
+            let rx = (width - t) / 2, ry = min(rx, (1 - e - 0.36) / 2)
+            let cx = width / 2, cy = 1 - e - ry
+            arc(cx, cy, rx, ry, 0, 2 * pi, start: true)
+            line.closeSubpath()
+            let a = pi + 0.2
+            line.move(to: CGPoint(x: cx + rx * cos(a), y: cy + ry * sin(a)))
+            line.addLine(to: CGPoint(x: cx + rx * 0.62, y: -0.3))
+            if c == "9" {
+                var turn = CGAffineTransform(translationX: width, y: 1).rotated(by: pi)
+                if let turned = line.copy(using: &turn) {
+                    return finish(turned, t: t, width: width)
+                }
+            }
+        case "7":
+            width = 0.64
+            line.move(to: CGPoint(x: 0, y: e))
+            line.addLine(to: CGPoint(x: width - e, y: e))
+            line.addLine(to: CGPoint(x: width * 0.3, y: 1.3))
+        case "8":
+            width = 0.7
+            let mid: CGFloat = 0.45
+            let rx1 = (width - t) / 2 * 0.86, ry1 = (mid - e) / 2 + e / 2
+            arc(width / 2, e + ry1, rx1, ry1, 0, 2 * pi, start: true)
+            line.closeSubpath()
+            let rx2 = (width - t) / 2, ry2 = (1 - e - mid) / 2
+            arc(width / 2, mid + ry2, rx2, ry2, 0, 2 * pi, start: true)
+            line.closeSubpath()
+        default:
+            return nil
+        }
+        return finish(line, t: t, width: width)
+    }
+
+    /// The centre lines stroked into a shape, ends flat, cut to the box's top and foot.
+    private static func finish(_ line: CGPath, t: CGFloat, width: CGFloat) -> (path: CGPath, width: CGFloat) {
+        let body = line.copy(strokingWithWidth: t, lineCap: .butt, lineJoin: .miter, miterLimit: 4)
+            .normalized(using: .winding)
+        let box = CGPath(rect: CGRect(x: -1, y: 0, width: width + 2, height: 1), transform: nil)
+        return (body.intersection(box), width)
     }
 
     /// Width over height of the drawn glyphs.
