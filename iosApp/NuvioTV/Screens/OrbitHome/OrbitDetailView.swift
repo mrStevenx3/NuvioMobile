@@ -136,6 +136,12 @@ struct OrbitDetailView: View {
     @State private var postPlayPending: MetaPreview?
     @State private var postPlayRoute: TitleRoute?
     @State private var showSynopsis = false
+    /// The synopsis on the buttons' line, as shown (two lines at most) and in full.
+    @State private var synopsisShownHeight: CGFloat = 0
+    @State private var synopsisFullHeight: CGFloat = 0
+    private var synopsisFits: Bool {
+        synopsisShownHeight > 0 && synopsisFullHeight > 0 && synopsisFullHeight <= synopsisShownHeight + 2
+    }
     /// The muted trailer behind the hero, after a rest there.
     @State private var heroTrailerOn = false
     @State private var heroRestTask: Task<Void, Never>?
@@ -811,13 +817,28 @@ struct OrbitDetailView: View {
                             .lineSpacing(4)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisShownHeight = $0 }
+                            // The whole text at the same width, unseen: shorter than two lines, the
+                            // arrow has nothing more to open.
+                            .background(alignment: .topLeading) {
+                                Text(overview)
+                                    .font(.system(size: 25, weight: .medium))
+                                    .lineSpacing(4)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .hidden()
+                                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisFullHeight = $0 }
+                            }
+                            // Steven: a short synopsis floated in the middle; it now hugs the
+                            // right margin, on the credits' edge.
+                            .frame(maxWidth: .infinity, alignment: synopsisFits ? .trailing : .leading)
                             // Steven: a touch lower, level with the buttons.
                             .offset(y: 8)
-                        OrbitSynopsisArrow(focused: focus == .synopsis) {
-                            withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = true }
+                        if !synopsisFits {
+                            OrbitSynopsisArrow(focused: focus == .synopsis) {
+                                withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = true }
+                            }
+                            .focused($focus, equals: .synopsis)
                         }
-                        .focused($focus, equals: .synopsis)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
