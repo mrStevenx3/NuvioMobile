@@ -942,7 +942,7 @@ private struct OrbitNetflixRank: View {
                     .init(color: Color(white: 0.46), location: 0.62),
                     .init(color: Color(white: 0.12), location: 0.9),
                 ], startPoint: .leading, endPoint: .trailing),
-                             style: StrokeStyle(lineWidth: 3.5, lineJoin: .round))
+                             style: StrokeStyle(lineWidth: 4, lineJoin: .round))
             }
             .frame(width: width, height: height)
             // Its right part behind the tile (drawn after it, over it).
@@ -963,7 +963,7 @@ struct OrbitGlyphShape: Shape {
     static func outline(_ text: String, tracking: CGFloat) -> CGPath {
         let key = "\(text)|\(tracking)"
         if let path = cache[key] { return path }
-        let font = UIFont.systemFont(ofSize: 200, weight: .bold)
+        let font = UIFont.systemFont(ofSize: 200, weight: .black)
         let ctFont = font as CTFont
         let chars = Array(text.utf16)
         var glyphs = [CGGlyph](repeating: 0, count: chars.count)
