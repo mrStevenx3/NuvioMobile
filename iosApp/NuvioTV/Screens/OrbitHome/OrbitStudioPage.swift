@@ -897,7 +897,6 @@ private struct OrbitNativeStudioRow: View {
             .padding(.vertical, -34)
             .frame(height: size.height)
             .coordinateSpace(.named("rankedStudioRow"))
-            }
 
             if row.showsInfo {
                 ZStack(alignment: .topLeading) {
