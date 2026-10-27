@@ -200,7 +200,7 @@ struct OrbitDetailView: View {
     var body: some View {
         let L = OrbitDetailLayout.self
         ZStack(alignment: .topLeading) {
-            OrbitDetailBackground(url: backdropURL,
+            OrbitDetailBackground(url: backdropURL, placeholder: preview.poster,
                                   trailerURL: cinema || (heroTrailerOn && section == .hero && !coverUp) ? model.trailerVideoURL : nil,
                                   zoomKey: model.trailerZoomKey,
                                   dimmed: section != .hero && !cinema,
@@ -422,17 +422,10 @@ struct OrbitDetailView: View {
                             if let focus { enter(focus.section) }
                             return
                         }
-                        // Steven (back from an actor: Left / Right did nothing for a moment): the
-                        // card already holds the focus (the system put it back before the page
-                        // showed — no change seen): the return is over, his presses are his.
-                        if focus == back {
-                            resuming = false
-                            resumeFocus = nil
-                            lastFocus = back
-                            enter(back.section)
-                            return
-                        }
-                        if focus != back { focus = back }
+                        // (The kept focus value is no proof the card holds the system's focus —
+                        // Steven's video: it landed on the row's first card. It is asked again.)
+                        focus = nil
+                        focus = back
                         anchorTick &+= 1
                     }
                 }
@@ -1020,6 +1013,9 @@ struct OrbitDetailView: View {
 /// hero with a left and bottom shade for the text, dark and soft under the sections.
 private struct OrbitDetailBackground: View {
     let url: String?
+    /// Shown, blurred, until the art has come (Steven: a page opened from À voir aussi stayed
+    /// black for seconds): the poster, already loaded by the row it was opened from.
+    var placeholder: String? = nil
     let trailerURL: String?
     let zoomKey: String
     let dimmed: Bool
@@ -1039,6 +1035,13 @@ private struct OrbitDetailBackground: View {
             // Fluidity: the dimmed art is a pre-blurred copy cross-faded in (an animated live blur of
             // the whole screen made the move to the sections stutter).
             ZStack {
+                if let placeholder, !placeholder.isEmpty {
+                    OrbitImage(url: placeholder, mode: .fill, size: CGSize(width: 400, height: 600))
+                        .frame(width: size.width, height: size.height)
+                        .blur(radius: 40)
+                        .clipped()
+                        .opacity(0.8)
+                }
                 OrbitSwapImage(url: url, fallback: nil, size: size)
                 // Steven (device: not dark or blurred enough under the sections).
                 OrbitPreBlurred(url: url, radius: 44)
