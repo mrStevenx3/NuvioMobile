@@ -1145,6 +1145,10 @@ private struct OrbitNetflixTile: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
+        // Steven (video): the open frame showed at its full width at once, over the next title and
+        // its figure, which slid out from under it afterwards. Drawn within the tile's own width as
+        // it grows, everything moves together, as on Netflix.
+        .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
