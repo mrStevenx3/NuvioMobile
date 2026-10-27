@@ -857,9 +857,7 @@ private struct OrbitNativeStudioRow: View {
                             OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
                                                   trailers: trailers,
                                                   open: (row.kind == .classic || row.opensRanked) && index == (shown ?? 0))
-                                .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named("rankedStudioRow")).minX }) { x in
-                                    if row.opensRanked, index == (shown ?? 0), openX != x { openX = x }
-                                }
+
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
@@ -899,19 +897,6 @@ private struct OrbitNativeStudioRow: View {
             .padding(.vertical, -34)
             .frame(height: size.height)
             .coordinateSpace(.named("rankedStudioRow"))
-            // The Top 10's open frame beside its rank, following its title (Netflix's Top 10).
-            .overlay(alignment: .topLeading) {
-                let index = shown ?? 0
-                if row.opensRanked, row.items.indices.contains(index) {
-                    let item = row.items[index]
-                    OrbitRankedOpenFrame(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
-                                         meta: metaStore.meta(for: item),
-                                         focused: isCurrent && focused != nil,
-                                         trailers: trailers, trailerKey: "\(row.id)|\(item.type):\(item.id)",
-                                         size: OrbitNativeRankedOpenTile.frame(scale: OrbitStudioRow.rankedScale))
-                        .offset(x: (openX ?? L.margin) + OrbitRankedTile.rankRoom(index + 1, scale: OrbitStudioRow.rankedScale))
-                        .animation(OrbitHomeLayout.horizontal, value: openX)
-                }
             }
 
             if row.showsInfo {

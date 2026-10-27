@@ -399,9 +399,7 @@ struct OrbitNativeRow: View {
                                 OrbitNativeRankedOpenTile(card: card, meta: metaStore.meta(for: card.preview), rank: index + 1,
                                                           trailers: trailers, trailerKey: "\(row.id)|\(card.id)",
                                                           open: card.id == lead)
-                                    .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named("rankedRow")).minX }) { x in
-                                        if card.id == lead, openX != x { openX = x }
-                                    }
+
                             } else {
                                 OrbitNativeTile(card: card, meta: metaStore.meta(for: card.preview), style: style, rank: index + 1,
                                                 trailers: trailers, trailerKey: "\(row.id)|\(card.id)")
@@ -460,19 +458,6 @@ struct OrbitNativeRow: View {
             // fixed height — nothing in it can change the rows' places.
             .frame(height: size.height)
             .coordinateSpace(.named("rankedRow"))
-            // The Top 10's open frame beside its rank, following its title on the row's slide
-            // (Netflix's Top 10).
-            .overlay(alignment: .topLeading) {
-                if rankedOpen, let index = row.cards.firstIndex(where: { $0.id == lead }) {
-                    let card = row.cards[index]
-                    OrbitRankedOpenFrame(card: card, meta: metaStore.meta(for: card.preview),
-                                         focused: isCurrent && focused != nil,
-                                         trailers: trailers, trailerKey: "\(row.id)|\(card.id)",
-                                         size: OrbitNativeRankedOpenTile.frame(scale: 1))
-                        .offset(x: (openX ?? L.margin) + OrbitRankedTile.rankRoom(index + 1))
-                        .animation(OrbitHomeLayout.horizontal, value: openX)
-                }
-            }
 
             // The focused title's details under the row (large cards carry theirs).
             if showsDetails {
@@ -711,12 +696,17 @@ struct OrbitNativeRankedOpenTile: View {
     }
 
     var body: some View {
-        // As Netflix's Top 10 (Steven): the open title's tile is only its rank and its room — the
-        // row draws the frame itself, fixed at the margin, the art changing inside it.
+        // The open title's frame is its tile's own, beside its rank: the figure and the frame move
+        // with the row as one (Steven) — the frame no longer drawn apart by the row.
         // (Steven: the figure lit again when its title has the focus.)
+        let frame = frame
+        let focused = isFocused
         OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused, showsBadge: showsBadge, scale: scale,
                         openWidth: open ? frame.width : nil,
-                        openFrame: open ? { AnyView(Color.clear) } : nil)
+                        openFrame: open ? {
+                            AnyView(OrbitRankedOpenFrame(card: card, meta: meta, focused: focused,
+                                                         trailers: trailers, trailerKey: trailerKey, size: frame))
+                        } : nil)
             // The room changes at once (Steven: Left left a hole — the room shrank on the focus's
             // own little curve while the row was put where it ends).
             .transaction(value: open) { $0.animation = nil }
