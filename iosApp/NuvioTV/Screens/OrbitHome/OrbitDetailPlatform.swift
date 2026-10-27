@@ -72,6 +72,14 @@ struct OrbitDetailPlatformMark: View {
                     .foregroundStyle(Color.white)
                     .frame(height: 44)
                     .frame(height: OrbitPlatformIntro.cornerHeight, alignment: .top)
+            } else if platform.theme == .disney {
+                // Steven: Disney+ in white, the same drawing as its page's (his own file).
+                Image("DisneyPlusLogo")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.white)
+                    .frame(width: 190, height: OrbitPlatformIntro.cornerHeight, alignment: .topTrailing)
             } else if platform.theme == .netflix {
                 // Steven: just his N, larger, not the whole Netflix word.
                 Image("NetflixN")

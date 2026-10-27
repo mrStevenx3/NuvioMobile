@@ -1909,6 +1909,9 @@ private struct OrbitDisneyBrandsHub: View {
                                      onLeadChange: { i in films.focus(title: brands[i].name) }) { i, lit in
                     OrbitDisneyBrandPill(brand: brands[i], focused: lit)
                 }
+                // Back from a title of the band: the pills out of reach until its poster has the
+                // focus again (Steven's video: the system landed on Walt Disney a beat — its band).
+                .disabled(reopenFilm != nil)
                 .frame(width: W, height: L.pill.height * 1.12, alignment: .topLeading)
                 .padding(.top, 26)
                 HStack(alignment: .center, spacing: 0) {
@@ -2016,7 +2019,7 @@ private struct OrbitDisneyBrandsHub: View {
                         restore()
                     }
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { reopenFilm = nil; reopenBrand = nil }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { reopenFilm = nil; reopenBrand = nil }
             }
         }
     }
