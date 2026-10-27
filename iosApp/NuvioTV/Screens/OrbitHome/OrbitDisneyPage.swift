@@ -1562,7 +1562,10 @@ private struct OrbitDisneyOpenRow: View {
                 // The frame is drawn by the row, fixed: the lead tile keeps its room, its poster kept
                 // (hidden) under it — Steven's video, Left: the title just left showed a hole a
                 // beat, its poster drawn anew.
-                ZStack(alignment: .leading) {
+                // (Steven's video, Right: a hole beside the frame — the next title's poster hidden at
+                // the press, its room growing. Its poster sits at the right of its room — beside its
+                // neighbour all along the slide, under the frame at its end — and hides only then.)
+                ZStack(alignment: .trailing) {
                     Group {
                         if row.top10 {
                             OrbitDisneyTop10Poster(item: item, meta: metaStore.meta(for: item), rank: index + 1,
@@ -1573,10 +1576,11 @@ private struct OrbitDisneyOpenRow: View {
                         }
                     }
                     .opacity(isLead ? 0 : 1)
-                    // (Steven's video: the poster faded in with the row's slide — a hole a beat. At once.)
-                    .animation(nil, value: isLead)
+                    // (Steven's video: the poster faded in with the row's slide — a hole a beat. At once;
+                    // hidden only once the slide is over, under the frame.)
+                    .animation(isLead ? .linear(duration: 0.01).delay(0.4) : nil, value: isLead)
                 }
-                .frame(width: isLead ? L.open.width : nil, height: isLead ? L.open.height : nil, alignment: .leading)
+                .frame(width: isLead ? L.open.width : nil, height: isLead ? L.open.height : nil, alignment: .trailing)
             }
             // Arriving on the row, it is open at once (only Left / Right move the frame's content).
             .animation(nil, value: isCurrent)
