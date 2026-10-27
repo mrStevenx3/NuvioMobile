@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import ImageIO
 import UIKit
 import Vision
 
@@ -33,13 +34,21 @@ final class OrbitPrintedMarks: ObservableObject {
         guard !asked.contains(url), let address = URL(string: url) else { return }
         asked.insert(url)
         Task { [weak self] in
-            let request = ArtworkDecodeRequest(size: .points(width: 360, height: 540), fill: false, scale: 1).normalized
-            guard let image = try? await ArtworkStore.fetch(address, decode: request), let cg = image.cgImage else {
+            // (The image store's own fetch never answered here: the poster read on its own.)
+            let found: Set<String>? = await Task.detached(priority: .utility) { () -> Set<String>? in
+                guard let (data, _) = try? await URLSession.shared.data(from: address),
+                      let source = CGImageSourceCreateWithData(data as CFData, nil),
+                      let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                          kCGImageSourceCreateThumbnailFromImageAlways: true,
+                          kCGImageSourceThumbnailMaxPixelSize: 720,
+                      ] as CFDictionary) else { return nil }
+                return Self.recognise(cg)
+            }.value
+            guard let found else {
                 OrbitTrace.log("printed \(url) unreadable")
                 self?.words[url] = []
                 return
             }
-            let found = await Task.detached(priority: .utility) { Self.recognise(cg) }.value
             OrbitTrace.log("printed \(url) \(found.sorted().joined(separator: ","))")
             self?.words[url] = found
         }
