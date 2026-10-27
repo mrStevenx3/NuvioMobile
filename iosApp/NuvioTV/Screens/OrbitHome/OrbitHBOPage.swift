@@ -1080,12 +1080,17 @@ private struct OrbitHBOBrandTile: View {
                     .scaledToFit()
                     .foregroundStyle(Color.white)
                     .frame(width: box.width, height: box.height)
-            } else if let text = brand.text {
-                VStack(spacing: 4) {
-                    Text(text).font(.system(size: 52, weight: .black, design: .serif))
-                    Text("WARNER BROS.").font(.system(size: 13, weight: .bold)).kerning(1.5)
+            } else if brand.text != nil {
+                // Steven: Warner Bros.' own shield — white, its WB cut out in the circle's blue.
+                ZStack {
+                    OrbitWBShield().fill(Color.white)
+                    Text("WB")
+                        .font(.system(size: d * 0.2, weight: .black, design: .serif))
+                        .kerning(-d * 0.01)
+                        .foregroundStyle(brand.colours[0])
+                        .offset(y: -d * 0.01)
                 }
-                .foregroundStyle(Color.white)
+                .frame(width: d * 0.4, height: d * 0.46)
             } else if let logo = logos.logos[brand.name] {
                 Color.white
                     .frame(width: box.width, height: box.height)
@@ -1111,6 +1116,37 @@ private struct OrbitHBOBrandTile: View {
         .scaleEffect(focused ? OrbitHBOLayout.focusScale : 1)
         .animation(.easeOut(duration: 0.18), value: focused)
         .onAppear { logos.load() }
+    }
+}
+
+/// Warner Bros.' shield: straight top with two curls inward at the corners, sides bowing in, a point at
+/// the foot.
+struct OrbitWBShield: Shape {
+    func path(in r: CGRect) -> Path {
+        let w = r.width, h = r.height
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX + w * 0.5, y: r.minY + h * 0.06))
+        // The top edge, dipping a little to its middle, to the right corner's curl.
+        p.addQuadCurve(to: CGPoint(x: r.minX + w * 0.9, y: r.minY),
+                       control: CGPoint(x: r.minX + w * 0.72, y: r.minY + h * 0.07))
+        p.addQuadCurve(to: CGPoint(x: r.minX + w, y: r.minY + h * 0.12),
+                       control: CGPoint(x: r.minX + w * 0.98, y: r.minY))
+        // The right side, bowing in, then out round to the point.
+        p.addQuadCurve(to: CGPoint(x: r.minX + w * 0.92, y: r.minY + h * 0.5),
+                       control: CGPoint(x: r.minX + w * 0.86, y: r.minY + h * 0.3))
+        p.addQuadCurve(to: CGPoint(x: r.minX + w * 0.5, y: r.maxY),
+                       control: CGPoint(x: r.minX + w * 1.0, y: r.minY + h * 0.82))
+        // Mirrored.
+        p.addQuadCurve(to: CGPoint(x: r.minX + w * 0.08, y: r.minY + h * 0.5),
+                       control: CGPoint(x: r.minX, y: r.minY + h * 0.82))
+        p.addQuadCurve(to: CGPoint(x: r.minX, y: r.minY + h * 0.12),
+                       control: CGPoint(x: r.minX + w * 0.14, y: r.minY + h * 0.3))
+        p.addQuadCurve(to: CGPoint(x: r.minX + w * 0.1, y: r.minY),
+                       control: CGPoint(x: r.minX + w * 0.02, y: r.minY))
+        p.addQuadCurve(to: CGPoint(x: r.minX + w * 0.5, y: r.minY + h * 0.06),
+                       control: CGPoint(x: r.minX + w * 0.28, y: r.minY + h * 0.07))
+        p.closeSubpath()
+        return p
     }
 }
 
