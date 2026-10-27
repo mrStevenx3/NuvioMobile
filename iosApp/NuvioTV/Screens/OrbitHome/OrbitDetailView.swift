@@ -396,6 +396,13 @@ struct OrbitDetailView: View {
                     // the return lasts its moment, a press of his ends it.
                     lastFocus = new
                     enter(new.section)
+                    // The page where it was (the system's landing on the row above had scrolled it
+                    // up — Steven: the poster rose).
+                    if pagePosition != back.section {
+                        var still = Transaction()
+                        still.disablesAnimations = true
+                        withTransaction(still) { pagePosition = back.section }
+                    }
                 } else if !ViewerInputClock.shared.hasInput(since: resumeStart + 0.3) {
                     // The system's landing (the row's first card, Lire): the card put back at once.
                     DispatchQueue.main.async { if resuming { focus = back } }

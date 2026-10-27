@@ -77,12 +77,14 @@ private struct OrbitSearchContainer: UIViewControllerRepresentable {
         container.view.translatesAutoresizingMaskIntoConstraints = false
         host.view.addSubview(container.view)
         NSLayoutConstraint.activate([
-            // Under the Orbit bar's band.
-            container.view.topAnchor.constraint(equalTo: host.view.topAnchor, constant: 100),
+            // The whole screen (Steven: the search screen's own shaded ground stopped in a hard
+            // line under the bar); its contents start under the bar's band.
+            container.view.topAnchor.constraint(equalTo: host.view.topAnchor),
             container.view.leadingAnchor.constraint(equalTo: host.view.leadingAnchor),
             container.view.trailingAnchor.constraint(equalTo: host.view.trailingAnchor),
             container.view.bottomAnchor.constraint(equalTo: host.view.bottomAnchor),
         ])
+        container.additionalSafeAreaInsets.top = 100
         container.didMove(toParent: host)
         return host
     }
