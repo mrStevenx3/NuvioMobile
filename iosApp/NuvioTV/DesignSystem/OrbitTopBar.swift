@@ -753,6 +753,8 @@ struct CollectionFilterBar: View {
     @FocusState private var focused: OrbitBarItem?
     @FocusState private var switchFocused: Int?
     @State private var placedEntryFocus = false
+    /// The focus is in this bar (Disney+: from outside, only the current mode is reachable).
+    private var barHasFocus: Bool { focused != nil || switchFocused != nil }
     @State private var searchReady = false
     @ObservedObject private var titleGate = OrbitTitleGate.shared
 
@@ -783,7 +785,10 @@ struct CollectionFilterBar: View {
     private var centrePill: some View {
         HStack(spacing: 4) {
             if centreLeads {
+                // Steven (Disney+: Up from the page landed on Accueil, then the focus moved): from
+                // outside the bar, only the page's current mode can take the focus.
                 barButtons(items.filter { $0 != .home })
+                    .disabled(!barHasFocus)
             }
             ForEach(Array(switchItems.enumerated()), id: \.offset) { index, title in
                 // (Steven, Disney+: only the item the focus is on is lit, as a tab bar.)
@@ -815,6 +820,7 @@ struct CollectionFilterBar: View {
                 }
                 .buttonStyle(OrbitBarButtonStyle())
                 .focused($switchFocused, equals: index)
+                .disabled(centreLeads && !barHasFocus && switchSelection?.wrappedValue != index)
                 .accessibilityLabel(title)
             }
         }
@@ -847,15 +853,6 @@ struct CollectionFilterBar: View {
         .defaultFocus($focused, entryItem, priority: .userInitiated)
         // Steven: Films / Séries switch on focus, no press (as Disney+ / Hulu), after a short rest.
         .onChange(of: focused) { _, item in
-            // Steven (Disney+: Up from the page landed on Accueil): coming up into the bar, the
-            // focus goes to the page's current mode (Disney+ / Hulu), not the nearest item.
-            if centreLeads, let item, item == .everything || item == .search,
-               ViewerInputClock.shared.lastKind == .up,
-               ViewerInputClock.shared.hasInput(since: ProcessInfo.processInfo.systemUptime - 0.6),
-               let selection = switchSelection?.wrappedValue {
-                switchFocused = selection
-                return
-            }
             guard let item, item == .everything || type(of: item) != nil else { return }
             let wanted = self.type(of: item)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
