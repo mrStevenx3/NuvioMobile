@@ -924,7 +924,12 @@ private struct OrbitNetflixRank: View {
     /// a figure shows, the 1 nearly whole.
     static func tuck(_ rank: Int) -> CGFloat {
         let width = figureWidth(rank)
-        return rank == 10 ? width * 0.2 : max(12, width - 115)
+        switch rank {
+        case 10: return width * 0.2
+        // Its stem is on its right: Netflix shows it whole, just before the tile (Steven).
+        case 4: return 12
+        default: return max(12, width - 115)
+        }
     }
     /// The gap between the previous tile and the figure.
     static let lead: CGFloat = 30
