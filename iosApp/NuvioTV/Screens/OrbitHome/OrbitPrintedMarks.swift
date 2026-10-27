@@ -52,6 +52,9 @@ final class OrbitPrintedMarks: ObservableObject {
         try? handler.perform([request])
         var out = Set<String>()
         for observation in request.results ?? [] {
+            // (Steven, Lanterns: HBO's mark printed so small it could not be read — a mark that
+            // small does not count, Orbit draws its own.)
+            guard observation.boundingBox.height >= 0.03 else { continue }
             for candidate in observation.topCandidates(3) {
                 let text = candidate.string.lowercased()
                 out.insert(text.trimmingCharacters(in: .whitespacesAndNewlines))
