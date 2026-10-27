@@ -122,7 +122,7 @@ struct OrbitDetailOwnTag: View {
             }
         case .prime:
             // Steven: the Prime Video page's own mark — "prime" with Amazon's smile under it.
-            OrbitPrimeMark(size: 34 * k, color: OrbitPrimeLayout.blue)
+            OrbitPrimeMark(size: 34 * k)
         case .hbo, .hboMax:
             HStack(spacing: 10) {
                 Text(own == .hbo ? "HBO" : "HBO max")
