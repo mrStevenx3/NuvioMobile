@@ -51,6 +51,7 @@ struct OrbitLibraryPage<Cloud: View>: View {
     /// The poster a title was opened from (back from it, the focus goes there — and only there,
     /// a moment: the system's own landing elsewhere is sent back, as on Home).
     @State private var restoringSince: TimeInterval = 0
+    @State private var page = ScrollPosition(edge: .top)
 
     var body: some View {
         let D = OrbitLibraryLayout.self
@@ -82,6 +83,10 @@ struct OrbitLibraryPage<Cloud: View>: View {
                     .padding(.bottom, 240)
                 }
                 .scrollClipDisabled()
+                .scrollPosition($page)
+                .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in
+                    if restoringSince == 0, OrbitLibraryReturn.opened == nil { OrbitLibraryReturn.offsetY = y }
+                }
                 .padding(.top, D.gridTop - 24)
                 .onChange(of: model.selectedSectionKey) { _, _ in proxy.scrollTo(0, anchor: .top) }
                 .onChange(of: model.selectedType) { _, _ in proxy.scrollTo(0, anchor: .top) }
@@ -131,10 +136,13 @@ struct OrbitLibraryPage<Cloud: View>: View {
         .onChange(of: focusedIndex) { _, new in
             guard let new else { syncLock(); return }
             // Back from a title: the system's landing elsewhere is sent back to its poster.
-            if let back = OrbitLibraryReturn.opened, new != back, restoringSince > 0,
+            if let back = OrbitLibraryReturn.opened, restoringSince > 0,
                !ViewerInputClock.shared.hasInput(since: restoringSince + 0.3) {
-                DispatchQueue.main.async { focusedIndex = back }
-                return
+                if new != back {
+                    DispatchQueue.main.async { focusedIndex = back; keepPage() }
+                    return
+                }
+                keepPage()
             }
             index = new
             syncLock()
@@ -148,6 +156,7 @@ struct OrbitLibraryPage<Cloud: View>: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     guard OrbitLibraryReturn.opened == back, !ViewerInputClock.shared.hasInput(since: start + 0.3) else { return }
                     if focusedIndex != back { focusedIndex = back }
+                    keepPage()
                 }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -186,6 +195,14 @@ struct OrbitLibraryPage<Cloud: View>: View {
                 }
             }
         }
+    }
+
+    /// The grid exactly where it was when the title was opened.
+    private func keepPage() {
+        guard let y = OrbitLibraryReturn.offsetY else { return }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { page.scrollTo(y: y) }
     }
 
     private func syncLock() {
@@ -405,4 +422,5 @@ private struct OrbitLibraryPosterStyle: ButtonStyle {
 @MainActor
 enum OrbitLibraryReturn {
     static var opened: Int?
+    static var offsetY: CGFloat?
 }

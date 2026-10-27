@@ -205,6 +205,7 @@ private struct OrbitNativeDiscover<Header: View>: View {
     /// The tile a title was opened from: back from it, the focus goes there, and only there a
     /// moment (the system's own landing elsewhere is sent back — as on Home and the title page).
     @State private var restoringSince: TimeInterval = 0
+    @State private var page = ScrollPosition(edge: .top)
 
     var body: some View {
         let D = OrbitDiscoverLayout.self
@@ -247,6 +248,12 @@ private struct OrbitNativeDiscover<Header: View>: View {
                     .padding(.bottom, 200)
                 }
                 .scrollClipDisabled()
+                // Where the page is scrolled, kept, and put back on the way back from a title (the
+                // system's own landing elsewhere scrolled it — Steven: the grid rose).
+                .scrollPosition($page)
+                .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in
+                    if restoringSince == 0, OrbitDiscoverReturn.opened == nil { OrbitDiscoverReturn.offsetY = y }
+                }
                 .onChange(of: model.gridKey) { _, _ in
                     OrbitDiscoverReturn.opened = nil
                     focused = nil
@@ -269,6 +276,7 @@ private struct OrbitNativeDiscover<Header: View>: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     guard OrbitDiscoverReturn.opened == back, !ViewerInputClock.shared.hasInput(since: start + 0.3) else { return }
                     if focused != back { focused = back }
+                    keepPage()
                 }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -277,10 +285,13 @@ private struct OrbitNativeDiscover<Header: View>: View {
             }
         }
         .onChange(of: focused) { _, new in
-            if let new, let back = OrbitDiscoverReturn.opened, new != back, restoringSince > 0,
+            if let new, let back = OrbitDiscoverReturn.opened, restoringSince > 0,
                !ViewerInputClock.shared.hasInput(since: restoringSince + 0.3) {
-                DispatchQueue.main.async { focused = back }
-                return
+                if new != back {
+                    DispatchQueue.main.async { focused = back; keepPage() }
+                    return
+                }
+                keepPage()
             }
             if let new {
                 shown = new
@@ -293,6 +304,14 @@ private struct OrbitNativeDiscover<Header: View>: View {
             }
         }
         .onDisappear { OrbitBarLock.shared.set(false) }
+    }
+
+    /// The page exactly where it was when the title was opened.
+    private func keepPage() {
+        guard let y = OrbitDiscoverReturn.offsetY else { return }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { page.scrollTo(y: y) }
     }
 
     @ViewBuilder
@@ -344,4 +363,5 @@ private struct OrbitNativeDiscoverTile: View {
 @MainActor
 enum OrbitDiscoverReturn {
     static var opened: Int?
+    static var offsetY: CGFloat?
 }
