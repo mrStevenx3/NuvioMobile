@@ -203,7 +203,7 @@ struct OrbitStudioPage: View {
     /// The native page's trailer (banner, featured cards) — a reference, never observed by the page.
     @State private var nativeTrailers = OrbitNativeTrailerHost()
     /// (Steven: the house sat right on the row's heading — the rows' line lower, room under it.)
-    private static let nativeTop: CGFloat = 165
+    static let nativeTop: CGFloat = 165
 
     init(route: OrbitStudioRoute) {
         self.route = route
@@ -391,14 +391,17 @@ struct OrbitStudioPage: View {
 
             // Off the banner, the band under the top is the page's dark.
             LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
-                .frame(width: OrbitHomeLayout.screenWidth, height: Self.nativeTop + 20)
+                .frame(width: OrbitHomeLayout.screenWidth, height: 140)
                 .opacity(nativeOnHero ? 0 : 1)
                 .animation(.easeInOut(duration: 0.25), value: nativeOnHero)
                 .allowsHitTesting(false)
 
             // The studio's logo stays top right while the page moves (Steven).
             Group {
-                if let logo = model.logo ?? route.logo, !logo.isEmpty {
+                if OrbitStudioIntroLogo.isNatGeo(model.name) {
+                    // (Steven: its black name vanished on the dark page — his own file.)
+                    OrbitStudioIntroLogo(name: model.name, logoUrl: nil, corner: true)
+                } else if let logo = model.logo ?? route.logo, !logo.isEmpty {
                     OrbitBalancedLogo(url: logo, area: 13_000, maxSize: OrbitStudioIntro.cornerBox,
                                       whiten: OrbitBalancedLogo.isGrey(model.name), alignment: .topTrailing)
                 } else {
@@ -760,7 +763,8 @@ private struct OrbitNativeStudioHeroPage: View {
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
-        let top: CGFloat = 120
+        // (The page's own line: Steven — a black band at the top once the line went lower.)
+        let top: CGFloat = OrbitStudioPage.nativeTop
         ZStack(alignment: .top) {
             if live {
                 OrbitNativeTrailerReader(host: trailers, key: "hero|\(item.type):\(item.id)") { url in
@@ -1962,10 +1966,12 @@ struct OrbitStudioIntroLogo: View {
     let logoUrl: String?
     let corner: Bool
 
-    private var isNatGeo: Bool {
+    static func isNatGeo(_ name: String) -> Bool {
         let n = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         return n.contains("national geographic") || n.contains("nat geo")
     }
+
+    private var isNatGeo: Bool { Self.isNatGeo(name) }
 
     var body: some View {
         if isNatGeo {

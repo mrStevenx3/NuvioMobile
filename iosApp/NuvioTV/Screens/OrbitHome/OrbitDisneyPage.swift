@@ -1559,31 +1559,21 @@ private struct OrbitDisneyOpenRow: View {
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
                 let isLead = opens && slot == leadSlot
-                // The frame is drawn by the row, fixed: the lead tile keeps its room, its poster kept
-                // (hidden) under it — Steven's video, Left: the title just left showed a hole a
-                // beat, its poster drawn anew.
-                // (Steven's video, Right: a hole beside the frame — the next title's poster hidden at
-                // the press, its room growing. Its poster sits at the right of its room — beside its
-                // neighbour all along the slide, under the frame at its end — and hides only then.)
-                ZStack(alignment: .trailing) {
-                    Group {
-                        if row.top10 {
-                            OrbitDisneyTop10Poster(item: item, meta: metaStore.meta(for: item), rank: index + 1,
-                                                   focused: lit && !isLead)
-                        } else {
-                            OrbitDisneyPosterNew(item: item, meta: metaStore.meta(for: item),
-                                                 rank: nil, isHulu: isHulu, focused: lit && !isLead)
-                        }
+                // The frame is drawn by the row, fixed at the margin. As on Netflix (Left slides
+                // there), the lead tile is a tile of its own: its room, with its poster at the room's
+                // right — beside its neighbour all along the slide, under the frame at its end
+                // (Steven's videos: a hole beside the frame, Right and Left). Both drawn at once (no
+                // fade: the poster faded in with the slide).
+                if isLead {
+                    ZStack(alignment: .trailing) {
+                        poster(item, index: index, focused: false)
                     }
-                    .opacity(isLead ? 0 : 1)
-                    // (Steven's video: the poster faded in with the row's slide — a hole a beat. At once;
-                    // hidden only once the slide is over, under the frame.)
-                    .animation(isLead ? .linear(duration: 0.01).delay(0.4) : nil, value: isLead)
+                    .frame(width: L.open.width, height: L.open.height, alignment: .trailing)
+                    .transition(.identity)
+                } else {
+                    poster(item, index: index, focused: lit)
+                        .transition(.identity)
                 }
-                .frame(width: isLead ? L.open.width : nil, height: isLead ? L.open.height : nil, alignment: .trailing)
-                // The room changes at once, only the row slides (Steven: Left had no slide left — the
-                // room growing while the row was aimed).
-                .transaction(value: isLead) { $0.animation = nil }
             }
             // Arriving on the row, it is open at once (only Left / Right move the frame's content).
             .animation(nil, value: isCurrent)
@@ -1628,6 +1618,15 @@ private struct OrbitDisneyOpenRow: View {
             box.realign &+= 1
             DispatchQueue.main.async { box.realign &+= 1 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { box.realign &+= 1 }
+        }
+    }
+
+    @ViewBuilder
+    private func poster(_ item: MetaPreview, index: Int, focused: Bool) -> some View {
+        if row.top10 {
+            OrbitDisneyTop10Poster(item: item, meta: metaStore.meta(for: item), rank: index + 1, focused: focused)
+        } else {
+            OrbitDisneyPosterNew(item: item, meta: metaStore.meta(for: item), rank: nil, isHulu: isHulu, focused: focused)
         }
     }
 
