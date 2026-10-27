@@ -1144,20 +1144,16 @@ struct OrbitDisneyBrandLogo: View {
                     .frame(height: height * 0.62)
                     .frame(height: height, alignment: alignment)
                     .foregroundStyle(huluInColour && !dark ? OrbitDisneyLayout.huluGreen : (dark ? Color.black : Color.white))
-            } else if let logoURL {
-                // Steven (the arc stayed blue): the logo's shape alone, filled plain white
-                // (black on a focused pill) — its colours never show.
-                (dark ? Color.black : Color.white)
-                    .frame(width: height * 2.6, height: height)
-                    .mask {
-                        CachedAsyncImage(string: logoURL, contentMode: .fit,
-                                         decodeSize: .points(width: height * 3.2, height: height * 1.2),
-                                         loading: { Color.clear },
-                                         failure: { name })
-                            .frame(width: height * 2.6, height: height, alignment: alignment)
-                    }
             } else {
-                name
+                // Steven's own file (sharp at every size, no margins, no wait), drawn plain white
+                // (black on a focused pill).
+                Image("DisneyPlusLogo")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: height)
+                    .frame(width: height * 2.6, height: height, alignment: alignment)
+                    .foregroundStyle(dark ? Color.black : Color.white)
             }
         }
         .foregroundStyle(dark ? Color.black : Color.white)
