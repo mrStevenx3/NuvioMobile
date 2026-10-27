@@ -918,37 +918,50 @@ private struct OrbitNetflixRank: View {
 
     /// The figure's height (Steven's photo of the real app: 43 % of the tile).
     static var figureHeight: CGFloat { OrbitNetflixLayout.tileHeight * 0.43 }
-    /// How far the figure goes behind its tile.
-    static let tuck: CGFloat = 26
+    /// The share of the figure behind its tile (Steven's photo of the real app: well hidden).
+    static let tuckShare: CGFloat = 0.38
     /// The gap between the previous tile and the figure.
     static let lead: CGFloat = 30
+    /// Netflix's figures are wider than the system's.
+    static let widening: CGFloat = 1.2
 
     static func figureWidth(_ rank: Int) -> CGFloat {
-        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.11 : 0)
+        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.11 : 0) * widening
     }
 
     /// The room the figure takes before its tile.
-    static func width(_ rank: Int) -> CGFloat { lead + figureWidth(rank) - tuck }
+    static func width(_ rank: Int) -> CGFloat { lead + figureWidth(rank) * (1 - tuckShare) }
 
     var body: some View {
         let height = Self.figureHeight
         let width = Self.figureWidth(rank)
         let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.11 : 0)
-        shape.fill(Color.black)
-            .overlay {
-                // Netflix: a light grey line, fading into the tile's shadow just before the tile.
-                shape.stroke(LinearGradient(stops: [
-                    .init(color: Color(white: 0.5), location: 0),
-                    .init(color: Color(white: 0.46), location: 0.62),
-                    .init(color: Color(white: 0.12), location: 0.9),
-                ], startPoint: .leading, endPoint: .trailing),
-                             style: StrokeStyle(lineWidth: 4, lineJoin: .round))
-            }
-            .frame(width: width, height: height)
-            // Its right part behind the tile (drawn after it, over it).
-            .padding(.leading, Self.lead)
-            .frame(width: Self.width(rank), height: OrbitNetflixLayout.tileHeight, alignment: .topLeading)
-            .padding(.top, 2)
+        // The visible part's end (where the tile's shadow takes the line).
+        let visible = 1 - Self.tuckShare
+        ZStack {
+            shape.fill(Color.black)
+            // Netflix: a faint light inside the figure, along its edges (its hollows catch it).
+            shape.stroke(Color.white.opacity(0.16), lineWidth: 14)
+                .blur(radius: 6)
+                .mask(shape.fill(Color.black))
+            // The line: lighter at the top, a little darker at the foot…
+            shape.stroke(LinearGradient(colors: [Color(white: 0.66), Color(white: 0.42)],
+                                        startPoint: .top, endPoint: .bottom),
+                         style: StrokeStyle(lineWidth: 4, lineJoin: .round))
+        }
+        // …and fading into the tile's shadow just before the tile.
+        .mask {
+            LinearGradient(stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black, location: visible * 0.72),
+                .init(color: .black.opacity(0.12), location: visible),
+            ], startPoint: .leading, endPoint: .trailing)
+        }
+        .frame(width: width, height: height)
+        // Its right part behind the tile (drawn after it, over it).
+        .padding(.leading, Self.lead)
+        .frame(width: Self.width(rank), height: OrbitNetflixLayout.tileHeight, alignment: .topLeading)
+        .padding(.top, 2)
     }
 }
 
