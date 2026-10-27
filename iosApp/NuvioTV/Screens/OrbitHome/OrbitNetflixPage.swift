@@ -63,6 +63,14 @@ struct OrbitNetflixRow: Identifiable, Equatable {
         return L.headingHeight + L.tileHeight + L.infoHeight + L.rowGap
     }
 
+    /// Steven (as on Netflix): a row runs on in a loop — after its last title, its first again —
+    /// so its end never leaves the screen empty. The Top 10 stops at its 10th.
+    var loops: Bool { !top10 && items.count > 1 }
+    /// The strip's slots (the titles repeated, for the loop).
+    var slotCount: Int { loops ? items.count * 30 : items.count }
+    /// The title in slot `slot`.
+    func item(atSlot slot: Int) -> Int { items.isEmpty ? 0 : slot % items.count }
+
     private func rankWidth(_ index: Int) -> CGFloat {
         guard top10 else { return 0 }
         return index == 9 ? OrbitNetflixLayout.rankWidthTen : OrbitNetflixLayout.rankWidth
@@ -227,8 +235,10 @@ struct OrbitNetflixPage: View {
         return rowTops(rows)[r] - OrbitNetflixLayout.restTop
     }
 
+    /// The focused title of a row (its slot, in a looping row, brought back to the title).
     private func lead(of row: OrbitNetflixRow) -> Int {
-        min(leads[row.id] ?? 0, max(0, row.items.count - 1))
+        let slot = leads[row.id] ?? 0
+        return row.loops ? row.item(atSlot: slot) : min(slot, max(0, row.items.count - 1))
     }
 
     private var focusedItem: MetaPreview? {
@@ -403,8 +413,8 @@ struct OrbitNetflixPage: View {
             let r = current - 1
             guard rows.indices.contains(r) else { return }
             let row = rows[r]
-            let next = lead(of: row) + (direction == .right ? 1 : -1)
-            guard row.items.indices.contains(next) else { return }
+            let next = (leads[row.id] ?? 0) + (direction == .right ? 1 : -1)
+            guard next >= 0, next < row.slotCount else { return }
             withAnimation(reduceMotion ? nil : OrbitNetflixLayout.horizontal) { leads[row.id] = next }
         @unknown default:
             return
@@ -735,7 +745,8 @@ private struct OrbitNetflixRowView: View {
 
     var body: some View {
         let L = OrbitNetflixLayout.self
-        let lead = min(box.lead, max(0, row.items.count - 1))
+        let leadSlot = min(box.lead, max(0, row.slotCount - 1))
+        let lead = row.item(atSlot: leadSlot)
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 27, weight: .bold))
@@ -744,16 +755,18 @@ private struct OrbitNetflixRowView: View {
                 .frame(height: L.headingHeight, alignment: .topLeading)
                 .padding(.leading, L.margin)
             // Real buttons the system slides (Steven: the touch surface, fluidity).
-            OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: L.tileHeight,
-                                 lastWidth: L.openWidth + (row.top10 ? L.rankWidthTen : 0), box: box,
+            // (The Top 10 ends at its edge: no room after its 10th — Steven: the screen went empty.)
+            OrbitNativeTileStrip(count: row.slotCount, spacing: L.gap, height: L.tileHeight,
+                                 lastWidth: row.top10 ? OrbitHomeLayout.screenWidth : L.openWidth, box: box,
                                  keepsLeadAtMargin: true,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
                                  onLeadChange: { new in
                                      onLeadChange()
-                                     prefetchOpenArt(around: new)
-                                 }) { index, lit in
+                                     prefetchOpenArt(around: row.item(atSlot: new))
+                                 }) { slot, lit in
+                let index = row.item(atSlot: slot)
                 let item = row.items[index]
-                let open = isCurrent && index == lead
+                let open = isCurrent && slot == leadSlot
                 HStack(alignment: .bottom, spacing: 0) {
                     if row.top10 { OrbitNetflixRank(rank: index + 1) }
                     let meta = metaStore.meta(for: item)
@@ -792,10 +805,11 @@ private struct OrbitNetflixRowView: View {
                 .padding(.top, 30)
                 .padding(.bottom, -12)
                 .id("\(item.type):\(item.id)")
-                // Steven: as on Home — the details move with their row (no wait, no early fade).
-                .transition(.opacity.animation(.easeInOut(duration: 0.18)))
+                // Steven (video: two synopses over each other, the one left over the next row's
+                // title): the old text goes at once, the new one fades in; leaving the row, at once.
+                .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2)), removal: .identity))
                 .opacity(isCurrent ? 1 : 0)
-                .animation(.easeInOut(duration: 0.18), value: isCurrent)
+                .animation(isCurrent ? .easeOut(duration: 0.22).delay(0.08) : nil, value: isCurrent)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
@@ -923,7 +937,8 @@ private struct OrbitNetflixTile: View {
                 .frame(width: openSize.width, height: openSize.height)
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3) }
-                .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+                // (Steven: the open art came in dark, then lit up — a quicker fade.)
+                .transition(.opacity.animation(.easeOut(duration: 0.14)))
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
