@@ -39,34 +39,52 @@ final class OrbitPrintedMarks: ObservableObject {
         return marks.contains { mark in found.contains { mark.count == 1 ? $0 == mark : $0.contains(mark) } }
     }
 
+    /// One poster read at a time, after the others' images (Steven's screen: every poster blank —
+    /// dozens of readings at once took the whole machine).
+    private var queue: [String] = []
+    private var reading = false
+
     private func read(_ url: String) {
-        guard !asked.contains(url), let address = URL(string: url) else { return }
+        guard !asked.contains(url) else { return }
         asked.insert(url)
+        queue.append(url)
+        pump()
+    }
+
+    private func pump() {
+        guard !reading, !queue.isEmpty else { return }
+        // The newest first (the row on screen).
+        let url = queue.removeLast()
+        guard let address = URL(string: url) else { pump(); return }
+        reading = true
         Task { [weak self] in
-            // (The image store's own fetch never answered here: the poster read on its own.)
-            let read: (Set<String>, OrbitPrintedZones)? = await Task.detached(priority: .utility) { () -> (Set<String>, OrbitPrintedZones)? in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            let read: (Set<String>, OrbitPrintedZones)? = await Task.detached(priority: .background) { () -> (Set<String>, OrbitPrintedZones)? in
                 guard let (data, _) = try? await URLSession.shared.data(from: address),
                       let source = CGImageSourceCreateWithData(data as CFData, nil),
                       let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                           kCGImageSourceCreateThumbnailFromImageAlways: true,
-                          kCGImageSourceThumbnailMaxPixelSize: 720,
+                          kCGImageSourceThumbnailMaxPixelSize: 540,
                       ] as CFDictionary) else { return nil }
                 return Self.recognise(cg)
             }.value
-            guard let read else {
+            guard let self else { return }
+            if let read {
+                OrbitTrace.log("printed \(url) top=\(read.1.top) foot=\(read.1.foot) \(read.0.sorted().joined(separator: ","))")
+                self.busy[url] = read.1
+                self.words[url] = read.0
+            } else {
                 OrbitTrace.log("printed \(url) unreadable")
-                self?.words[url] = []
-                return
+                self.words[url] = []
             }
-            OrbitTrace.log("printed \(url) top=\(read.1.top) foot=\(read.1.foot) \(read.0.sorted().joined(separator: ","))")
-            self?.busy[url] = read.1
-            self?.words[url] = read.0
+            self.reading = false
+            self.pump()
         }
     }
 
     nonisolated private static func recognise(_ image: CGImage) -> (Set<String>, OrbitPrintedZones) {
         let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
+        request.recognitionLevel = .fast
         request.usesLanguageCorrection = false
         request.minimumTextHeight = 0.015
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
