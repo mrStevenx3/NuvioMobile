@@ -43,7 +43,8 @@ enum OrbitPlatformTheme: String, Hashable {
 
     /// The folder's logo drawn in white in the corner (their own colour sinks in the dark page).
     // (Steven: Disney+ in white too, as on its page.)
-    var whiteLogo: Bool { self == .paramount || self == .appletv || self == .disney }
+    // (Steven: Prime Video's too — its blue on the title's page.)
+    var whiteLogo: Bool { self == .paramount || self == .appletv || self == .disney || self == .prime }
 }
 
 /// Whose original the title is, for the tag above its title.
@@ -101,6 +102,7 @@ struct OrbitDetailPlatformMark: View {
                 CachedAsyncImage(string: url, contentMode: .fit,
                                  decodeSize: .points(width: 380, height: 140),
                                  loading: { Color.clear }, failure: { Color.clear })
+                    .saturation(platform.theme.whiteLogo ? 0 : 1)
                     .brightness(platform.theme.whiteLogo ? 1 : 0)
                     .frame(width: 190, height: OrbitPlatformIntro.cornerHeight, alignment: .topTrailing)
             }

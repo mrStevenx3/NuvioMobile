@@ -119,6 +119,9 @@ struct OrbitPrimePage: View {
     /// 0: the hero; then the rows. (Tout / Films / Séries: in the bar, Steven, as on Prime 2026.)
     @State private var current = 0
     @State private var heroIndex = 0
+    /// Steven (as on Prime's app): ⓘ beside Lecture — Right from Lecture lights it, Right again goes to
+    /// the next title, Left comes back to Lecture.
+    @State private var heroOnInfo = false
     /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
@@ -326,7 +329,8 @@ struct OrbitPrimePage: View {
             OrbitLeadReader(box: leads.box(rowIndex(of: current).flatMap { rows.indices.contains($0) ? rows[$0].id : nil } ?? "-")) { _ in
             if let shown = shownItem {
                 OrbitPrimeTop(item: shown, meta: metaStore.meta(for: shown), line: rankLine(shown),
-                              onArrival: onArrival, buttonsLit: pageFocused && current == 0,
+                              onArrival: onArrival, buttonsLit: pageFocused && current == 0 && !heroOnInfo,
+                              infoLit: pageFocused && current == 0 && heroOnInfo,
                               count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                               trailerURL: current == 0 ? trailerURL(for: shown) : nil,
                               onTrailerFailure: { trailer.playbackFailed($0) },
@@ -483,9 +487,19 @@ struct OrbitPrimePage: View {
         case .up:
             guard current > 0 else { return }
             withAnimation(reduceMotion ? nil : OrbitPrimeLayout.vertical) { current -= 1 }
+            heroOnInfo = false
         case .left, .right:
             let step = direction == .right ? 1 : -1
             if current == 0 {
+                if step > 0, !heroOnInfo {
+                    withAnimation(.easeOut(duration: 0.18)) { heroOnInfo = true }
+                    return
+                }
+                if step < 0, heroOnInfo {
+                    withAnimation(.easeOut(duration: 0.18)) { heroOnInfo = false }
+                    return
+                }
+                heroOnInfo = false
                 let n = heroItems.count
                 guard n > 1 else { return }
                 withAnimation(.easeInOut(duration: 0.3)) { heroIndex = (heroIndex + step + n) % n }
@@ -671,6 +685,7 @@ private struct OrbitPrimeTop: View {
     let line: String?
     let onArrival: Bool
     let buttonsLit: Bool
+    var infoLit = false
     let count: Int
     let index: Int
     let trailerURL: String?
@@ -765,10 +780,19 @@ private struct OrbitPrimeTop: View {
                                 .foregroundStyle(Color.white)
                         }
                         .scaleEffect(buttonsLit ? 1.06 : 1, anchor: .leading)
-                        // (+ and i removed, Steven: they could not be used.)
+                        // (+ removed, Steven: it could not be used. ⓘ back, as on Prime's app: the
+                        // title's page.)
+                        Image(systemName: "info")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(infoLit ? Color.black : Color.white)
+                            .frame(width: 52, height: 52)
+                            .background(Circle().fill(infoLit ? Color.white : Color.white.opacity(0.22)))
+                            .scaleEffect(infoLit ? 1.1 : 1)
+                            .padding(.leading, 10)
                     }
                     .padding(.top, 26)
                     .animation(.easeOut(duration: 0.18), value: buttonsLit)
+                    .animation(.easeOut(duration: 0.18), value: infoLit)
                     .transition(.opacity)
                 }
             }
