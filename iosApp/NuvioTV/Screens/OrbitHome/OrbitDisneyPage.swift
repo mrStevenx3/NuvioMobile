@@ -17,7 +17,9 @@ import SwiftUI
 //    network for the series, its companies for the films).
 
 enum OrbitDisneyLayout {
-    static let background = Color(red: 0.047, green: 0.055, blue: 0.086)
+    /// The newest app's page: a deep slate blue (Steven's video), lighter at the top left.
+    static let background = Color(red: 0.075, green: 0.095, blue: 0.14)
+    static let backgroundGlow = Color(red: 0.16, green: 0.22, blue: 0.31)
     static let turquoise = Color(red: 0.13, green: 0.73, blue: 0.80)
     static let brandBlue = Color(red: 0.06, green: 0.22, blue: 0.62)
     /// Hulu's green (#1CE783).
@@ -53,12 +55,16 @@ enum OrbitDisneyLayout {
 
     // Disney+'s newest app (Steven's video, 2026-10-27), measured in 1080p: the focused title open
     // in a fixed 16:9 frame at the margin, the others as posters, one meta line under the frame.
-    static let open = CGSize(width: 864, height: 486)
-    static let posterNew = CGSize(width: 306, height: 459)
-    static let gapNew: CGFloat = 27
-    static let headingNew: CGFloat = 52
-    static let metaNew: CGFloat = 54
-    static let rowGapNew: CGFloat = 33
+    // (Re-measured on Steven's newest video, 4 weeks old: a little smaller, the row above showing
+    // at the top of the screen.)
+    static let open = CGSize(width: 825, height: 465)
+    static let posterNew = CGSize(width: 296, height: 440)
+    static let gapNew: CGFloat = 30
+    static let headingNew: CGFloat = 46
+    static let metaNew: CGFloat = 52
+    static let rowGapNew: CGFloat = 35
+    /// The current row's heading on the newest app: the row above shows at the screen's top.
+    static let restTopNew: CGFloat = 222
     /// The brands under the hero (Disney, Pixar, Marvel, Star Wars, National Geographic).
     static let brandTile = CGSize(width: 300, height: 170)
     static let brandGap: CGFloat = 36
@@ -282,7 +288,7 @@ struct OrbitDisneyPage: View {
     /// How far the page has moved up: none on the hero, else the current row at its rest.
     private func scroll(_ rows: [OrbitDisneyRow]) -> CGFloat {
         guard let r = rowIndex(of: current), rows.indices.contains(r) else { return 0 }
-        return rowTops(rows)[r] - OrbitDisneyLayout.restTop
+        return rowTops(rows)[r] - OrbitDisneyLayout.restTopNew
     }
 
     private static func identity(_ item: MetaPreview) -> String {
@@ -316,6 +322,10 @@ struct OrbitDisneyPage: View {
 
         ZStack(alignment: .topLeading) {
             OrbitDisneyLayout.background
+            // (Newest app: a lighter slate in the top left corner.)
+            RadialGradient(colors: [OrbitDisneyLayout.backgroundGlow.opacity(0.7), .clear],
+                           center: .topLeading, startRadius: 0, endRadius: 1400)
+                .allowsHitTesting(false)
 
             // Steven (device: back to the top, the hero came back in two steps): the hero stays in
             // place and fades with the page's move; the tiles and rows move up over it.
@@ -342,9 +352,10 @@ struct OrbitDisneyPage: View {
             
 
             // Under the bar: a shade so the rows never run under it unreadable.
-            LinearGradient(colors: [OrbitDisneyLayout.background, OrbitDisneyLayout.background.opacity(0)],
+            // (Newest app: the row above shows there, only a little dimmed.)
+            LinearGradient(colors: [OrbitDisneyLayout.background.opacity(0.7), OrbitDisneyLayout.background.opacity(0)],
                            startPoint: .top, endPoint: .bottom)
-                .frame(width: W, height: 150)
+                .frame(width: W, height: 120)
                 .opacity(offset > 0 ? 1 : 0)
                 .animation(.easeInOut(duration: 0.3), value: offset > 0)
                 .allowsHitTesting(false)
@@ -427,8 +438,9 @@ struct OrbitDisneyPage: View {
     private func nativeSections(_ rows: [OrbitDisneyRow]) -> some View {
         OrbitNativeSections(
             count: 1 + rows.count, hasHero: true,
-            height: { s in s == 0 ? OrbitDisneyLayout.rowsTop(hulu: isHulu) - OrbitDisneyLayout.restTop : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
-            topLine: OrbitDisneyLayout.restTop, current: current, hidesAbove: true,
+            height: { s in s == 0 ? OrbitDisneyLayout.rowsTop(hulu: isHulu) - OrbitDisneyLayout.restTopNew : (rows.indices.contains(s - 1) ? rows[s - 1].height : 0) },
+            // Newest app (Steven's video): the row above stays in sight at the screen's top.
+            topLine: OrbitDisneyLayout.restTopNew, current: current, hidesAbove: false,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
                 refreshAfterMove()
@@ -1348,12 +1360,13 @@ private struct OrbitDisneyOpenRow: View {
         let L = OrbitDisneyLayout.self
         let leadSlot = min(box.lead, max(0, row.slotCount - 1))
         let lead = row.item(atSlot: leadSlot)
-        let opens = isCurrent || aboveCurrent
+        // (Newest app: the row above shows at the screen's top, closed.)
+        let opens = isCurrent
         let frameX = row.top10 ? (openX ?? L.margin) : L.margin
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(isCurrent ? 1 : 0.7))
+                .font(.system(size: 26, weight: .medium))
+                .foregroundStyle(Color.white.opacity(isCurrent ? 0.92 : 0.7))
                 .lineLimit(1)
                 .frame(height: L.headingNew, alignment: .topLeading)
                 .padding(.leading, L.margin + 2)
@@ -1397,10 +1410,10 @@ private struct OrbitDisneyOpenRow: View {
                 let meta = metaStore.meta(for: item)
                 let info = OrbitInfo.make(item, meta: meta)
                 HStack(spacing: 12) {
-                    if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 17) }
-                    Text(info.parts.prefix(2).joined(separator: "  •  "))
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.85))
+                    if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 15) }
+                    Text(info.parts.joined(separator: " • "))
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.75))
                         .lineLimit(1)
                 }
                 .frame(height: L.metaNew, alignment: .center)
