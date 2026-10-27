@@ -74,6 +74,30 @@ enum OrbitNavClock {
     static var titlesShown = 0
 }
 
+/// Steven (Netflix billboard): on the way back from a title, the system landed on the platform
+/// bar's house for a beat before the page's own restore. The bar stays out of reach while a title
+/// shows and for a moment after it closes.
+@MainActor
+final class OrbitTitleGate: ObservableObject {
+    static let shared = OrbitTitleGate()
+    @Published private(set) var locked = false
+    private var token = 0
+
+    func opened() {
+        token += 1
+        if !locked { locked = true }
+    }
+
+    func closed() {
+        token += 1
+        let mine = token
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { [weak self] in
+            guard let self, self.token == mine, OrbitNavClock.titlesShown == 0 else { return }
+            self.locked = false
+        }
+    }
+}
+
 struct DetailView: View {
     let preview: MetaPreview
     /// The platform page it was opened from, if any (its light touch).
@@ -443,8 +467,12 @@ struct OrbitDetailView: View {
             OrbitMetaStore.shared.request([preview])
             OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
             OrbitNavClock.titlesShown += 1
+            OrbitTitleGate.shared.opened()
         }
-        .onDisappear { OrbitNavClock.titlesShown = max(0, OrbitNavClock.titlesShown - 1) }
+        .onDisappear {
+            OrbitNavClock.titlesShown = max(0, OrbitNavClock.titlesShown - 1)
+            OrbitTitleGate.shared.closed()
+        }
         .onAppear {
             OrbitTrace.log("detail appear \(preview.name) resume=\(String(describing: resumeFocus)) focus=\(String(describing: focus)) section=\(section)")
             if let back = resumeFocus {

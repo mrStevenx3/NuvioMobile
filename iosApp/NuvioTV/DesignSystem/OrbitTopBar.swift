@@ -750,6 +750,7 @@ struct CollectionFilterBar: View {
     @FocusState private var switchFocused: Int?
     @State private var placedEntryFocus = false
     @State private var searchReady = false
+    @ObservedObject private var titleGate = OrbitTitleGate.shared
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -761,6 +762,8 @@ struct CollectionFilterBar: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
         }
+        // Steven: back from a title, the system landed on the house before the page's restore.
+        .disabled(titleGate.locked)
         // Pass 3 (Steven: Up never reached it): the focus section spans the screen's width in the
         // bar's band, so Up from any card of the top row finds the bar (the engine only searches
         // straight up, and the pill sits at the far right).
