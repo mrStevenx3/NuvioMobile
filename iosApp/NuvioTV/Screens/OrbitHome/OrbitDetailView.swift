@@ -1440,13 +1440,9 @@ private struct OrbitRowMemory: ViewModifier {
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
                 store.x[key] = x
             }
-            .onAppear {
-                if let x = store.x[key], x > 1 {
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { position.scrollTo(x: x) }
-                }
-            }
+            // (Steven, 2026-10-27: back from an actor the focus could not move for a while — the
+            // row put back on its kept scroll fought the system's own. As everywhere now, a row
+            // is never moved by us on the way back: the page is kept, the row with it.)
     }
 }
 

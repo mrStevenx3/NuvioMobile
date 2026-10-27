@@ -633,8 +633,9 @@ struct OrbitStudioIntro: View {
             OrbitIntroOrbit(progress: sweep, tint: shownTint ?? tint ?? Color(white: 0.7))
                 .frame(width: box.width * Self.splashScale * 1.1, height: box.height * Self.splashScale * 1.6)
                 .position(x: W / 2, y: H / 2)
+                .scaleEffect(phase == .splash ? 1 : 1.18)
                 .opacity(phase == .splash ? 1 : 0)
-                .animation(.easeOut(duration: 0.3), value: phase == .splash)
+                .animation(.easeOut(duration: 0.45), value: phase == .splash)
 
             logo
                 // Centred in the middle; in the corner, right-aligned as the page's own logo.

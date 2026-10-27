@@ -718,8 +718,9 @@ struct OrbitPlatformIntro: View {
             OrbitIntroOrbit(progress: sweep, tint: brand)
                 .frame(width: size.width * Self.splashScale * 1.05, height: size.height * Self.splashScale * 0.95)
                 .position(x: W / 2, y: H / 2)
+                .scaleEffect(phase == .splash ? 1 : 1.18)
                 .opacity(phase == .splash ? 1 : 0)
-                .animation(.easeOut(duration: 0.3), value: phase == .splash)
+                .animation(.easeOut(duration: 0.45), value: phase == .splash)
 
             logo
                 .frame(width: size.width, height: size.height, alignment: phase == .settled ? .topTrailing : .center)
@@ -1045,7 +1046,8 @@ final class OrbitPlatformExtrasModel: ObservableObject {
 
 
 /// Orbit's opening touch: a thin orbit drawn around the logo, a light — its satellite — leading
-/// it, a soft halo of the brand's colour growing behind (it shows on white logos too).
+/// it; closed, it widens and fades as the logo leaves. (Steven: the halo behind was badly drawn —
+/// gone; the page's own tint is the glow.)
 struct OrbitIntroOrbit: View, Animatable {
     /// 0…1: how much of the orbit is drawn.
     var progress: CGFloat
@@ -1062,13 +1064,10 @@ struct OrbitIntroOrbit: View, Animatable {
             let t = max(0, min(1, progress))
             let angle = Double(t) * 2 * .pi
             ZStack {
-                RadialGradient(colors: [tint.opacity(0.5 * Double(min(1, t * 2))), .clear],
-                               center: .center, startRadius: 0, endRadius: w * 0.42)
-                    .scaleEffect(0.85 + 0.25 * t)
                 Ellipse()
                     .trim(from: 0, to: t)
-                    .stroke(tint.opacity(0.95), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .shadow(color: tint, radius: 10)
+                    .stroke(tint.opacity(0.85), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .shadow(color: tint, radius: 6)
                     .overlay {
                         Ellipse()
                             .trim(from: max(0, t - 0.18), to: t)

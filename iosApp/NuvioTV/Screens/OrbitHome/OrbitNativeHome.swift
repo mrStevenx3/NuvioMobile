@@ -379,6 +379,9 @@ struct OrbitNativeRow: View {
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: card.id)
+                        // The focused tile above its neighbours (Steven, Prochainement: the next
+                        // tile covered the grown one's edge).
+                        .zIndex(focused == card.id ? 1 : 0)
                         // Back from a title, only its card can take the focus a moment: a landing on
                         // a neighbour scrolled the row to it (Steven, simulator: the row moved).
                         .disabled(restoreLock && Self.reopen?.row == row.id && Self.reopen?.card != card.id)
