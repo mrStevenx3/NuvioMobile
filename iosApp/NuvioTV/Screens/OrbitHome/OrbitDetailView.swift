@@ -186,9 +186,16 @@ struct OrbitDetailView: View {
         return raw
     }
     private var backdropURL: String? {
+        guard let raw = quickBackdropURL else { return nil }
+        return DetailBackdropURL.upgraded(raw)
+    }
+    /// The same art at its listed size (TMDB's 1280): it comes in a moment, the full-size one
+    /// (often several megabytes — Steven: a page from À voir aussi stayed black for seconds)
+    /// takes over once it has come.
+    private var quickBackdropURL: String? {
         let raw: String? = keptBackdrop ?? realBackdrop ?? preview.poster
         guard let raw, !raw.isEmpty else { return nil }
-        return DetailBackdropURL.upgraded(raw)
+        return raw
     }
     private var streamVideoId: String { meta?.id ?? preview.id }
     private var playbackMeta: PlaybackMeta {
@@ -210,7 +217,7 @@ struct OrbitDetailView: View {
     var body: some View {
         let L = OrbitDetailLayout.self
         ZStack(alignment: .topLeading) {
-            OrbitDetailBackground(url: backdropURL,
+            OrbitDetailBackground(url: backdropURL, quickURL: quickBackdropURL,
                                   trailerURL: cinema || (heroTrailerOn && section == .hero && !coverUp) ? model.trailerVideoURL : nil,
                                   zoomKey: model.trailerZoomKey,
                                   dimmed: section != .hero && !cinema,
@@ -436,10 +443,7 @@ struct OrbitDetailView: View {
                             if let focus { enter(focus.section) }
                             return
                         }
-                        // (The kept focus value is no proof the card holds the system's focus —
-                        // Steven's video: it landed on the row's first card. It is asked again.)
-                        focus = nil
-                        focus = back
+                        if focus != back { focus = back }
                         anchorTick &+= 1
                     }
                 }
@@ -958,6 +962,7 @@ struct OrbitDetailView: View {
                             }
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .similar(item.id))
+                            .onAppear { OrbitMetaStore.shared.request([item]) }
                         }
                     }
                     .padding(.horizontal, OrbitDetailLayout.margin)
@@ -1034,6 +1039,8 @@ struct OrbitDetailView: View {
 /// hero with a left and bottom shade for the text, dark and soft under the sections.
 private struct OrbitDetailBackground: View {
     let url: String?
+    /// The art's smaller copy, shown under it until the large one has come.
+    var quickURL: String? = nil
     let trailerURL: String?
     let zoomKey: String
     let dimmed: Bool
@@ -1053,6 +1060,11 @@ private struct OrbitDetailBackground: View {
             // Fluidity: the dimmed art is a pre-blurred copy cross-faded in (an animated live blur of
             // the whole screen made the move to the sections stutter).
             ZStack {
+                if let quickURL, quickURL != url {
+                    OrbitImage(url: quickURL, mode: .fill, size: CGSize(width: 1280, height: 720))
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
+                }
                 OrbitSwapImage(url: url, fallback: nil, size: size)
                 // Steven (device: not dark or blurred enough under the sections).
                 OrbitPreBlurred(url: url, radius: 44)
@@ -1458,9 +1470,15 @@ private struct OrbitRowMemory: ViewModifier {
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
                 store.x[key] = x
             }
-            // (Steven, 2026-10-27: back from an actor the focus could not move for a while — the
-            // row put back on its kept scroll fought the system's own. As everywhere now, a row
-            // is never moved by us on the way back: the page is kept, the row with it.)
+            // The row where it was, so the card left from exists again (a lazy row rebuilt at
+            // its start had no card there: the focus fell on the first one — Steven's video).
+            .onAppear {
+                if let x = store.x[key], x > 1 {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { position.scrollTo(x: x) }
+                }
+            }
     }
 }
 
