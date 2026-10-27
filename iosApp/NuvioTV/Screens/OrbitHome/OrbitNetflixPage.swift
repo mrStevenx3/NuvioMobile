@@ -930,7 +930,7 @@ private struct OrbitNetflixRank: View {
     static let widening: CGFloat = 1.1
 
     static func figureWidth(_ rank: Int) -> CGFloat {
-        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.3 : 0) * widening
+        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.2 : 0) * widening
     }
 
     /// The room the figure takes before its tile.
@@ -939,12 +939,12 @@ private struct OrbitNetflixRank: View {
     var body: some View {
         let height = Self.figureHeight
         let width = Self.figureWidth(rank)
-        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.3 : 0)
+        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.2 : 0)
         // The visible part's end (where the tile's shadow takes the line).
         let visible = 1 - Self.tuck(rank) / max(1, width)
         ZStack {
             shape.fill(Color.black)
-            // The line: lighter at the top, a little darker at the foot…
+            // The line…
             // (Steven: one grey all along — darker at the foot, the 9's tail looked rubbed out.)
             shape.stroke(Color(white: 0.6),
                          style: StrokeStyle(lineWidth: 3, lineJoin: .round))
