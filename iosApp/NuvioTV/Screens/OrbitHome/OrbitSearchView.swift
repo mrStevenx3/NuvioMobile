@@ -145,8 +145,26 @@ private final class OrbitSearchHostController: UIViewController {
                                                name: UIFocusSystem.didUpdateNotification, object: nil)
     }
 
+    /// Back from a title: the results are the page's preferred focus from the start of the way
+    /// back (Steven's video: the keyboard had it first, then the poster) — the system's own
+    /// restoration lands on the poster.
+    private var returning = false
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if results?.hasRestore == true, let target = results?.prepareRestore() {
+            returning = true
+            focusTarget = target
+            setNeedsFocusUpdate()
+        }
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if returning {
+            returning = false
+            focusTarget = nil
+        }
         if results?.hasRestore == true {
             restoreOpenedTitle(attempt: 0)
         } else {

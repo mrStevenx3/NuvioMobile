@@ -1115,9 +1115,9 @@ private struct OrbitDetailBackground: View {
             // the whole screen made the move to the sections stutter).
             ZStack {
                 if let quickURL, quickURL != url {
-                    OrbitImage(url: quickURL, mode: .fill, size: CGSize(width: 1280, height: 720))
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
+                    // (Steven's video: drawn at 1280 × 720 points, it sat small in the middle of
+                    // the screen — the whole screen, as the art it stands in for.)
+                    OrbitImage(url: quickURL, mode: .fill, size: size)
                 }
                 OrbitSwapImage(url: url, fallback: nil, size: size)
                 // Steven (device: not dark or blurred enough under the sections).
