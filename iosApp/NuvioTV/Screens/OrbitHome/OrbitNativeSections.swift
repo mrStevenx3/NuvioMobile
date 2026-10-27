@@ -243,7 +243,8 @@ struct OrbitNativeSections<SectionContent: View>: View {
                 heroLocked = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false }
             }
-            DispatchQueue.main.async { take(current) }
+            // (Rebuilt by a filter chosen in the bar: the focus stays in the bar.)
+            DispatchQueue.main.async { if !OrbitCollectionBarFocus.held { take(current) } }
         }
     }
 

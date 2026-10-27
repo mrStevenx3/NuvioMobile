@@ -304,6 +304,8 @@ struct OrbitParamountPage: View {
             }
 
                             nativeSections(rows)
+                    // Steven: Films / Séries came up on the Top 10 — each filter its own page, from its top.
+                    .id(typeFilter ?? "all")
                     .disabled(search != nil)
             
 

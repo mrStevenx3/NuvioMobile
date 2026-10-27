@@ -772,6 +772,9 @@ struct CollectionFilterBar: View {
         }
         // Steven: back from a title, the system landed on the house before the page's restore.
         .disabled(titleGate.locked)
+        // Told the page below (a filter changed from here rebuilds it: it must not pull the focus).
+        .onChange(of: barHasFocus) { _, has in OrbitCollectionBarFocus.held = has }
+        .onDisappear { OrbitCollectionBarFocus.held = false }
         // Pass 3 (Steven: Up never reached it): the focus section spans the screen's width in the
         // bar's band, so Up from any card of the top row finds the bar (the engine only searches
         // straight up, and the pill sits at the far right).
@@ -984,4 +987,10 @@ enum OrbitBarLaunchFocus {
             }
         }
     }
+}
+
+/// Whether a collection bar holds the focus (read by the page under it).
+@MainActor
+enum OrbitCollectionBarFocus {
+    static var held = false
 }
