@@ -918,8 +918,12 @@ private struct OrbitNetflixRank: View {
 
     /// The figure's height (Steven's photo of the real app: 43 % of the tile).
     static var figureHeight: CGFloat { OrbitNetflixLayout.tileHeight * 0.43 }
-    /// The share of the figure behind its tile (Steven's photo of the real app: well hidden).
-    static let tuckShare: CGFloat = 0.38
+    /// How much of the figure goes behind its tile: on the real app (Steven's photos) about 115 pt of
+    /// a figure shows, the 1 nearly whole.
+    static func tuck(_ rank: Int) -> CGFloat {
+        let width = figureWidth(rank)
+        return rank == 10 ? width * 0.2 : max(12, width - 115)
+    }
     /// The gap between the previous tile and the figure.
     static let lead: CGFloat = 30
     /// Netflix's figures are wider than the system's.
@@ -930,14 +934,14 @@ private struct OrbitNetflixRank: View {
     }
 
     /// The room the figure takes before its tile.
-    static func width(_ rank: Int) -> CGFloat { lead + figureWidth(rank) * (1 - tuckShare) }
+    static func width(_ rank: Int) -> CGFloat { lead + figureWidth(rank) - tuck(rank) }
 
     var body: some View {
         let height = Self.figureHeight
         let width = Self.figureWidth(rank)
         let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.11 : 0)
         // The visible part's end (where the tile's shadow takes the line).
-        let visible = 1 - Self.tuckShare
+        let visible = 1 - Self.tuck(rank) / max(1, width)
         ZStack {
             shape.fill(Color.black)
             // The line: lighter at the top, a little darker at the foot…
@@ -1099,8 +1103,9 @@ private struct OrbitNetflixTile: View {
                 .frame(width: openSize.width, height: openSize.height)
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3) }
-                // (Steven: the open art came in dark, then lit up — a quicker fade.)
-                .transition(.opacity.animation(.easeOut(duration: 0.14)))
+                // (Steven: the open art came in dark, then lit up — a quicker fade. Steven's video:
+                // the frame left behind lingered over the next titles as the row moved — it goes at once.)
+                .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.14)), removal: .identity))
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
