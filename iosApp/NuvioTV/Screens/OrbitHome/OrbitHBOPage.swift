@@ -375,7 +375,7 @@ struct OrbitHBOPage: View {
             }
 
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, showsHBO: true)
+            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, showsHBO: true, centred: true)
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
@@ -733,7 +733,11 @@ private struct OrbitHBOHero: View {
                     .lineLimit(3)
                     .frame(width: L.synopsisWidth, alignment: .topLeading)
                     .padding(.top, 14)
-                Text(item.type == "movie" ? String(localized: "Voir le film") : String(localized: "Voir la série"))
+                // HBO Max's own button (Steven's video): ⓘ then "Voir la série" — the title's page.
+                HStack(spacing: 10) {
+                    Image(systemName: "info.circle").font(.system(size: 22, weight: .semibold))
+                    Text(item.type == "movie" ? String(localized: "Voir le film") : String(localized: "Voir la série"))
+                }
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Color.black)
                     .padding(.horizontal, 26)
@@ -948,7 +952,9 @@ private struct OrbitHBOPoster: View {
             : OrbitHBOOwn.of(item) != nil && !OrbitHBOOwn.isPlain(item) ? item.poster : (meta?.localPoster ?? item.poster)
         ZStack(alignment: .topLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
-            if let url { OrbitImage(url: url, fallback: ranked ? nil : item.rawPosterUrl, mode: .fill, size: size) }
+            // (Steven's video: an empty frame at a row's end — no poster known yet: TMDB's, else his.)
+            OrbitImage(url: url ?? meta?.cleanPoster, fallback: ranked ? meta?.cleanPoster : item.rawPosterUrl,
+                       mode: .fill, size: size, lastResort: meta?.backdrop ?? item.banner)
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
                 OrbitHBONewTag(text: text, size: 13)
                     .padding(8)
