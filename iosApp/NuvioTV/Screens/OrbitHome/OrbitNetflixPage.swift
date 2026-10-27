@@ -814,6 +814,8 @@ private struct OrbitNetflixRowView: View {
     let isCurrent: Bool
     /// The page has gone past this row (it slides away above, as Netflix's, its title still open).
     var aboveCurrent = false
+    /// Where the open title's room starts in the row (its frame is drawn there).
+    @State private var openX: CGFloat?
     let focused: Bool
     let series: Bool
     let rank: Int?
@@ -859,13 +861,33 @@ private struct OrbitNetflixRowView: View {
                     let meta = metaStore.meta(for: item)
                     OrbitNetflixTile(item: item, meta: meta, open: open, focused: lit,
                                      top10: row.top10,
-                                     badges: open ? badges(rank: rank, fresh: row.fresh, news: OrbitTitleNews.of(item, meta)) : [],
                                      foot: footLabel(item, meta),
-                                     trailerURL: open ? trailerURL : nil,
-                                     onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                                     trailerURL: nil,
+                                     onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded,
+                                     framedByRow: true)
+                        .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named("netflixRow")).minX }) { x in
+                            if open { openX = x }
+                        }
                 }
             }
+            // Arriving on the row (or leaving it), the open room is there at once — only Left / Right
+            // move it (Netflix: the row comes up already open).
+            .animation(nil, value: isCurrent)
+            .animation(nil, value: aboveCurrent)
             .frame(width: OrbitHomeLayout.screenWidth, height: L.tileHeight, alignment: .topLeading)
+            .coordinateSpace(.named("netflixRow"))
+            .overlay(alignment: .topLeading) {
+                if isCurrent || aboveCurrent, row.items.indices.contains(lead) {
+                    let item = row.items[lead]
+                    let meta = metaStore.meta(for: item)
+                    OrbitNetflixOpenFrame(item: item, meta: meta, lit: isCurrent,
+                                          badges: badges(rank: rank, fresh: row.fresh, news: OrbitTitleNews.of(item, meta)),
+                                          trailerURL: isCurrent ? trailerURL : nil,
+                                          onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
+                        .offset(x: openX ?? (L.margin + (row.top10 ? OrbitNetflixRank.width(lead + 1) : 0)))
+                        .animation(OrbitHomeLayout.horizontal, value: openX)
+                }
+            }
             // Steven (device: the text ran over the posters while the page moved): the details of
             // the row the page arrives at wait for the move to end, then fade in; leaving, they go
             // at once.
@@ -1079,8 +1101,20 @@ private struct OrbitNetflixTile: View {
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
+    /// The row draws the open frame itself, fixed at the margin (Steven: on Netflix the frame stays
+    /// where it is and the next title fades in inside it): open, the tile only keeps its room.
+    var framedByRow = false
 
     var body: some View {
+        let L = OrbitNetflixLayout.self
+        if open && framedByRow {
+            Color.clear.frame(width: L.openWidth, height: L.tileHeight)
+        } else {
+            tile
+        }
+    }
+
+    private var tile: some View {
         let L = OrbitNetflixLayout.self
         let size = CGSize(width: open ? L.openWidth : L.posterWidth, height: L.tileHeight)
         let info = OrbitInfo.make(item, meta: meta)
@@ -1159,5 +1193,70 @@ private struct OrbitNetflixTile: View {
         // it grows, everything moves together, as on Netflix.
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
+    }
+}
+
+/// The open title's frame, drawn once by its row at the margin: the frame stays, the titles' art
+/// cross-fades inside it as the focus moves (Netflix's own app, Steven's video).
+private struct OrbitNetflixOpenFrame: View {
+    let item: MetaPreview
+    let meta: OrbitMeta?
+    let lit: Bool
+    let badges: [OrbitNetflixPillInfo]
+    let trailerURL: String?
+    let onTrailerFailure: (TrailerFailureReport) -> Void
+    let onTrailerEnded: () -> Void
+
+    var body: some View {
+        let L = OrbitNetflixLayout.self
+        let openSize = CGSize(width: L.openWidth, height: L.tileHeight)
+        let shape = RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+        let key = "\(item.type):\(item.id)"
+        ZStack {
+            Color(white: 0.09)
+            content
+                .id(key)
+                .transition(.opacity)
+        }
+        .animation(.easeInOut(duration: 0.28), value: key)
+        .frame(width: openSize.width, height: openSize.height)
+        .clipShape(shape)
+        .overlay { shape.strokeBorder(Color.white.opacity(lit ? 0.95 : 0), lineWidth: 3) }
+        .allowsHitTesting(false)
+    }
+
+    private var content: some View {
+        let L = OrbitNetflixLayout.self
+        let openSize = CGSize(width: L.openWidth, height: L.tileHeight)
+        let info = OrbitInfo.make(item, meta: meta)
+        let banner: String? = item.banner
+        return ZStack(alignment: .bottomLeading) {
+            Color(white: 0.09)
+            OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: openSize)
+            if let trailerURL {
+                TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
+                                  zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                  loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius)
+                    .frame(width: openSize.width, height: openSize.height)
+                    .transition(.opacity.animation(.easeOut(duration: 0.6)))
+            }
+            LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 8) {
+                if isNetflixOwn(item, meta) { OrbitNetflixTag(series: item.type != "movie", size: 17) }
+                OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 330, height: 104), textSize: 36,
+                               fallbackLogo: info.logoFallback, hugsLogo: true)
+                    .frame(width: 330, alignment: .leading)
+            }
+            .padding(.leading, 24)
+            .padding(.bottom, 22)
+            if !badges.isEmpty {
+                HStack(spacing: 10) {
+                    ForEach(badges.indices, id: \.self) { OrbitNetflixPill(info: badges[$0]) }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(20)
+            }
+        }
+        .frame(width: openSize.width, height: openSize.height)
     }
 }
