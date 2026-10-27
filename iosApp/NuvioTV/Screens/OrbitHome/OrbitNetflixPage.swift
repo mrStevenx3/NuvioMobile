@@ -41,11 +41,6 @@ enum OrbitNetflixLayout {
     static let infoHeight: CGFloat = 205
     static let rowGap: CGFloat = 33
     static let radius: CGFloat = 8
-    /// A rank's room before its tile (the figure's left part, and the gap after the previous tile);
-    /// the figure goes `rankTuck` further, behind the tile.
-    static let rankWidth: CGFloat = 150
-    static let rankWidthTen: CGFloat = 330
-    static let rankTuck: CGFloat = 50
     static let horizontal = Animation.easeOut(duration: 0.26)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -77,7 +72,7 @@ struct OrbitNetflixRow: Identifiable, Equatable {
 
     private func rankWidth(_ index: Int) -> CGFloat {
         guard top10 else { return 0 }
-        return index == 9 ? OrbitNetflixLayout.rankWidthTen : OrbitNetflixLayout.rankWidth
+        return OrbitNetflixRank.width(index + 1)
     }
 
     /// A title's slot (its rank on the Top 10, then its tile: open when focused on the current row).
@@ -882,7 +877,7 @@ private struct OrbitNetflixRowView: View {
                         .lineLimit(3)
                         .frame(width: 990, alignment: .topLeading)
                 }
-                .padding(.leading, L.margin + (row.top10 ? (lead == 9 ? L.rankWidthTen : L.rankWidth) : 0))
+                .padding(.leading, L.margin + (row.top10 ? OrbitNetflixRank.width(lead + 1) : 0))
                 // (Steven: further from the open tile, which grows when focused; the row's height
                 // unchanged — taken from the gap under it.)
                 .padding(.top, 26)
@@ -921,42 +916,57 @@ private struct OrbitNetflixRowView: View {
 private struct OrbitNetflixRank: View {
     let rank: Int
 
+    /// The figure's height (Steven's photo of the real app: 43 % of the tile).
+    static var figureHeight: CGFloat { OrbitNetflixLayout.tileHeight * 0.43 }
+    /// How far the figure goes behind its tile.
+    static let tuck: CGFloat = 26
+    /// The gap between the previous tile and the figure.
+    static let lead: CGFloat = 30
+
+    static func figureWidth(_ rank: Int) -> CGFloat {
+        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.02 : 0)
+    }
+
+    /// The room the figure takes before its tile.
+    static func width(_ rank: Int) -> CGFloat { lead + figureWidth(rank) - tuck }
+
     var body: some View {
-        let L = OrbitNetflixLayout.self
-        let height = L.tileHeight * 0.43
-        OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1.12)
-            .fill(Color.black)
+        let height = Self.figureHeight
+        let width = Self.figureWidth(rank)
+        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0)
+        shape.fill(Color.black)
             .overlay {
-                OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1.12)
-                    // Netflix: the line fades into the tile's shadow as it nears the tile.
-                    .stroke(LinearGradient(stops: [
-                        .init(color: Color(white: 0.55), location: 0),
-                        .init(color: Color(white: 0.5), location: 0.66),
-                        .init(color: Color(white: 0.08), location: 0.88),
-                    ], startPoint: .leading, endPoint: .trailing),
-                            style: StrokeStyle(lineWidth: 3, lineJoin: .round))
+                // Netflix: a light grey line, fading into the tile's shadow just before the tile.
+                shape.stroke(LinearGradient(stops: [
+                    .init(color: Color(white: 0.5), location: 0),
+                    .init(color: Color(white: 0.46), location: 0.62),
+                    .init(color: Color(white: 0.12), location: 0.9),
+                ], startPoint: .leading, endPoint: .trailing),
+                             style: StrokeStyle(lineWidth: 3.5, lineJoin: .round))
             }
-            .frame(width: 420, height: height)
-            .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .topTrailing)
+            .frame(width: width, height: height)
             // Its right part behind the tile (drawn after it, over it).
-            .offset(x: L.rankTuck)
+            .padding(.leading, Self.lead)
+            .frame(width: Self.width(rank), height: OrbitNetflixLayout.tileHeight, alignment: .topLeading)
             .padding(.top, 2)
     }
 }
 
-/// A text's glyphs as one shape, scaled to the frame's height (its drawn top and foot on the frame's),
-/// against the frame's right edge.
+/// A text's glyphs as one shape, filling its frame (its drawn edges on the frame's).
 struct OrbitGlyphShape: Shape {
     let text: String
     var tracking: CGFloat = 0
-    var narrowing: CGFloat = 0.8
 
-    func path(in rect: CGRect) -> Path {
-        // Netflix's figures are wide and heavy.
+    private static var cache: [String: CGPath] = [:]
+
+    /// The glyphs' outline at 200 pt, overlaps merged, its box at the origin.
+    static func outline(_ text: String, tracking: CGFloat) -> CGPath {
+        let key = "\(text)|\(tracking)"
+        if let path = cache[key] { return path }
         let font = UIFont.systemFont(ofSize: 200, weight: .bold)
         let ctFont = font as CTFont
-        var glyphs = [CGGlyph](repeating: 0, count: text.utf16.count)
         let chars = Array(text.utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: chars.count)
         CTFontGetGlyphsForCharacters(ctFont, chars, &glyphs, chars.count)
         var advances = [CGSize](repeating: .zero, count: glyphs.count)
         CTFontGetAdvancesForGlyphs(ctFont, .horizontal, glyphs, &advances, glyphs.count)
@@ -972,15 +982,25 @@ struct OrbitGlyphShape: Shape {
         // (The system font's contours overlap — stroked, the overlaps showed inside the figure.)
         let whole = combined.normalized(using: .winding)
         let box = whole.boundingBoxOfPath
-        guard box.height > 0 else { return Path() }
-        let k = rect.height / box.height
-        // (Netflix's figures are narrower than the system's.)
-        let kx = k * narrowing
-        let width = box.width * kx
-        var t = CGAffineTransform(translationX: rect.maxX - width, y: rect.minY)
-            .scaledBy(x: kx, y: k)
-            .translatedBy(x: -box.minX, y: -box.minY)
-        return Path(whole.copy(using: &t) ?? whole)
+        var t = CGAffineTransform(translationX: -box.minX, y: -box.minY)
+        let path = whole.copy(using: &t) ?? whole
+        cache[key] = path
+        return path
+    }
+
+    /// Width over height of the drawn glyphs.
+    static func aspect(_ text: String, tracking: CGFloat = 0) -> CGFloat {
+        let box = outline(text, tracking: tracking).boundingBoxOfPath
+        return box.height > 0 ? box.width / box.height : 0.6
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let path = Self.outline(text, tracking: tracking)
+        let box = path.boundingBoxOfPath
+        guard box.width > 0, box.height > 0 else { return Path() }
+        var t = CGAffineTransform(translationX: rect.minX, y: rect.minY)
+            .scaledBy(x: rect.width / box.width, y: rect.height / box.height)
+        return Path(path.copy(using: &t) ?? path)
     }
 }
 
