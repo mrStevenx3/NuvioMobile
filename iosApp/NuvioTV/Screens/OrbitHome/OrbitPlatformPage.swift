@@ -669,8 +669,9 @@ struct OrbitPlatformIntro: View {
     @State private var phase: Phase = .hidden
     @State private var glide: DispatchWorkItem?
     @State private var appearedAt = Date.distantFuture
-    /// The orbit drawn around the logo (0: not begun, 1: closed).
-    @State private var sweep: CGFloat = 0
+    /// The logo's light: dim (1: off, 0: on) and its glow's flash.
+    @State private var dim: Double = 1
+    @State private var glow: Double = 0
     /// When the page last went away (a title opened just then: the way back keeps the corner logo).
     @State private var leftAt: TimeInterval = 0
 
@@ -714,16 +715,10 @@ struct OrbitPlatformIntro: View {
             .frame(width: W, height: H)
             .opacity(phase == .settled ? 0 : 1)
 
-            // Orbit's touch (Steven: "dans l'ADN d'Orbit"): an orbit drawn around the logo.
-            OrbitIntroOrbit(progress: sweep, tint: brand)
-                .frame(width: size.width * Self.splashScale * 1.05, height: size.height * Self.splashScale * 0.95)
-                .position(x: W / 2, y: H / 2)
-                .scaleEffect(phase == .splash ? 1 : 1.18)
-                .opacity(phase == .splash ? 1 : 0)
-                .animation(.easeOut(duration: 0.45), value: phase == .splash)
-
             logo
                 .frame(width: size.width, height: size.height, alignment: phase == .settled ? .topTrailing : .center)
+                // Steven: the logo switched on — it comes up dim, lights up, then takes the viewer in.
+                .modifier(OrbitLightUp(dim: dim, glow: glow, tint: brand))
                 .scaleEffect(scale, anchor: .center)
                 .opacity(phase == .hidden ? 0 : 1)
                 .offset(x: centre.x - size.width / 2, y: centre.y - size.height / 2)
@@ -742,16 +737,16 @@ struct OrbitPlatformIntro: View {
                 withTransaction(still) { phase = reduceMotion ? .settled : .splash }
                 let curtained = OrbitPlatformCurtain.shared.look != nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift(instant: curtained) }
-                if !reduceMotion {
-                    // (Once the curtain has gone: the orbit is drawn on the page, from its start.)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        withAnimation(.easeInOut(duration: 0.8)) { sweep = 1 }
-                    }
+                if reduceMotion { dim = 0; glow = 0 } else {
+                    withTransaction(still) { dim = 1; glow = 0 }
+                    // (Once the curtain has gone: the logo lights up on the page.)
+                    lightUp(at: 0.55)
                     let work = DispatchWorkItem {
                         withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
+                        withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
                     }
                     glide = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.35, execute: work)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4, execute: work)
                 }
                 return
             }
@@ -764,7 +759,7 @@ struct OrbitPlatformIntro: View {
                 glide?.cancel()
                 var still = Transaction()
                 still.disablesAnimations = true
-                withTransaction(still) { phase = .hidden }
+                withTransaction(still) { phase = .hidden; dim = 1; glow = 0 }
             }
             // Steven (device: the collection showed before its logo): the screen stays black until
             // the logo is ready (a second at most), then the intro plays with it.
@@ -786,7 +781,7 @@ struct OrbitPlatformIntro: View {
                 glide?.cancel()
                 var still = Transaction()
                 still.disablesAnimations = true
-                withTransaction(still) { phase = .hidden }
+                withTransaction(still) { phase = .hidden; dim = 1; glow = 0 }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
@@ -794,7 +789,7 @@ struct OrbitPlatformIntro: View {
             // the page, which lands just after it appears (the catalogue showed before the intro).
             guard phase != .settled, Date().timeIntervalSince(appearedAt) > 0.8 else { return }
             glide?.cancel()
-            withAnimation(.easeOut(duration: 0.3)) { phase = .settled }
+            withAnimation(.easeOut(duration: 0.3)) { phase = .settled; dim = 0; glow = 0 }
         }
     }
 
@@ -821,20 +816,45 @@ struct OrbitPlatformIntro: View {
         guard phase == .hidden else { OrbitPlatformCurtain.shared.lift(); return }
         if reduceMotion {
             phase = .settled
+            dim = 0; glow = 0
             OrbitPlatformCurtain.shared.lift()
             return
         }
         withAnimation(.easeOut(duration: 0.35)) { phase = .splash }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.easeInOut(duration: 0.8)) { sweep = 1 }
-        }
+        lightUp(at: 0.45)
         // The curtain the page was pushed under goes once the logo shows on the page's own black.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { OrbitPlatformCurtain.shared.lift() }
         let work = DispatchWorkItem {
             withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
+            withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
         }
         glide = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3, execute: work)
+    }
+
+    /// The logo switched on: a quick flash of light, then a soft glow left on it.
+    private func lightUp(at delay: Double) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            withAnimation(.easeOut(duration: 0.22)) { dim = 0; glow = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                withAnimation(.easeInOut(duration: 0.5)) { glow = 0.35 }
+            }
+        }
+    }
+}
+
+/// A logo switched on: dim and greyed while off; lit, a white bloom and the brand's glow around it.
+struct OrbitLightUp: ViewModifier {
+    let dim: Double
+    let glow: Double
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        content
+            .brightness(-0.5 * dim + 0.18 * glow)
+            .saturation(1 - 0.6 * dim)
+            .shadow(color: .white.opacity(0.55 * glow), radius: 16 * glow)
+            .shadow(color: tint.opacity(0.9 * glow), radius: 50 * glow)
     }
 }
 
@@ -848,7 +868,7 @@ struct OrbitPlatformLook {
     var white = false
     var assetLogo: String? = nil
     var assetInColour = false
-    /// A studio's opening (its logo as the studio page draws it, with the light's sweep).
+    /// A studio's opening (its logo as the studio page draws it).
     var studio = false
 
     /// The look of the page `route` opens (the same choice, in the same order, as Home's stack).
@@ -1041,49 +1061,5 @@ final class OrbitPlatformExtrasModel: ObservableObject {
                                genres: [], rawPosterUrl: nil, landscapePoster: nil,
                                rawLandscapePosterUrl: nil, customPosterApplied: false)
         }
-    }
-}
-
-
-/// Orbit's opening touch: a thin orbit drawn around the logo, a light — its satellite — leading
-/// it; closed, it widens and fades as the logo leaves. (Steven: the halo behind was badly drawn —
-/// gone; the page's own tint is the glow.)
-struct OrbitIntroOrbit: View, Animatable {
-    /// 0…1: how much of the orbit is drawn.
-    var progress: CGFloat
-    let tint: Color
-
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let t = max(0, min(1, progress))
-            let angle = Double(t) * 2 * .pi
-            ZStack {
-                Ellipse()
-                    .trim(from: 0, to: t)
-                    .stroke(tint.opacity(0.85), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .shadow(color: tint, radius: 6)
-                    .overlay {
-                        Ellipse()
-                            .trim(from: max(0, t - 0.18), to: t)
-                            .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    }
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 12, height: 12)
-                    .shadow(color: .white, radius: 8)
-                    .shadow(color: tint, radius: 20)
-                    .position(x: w / 2 + w / 2 * cos(angle), y: h / 2 + h / 2 * sin(angle))
-                    .opacity(t > 0.01 && t < 0.99 ? 1 : 0)
-            }
-            .frame(width: w, height: h)
-        }
-        .rotationEffect(.degrees(-10))
-        .allowsHitTesting(false)
     }
 }

@@ -584,7 +584,7 @@ struct OrbitStudioPage: View {
 // MARK: - Opening
 
 /// The studio's opening (Steven, 2026-10-24, "le générique de studio"): black, the studio's logo
-/// fades in large in the middle, a light sweeps across it, then it glides to its place top right
+/// fades in large in the middle, lights up, then it glides to its place top right
 /// while the page fades in. Once per visit (back from a film, nothing replays); any press skips
 /// it; with Reduce Motion, nothing plays.
 struct OrbitStudioIntro: View {
@@ -599,7 +599,8 @@ struct OrbitStudioIntro: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .black
     @State private var veil: Double = 1
-    @State private var sweep: CGFloat = 0
+    @State private var dim: Double = 1
+    @State private var glow: Double = 0
     @State private var work: [DispatchWorkItem] = []
     @State private var started = false
     @State private var appearedAt = Date.distantFuture
@@ -629,17 +630,11 @@ struct OrbitStudioIntro: View {
             .frame(width: W, height: H)
             .opacity(veil)
 
-            // Orbit's touch (Steven: "dans l'ADN d'Orbit"): an orbit drawn around the logo.
-            OrbitIntroOrbit(progress: sweep, tint: shownTint ?? tint ?? Color(white: 0.7))
-                .frame(width: box.width * Self.splashScale * 1.1, height: box.height * Self.splashScale * 1.6)
-                .position(x: W / 2, y: H / 2)
-                .scaleEffect(phase == .splash ? 1 : 1.18)
-                .opacity(phase == .splash ? 1 : 0)
-                .animation(.easeOut(duration: 0.45), value: phase == .splash)
-
             logo
                 // Centred in the middle; in the corner, right-aligned as the page's own logo.
                 .frame(width: box.width, height: box.height, alignment: phase == .corner ? .topTrailing : .center)
+                // Steven: the logo switched on — it comes up dim, lights up, then takes the viewer in.
+                .modifier(OrbitLightUp(dim: dim, glow: glow, tint: shownTint ?? tint ?? Color(white: 0.8)))
                 .scaleEffect(phase == .corner ? 1 : (phase == .black ? Self.splashScale * 0.92 : Self.splashScale))
                 .opacity(phase == .black ? 0 : 1)
                 .position(centre)
@@ -679,7 +674,7 @@ struct OrbitStudioIntro: View {
             // A press skips the opening — not the press that opened the page (it lands just after).
             guard phase != .corner || veil > 0, Date().timeIntervalSince(appearedAt) > 0.8 else { return }
             work.forEach { $0.cancel() }
-            withAnimation(.easeOut(duration: 0.3)) { phase = .corner; veil = 0 }
+            withAnimation(.easeOut(duration: 0.3)) { phase = .corner; veil = 0; dim = 0; glow = 0 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) { onDone() }
         }
     }
@@ -691,7 +686,7 @@ struct OrbitStudioIntro: View {
     private func play(fromSplash: Bool = false) {
         guard !started, fromSplash || phase == .black, veil == 1 else { return }
         started = true
-        if reduceMotion { onDone(); return }
+        if reduceMotion { dim = 0; onDone(); return }
         func at(_ delay: Double, _ body: @escaping () -> Void) {
             let item = DispatchWorkItem(block: body)
             work.append(item)
@@ -699,12 +694,13 @@ struct OrbitStudioIntro: View {
         }
         // 0 s: the logo fades in, large, in the middle (already there under the curtain).
         if !fromSplash { withAnimation(.easeOut(duration: 0.55)) { phase = .splash } }
-        // Then the orbit is drawn around it (Orbit's touch).
-        at(fromSplash ? 0.5 : 0.45) { withAnimation(.easeInOut(duration: 0.9)) { sweep = 1 } }
+        // Then it lights up: a flash, a soft glow left on it.
+        at(fromSplash ? 0.55 : 0.6) { withAnimation(.easeOut(duration: 0.22)) { dim = 0; glow = 1 } }
+        at(fromSplash ? 0.8 : 0.85) { withAnimation(.easeInOut(duration: 0.5)) { glow = 0.35 } }
         // 1.5 s: it glides to its place, the page fades in under it.
         at(1.5) {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.9)) { phase = .corner }
-            withAnimation(.easeInOut(duration: 0.8)) { veil = 0 }
+            withAnimation(.easeInOut(duration: 0.8)) { veil = 0; glow = 0 }
         }
         // 2.4 s: the page's own logo takes over (same place, same size).
         at(2.4) { onDone() }

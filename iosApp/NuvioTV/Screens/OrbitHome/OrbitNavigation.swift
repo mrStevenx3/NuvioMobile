@@ -248,12 +248,14 @@ struct OrbitPlatformCurtainView: View {
                 if look.studio {
                     OrbitStudioIntroLogo(name: look.title, logoUrl: look.logoUrl, corner: false)
                         .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height)
+                        .modifier(OrbitLightUp(dim: 1, glow: 0, tint: look.brand))
                         .scaleEffect(OrbitStudioIntro.splashScale * (curtain.logoIn ? 1 : 0.92))
                         .opacity(curtain.logoIn ? 1 : 0)
                         .position(x: W / 2, y: H / 2)
                 } else {
                     OrbitPlatformIntroLogo(look: look)
                         .frame(width: OrbitPlatformIntro.logoSize.width, height: OrbitPlatformIntro.logoSize.height)
+                        .modifier(OrbitLightUp(dim: 1, glow: 0, tint: look.brand))
                         .scaleEffect(OrbitPlatformIntro.splashScale * (curtain.logoIn ? 1 : 0.85))
                         .opacity(curtain.logoIn ? 1 : 0)
                         .position(x: W / 2, y: H / 2)
