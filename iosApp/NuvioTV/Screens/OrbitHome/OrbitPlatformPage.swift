@@ -667,6 +667,10 @@ struct OrbitPlatformIntro: View {
     /// Steven (Disney+): no corner logo — the logo goes out as it would glide there (the page
     /// shows it in its bar and its hero).
     var hidesCorner = false
+    /// Steven (Disney+): where the logo glides instead of the corner (the page's own logo there,
+    /// the opening's fades onto it), and its scale there.
+    var settlesAt: CGPoint? = nil
+    var settledScale: CGFloat = 0.3
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .hidden
@@ -703,9 +707,10 @@ struct OrbitPlatformIntro: View {
         let scale: CGFloat = switch phase {
         case .hidden: Self.splashScale * 0.85
         case .splash: Self.splashScale
-        case .settled: hidesCorner ? Self.splashScale * 1.08 : Self.cornerScale
+        case .settled: settlesAt != nil ? settledScale : hidesCorner ? Self.splashScale * 1.08 : Self.cornerScale
         }
-        let centre: CGPoint = phase == .settled && !hidesCorner
+        let centre: CGPoint = phase == .settled && settlesAt != nil ? settlesAt!
+            : phase == .settled && !hidesCorner
             ? CGPoint(x: W - Self.cornerInset - size.width * Self.cornerScale / 2,
                       y: Self.cornerInset + size.height * Self.cornerScale / 2)
             : CGPoint(x: W / 2, y: H / 2)
@@ -719,7 +724,7 @@ struct OrbitPlatformIntro: View {
             .opacity(phase == .settled ? 0 : 1)
 
             logo
-                .frame(width: size.width, height: size.height, alignment: phase == .settled ? .topTrailing : .center)
+                .frame(width: size.width, height: size.height, alignment: phase == .settled && settlesAt == nil ? .topTrailing : .center)
                 // Steven: the logo switched on — it comes up dim, lights up, then takes the viewer in.
                 .modifier(OrbitLightUp(dim: dim, glow: glow, tint: brand))
                 .scaleEffect(scale, anchor: .center)

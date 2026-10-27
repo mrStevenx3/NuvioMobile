@@ -916,7 +916,8 @@ struct CollectionFilterBar: View {
     }
 
     private func isSelected(_ item: OrbitBarItem) -> Bool {
-        if item == .everything { return filter == nil }
+        // (Steven, Disney+: Accueil stayed lit beside the selected Disney+ / Hulu.)
+        if item == .everything { return filter == nil && !centreLeads }
         guard let type = type(of: item) else { return false }
         return filter == type
     }

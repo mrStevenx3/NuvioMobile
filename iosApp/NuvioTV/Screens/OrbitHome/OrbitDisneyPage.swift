@@ -32,6 +32,11 @@ enum OrbitDisneyLayout {
     static let labelHeight: CGFloat = 76
     /// Where the current row's top rests once the hero has gone.
     static let restTop: CGFloat = 160
+    /// The platform's logo at the hero's bottom right (Steven).
+    static let cornerLogo = CGSize(width: 190, height: 64)
+    static var cornerLogoCentre: CGPoint {
+        CGPoint(x: OrbitHomeLayout.screenWidth - margin - cornerLogo.width / 2, y: 715)
+    }
     static let headingHeight: CGFloat = 54
     static let tile = CGSize(width: 400, height: 225)
     /// Measured on Steven's Disney+ 2026 video: wider and taller than the other posters.
@@ -94,6 +99,8 @@ struct OrbitDisneyPage: View {
     @State private var mode = 0
     /// 0: the hero; then the rows.
     @State private var current = 0
+    /// The page's scroll, followed by the hero alone (its fade).
+    @StateObject private var heroFade = OrbitScrollTracker()
     @State private var heroIndex = 0
     /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
     @State private var leads = OrbitLeadStore()
@@ -257,7 +264,7 @@ struct OrbitDisneyPage: View {
 
     /// Disney+'s logo (drawn white in the bar and over the hero's title).
     private var brandLogoURL: String? {
-        OrbitPlatformLogos.url(.disney) ?? model.titleLogoUrl ?? route.titleLogoUrl
+        model.titleLogoUrl ?? route.titleLogoUrl ?? OrbitPlatformLogos.url(.disney)
     }
 
     private var heroItem: MetaPreview? {
@@ -278,17 +285,19 @@ struct OrbitDisneyPage: View {
 
             // Steven (device: back to the top, the hero came back in two steps): the hero stays in
             // place and fades with the page's move; the tiles and rows move up over it.
-            OrbitDisneyHero(item: hero, meta: hero.flatMap { metaStore.meta(for: $0) },
-                            count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
-                            focused: pageFocused && current == 0, isHulu: isHulu, brandLogoURL: brandLogoURL,
-                            trailerURL: trailerURL(for: hero),
-                            onTrailerFailure: { trailer.playbackFailed($0) },
-                            onTrailerEnded: {
-                                trailer.playbackFinished()
-                                advanceHero()
-                            })
-                .opacity(offset < 1 ? 1 : 0)
-                .animation(reduceMotion ? nil : OrbitDisneyLayout.vertical, value: offset < 1)
+            // Steven (video: the hero went at the press, the rows came later): it fades as the
+            // page actually moves, frame by frame (its own little view follows the scroll).
+            OrbitScrollFaded(tracker: heroFade, distance: 420) {
+                OrbitDisneyHero(item: hero, meta: hero.flatMap { metaStore.meta(for: $0) },
+                                count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
+                                focused: pageFocused && current == 0, isHulu: isHulu, brandLogoURL: brandLogoURL,
+                                trailerURL: trailerURL(for: hero),
+                                onTrailerFailure: { trailer.playbackFailed($0) },
+                                onTrailerEnded: {
+                                    trailer.playbackFinished()
+                                    advanceHero()
+                                })
+            }
 
                             nativeSections(rows)
                     // A page of its own for each mode (Steven, Hulu: the Disney+ page's scroll and
@@ -322,13 +331,15 @@ struct OrbitDisneyPage: View {
                                 switchItems: ["Disney+", "Hulu"], switchSelection: $mode,
                                 switchLogo: { index, lit in
                                     AnyView(OrbitDisneyBrandLogo(hulu: index == 1, logoURL: brandLogoURL,
-                                                                 height: 34, dark: lit, alignment: .center))
+                                                                 height: 46, dark: lit, alignment: .center))
                                 }, centreLeads: true)
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
-                               brand: OrbitDisneyLayout.brandBlue, hidesCorner: true)
+                               brand: OrbitDisneyLayout.brandBlue, hidesCorner: true,
+                               settlesAt: OrbitDisneyLayout.cornerLogoCentre,
+                               settledScale: OrbitDisneyLayout.cornerLogo.height / OrbitPlatformIntro.logoSize.height)
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
@@ -393,6 +404,7 @@ struct OrbitDisneyPage: View {
                 if has { nativeEnter(0) } else { nativeLeave() }
             },
             rowsFocusable: true,
+            tracker: heroFade,
             focusRow: { s in if rows.indices.contains(s - 1) { leads.box(rows[s - 1].id).focusRequest &+= 1 } }
         ) { s, focused in
             if s == 0 {
@@ -611,6 +623,15 @@ private struct OrbitDisneyHero: View {
                 info(item)
                     .offset(x: L.margin, y: L.infoTop)
             }
+            // Steven: the platform's logo at the hero's bottom right, in white (where the opening's
+            // logo glides to).
+            OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: L.cornerLogo.height,
+                                 alignment: .center)
+                .frame(width: L.cornerLogo.width, height: L.cornerLogo.height)
+                .shadow(color: .black.opacity(0.45), radius: 8)
+                .position(L.cornerLogoCentre)
+                .id(isHulu)
+                .transition(.opacity)
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
@@ -624,9 +645,14 @@ private struct OrbitDisneyHero: View {
             // the Hulu mark floated high above a short logo).
             // (Steven: the Disney+ logo floated above the title's — closer.)
             VStack(alignment: .leading, spacing: 6) {
-                // Steven: the platform's logo (no longer in the top right corner) over every
-                // title, in white — Disney+'s, or Hulu's.
-                OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: 44)
+                // Steven: in white — Hulu's over its titles, Disney+'s over its own programmes.
+                Group {
+                    if isHulu || orbitIsDisneyOwn(meta) {
+                        OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: 44)
+                    } else {
+                        Color.clear
+                    }
+                }
                 .frame(height: 52, alignment: .bottomLeading)
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
                                fallbackLogo: info.logoFallback, hugsLogo: true)
@@ -1092,14 +1118,14 @@ struct OrbitDisneyBrandLogo: View {
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(height: height * 0.82)
+                    .frame(height: height * 0.62)
                     .frame(height: height, alignment: alignment)
             } else if let logoURL {
                 CachedAsyncImage(string: logoURL, contentMode: .fit,
                                  decodeSize: .points(width: height * 3.2, height: height * 1.2),
                                  loading: { Color.clear },
                                  failure: { name })
-                    .frame(width: height * 2.9, height: height, alignment: alignment)
+                    .frame(width: height * 2.6, height: height, alignment: alignment)
                     .brightness(dark ? -1 : 1)
             } else {
                 name

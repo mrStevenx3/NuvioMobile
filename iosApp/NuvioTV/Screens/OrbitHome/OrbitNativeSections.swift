@@ -13,6 +13,30 @@ import SwiftUI
 //  - Rows far from the focus are not drawn at all.
 // Settings ▸ Nouvel accueil off brings the drawn pages back.
 
+/// A page's vertical scroll, observed by the one view that follows it.
+@MainActor
+final class OrbitScrollTracker: ObservableObject {
+    @Published var y: CGFloat = 0
+}
+
+/// Its content fades out over the scroll's first `distance` points.
+struct OrbitScrollFaded<Content: View>: View {
+    @ObservedObject var tracker: OrbitScrollTracker
+    let distance: CGFloat
+    /// Built by the page, kept as is while only the scroll moves.
+    let content: Content
+
+    init(tracker: OrbitScrollTracker, distance: CGFloat, @ViewBuilder content: () -> Content) {
+        self.tracker = tracker
+        self.distance = distance
+        self.content = content()
+    }
+
+    var body: some View {
+        content.opacity(Double(1 - min(1, max(0, tracker.y / distance))))
+    }
+}
+
 /// One row's focused title, observed by that row alone.
 @MainActor
 final class OrbitLeadBox: ObservableObject {
@@ -90,6 +114,8 @@ struct OrbitNativeSections<SectionContent: View>: View {
     /// The rows hold their own buttons (`OrbitNativeTileStrip`): they report their focus through
     /// `onFocus`, and `focusRow` gives a row the focus.
     var rowsFocusable = false
+    /// Told the page's scroll on every frame (a hero that fades as the page moves).
+    var tracker: OrbitScrollTracker? = nil
     var focusRow: ((Int) -> Void)? = nil
     /// Each section's own line (nil: `topLine` for all).
     var line: ((Int) -> CGFloat)? = nil
@@ -168,6 +194,9 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollPosition(id: $position, anchor: .top)
+        .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
+            if let tracker, abs(tracker.y - y) > 0.5 { tracker.y = y }
+        }
         // The line follows the page's section only (Steven's videos, Prime Video / Paramount+: the
         // rows jumped — the line also followed the section the scroll wrote back mid-move).
         .contentMargins(.top, lineOf(current), for: .scrollContent)
