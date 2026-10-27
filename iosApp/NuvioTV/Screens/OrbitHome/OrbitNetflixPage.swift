@@ -993,7 +993,14 @@ struct OrbitGlyphShape: Shape {
         let combined = CGMutablePath()
         var x: CGFloat = 0
         for (i, glyph) in glyphs.enumerated() {
-            if let g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
+            if var g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
+                // Steven: Netflix's 1 has a short flag — Avenir's ran far to the left. Cut, square.
+                if chars[i] == UInt16(UInt8(ascii: "1")) {
+                    let box = g.boundingBoxOfPath
+                    let keep = CGRect(x: box.minX + box.width * 0.34, y: box.minY - 1,
+                                      width: box.width * 0.66 + 1, height: box.height + 2)
+                    g = g.intersection(CGPath(rect: keep, transform: nil))
+                }
                 // Flipped: CoreText draws upwards.
                 combined.addPath(g, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
             }
