@@ -390,6 +390,17 @@ struct OrbitDisneyPage: View {
         return items.isEmpty ? nil : items[min(heroIndex, items.count - 1)]
     }
 
+    /// The title the trailer is for: the hero's, or the open title of the row in focus (Steven: the
+    /// rows' trailers too — the Top 10 first; not the brands, not his classic rows).
+    private var focusedItem: MetaPreview? {
+        if current == 0 { return heroItem }
+        guard let r = rowIndex(of: current), rows.indices.contains(r) else { return nil }
+        let row = rows[r]
+        guard !row.brands, !row.classic else { return nil }
+        let lead = lead(of: row)
+        return row.items.indices.contains(lead) ? row.items[lead] : nil
+    }
+
     // MARK: Body
 
     var body: some View {
@@ -572,7 +583,10 @@ struct OrbitDisneyPage: View {
                     OrbitDisneyOpenRow(row: row, box: leads.box(row.id), isCurrent: s == current,
                                        aboveCurrent: s < current, isHulu: isHulu, metaStore: metaStore,
                                        onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
-                                       onLeadChange: { refreshAfterMove() })
+                                       onLeadChange: { refreshAfterMove() },
+                                       trailerURL: s == current ? trailerURL(for: focusedItem) : nil,
+                                       onTrailerFailure: { trailer.playbackFailed($0) },
+                                       onTrailerEnded: { trailer.playbackFinished() })
                 }
             }
         }
@@ -762,8 +776,8 @@ struct OrbitDisneyPage: View {
 
         trailer.reset()
         trailerKey = nil
-        guard trailersOn, !covered, pageFocused, current == 0, search == nil, UIAccessibility.isVideoAutoplayEnabled,
-              let item = heroItem else { return }
+        guard trailersOn, !covered, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+              let item = focusedItem else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
         trailerKey = "\(item.type):\(item.id)"
@@ -1537,6 +1551,9 @@ private struct OrbitDisneyOpenRow: View {
     let onLeave: () -> Void
     let onSelect: () -> Void
     let onLeadChange: () -> Void
+    var trailerURL: String? = nil
+    var onTrailerFailure: (TrailerFailureReport) -> Void = { _ in }
+    var onTrailerEnded: () -> Void = {}
 
     /// Where the Top 10's open title is (it stops at its end); every other row keeps it at the margin.
     @State private var openX: CGFloat?
@@ -1592,7 +1609,9 @@ private struct OrbitDisneyOpenRow: View {
                 if opens, row.items.indices.contains(lead) {
                     let item = row.items[lead]
                     OrbitDisneyOpenFrame(item: item, meta: metaStore.meta(for: item), isHulu: isHulu, lit: isCurrent,
-                                         rank: row.top10 ? lead + 1 : nil)
+                                         rank: row.top10 ? lead + 1 : nil,
+                                         trailerURL: isCurrent ? trailerURL : nil,
+                                         onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                         .offset(x: frameX)
                         .animation(OrbitDisneyLayout.horizontal, value: openX)
                 }
@@ -1678,6 +1697,10 @@ private struct OrbitDisneyOpenFrame: View {
     let lit: Bool
     /// The Top 10's rank (its turquoise corner, as on the newest app).
     var rank: Int? = nil
+    /// Steven: the focused title's trailer in its frame (the Top 10's rank stays over it).
+    var trailerURL: String? = nil
+    var onTrailerFailure: (TrailerFailureReport) -> Void = { _ in }
+    var onTrailerEnded: () -> Void = {}
 
     var body: some View {
         let L = OrbitDisneyLayout.self
@@ -1706,6 +1729,14 @@ private struct OrbitDisneyOpenFrame: View {
             // (Steven: Disney+'s and Hulu's marks on every focused title — the catalog's art: TMDB's first.)
             OrbitSwapImage(url: meta?.backdrop ?? banner, fallback: nil, size: L.open)
                 .modifier(OrbitDisneyTop10Corner.Cut(extent: rank == nil ? 0 : L.open.height * 0.34))
+            if let trailerURL {
+                TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
+                                  zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                  loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: 0)
+                    .frame(width: L.open.width, height: L.open.height)
+                    .modifier(OrbitDisneyTop10Corner.Cut(extent: rank == nil ? 0 : L.open.height * 0.34))
+                    .transition(.opacity.animation(.easeOut(duration: 0.6)))
+            }
             if let rank {
                 OrbitDisneyTop10Corner.rankText(rank, size: L.open.height * 0.15)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
