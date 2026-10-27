@@ -133,6 +133,9 @@ struct OrbitDetailView: View {
     @State private var resumeFocus: OrbitDetailFocus?
     @State private var resuming = false
     @State private var resumeStart: TimeInterval = 0
+    /// Back from a page opened from a row: the card it was opened from, the only one of the rows
+    /// that can take the focus for a moment.
+    @State private var returningTo: OrbitDetailFocus?
     /// Each row's scroll, kept across a push (a reference: writes never redraw the page).
     @State private var rowOffsets = OrbitRowOffsets()
     /// While one of the page's own scrolls runs (the hold below leaves it alone).
@@ -426,6 +429,8 @@ struct OrbitDetailView: View {
         .onDisappear { OrbitNavClock.titlesShown = max(0, OrbitNavClock.titlesShown - 1) }
         .onAppear {
             if let back = resumeFocus {
+                returningTo = back
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { returningTo = nil }
                 // The engine restores late and more than once: the card is asked again a few
                 // times (as the old page did), until Steven presses something.
                 resuming = true
@@ -476,6 +481,9 @@ struct OrbitDetailView: View {
             OrbitHomeButtonHost.shared.hidden = false
             // Leaving for an actor, a saga, a similar title…: where to come back.
             resumeFocus = section != .hero ? lastFocus : nil
+            // Set before the way back begins (the system lands as the page comes back, before
+            // its onAppear).
+            returningTo = resumeFocus
             quality.stop()
             visible = false
             if cinema {
@@ -868,14 +876,19 @@ struct OrbitDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 heading(String(localized: "Casting"))
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 34) {
-                        ForEach(Array(cast.enumerated()), id: \.offset) { index, person in
+                    // Every card built (a lazy row had none where the viewer came back from —
+                    // Steven: back from an actor the focus fell on the first one). A cast is short.
+                    HStack(alignment: .top, spacing: 34) {
+                        ForEach(Array(cast.prefix(40).enumerated()), id: \.offset) { index, person in
                             if let id = person.tmdbId?.value {
                                 NavigationLink(value: PersonRoute(id: id, name: person.name)) {
                                     OrbitCastCard(person: person, focused: focus == .cast(index))
                                 }
                                 .buttonStyle(OrbitPlainStyle())
                                 .focused($focus, equals: .cast(index))
+                                // Back from an actor, only his card can take the focus a moment
+                                // (as on Home: the system's landing elsewhere is impossible).
+                                .disabled(returningTo != nil && returningTo != .cast(index))
                             } else {
                                 OrbitCastCard(person: person, focused: false)
                             }
@@ -962,6 +975,7 @@ struct OrbitDetailView: View {
                             }
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .similar(item.id))
+                            .disabled(returningTo != nil && returningTo != .similar(item.id))
                             .onAppear { OrbitMetaStore.shared.request([item]) }
                         }
                     }
