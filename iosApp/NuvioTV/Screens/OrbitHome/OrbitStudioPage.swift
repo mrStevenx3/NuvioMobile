@@ -365,7 +365,10 @@ struct OrbitStudioPage: View {
                     }
                 }
                 .scrollTargetLayout()
-                .padding(.bottom, 300)
+                // Room under the last rows, so each can come up to the line (Steven, Séries: the last
+                // rows were short since their synopsis went — the page stopped at its end, and
+                // Up into Prochainement left it cut under the bar).
+                .padding(.bottom, OrbitHomeLayout.screenHeight)
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $nativePosition, anchor: .top)
