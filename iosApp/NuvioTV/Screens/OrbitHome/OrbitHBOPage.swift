@@ -697,15 +697,17 @@ private func orbitHBOLabel(_ item: MetaPreview, _ meta: OrbitMeta?, isNew: Bool)
 private struct OrbitHBONewTag: View {
     var text: String = String(localized: "NOUVEAU")
     var size: CGFloat = 15
+    /// On the posters and tiles (Steven, the app's video): white, the text dark; blue on the hero only.
+    var white = false
 
     var body: some View {
         Text(text)
             .font(.system(size: size, weight: .heavy))
             .kerning(size * 0.06)
-            .foregroundStyle(Color.white)
+            .foregroundStyle(white ? Color.black : Color.white)
             .padding(.horizontal, size * 0.45)
             .padding(.vertical, size * 0.18)
-            .background(RoundedRectangle(cornerRadius: 3).fill(OrbitHBOLayout.blue))
+            .background(RoundedRectangle(cornerRadius: 3).fill(white ? Color.white : OrbitHBOLayout.blue))
     }
 }
 
@@ -936,7 +938,8 @@ private struct OrbitHBOTop10Card: View {
         ZStack(alignment: .bottomLeading) {
             OrbitHBOGlassText(text: String(rank), size: L.poster.height * 0.52, filled: focused)
                 .frame(width: rankW, alignment: .trailing)
-                .offset(y: L.poster.height * 0.1)
+                // (Steven: the 1, narrow, almost all behind its poster — a little out, still tucked.)
+                .offset(x: rank == 1 ? -22 : 0, y: L.poster.height * 0.1)
             ZStack {
                 Color(red: 0.08, green: 0.10, blue: 0.20)
                 if let poster {
@@ -958,6 +961,10 @@ struct OrbitHBOBrand {
     let ids: String
     let isNetwork: Bool
     let colours: [Color]
+    /// Steven's own files (HBO, HBO Max), drawn white; else TMDB's logo.
+    var asset: String? = nil
+    /// Its name instead of a logo (Warner Bros.: TMDB's shield came out a white blot).
+    var text: String? = nil
 
     var route: OrbitStudioRoute {
         OrbitStudioRoute(name: name, companies: ids, isNetwork: isNetwork, logo: OrbitHBOBrandLogos.shared.logos[name],
@@ -966,11 +973,12 @@ struct OrbitHBOBrand {
 
     static let all: [OrbitHBOBrand] = [
         .init(name: "HBO", ids: "49", isNetwork: true,
-              colours: [Color(white: 0.28), Color(white: 0.10)]),
+              colours: [Color(white: 0.28), Color(white: 0.10)], asset: "HBOMark"),
         .init(name: "Max Originals", ids: "3186", isNetwork: true,
-              colours: [Color(white: 0.22), Color(white: 0.06)]),
+              colours: [Color(white: 0.22), Color(white: 0.06)], asset: "HBOMaxLogoWide"),
         .init(name: "Warner Bros.", ids: "174", isNetwork: false,
-              colours: [Color(red: 0.10, green: 0.42, blue: 0.95), Color(red: 0.03, green: 0.20, blue: 0.60)]),
+              colours: [Color(red: 0.10, green: 0.42, blue: 0.95), Color(red: 0.03, green: 0.20, blue: 0.60)],
+              text: "WB"),
         .init(name: "DC", ids: "128064|9993", isNetwork: false,
               colours: [Color(red: 0.08, green: 0.38, blue: 0.90), Color(red: 0.02, green: 0.14, blue: 0.45)]),
         .init(name: "Discovery", ids: "64", isNetwork: true,
@@ -1020,7 +1028,20 @@ private struct OrbitHBOBrandTile: View {
         let box = CGSize(width: d * 0.62, height: d * 0.36)
         ZStack {
             Circle().fill(RadialGradient(colors: brand.colours, center: .topLeading, startRadius: 0, endRadius: d))
-            if let logo = logos.logos[brand.name] {
+            if let asset = brand.asset {
+                Image(asset)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.white)
+                    .frame(width: box.width, height: box.height)
+            } else if let text = brand.text {
+                VStack(spacing: 4) {
+                    Text(text).font(.system(size: 52, weight: .black, design: .serif))
+                    Text("WARNER BROS.").font(.system(size: 13, weight: .bold)).kerning(1.5)
+                }
+                .foregroundStyle(Color.white)
+            } else if let logo = logos.logos[brand.name] {
                 Color.white
                     .frame(width: box.width, height: box.height)
                     .mask {
@@ -1098,7 +1119,7 @@ private struct OrbitHBOTile: View {
                 .padding(.leading, 16)
                 .padding(.bottom, 14)
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
-                OrbitHBONewTag(text: text, size: 13)
+                OrbitHBONewTag(text: text, size: 13, white: true)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(8)
             }
@@ -1130,7 +1151,7 @@ private struct OrbitHBOPoster: View {
             OrbitImage(url: url ?? meta?.cleanPoster, fallback: ranked ? meta?.cleanPoster : item.rawPosterUrl,
                        mode: .fill, size: size, lastResort: meta?.backdrop ?? item.banner)
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
-                OrbitHBONewTag(text: text, size: 13)
+                OrbitHBONewTag(text: text, size: 13, white: true)
                     .padding(8)
             }
         }

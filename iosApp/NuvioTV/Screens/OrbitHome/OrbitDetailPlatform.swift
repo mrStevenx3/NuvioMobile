@@ -77,6 +77,15 @@ struct OrbitDetailPlatformMark: View {
                     .foregroundStyle(Color.white)
                     .frame(height: 44)
                     .frame(height: OrbitPlatformIntro.cornerHeight, alignment: .top)
+            } else if platform.theme == .hbo {
+                // Steven: HBO Max's logo black on the dark page — his own file, in white.
+                Image("HBOMaxLogo")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.white)
+                    .frame(height: OrbitPlatformIntro.cornerHeight * 0.8)
+                    .frame(width: 190, height: OrbitPlatformIntro.cornerHeight, alignment: .topTrailing)
             } else if platform.theme == .disney, platform.hulu {
                 // Steven: a Hulu title opened from Disney+ — Hulu's logo, in its green (as everywhere).
                 Image("HuluLogo")
