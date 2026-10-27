@@ -244,6 +244,7 @@ struct OrbitDetailView: View {
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
+                        .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
                     if isSeries, let meta {
                         OrbitEpisodesSection(meta: meta,
@@ -255,13 +256,16 @@ struct OrbitDetailView: View {
                                                  seriesPlay = OrbitSeriesPlayRoute(meta: meta, episode: episode)
                                              })
                             .focusSection()
+                            .disabled(returningElsewhere(.episodes))
                             .id(OrbitDetailSection.episodes)
                     }
-                    castSection
-                    sagaSection
-                    trailersSection
-                    similarSection
-                    aboutSection
+                    // Back from a page opened from a row, the other sections cannot take the focus a
+                    // moment (Steven: back from an actor it went to the row below).
+                    castSection.disabled(returningElsewhere(.cast))
+                    sagaSection.disabled(returningElsewhere(.saga))
+                    trailersSection.disabled(returningElsewhere(.trailers))
+                    similarSection.disabled(returningElsewhere(.similar))
+                    aboutSection.disabled(returningElsewhere(.about))
                 }
                 .scrollTargetLayout()
                 .padding(.bottom, 160)
@@ -430,7 +434,7 @@ struct OrbitDetailView: View {
         .onAppear {
             if let back = resumeFocus {
                 returningTo = back
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { returningTo = nil }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { returningTo = nil }
                 // The engine restores late and more than once: the card is asked again a few
                 // times (as the old page did), until Steven presses something.
                 resuming = true
@@ -538,6 +542,11 @@ struct OrbitDetailView: View {
     }
 
     // MARK: Focus / scroll
+
+    private func returningElsewhere(_ target: OrbitDetailSection) -> Bool {
+        guard let returningTo else { return false }
+        return returningTo.section != target
+    }
 
     /// The row of a section back to its start (its first card at the margin).
     private func resetRow(of target: OrbitDetailSection) {
