@@ -816,6 +816,8 @@ private struct OrbitNativeStudioRow: View {
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
+                        // The focused tile above its neighbours (it grows over them).
+                        .zIndex(focused == index ? 1 : 0)
                         .disabled(restoreLock && Self.reopen?.row == row.id && Self.reopen?.index != index)
                         .transformEnvironment(\.orbitFocusHidden) {
                             $0 = $0 || ((restoreLock || restoringSince > 0) && Self.reopen?.row == row.id && Self.reopen?.index != index)
