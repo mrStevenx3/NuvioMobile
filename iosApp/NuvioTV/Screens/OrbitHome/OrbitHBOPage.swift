@@ -101,6 +101,16 @@ struct OrbitHBORow: Identifiable, Equatable {
 enum OrbitHBOOwn {
     case hbo, max
 
+    /// Steven: Orbit decides (not his add-on's art): TMDB's producers and networks — "HBO…" an HBO
+    /// production, "HBO Max" / "Max" a Max one.
+    static func made(_ meta: OrbitMeta?) -> OrbitHBOOwn? {
+        guard let meta else { return nil }
+        let makers = meta.producers.map { $0.lowercased() }
+        if makers.contains(where: { $0.hasPrefix("hbo") && !$0.contains("max") }) { return .hbo }
+        if makers.contains(where: { $0 == "max" || $0.contains("hbo max") || $0.contains("max original") }) { return .max }
+        return nil
+    }
+
     static func of(_ item: MetaPreview) -> OrbitHBOOwn? {
         let poster: String = item.poster ?? ""
         if poster.range(of: #"/h/v\d+/|/poster/v\d+/h\d+/"#, options: [.regularExpression, .caseInsensitive]) != nil { return .hbo }
@@ -570,7 +580,7 @@ struct OrbitHBOPage: View {
 
     /// The detail page's HBO Max touch.
     private func detailPlatform(_ item: MetaPreview) -> OrbitDetailPlatform {
-        let own: OrbitDetailOwn? = switch OrbitHBOOwn.of(item) {
+        let own: OrbitDetailOwn? = switch OrbitHBOOwn.made(metaStore.meta(for: item)) {
         case .hbo?: .hbo
         case .max?: .hboMax
         case nil: nil
@@ -664,6 +674,29 @@ struct OrbitHBOPage: View {
 
 // MARK: - Pieces
 
+/// HBO Max's mark at a poster's foot, centred, on a soft shade (its top left is the "NOUVEAU" tag's).
+private struct OrbitHBOPosterMark: View {
+    let own: OrbitHBOOwn
+    let width: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
+                .frame(height: 60)
+            Image(own == .hbo ? "HBOOriginalLogo" : "MaxOriginalLogo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(Color.white)
+                .frame(width: width * (own == .hbo ? 0.5 : 0.36), height: own == .hbo ? 13 : 22)
+                .padding(.bottom, 12)
+        }
+        .frame(width: width)
+        .frame(maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(false)
+    }
+}
+
 /// "HBO ORIGINAL" / "HBO MAX ORIGINAL" above a title's logo.
 private struct OrbitHBOMark: View {
     let own: OrbitHBOOwn
@@ -727,10 +760,10 @@ private struct OrbitHBOHero: View {
         let L = OrbitHBOLayout.self
         let size = CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         let info = OrbitInfo.make(item, meta: meta)
-        let own = OrbitHBOOwn.of(item)
+        let own = OrbitHBOOwn.made(meta)
         ZStack(alignment: .topLeading) {
             ZStack {
-                OrbitSwapImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: size)
+                OrbitSwapImage(url: meta?.backdrop ?? item.banner, fallback: nil, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -944,6 +977,9 @@ private struct OrbitHBOTop10Card: View {
                 if let poster {
                     OrbitImage(url: poster, fallback: nil, mode: .fill, size: L.poster)
                 }
+                if let own = OrbitHBOOwn.made(meta) {
+                    OrbitHBOPosterMark(own: own, width: L.poster.width)
+                }
             }
             .frame(width: L.poster.width, height: L.poster.height)
             .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
@@ -1083,7 +1119,7 @@ private struct OrbitHBOFeaturedCard: View {
             OrbitImage(url: meta?.backdrop ?? item.banner, fallback: item.banner, size: size)
             LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 8) {
-                OrbitHBOMark(own: .hbo, size: 16)
+                OrbitHBOMark(own: OrbitHBOOwn.made(meta) ?? .hbo, size: 16)
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 340, height: 110), textSize: 36,
                                fallbackLogo: info.logoFallback, hugsLogo: true)
                     .frame(width: 340, alignment: .leading)
@@ -1110,7 +1146,7 @@ private struct OrbitHBOTile: View {
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .bottomLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
-            OrbitImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: size)
+            OrbitImage(url: meta?.backdrop ?? item.banner, fallback: item.banner, size: size)
             LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .center, endPoint: .bottom)
             OrbitTitleMark(name: item.name, logo: info.logo,
                            maxSize: CGSize(width: size.width * 0.55, height: size.height * 0.4), textSize: 26,
@@ -1142,13 +1178,16 @@ private struct OrbitHBOPoster: View {
         let size = L.poster
         // His ranked Top 10 image ("/poster/v…") is never a poster here.
         let ranked = (item.poster ?? "").contains("/poster/v")
-        let url: String? = ranked ? (meta?.titledPoster ?? meta?.localPoster)
-            : OrbitHBOOwn.of(item) != nil && !OrbitHBOOwn.isPlain(item) ? item.poster : (meta?.localPoster ?? item.poster)
+        // Steven: TMDB's poster (no platform mark printed on it), HBO's / Max's mark drawn by Orbit.
+        let url: String? = meta?.localPoster ?? meta?.titledPoster ?? meta?.cleanPoster ?? (ranked ? nil : item.poster)
         ZStack(alignment: .topLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
             // (Steven's video: an empty frame at a row's end — no poster known yet: TMDB's, else his.)
-            OrbitImage(url: url ?? meta?.cleanPoster, fallback: ranked ? meta?.cleanPoster : item.rawPosterUrl,
+            OrbitImage(url: url, fallback: ranked ? meta?.cleanPoster : item.rawPosterUrl,
                        mode: .fill, size: size, lastResort: meta?.backdrop ?? item.banner)
+            if let own = OrbitHBOOwn.made(meta) {
+                OrbitHBOPosterMark(own: own, width: size.width)
+            }
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
                 OrbitHBONewTag(text: text, size: 13, white: true)
                     .padding(8)
