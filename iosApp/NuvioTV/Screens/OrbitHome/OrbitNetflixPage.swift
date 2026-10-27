@@ -369,7 +369,8 @@ struct OrbitNetflixPage: View {
                 let row = rows[s - 1]
                 let lead = lead(of: row)
                 let item: MetaPreview? = row.items.indices.contains(lead) ? row.items[lead] : nil
-                OrbitNetflixRowView(row: row, box: leads.box(row.id), isCurrent: s == current, focused: focused,
+                OrbitNetflixRowView(row: row, box: leads.box(row.id), isCurrent: s == current, aboveCurrent: s < current,
+                                    focused: focused,
                                     series: item.map { $0.type != "movie" } ?? series,
                                     rank: item.flatMap { topRank($0) },
                                     rankOf: { topRank($0) },
@@ -793,11 +794,12 @@ private struct OrbitNetflixRowView: View {
 
     /// The landscape art of the titles next to the open one, decoded at the open tile's size
     /// before the focus gets there (Steven: grey between each step).
-    private func prefetchOpenArt(around index: Int) {
+    private func prefetchOpenArt(around index: Int, includingIt: Bool = false) {
         let L = OrbitNetflixLayout.self
         let request = ArtworkDecodeRequest(size: .points(width: L.openWidth, height: L.tileHeight), fill: true,
                                            scale: UIScreen.main.scale).normalized
-        for i in max(0, index - 1)...min(row.items.count - 1, index + 3) where i != index {
+        guard !row.items.isEmpty else { return }
+        for i in max(0, index - 1)...min(row.items.count - 1, index + 3) where includingIt || i != index {
             let item = row.items[i]
             let banner: String? = item.banner
             guard let raw = (banner ?? metaStore.meta(for: item)?.backdrop).flatMap(URL.init(string:)) else { continue }
@@ -810,6 +812,8 @@ private struct OrbitNetflixRowView: View {
 
     @ObservedObject var box: OrbitLeadBox
     let isCurrent: Bool
+    /// The page has gone past this row (it slides away above, as Netflix's, its title still open).
+    var aboveCurrent = false
     let focused: Bool
     let series: Bool
     let rank: Int?
@@ -847,7 +851,9 @@ private struct OrbitNetflixRowView: View {
                                  }) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
-                let open = isCurrent && slot == leadSlot
+                // Steven (video): leaving down, the row's open title closed as it went — its poster
+                // showed through. As on Netflix, it stays open as it slides away above.
+                let open = (isCurrent || aboveCurrent) && slot == leadSlot
                 HStack(alignment: .bottom, spacing: 0) {
                     if row.top10 { OrbitNetflixRank(rank: index + 1) }
                     let meta = metaStore.meta(for: item)
@@ -892,6 +898,9 @@ private struct OrbitNetflixRowView: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
+        // Steven (video: a row's first open title came up dark, its art not there yet): the art of
+        // its focused title and its neighbours fetched as soon as the row is drawn.
+        .onAppear { prefetchOpenArt(around: lead, includingIt: true) }
     }
 
     /// The open tile's pills, as Netflix shows them side by side: what is new, then its rank.
