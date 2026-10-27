@@ -409,12 +409,16 @@ struct OrbitDisneyPage: View {
             // place and fades with the page's move; the tiles and rows move up over it.
             // Steven (video: the hero went at the press, the rows came later): it fades as the
             // page actually moves, frame by frame (its own little view follows the scroll).
-            OrbitScrollFaded(tracker: heroFade, distance: 420) {
+            // Steven: on the first row the hero's bottom stays in sight above it — the art goes up
+            // with the page (only its text fades), and fades only past the first row.
+            OrbitDisneyHeroScroll(tracker: heroFade,
+                                  keepsUntil: OrbitDisneyLayout.rowsTop(hulu: isHulu) - OrbitDisneyLayout.restTopNew) {
                 OrbitDisneyHero(item: hero, meta: hero.flatMap { metaStore.meta(for: $0) },
                                 count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                                 focused: pageFocused && current == 0, isHulu: isHulu, brandLogoURL: brandLogoURL,
                                 dotsY: OrbitDisneyLayout.rowsTop(hulu: isHulu) - 44,
                                 newcomer: heroPool.fresh,
+                                fade: heroFade,
                                 trailerURL: trailerURL(for: hero),
                                 onTrailerFailure: { trailer.playbackFailed($0) },
                                 onTrailerEnded: {
@@ -776,6 +780,8 @@ private struct OrbitDisneyHero: View {
     var dotsY: CGFloat = 755
     /// Taken from Disney+'s Nouveautés: "Nouveau film" / "Nouvelle série" even without a date.
     var newcomer = false
+    /// The page's scroll: the text, the logo and the dots fade with it (the art stays).
+    let fade: OrbitScrollTracker
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -811,6 +817,8 @@ private struct OrbitDisneyHero: View {
             .frame(width: size.width, height: size.height)
             .clipped()
 
+            OrbitScrollFaded(tracker: fade, distance: 300) {
+            ZStack(alignment: .topLeading) {
             if let item {
                 info(item)
                     .offset(x: L.margin, y: L.infoTop)
@@ -834,6 +842,9 @@ private struct OrbitDisneyHero: View {
                 }
                 .animation(.easeInOut(duration: 0.3), value: index)
                 .position(x: size.width / 2, y: dotsY)
+            }
+            }
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
@@ -1259,6 +1270,27 @@ final class OrbitHuluRowsModel: ObservableObject {
     }
 }
 
+
+/// The hero following the page's scroll (its bottom in sight above the first row), fading only
+/// once the page goes past it.
+private struct OrbitDisneyHeroScroll<Content: View>: View {
+    @ObservedObject var tracker: OrbitScrollTracker
+    let keepsUntil: CGFloat
+    let content: Content
+
+    init(tracker: OrbitScrollTracker, keepsUntil: CGFloat, @ViewBuilder content: () -> Content) {
+        self.tracker = tracker
+        self.keepsUntil = keepsUntil
+        self.content = content()
+    }
+
+    var body: some View {
+        let y = max(0, tracker.y)
+        content
+            .offset(y: -y)
+            .opacity(Double(1 - min(1, max(0, (y - keepsUntil) / 420))))
+    }
+}
 
 /// Steven: "Nouveau", black on white, on the titles out lately (the last three months).
 struct OrbitNewBadge: View {
