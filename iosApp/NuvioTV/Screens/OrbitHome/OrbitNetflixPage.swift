@@ -354,6 +354,7 @@ struct OrbitNetflixPage: View {
                 OrbitNetflixRowView(row: row, box: leads.box(row.id), isCurrent: s == current, focused: focused,
                                     series: item.map { $0.type != "movie" } ?? series,
                                     rank: item.flatMap { topRank($0) },
+                                    isTop: { topRank($0) != nil },
                                     trailerURL: s == current ? trailerURL(for: item) : nil,
                                     onTrailerFailure: { trailer.playbackFailed($0) },
                                     onTrailerEnded: { trailer.playbackFinished() },
@@ -560,6 +561,47 @@ private struct OrbitNetflixBadge: View {
     }
 }
 
+/// Netflix's words for what is new.
+private func netflixNewsLabel(_ news: OrbitTitleNews) -> String {
+    switch news {
+    case .newSeason: return String(localized: "Nouvelle saison")
+    case .newEpisodes: return String(localized: "Nouveaux épisodes")
+    case .soon: return String(localized: "Bientôt disponible")
+    }
+}
+
+/// Netflix's TOP 10 mark: a small red square, TOP over 10, in the poster's top right corner.
+private struct OrbitNetflixTopMark: View {
+    var body: some View {
+        VStack(spacing: -3) {
+            Text("TOP").font(.system(size: 11, weight: .heavy))
+            Text("10").font(.system(size: 21, weight: .black))
+        }
+        .foregroundStyle(Color.white)
+        .frame(width: 38, height: 46)
+        .background(Rectangle().fill(OrbitNetflixLayout.red))
+        .allowsHitTesting(false)
+    }
+}
+
+/// Netflix's label at the foot of a poster: a red band across its bottom, white text.
+private struct OrbitNetflixFootLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(Color.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 3).fill(OrbitNetflixLayout.red))
+            .padding(.bottom, 10)
+            .allowsHitTesting(false)
+    }
+}
+
 /// "Drame · 2025 · 3 saisons · 16+".
 private func netflixMeta(_ item: MetaPreview, _ meta: OrbitMeta?) -> String {
     var parts: [String] = []
@@ -634,9 +676,10 @@ private struct OrbitNetflixBillboard: View {
             }
             .padding(.leading, 56)
             .padding(.bottom, 56)
-            if let rank {
-                OrbitNetflixBadge(text: series ? String(localized: "N° \(String(rank)) des séries")
-                                               : String(localized: "N° \(String(rank)) des films"))
+            if let text = rank.map({ series ? String(localized: "N° \(String($0)) des séries")
+                                             : String(localized: "N° \(String($0)) des films") })
+                ?? OrbitTitleNews.of(item, meta).map(netflixNewsLabel) {
+                OrbitNetflixBadge(text: text)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(32)
             }
@@ -679,6 +722,8 @@ private struct OrbitNetflixRowView: View {
     let focused: Bool
     let series: Bool
     let rank: Int?
+    /// The title is in one of the page's Top 10s (Netflix's red TOP 10 mark on its poster).
+    var isTop: (MetaPreview) -> Bool = { _ in false }
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -711,9 +756,12 @@ private struct OrbitNetflixRowView: View {
                 let open = isCurrent && index == lead
                 HStack(alignment: .bottom, spacing: 0) {
                     if row.top10 { OrbitNetflixRank(rank: index + 1) }
-                    OrbitNetflixTile(item: item, meta: metaStore.meta(for: item), open: open, focused: lit,
+                    let meta = metaStore.meta(for: item)
+                    OrbitNetflixTile(item: item, meta: meta, open: open, focused: lit,
                                      top10: row.top10,
-                                     badge: open ? badge(rank: rank, fresh: row.fresh) : nil,
+                                     badge: open ? badge(rank: rank, fresh: row.fresh, news: OrbitTitleNews.of(item, meta)) : nil,
+                                     topMark: !row.top10 && isTop(item),
+                                     news: OrbitTitleNews.of(item, meta).map(netflixNewsLabel),
                                      trailerURL: open ? trailerURL : nil,
                                      onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                 }
@@ -753,10 +801,11 @@ private struct OrbitNetflixRowView: View {
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
     }
 
-    private func badge(rank: Int?, fresh: Bool) -> String? {
+    private func badge(rank: Int?, fresh: Bool, news: OrbitTitleNews?) -> String? {
         if let rank, !row.top10 {
             return series ? String(localized: "N° \(String(rank)) des séries") : String(localized: "N° \(String(rank)) des films")
         }
+        if let news { return netflixNewsLabel(news) }
         return fresh ? String(localized: "Récemment ajouté") : nil
     }
 }
@@ -797,6 +846,11 @@ private struct OrbitNetflixTile: View {
     let focused: Bool
     let top10: Bool
     let badge: String?
+    /// Netflix's red TOP 10 mark, top right of the poster (a title of the Top 10, in another row).
+    var topMark = false
+    /// Netflix's label at the foot of the poster ("Nouvelle saison", "Nouveaux épisodes",
+    /// "Bientôt disponible").
+    var news: String? = nil
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -826,6 +880,14 @@ private struct OrbitNetflixTile: View {
                 // (Before TMDB answers for a Top 10 title, the catalog's poster rather than black.)
                 OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: closedSize)
                 if drawsN { OrbitNetflixPosterN(size: closedSize) }
+                if topMark {
+                    OrbitNetflixTopMark()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
+                if let news {
+                    OrbitNetflixFootLabel(text: news)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
             }
             .frame(width: closedSize.width, height: closedSize.height)
             .clipShape(shape)

@@ -269,6 +269,13 @@ struct OrbitPrimePage: View {
     }
 
     private func badge(_ item: MetaPreview) -> String? {
+        // Prime Video's own words, a series' news first (TMDB's episode dates).
+        switch OrbitTitleNews.of(item, metaStore.meta(for: item)) {
+        case .newSeason: return String(localized: "NOUVELLE SAISON")
+        case .newEpisodes: return String(localized: "NOUVEAUX ÉPISODES")
+        case .soon: return String(localized: "BIENTÔT DISPONIBLE")
+        case nil: break
+        }
         guard freshIdentities.contains(Self.identity(item)) else { return nil }
         return item.type == "movie" ? String(localized: "NOUVEAU FILM") : String(localized: "NOUVELLE SÉRIE")
     }

@@ -742,9 +742,18 @@ private struct OrbitAppleTVHero: View {
             .clipped()
 
             VStack(alignment: .leading, spacing: 0) {
-                if isNew {
-                    OrbitAppleTVCapsule(text: item.type == "movie" ? String(localized: "Nouveau film")
-                                                                   : String(localized: "Nouvelle série"))
+                // The TV app's words: a series' new season or episode first, "Bientôt" for what is
+                // announced, else what came out lately.
+                if let text = { () -> String? in
+                    switch OrbitTitleNews.of(item, meta) {
+                    case .newSeason: return String(localized: "Nouvelle saison")
+                    case .newEpisodes: return String(localized: "Nouvel épisode")
+                    case .soon: return String(localized: "Bientôt disponible")
+                    case nil: return isNew ? (item.type == "movie" ? String(localized: "Nouveau film")
+                                                                   : String(localized: "Nouvelle série")) : nil
+                    }
+                }() {
+                    OrbitAppleTVCapsule(text: text)
                         .padding(.bottom, 16)
                 }
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 66,

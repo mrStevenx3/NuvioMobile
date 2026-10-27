@@ -856,8 +856,8 @@ private struct OrbitDisneyPoster: View {
                 .lineLimit(3)
                 .padding(20)
             OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
-            if orbitIsFresh(item, metaStore.meta(for: item)) {
-                OrbitNewBadge().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
+            if let text = orbitDisneyLabel(item, metaStore.meta(for: item)) {
+                OrbitNewBadge(text: text).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
             }
         }
         .frame(width: size.width, height: size.height)
@@ -888,8 +888,8 @@ private struct OrbitDisneyTile: View {
                                fallbackLogo: info.logoFallback)
                     .padding(.leading, 16)
                     .padding(.bottom, 14)
-                if orbitIsFresh(item, meta) {
-                    OrbitNewBadge().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
+                if let text = orbitDisneyLabel(item, meta) {
+                    OrbitNewBadge(text: text).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(12)
                 }
             }
             .frame(width: size.width, height: size.height)
@@ -1037,13 +1037,26 @@ final class OrbitHuluRowsModel: ObservableObject {
 
 /// Steven: "Nouveau", black on white, on the titles out lately (the last three months).
 struct OrbitNewBadge: View {
+    var text: String = String(localized: "Nouveau")
+
     var body: some View {
-        Text(String(localized: "Nouveau"))
+        Text(text)
             .font(.system(size: 16, weight: .bold))
             .foregroundStyle(Color.black)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.white))
+    }
+}
+
+/// Disney+'s label on a tile: a new season or new episodes first, "Bientôt" for what is announced,
+/// else "Nouveau" for what came out lately.
+func orbitDisneyLabel(_ item: MetaPreview, _ meta: OrbitMeta?) -> String? {
+    switch OrbitTitleNews.of(item, meta) {
+    case .newSeason: return String(localized: "Nouvelle saison")
+    case .newEpisodes: return String(localized: "Nouveaux épisodes")
+    case .soon: return String(localized: "Bientôt")
+    case nil: return orbitIsFresh(item, meta) ? String(localized: "Nouveau") : nil
     }
 }
 

@@ -238,6 +238,12 @@ struct OrbitParamountPage: View {
             return item.type == "movie" ? String(localized: "N° \(String(rank)) DU TOP 10 DES FILMS")
                                         : String(localized: "N° \(String(rank)) DU TOP 10 DES SÉRIES")
         }
+        switch OrbitTitleNews.of(item, metaStore.meta(for: item)) {
+        case .newSeason: return String(localized: "NOUVELLE SAISON")
+        case .newEpisodes: return String(localized: "NOUVEL ÉPISODE")
+        case .soon: return String(localized: "BIENTÔT DISPONIBLE")
+        case nil: break
+        }
         guard isNew(item) else { return nil }
         return item.type == "movie" ? String(localized: "NOUVEAU FILM") : String(localized: "NOUVELLE SÉRIE")
     }
@@ -701,10 +707,23 @@ private struct OrbitParamountRowView: View {
     }
 }
 
+/// Paramount+'s words: a series' new season or episodes first, "BIENTÔT" for what is announced,
+/// else "NOUVEAU" for what came out lately.
+private func orbitParamountLabel(_ item: MetaPreview, _ meta: OrbitMeta?, isNew: Bool) -> String? {
+    switch OrbitTitleNews.of(item, meta) {
+    case .newSeason: return String(localized: "NOUVELLE SAISON")
+    case .newEpisodes: return String(localized: "NOUVEL ÉPISODE")
+    case .soon: return String(localized: "BIENTÔT")
+    case nil: return isNew ? String(localized: "NOUVEAU") : nil
+    }
+}
+
 /// The small blue tag top left ("NOUVEAU").
 private struct OrbitParamountNewTag: View {
+    var text: String = String(localized: "NOUVEAU")
+
     var body: some View {
-        Text(String(localized: "NOUVEAU"))
+        Text(text)
             .font(.system(size: 12, weight: .heavy))
             .kerning(0.5)
             .foregroundStyle(Color.white)
@@ -730,8 +749,8 @@ private struct OrbitParamountPoster: View {
         ZStack(alignment: .topLeading) {
             Color(white: 0.12)
             OrbitImage(url: url, fallback: item.rawPosterUrl, mode: .fill, size: size)
-            if isNew {
-                OrbitParamountNewTag().padding(7)
+            if let text = orbitParamountLabel(item, meta, isNew: isNew) {
+                OrbitParamountNewTag(text: text).padding(7)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)

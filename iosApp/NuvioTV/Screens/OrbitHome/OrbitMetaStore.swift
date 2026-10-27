@@ -37,6 +37,12 @@ nonisolated struct OrbitMeta: Equatable, Sendable, Codable {
     var platforms: [Int] = []
     /// The release (a series' first airing), "yyyy-MM-dd" — the "Nouveau" badges.
     var released: String? = nil
+    /// A series' last aired episode ("yyyy-MM-dd", its season and number) and the next one's date
+    /// — the "Nouveaux épisodes" / "Nouvelle saison" badges inside the platforms.
+    var lastAired: String? = nil
+    var lastSeason: Int? = nil
+    var lastEpisode: Int? = nil
+    var nextAired: String? = nil
 }
 
 @MainActor
@@ -70,7 +76,7 @@ final class OrbitMetaStore: ObservableObject {
     private var saveScheduled = false
     private static let cacheFile: URL? = FileManager.default
         .urls(for: .cachesDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("orbit-meta-v1.json")
+        .appendingPathComponent("orbit-meta-v3.json")
     private static let cacheLimit = 4000
 
     private init() {
@@ -286,6 +292,13 @@ final class OrbitMetaStore: ObservableObject {
         let genres: [Genre]?
         let images: Images?
         let backdrop_path: String?
+        nonisolated struct Episode: Decodable {
+            let air_date: String?
+            let season_number: Int?
+            let episode_number: Int?
+        }
+        let last_episode_to_air: Episode?
+        let next_episode_to_air: Episode?
     }
 
     nonisolated enum Outcome: Sendable {
@@ -413,7 +426,11 @@ final class OrbitMetaStore: ObservableObject {
                          seasons: d.number_of_seasons,
                          platforms: ((try? JSONDecoder().decode(ProvidersOnly.self, from: body))?.providers?.results?[region]?
                              .flatrate ?? []).map(\.provider_id),
-                         released: d.release_date ?? d.first_air_date))
+                         released: d.release_date ?? d.first_air_date,
+                         lastAired: d.last_episode_to_air?.air_date,
+                         lastSeason: d.last_episode_to_air?.season_number,
+                         lastEpisode: d.last_episode_to_air?.episode_number,
+                         nextAired: d.next_episode_to_air?.air_date))
     }
 }
 
@@ -463,5 +480,48 @@ struct OrbitMetaLine: View {
         }
         .font(.system(size: size, weight: .semibold))
         .lineLimit(1)
+    }
+}
+
+
+/// What is new about a title, as the platforms' own apps mark it on their tiles.
+nonisolated enum OrbitTitleNews: Equatable, Sendable {
+    /// A new season out (its first episodes within the last weeks).
+    case newSeason
+    /// New episodes of a running season.
+    case newEpisodes
+    /// Announced, not out yet.
+    case soon
+
+    private static func day(_ raw: String?) -> Date? {
+        guard let raw, raw.count >= 10 else { return nil }
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f.date(from: String(raw.prefix(10)))
+    }
+
+    /// From TMDB's dates (a series' episodes, a film's release).
+    static func of(_ item: MetaPreview, _ meta: OrbitMeta?) -> OrbitTitleNews? {
+        let now = Date()
+        let dayLength: TimeInterval = 24 * 3600
+        let release = day(meta?.released) ?? day(item.rawReleaseDate)
+        if let release, release > now { return .soon }
+        guard item.type != "movie", let meta, let last = day(meta.lastAired) else { return nil }
+        let since = now.timeIntervalSince(last) / dayLength
+        guard since >= 0, since <= 21 else { return nil }
+        let season = meta.lastSeason ?? 1
+        // A first season still airing: its new episodes (once the series is no longer brand new —
+        // the "Nouveau" badges cover its first weeks).
+        if season <= 1 {
+            let firstWeeks = release.map { now.timeIntervalSince($0) / dayLength < 21 } ?? true
+            return firstWeeks ? nil : .newEpisodes
+        }
+        // A later season: new while its opening episodes are the latest (a whole season dropped at
+        // once has no next episode).
+        let weekly = meta.nextAired != nil
+        if !weekly || (meta.lastEpisode ?? 1) <= 2 { return .newSeason }
+        return .newEpisodes
     }
 }

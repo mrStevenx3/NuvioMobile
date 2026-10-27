@@ -638,12 +638,24 @@ private struct OrbitHBOMark: View {
     }
 }
 
+/// HBO Max's words: a series' new season or episodes first, "BIENTÔT" for what is announced, else
+/// "NOUVEAU" for what came out lately.
+private func orbitHBOLabel(_ item: MetaPreview, _ meta: OrbitMeta?, isNew: Bool) -> String? {
+    switch OrbitTitleNews.of(item, meta) {
+    case .newSeason: return String(localized: "NOUVELLE SAISON")
+    case .newEpisodes: return String(localized: "NOUVEL ÉPISODE")
+    case .soon: return String(localized: "BIENTÔT")
+    case nil: return isNew ? String(localized: "NOUVEAU") : nil
+    }
+}
+
 /// The blue "NOUVEAU" tag.
 private struct OrbitHBONewTag: View {
+    var text: String = String(localized: "NOUVEAU")
     var size: CGFloat = 15
 
     var body: some View {
-        Text(String(localized: "NOUVEAU"))
+        Text(text)
             .font(.system(size: size, weight: .heavy))
             .kerning(size * 0.06)
             .foregroundStyle(Color.white)
@@ -705,7 +717,7 @@ private struct OrbitHBOHero: View {
                                fallbackLogo: info.logoFallback, hugsLogo: true)
                     .frame(width: L.logoSize.width, alignment: .leading)
                 HStack(spacing: 12) {
-                    if isNew { OrbitHBONewTag() }
+                    if let text = orbitHBOLabel(item, meta, isNew: isNew) { OrbitHBONewTag(text: text) }
                     Text(info.parts.joined(separator: "  ·  "))
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(Color.white.opacity(0.75))
@@ -905,8 +917,8 @@ private struct OrbitHBOTile: View {
                            fallbackLogo: info.logoFallback)
                 .padding(.leading, 16)
                 .padding(.bottom, 14)
-            if isNew {
-                OrbitHBONewTag(size: 13)
+            if let text = orbitHBOLabel(item, meta, isNew: isNew) {
+                OrbitHBONewTag(text: text, size: 13)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(8)
             }
@@ -935,8 +947,8 @@ private struct OrbitHBOPoster: View {
         ZStack(alignment: .topLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
             if let url { OrbitImage(url: url, fallback: ranked ? nil : item.rawPosterUrl, mode: .fill, size: size) }
-            if isNew {
-                OrbitHBONewTag(size: 13)
+            if let text = orbitHBOLabel(item, meta, isNew: isNew) {
+                OrbitHBONewTag(text: text, size: 13)
                     .padding(8)
             }
         }
