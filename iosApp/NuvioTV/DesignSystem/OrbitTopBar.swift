@@ -148,13 +148,14 @@ struct OrbitTopBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: OrbitBarMetrics.groupGap) {
-            // Steven (2026-10-23, like his reference): the bar on the right — one block with the
-            // pages, Plateformes / Studios split off by a rule inside it, and Settings in a block
-            // of its own at the far right.
-            Spacer(minLength: 0)
+        // Steven (2026-10-27): the pages' block at the screen's centre (as the platforms' bars now),
+        // Plateformes / Studios split off by a rule inside it; Settings and the profile in a block
+        // of their own at the far right.
+        ZStack {
             pill([[.search, .films, .series, .library, .discover], [.services, .studios]])
+                .frame(maxWidth: .infinity, alignment: .center)
             pill([[.settings, .profile]])
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.trailing, OrbitBarMetrics.leading)
         // Orbit Home: out of reach while the page is scrolled down (Up is the page's own).
