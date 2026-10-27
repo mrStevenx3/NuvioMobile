@@ -924,7 +924,7 @@ private struct OrbitNetflixRank: View {
     static let lead: CGFloat = 30
 
     static func figureWidth(_ rank: Int) -> CGFloat {
-        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.02 : 0)
+        figureHeight * OrbitGlyphShape.aspect("\(rank)", tracking: rank == 10 ? -0.11 : 0)
     }
 
     /// The room the figure takes before its tile.
@@ -933,7 +933,7 @@ private struct OrbitNetflixRank: View {
     var body: some View {
         let height = Self.figureHeight
         let width = Self.figureWidth(rank)
-        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0)
+        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.11 : 0)
         shape.fill(Color.black)
             .overlay {
                 // Netflix: a light grey line, fading into the tile's shadow just before the tile.
