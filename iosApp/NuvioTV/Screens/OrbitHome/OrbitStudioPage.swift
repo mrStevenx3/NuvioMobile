@@ -623,6 +623,9 @@ struct OrbitStudioIntro: View {
 
     private enum Phase { case black, splash, corner }
 
+    /// The next opening skipped (Disney+'s brands open their studio at once).
+    static var skipNext = false
+
     /// The page's studio logo: its box and place (top right of the banner).
     /// Steven: level with the Orbit bar (its centre line), at its right end.
     static let cornerBox = CGSize(width: 300, height: OrbitPlatformIntro.cornerHeight)
@@ -660,6 +663,16 @@ struct OrbitStudioIntro: View {
         .allowsHitTesting(false)
         .onAppear {
             appearedAt = Date()
+            // Opened from Disney+'s brands (Steven): no opening, the page at once.
+            if Self.skipNext {
+                Self.skipNext = false
+                started = true
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { phase = .corner; veil = 0; dim = 0; glow = 0 }
+                onDone()
+                return
+            }
             // Pushed under the Studios page's curtain, which already shows this very opening: the
             // page starts at the same point, the curtain goes once the push is over.
             if OrbitPlatformCurtain.shared.down {

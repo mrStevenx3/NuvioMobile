@@ -39,7 +39,8 @@ enum OrbitDisneyLayout {
     /// The platform's logo at the hero's bottom right (Steven).
     static let cornerLogo = CGSize(width: 190, height: 64)
     static var cornerLogoCentre: CGPoint {
-        CGPoint(x: OrbitHomeLayout.screenWidth - margin - cornerLogo.width / 2, y: 715)
+        // (Steven: it floated mid-hero — at the bottom right, on the dots' line, right on the margin.)
+        CGPoint(x: OrbitHomeLayout.screenWidth - margin - cornerLogo.width / 2, y: rowsTop(hulu: false) - 44 - 6)
     }
     static let headingHeight: CGFloat = 54
     static let tile = CGSize(width: 400, height: 225)
@@ -270,19 +271,29 @@ struct OrbitDisneyPage: View {
     }
 
     /// The hero's titles: the new films and series in turn (Disney+), the most popular (Hulu).
-    private var heroItems: [MetaPreview] {
+    /// The hero's candidates, before the ones without a logo are left out.
+    private var heroPool: (items: [MetaPreview], fresh: Bool) {
         if isHulu {
-            let items = Self.alternate(hulu.seriesRows.first?.items ?? [], hulu.movieRows.first?.items ?? [])
-            return Array(items.prefix(6))
+            return (Self.alternate(hulu.seriesRows.first?.items ?? [], hulu.movieRows.first?.items ?? []), false)
         }
         let fresh = model.stripRows.filter { row in
             let h = row.heading.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             return row.status == .loaded && (h.contains("nouveau") || h.contains("nouvelle"))
         }.map { $0.section?.items ?? [] }
-        var items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : fresh.first ?? []
-        if items.isEmpty { items = rows.first(where: { !$0.top10 && !$0.brands })?.items ?? [] }
+        let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : fresh.first ?? []
+        if items.isEmpty { return (rows.first(where: { !$0.top10 && !$0.brands })?.items ?? [], false) }
+        return (items, true)
+    }
+
+    private var heroItems: [MetaPreview] {
         // Steven: Swiping Right on the Devil (Hulu's) in Disney+'s hero — Hulu's titles left out.
-        return Array(items.filter { $0.banner != nil && !orbitIsHuluTitle(metaStore.meta(for: $0)) }.prefix(6))
+        // Steven: a title whose logo is missing (its name written instead) is left out of the hero,
+        // once its details are known.
+        Array(heroPool.items.filter { item in
+            guard item.banner != nil else { return false }
+            guard let meta = metaStore.meta(for: item) else { return true }
+            return (isHulu || !orbitIsHuluTitle(meta)) && OrbitInfo.make(item, meta: meta).logo != nil
+        }.prefix(6))
     }
 
     private var sectionCount: Int { 1 + rows.count }
@@ -347,6 +358,7 @@ struct OrbitDisneyPage: View {
                                 count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                                 focused: pageFocused && current == 0, isHulu: isHulu, brandLogoURL: brandLogoURL,
                                 dotsY: OrbitDisneyLayout.rowsTop(hulu: isHulu) - 44,
+                                newcomer: heroPool.fresh,
                                 trailerURL: trailerURL(for: hero),
                                 onTrailerFailure: { trailer.playbackFailed($0) },
                                 onTrailerEnded: {
@@ -585,10 +597,12 @@ struct OrbitDisneyPage: View {
             if row.brands {
                 let brand = OrbitDisneyBrand.all[lead(of: row)]
                 let route = brand.route()
+                // Steven: from Disney+, no opening — neither the studio's going in, nor Disney+'s
+                // coming back (the way back counts as a title's).
                 if let pushStudio {
-                    let look = OrbitPlatformLook(title: route.name, logoUrl: route.logo,
-                                                 brand: OrbitDisneyLayout.brandBlue, studio: true)
-                    OrbitPlatformCurtain.shared.drop(look: look) { pushStudio(route) }
+                    OrbitStudioIntro.skipNext = true
+                    OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
+                    pushStudio(route)
                 }
                 return
             }
@@ -646,6 +660,8 @@ struct OrbitDisneyPage: View {
         var metaItems: [MetaPreview] = []
         if let heroItem { metaItems.append(heroItem) }
         metaItems += heroItems
+        // (The candidates' details asked, the ones without a logo found out.)
+        metaItems += heroPool.items.prefix(16)
         let r = rowIndex(of: current) ?? 0
         for i in max(0, r - 1)...max(0, min(rows.count - 1, r + 2)) where rows.indices.contains(i) {
             let row = rows[i]
@@ -682,6 +698,8 @@ private struct OrbitDisneyHero: View {
     let brandLogoURL: String?
     /// The dots' line (Disney+: centred on the screen, under the hero).
     var dotsY: CGFloat = 755
+    /// Taken from Disney+'s Nouveautés: "Nouveau film" / "Nouvelle série" even without a date.
+    var newcomer = false
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -724,7 +742,7 @@ private struct OrbitDisneyHero: View {
             // Steven: the platform's logo at the hero's bottom right, in white (where the opening's
             // logo glides to).
             OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: L.cornerLogo.height,
-                                 alignment: .center, huluInColour: true)
+                                 alignment: .trailing, huluInColour: true)
                 .frame(width: L.cornerLogo.width, height: L.cornerLogo.height)
                 .shadow(color: .black.opacity(0.45), radius: 8)
                 .position(L.cornerLogoCentre)
@@ -746,6 +764,18 @@ private struct OrbitDisneyHero: View {
         .allowsHitTesting(false)
     }
 
+    private func heroNews(_ item: MetaPreview) -> String? {
+        let tv = item.type == "series" || item.type == "tv"
+        switch OrbitTitleNews.of(item, meta) {
+        case .newSeason: return String(localized: "Nouvelle saison")
+        case .newEpisodes: return String(localized: "Nouveaux épisodes")
+        case .soon: return String(localized: "Bientôt")
+        case nil:
+            guard newcomer || orbitIsFresh(item, meta) else { return nil }
+            return tv ? String(localized: "Nouvelle série") : String(localized: "Nouveau film")
+        }
+    }
+
     private func info(_ item: MetaPreview) -> some View {
         let L = OrbitDisneyLayout.self
         let info = OrbitInfo.make(item, meta: meta)
@@ -763,6 +793,12 @@ private struct OrbitDisneyHero: View {
                                fallbackLogo: info.logoFallback, hugsLogo: true)
             }
             .frame(width: L.logoSize.width, height: 52 + 6 + L.logoSize.height, alignment: .bottomLeading)
+            // Steven: "Nouveau film" / "Nouvelle série" on the hero's newcomers (a new season or
+            // new episodes first).
+            if let news = heroNews(item) {
+                OrbitNewBadge(text: news)
+                    .padding(.top, 22)
+            }
             OrbitDisneyMetaLine(certification: meta?.certification, parts: info.parts)
                 .padding(.top, 24)
             Text(info.synopsis)
@@ -1583,7 +1619,10 @@ private struct OrbitDisneyPosterNew: View {
                 .lineLimit(3)
                 .padding(20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fill, size: size)
+            // (Steven: Disney+'s and Hulu's marks on every poster — the catalog's art carries them:
+            // TMDB's French poster first, the catalog's only without one.)
+            OrbitImage(url: meta?.localPoster ?? meta?.titledPoster ?? item.poster, fallback: item.poster ?? item.rawPosterUrl,
+                       mode: .fill, size: size)
             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.72), endPoint: .bottom)
             if let text = orbitDisneyLabel(item, meta) {
                 OrbitNewBadge(text: text)
@@ -1658,7 +1697,7 @@ private struct OrbitDisneyTop10Poster: View {
         let size = L.posterNew
         let genre: String? = meta?.genre ?? item.genres.first
         // (Steven: some posters came up empty — TMDB's when the catalog has none.)
-        let poster: String? = item.poster ?? meta?.titledPoster ?? meta?.cleanPoster
+        let poster: String? = meta?.localPoster ?? meta?.titledPoster ?? item.poster ?? meta?.cleanPoster
         ZStack(alignment: .topLeading) {
             OrbitDisneyTop10Corner.ground
             OrbitImage(url: poster, fallback: meta?.cleanPoster ?? item.rawPosterUrl, mode: .fill, size: size)
@@ -1758,6 +1797,8 @@ private struct OrbitDisneyBrandsHub: View {
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($browseFocused)
+                        // (Steven: Up from the row below took two presses — it stopped here first.)
+                        .disabled(!isCurrent)
                     }
                     .frame(width: 720)
                     ZStack(alignment: .leading) {
@@ -1772,6 +1813,10 @@ private struct OrbitDisneyBrandsHub: View {
                         .transition(.opacity)
                     }
                 }
+                .frame(width: W, alignment: .leading)
+                // (Steven: TOUT PARCOURIR out of reach from Star Wars or National Geographic — Down
+                // from any pill finds it.)
+                .focusSection()
                 .padding(.top, 34)
                 .animation(.easeInOut(duration: 0.4), value: brand.name)
                 .animation(.easeInOut(duration: 0.3), value: titles.count)
