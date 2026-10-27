@@ -150,12 +150,20 @@ struct OrbitNativeHome: View {
             }
         }
         .onAppear {
-            if let back = OrbitNativeRow.reopen, rows.contains(where: { $0.id == back.row }) {
+            // Only the way back from a title opened here: a remembered title from long ago (Steven:
+            // after a platform, Home came back on its last row every time) is forgotten.
+            if let back = OrbitNativeRow.reopen, rows.contains(where: { $0.id == back.row }),
+               ProcessInfo.processInfo.systemUptime - OrbitNativeRow.reopenedAt < 600,
+               OrbitNavClock.titleOpenedAt >= OrbitNativeRow.reopenedAt - 1 {
                 heroLocked = true
                 returnRow = back.row
                 position = back.row
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false; returnRow = nil }
+            } else {
+                OrbitNativeRow.reopen = nil
             }
+            // Never kept beyond this return.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { OrbitNativeRow.reopen = nil }
             trailers.suspended = !active
             if active { OrbitBarLock.shared.set(!onHero) }
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
@@ -556,6 +564,7 @@ struct OrbitNativeRow: View {
     /// The title opened from Home (row, card): the focus is put back on it on the way back
     /// (Steven: it came back on the card to its left).
     @MainActor static var reopen: (row: String, card: String)?
+    @MainActor static var reopenedAt: TimeInterval = 0
     /// Each row's scroll (where it comes back to on the way back from a title).
     @MainActor static var offsets: [String: CGFloat] = [:]
 
@@ -584,6 +593,7 @@ struct OrbitNativeRow: View {
 
     private func open(_ card: OrbitCard) {
         Self.reopen = (row.id, card.id)
+        Self.reopenedAt = ProcessInfo.processInfo.systemUptime
         lockForReturn(card.id)
         trailers.stop(abort: true)
         trailers.suspended = true

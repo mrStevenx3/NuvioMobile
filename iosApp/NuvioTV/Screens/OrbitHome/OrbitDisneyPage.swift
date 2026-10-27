@@ -286,6 +286,9 @@ struct OrbitDisneyPage: View {
                 .animation(reduceMotion ? nil : OrbitDisneyLayout.vertical, value: offset < 1)
 
                             nativeSections(rows)
+                    // A page of its own for each mode (Steven, Hulu: the Disney+ page's scroll and
+                    // row places stayed — no hero, rows over each other).
+                    .id(mode)
                     .disabled(search != nil)
             
 
