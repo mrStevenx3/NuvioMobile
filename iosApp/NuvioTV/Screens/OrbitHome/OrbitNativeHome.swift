@@ -596,7 +596,7 @@ struct OrbitNativeRow: View {
 }
 
 /// The classic row's tile: the open 16:9 frame (art, logo, badge) for its title, else a poster.
-private struct OrbitNativeClassicTile: View {
+struct OrbitNativeClassicTile: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let trailers: OrbitNativeTrailerHost

@@ -70,6 +70,9 @@ enum OrbitStudioRowKind: Equatable {
     /// Steven (2026-10-25): Orbit's own Top 10 (TMDB), drawn as Home's — the rank beside the
     /// poster, in the poster's colour (his add-on's images are no longer used).
     case ranked
+    /// Steven (2026-10-27): the studio's new films as Home's first row — the focused one open in
+    /// a 16:9 frame at the margin, its details under the row, the others as posters after it.
+    case classic
 }
 
 /// One row of the studio page.
@@ -89,15 +92,18 @@ struct OrbitStudioRow: Identifiable, Equatable {
         case .saga: return CGSize(width: 220, height: 330)
         // Steven (2026-10-25): his Top 10 images much larger than the other posters.
         case .posters(let transparent):
-            return transparent ? CGSize(width: 274, height: 412) : CGSize(width: 196, height: 294)
+            // (Steven, 2026-10-27: Home's poster size — the same grid on both pages.)
+            return transparent ? CGSize(width: 274, height: 412) : OrbitTileLayout.poster
         // Steven (2026-10-25): 15 % larger beside the saga's big band.
         case .ranked: return CGSize(width: OrbitTileLayout.rankedPoster.width * Self.rankedScale,
                                     height: OrbitTileLayout.rankedPoster.height * Self.rankedScale)
+        case .classic: return CGSize(width: OrbitHomeLayout.posterWidth, height: OrbitHomeLayout.cardHeight)
         }
     }
 
     var gap: CGFloat {
         if case .posters = kind { return 22 }
+        if kind == .classic { return OrbitHomeLayout.gap }
         if kind == .ranked { return 18 }
         return 26
     }
@@ -105,9 +111,12 @@ struct OrbitStudioRow: Identifiable, Equatable {
     /// The focused film's info shows under the row (not for a saga's shelf: its band is the info).
     /// (Steven, 2026-10-27, as on Home: the title's details only under the 16:9 cards — Les
     /// incontournables; the posters' rows are cleaner without, and scroll as Apple's app does.)
-    var showsInfo: Bool { kind == .featured }
+    /// (Steven, 2026-10-27: under the new films' open frame only — Les incontournables carry their
+    /// title on their art.)
+    var showsInfo: Bool { kind == .classic }
 
-    static let rankedScale: CGFloat = 1.15
+    /// (Steven, 2026-10-27: Home's size — the same Top 10 on both pages.)
+    static let rankedScale: CGFloat = 1.0
 
     /// A saga shelf's first place (its logo and TOUT VOIR).
     /// (Steven: the posters sat too far right of the left-aligned logo and text: narrower.)
@@ -699,9 +708,11 @@ struct OrbitStudioIntro: View {
         }
         // 0 s: the logo fades in, large, in the middle (already there under the curtain).
         if !fromSplash { withAnimation(.easeOut(duration: 0.55)) { phase = .splash } }
-        // Then it lights up: a flash, a soft glow left on it.
-        at(fromSplash ? 0.55 : 0.6) { withAnimation(.easeOut(duration: 0.22)) { dim = 0; glow = 1 } }
-        at(fromSplash ? 0.8 : 0.85) { withAnimation(.easeInOut(duration: 0.5)) { glow = 0.35 } }
+        // Then it lights up as a neon sign: two flickers, its flash, a soft glow left on it.
+        OrbitNeon.play(at: fromSplash ? 0.5 : 0.35) { d, g, animation in
+            guard phase == .splash else { return }
+            withAnimation(animation) { dim = d; glow = g }
+        }
         // 1.5 s: it glides to its place, the page fades in under it.
         at(1.5) {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.9)) { phase = .corner }
@@ -812,7 +823,8 @@ private struct OrbitNativeStudioRow: View {
                             onOpen(item)
                         } label: {
                             OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
-                                                  trailers: trailers)
+                                                  trailers: trailers,
+                                                  open: row.kind == .classic && index == (shown ?? 0))
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
@@ -827,6 +839,8 @@ private struct OrbitNativeStudioRow: View {
                 }
                 .scrollTargetLayout()
                 .padding(.vertical, 34)
+                // The frame opening on the new title and closing on the old one, on the row's curve.
+                .animation(row.kind == .classic ? OrbitHomeLayout.horizontal : nil, value: shown)
             }
             // A row with its title's details under it is pinned: placed by its anchor alone (the
             // alignment snapped it back — Steven, simulator: the title stopped second).
@@ -903,8 +917,8 @@ private struct OrbitNativeStudioRow: View {
                 onEnter()
             }
             shown = new
-            // The trailer plays in the featured cards only.
-            if row.kind == .featured, row.items.indices.contains(new) {
+            // The trailer plays in the featured cards and the new films' open frame.
+            if row.kind == .featured || row.kind == .classic, row.items.indices.contains(new) {
                 let item = row.items[new]
                 trailers.arm("\(row.id)|\(item.type):\(item.id)", item: item)
             } else {
@@ -981,6 +995,8 @@ private struct OrbitNativeStudioTile: View {
     let index: Int
     let meta: OrbitMeta?
     let trailers: OrbitNativeTrailerHost
+    /// The new films' row: this title is the open one.
+    var open = false
     @Environment(\.isFocused) private var systemFocused
     /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
     /// focus seen going left, then coming back).
@@ -1009,6 +1025,9 @@ private struct OrbitNativeStudioTile: View {
                 OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
                                 meta: meta, rank: index + 1, focused: isFocused, showsBadge: false,
                                 scale: OrbitStudioRow.rankedScale)
+            case .classic:
+                OrbitNativeClassicTile(card: OrbitCard.catalog(item), meta: meta, trailers: trailers,
+                                       trailerKey: "\(row.id)|\(item.type):\(item.id)", open: open)
             }
         }
         .animation(.easeOut(duration: 0.18), value: isFocused)
@@ -1277,6 +1296,8 @@ private struct OrbitStudioRowView: View {
                             trailerURL: trailer, onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
         case .posters(let transparent):
             OrbitStudioPoster(item: item, size: size, transparent: transparent, focused: focused)
+        case .classic:
+            OrbitStudioPoster(item: item, size: size, transparent: false, focused: focused)
         case .ranked:
             OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
                             meta: metaStore.meta(for: item), rank: (row.items.firstIndex { $0.id == item.id } ?? 0) + 1,
@@ -1574,6 +1595,13 @@ final class OrbitStudioModel: ObservableObject {
             if heading.contains("top 10") || heading.contains("top10") { return nil }
             return OrbitStudioRow(id: "folder-\(row.id)", title: row.heading, items: items,
                                   kind: .posters(transparent: false))
+        }
+        // The first row of new films drawn as Home's first row (Steven).
+        if let i = folderRows.firstIndex(where: {
+            $0.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).contains("nouveau")
+        }) {
+            let r = folderRows[i]
+            folderRows[i] = OrbitStudioRow(id: r.id, title: r.title, items: r.items, kind: .classic)
         }
         checkRuntimes()
         publish()

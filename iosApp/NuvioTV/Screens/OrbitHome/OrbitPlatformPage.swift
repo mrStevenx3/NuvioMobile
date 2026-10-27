@@ -740,7 +740,7 @@ struct OrbitPlatformIntro: View {
                 if reduceMotion { dim = 0; glow = 0 } else {
                     withTransaction(still) { dim = 1; glow = 0 }
                     // (Once the curtain has gone: the logo lights up on the page.)
-                    lightUp(at: 0.55)
+                    lightUp(at: 0.5)
                     let work = DispatchWorkItem {
                         withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
                         withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
@@ -821,7 +821,7 @@ struct OrbitPlatformIntro: View {
             return
         }
         withAnimation(.easeOut(duration: 0.35)) { phase = .splash }
-        lightUp(at: 0.45)
+        lightUp(at: 0.3)
         // The curtain the page was pushed under goes once the logo shows on the page's own black.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { OrbitPlatformCurtain.shared.lift() }
         let work = DispatchWorkItem {
@@ -832,13 +832,29 @@ struct OrbitPlatformIntro: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.3, execute: work)
     }
 
-    /// The logo switched on: a quick flash of light, then a soft glow left on it.
+    /// The logo switched on as a neon sign: two quick flickers, then full light with its flash,
+    /// then a soft glow left on it (Steven: "comme si on allumait le logo").
     private func lightUp(at delay: Double) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            withAnimation(.easeOut(duration: 0.22)) { dim = 0; glow = 1 }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                withAnimation(.easeInOut(duration: 0.5)) { glow = 0.35 }
-            }
+        OrbitNeon.play(at: delay) { d, g, animation in
+            guard phase == .splash else { return }
+            withAnimation(animation) { dim = d; glow = g }
+        }
+    }
+}
+
+/// The neon's switching on: (dim, glow) steps, each with its animation.
+enum OrbitNeon {
+    static func play(at delay: Double, _ step: @escaping (Double, Double, Animation) -> Void) {
+        let steps: [(Double, Double, Double, Animation)] = [
+            (0.00, 0.35, 0.55, .linear(duration: 0.04)),   // a first flicker
+            (0.06, 1.00, 0.00, .linear(duration: 0.05)),   // off again
+            (0.16, 0.15, 0.75, .linear(duration: 0.04)),   // a second one
+            (0.22, 0.70, 0.10, .linear(duration: 0.05)),   // almost off
+            (0.32, 0.00, 1.00, .easeOut(duration: 0.18)),  // on: the flash
+            (0.58, 0.00, 0.35, .easeInOut(duration: 0.5)), // its glow left on
+        ]
+        for (at, d, g, animation) in steps {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay + at) { step(d, g, animation) }
         }
     }
 }
@@ -851,8 +867,9 @@ struct OrbitLightUp: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .brightness(-0.5 * dim + 0.18 * glow)
-            .saturation(1 - 0.6 * dim)
+            // (Steven: too dark while off — it reads, only asleep.)
+            .brightness(-0.3 * dim + 0.18 * glow)
+            .saturation(1 - 0.4 * dim)
             .shadow(color: .white.opacity(0.55 * glow), radius: 16 * glow)
             .shadow(color: tint.opacity(0.9 * glow), radius: 50 * glow)
     }
