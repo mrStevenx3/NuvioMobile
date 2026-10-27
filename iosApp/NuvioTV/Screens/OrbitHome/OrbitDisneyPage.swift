@@ -1558,21 +1558,23 @@ private struct OrbitDisneyOpenRow: View {
                                  }) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
-                if opens && slot == leadSlot {
-                    // The frame is drawn by the row, fixed: the tile keeps its room.
-                    Color.clear
-                        .frame(width: L.open.width, height: L.open.height)
-                        .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named("disneyRow")).minX }) { x in
-                            if row.top10, openX != x { openX = x }
+                let isLead = opens && slot == leadSlot
+                // The frame is drawn by the row, fixed: the lead tile keeps its room, its poster kept
+                // (hidden) under it — Steven's video, Left: the title just left showed a hole a
+                // beat, its poster drawn anew.
+                ZStack(alignment: .leading) {
+                    Group {
+                        if row.top10 {
+                            OrbitDisneyTop10Poster(item: item, meta: metaStore.meta(for: item), rank: index + 1,
+                                                   focused: lit && !isLead)
+                        } else {
+                            OrbitDisneyPosterNew(item: item, meta: metaStore.meta(for: item),
+                                                 rank: nil, isHulu: isHulu, focused: lit && !isLead)
                         }
-                } else {
-                    if row.top10 {
-                        OrbitDisneyTop10Poster(item: item, meta: metaStore.meta(for: item), rank: index + 1, focused: lit)
-                    } else {
-                        OrbitDisneyPosterNew(item: item, meta: metaStore.meta(for: item),
-                                             rank: nil, isHulu: isHulu, focused: lit)
                     }
+                    .opacity(isLead ? 0 : 1)
                 }
+                .frame(width: isLead ? L.open.width : nil, height: isLead ? L.open.height : nil, alignment: .leading)
             }
             // Arriving on the row, it is open at once (only Left / Right move the frame's content).
             .animation(nil, value: isCurrent)
