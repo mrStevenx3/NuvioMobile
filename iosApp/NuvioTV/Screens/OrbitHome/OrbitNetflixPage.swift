@@ -989,6 +989,13 @@ struct OrbitGlyphShape: Shape {
             if let g = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
                 // Flipped: CoreText draws upwards.
                 combined.addPath(g, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: x, ty: 0))
+                // Steven: Netflix's 1 stands on a foot (a flat base across its stem).
+                if chars[i] == UInt16(UInt8(ascii: "1")) {
+                    let box = g.boundingBoxOfPath
+                    let foot = box.height * 0.15
+                    let reach = box.width * 0.22
+                    combined.addRect(CGRect(x: x + box.minX, y: -foot, width: box.width + reach, height: foot))
+                }
             }
             x += advances[i].width + tracking * 200
         }
