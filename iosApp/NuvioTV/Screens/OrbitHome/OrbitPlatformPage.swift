@@ -664,6 +664,9 @@ struct OrbitPlatformIntro: View {
     var assetLogo: String? = nil
     /// The asset keeps its own colours (Netflix's red N) instead of being drawn in white.
     var assetInColour = false
+    /// Steven (Disney+): no corner logo — the logo goes out as it would glide there (the page
+    /// shows it in its bar and its hero).
+    var hidesCorner = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .hidden
@@ -700,9 +703,9 @@ struct OrbitPlatformIntro: View {
         let scale: CGFloat = switch phase {
         case .hidden: Self.splashScale * 0.85
         case .splash: Self.splashScale
-        case .settled: Self.cornerScale
+        case .settled: hidesCorner ? Self.splashScale * 1.08 : Self.cornerScale
         }
-        let centre: CGPoint = phase == .settled
+        let centre: CGPoint = phase == .settled && !hidesCorner
             ? CGPoint(x: W - Self.cornerInset - size.width * Self.cornerScale / 2,
                       y: Self.cornerInset + size.height * Self.cornerScale / 2)
             : CGPoint(x: W / 2, y: H / 2)
@@ -720,7 +723,7 @@ struct OrbitPlatformIntro: View {
                 // Steven: the logo switched on — it comes up dim, lights up, then takes the viewer in.
                 .modifier(OrbitLightUp(dim: dim, glow: glow, tint: brand))
                 .scaleEffect(scale, anchor: .center)
-                .opacity(phase == .hidden ? 0 : 1)
+                .opacity(phase == .hidden || (hidesCorner && phase == .settled) ? 0 : 1)
                 .offset(x: centre.x - size.width / 2, y: centre.y - size.height / 2)
         }
         .frame(width: W, height: H, alignment: .topLeading)

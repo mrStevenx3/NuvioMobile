@@ -745,6 +745,8 @@ struct CollectionFilterBar: View {
     /// Steven (Disney+, 2026-10-25): a second pill at the screen's centre ("Disney+ · Hulu").
     var switchItems: [String] = []
     var switchSelection: Binding<Int>? = nil
+    /// Steven (Disney+): each switch item drawn as its logo (`lit`: on the white focused pill).
+    var switchLogo: ((_ index: Int, _ lit: Bool) -> AnyView)? = nil
 
     @FocusState private var focused: OrbitBarItem?
     @FocusState private var switchFocused: Int?
@@ -782,10 +784,16 @@ struct CollectionFilterBar: View {
                 Button {
                     switchSelection?.wrappedValue = index
                 } label: {
-                    Text(title)
-                        .font(.system(size: OrbitBarMetrics.fontSize, weight: .semibold))
-                        .lineLimit(1)
-                        .fixedSize()
+                    Group {
+                        if let switchLogo {
+                            switchLogo(index, lit)
+                        } else {
+                            Text(title)
+                                .font(.system(size: OrbitBarMetrics.fontSize, weight: .semibold))
+                                .lineLimit(1)
+                                .fixedSize()
+                        }
+                    }
                         .padding(.horizontal, OrbitBarMetrics.textPadding + 6)
                         .foregroundStyle(lit ? Color.black : Color.white)
                         .frame(minHeight: OrbitBarMetrics.itemHeight)
@@ -877,7 +885,8 @@ struct CollectionFilterBar: View {
     }
 
     private var items: [OrbitBarItem] {
-        guard showsTypes else { return [.home, .search] }
+        // Steven (Disney+): "Accueil" as on Netflix, even without Films / Séries.
+        guard showsTypes else { return showsAll ? [.home, .search, .everything] : [.home, .search] }
         let base: [OrbitBarItem] = showsAll ? [.home, .search, .everything, .films, .series] : [.home, .search, .films, .series]
         return showsHBO ? base + [.hbo] : base
     }

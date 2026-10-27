@@ -255,6 +255,11 @@ struct OrbitDisneyPage: View {
         min(leads[row.id] ?? 0, max(0, row.items.count - 1))
     }
 
+    /// Disney+'s logo (drawn white in the bar and over the hero's title).
+    private var brandLogoURL: String? {
+        OrbitPlatformLogos.url(.disney) ?? model.titleLogoUrl ?? route.titleLogoUrl
+    }
+
     private var heroItem: MetaPreview? {
         let items = heroItems
         return items.isEmpty ? nil : items[min(heroIndex, items.count - 1)]
@@ -275,7 +280,7 @@ struct OrbitDisneyPage: View {
             // place and fades with the page's move; the tiles and rows move up over it.
             OrbitDisneyHero(item: hero, meta: hero.flatMap { metaStore.meta(for: $0) },
                             count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
-                            focused: pageFocused && current == 0, isHulu: isHulu,
+                            focused: pageFocused && current == 0, isHulu: isHulu, brandLogoURL: brandLogoURL,
                             trailerURL: trailerURL(for: hero),
                             onTrailerFailure: { trailer.playbackFailed($0) },
                             onTrailerEnded: {
@@ -313,13 +318,17 @@ struct OrbitDisneyPage: View {
 
             // The page's one focusable stop, under the bar's band.
 
-            CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false,
-                                switchItems: ["Disney+", "Hulu"], switchSelection: $mode)
+            CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false, showsAll: true,
+                                switchItems: ["Disney+", "Hulu"], switchSelection: $mode,
+                                switchLogo: { index, lit in
+                                    AnyView(OrbitDisneyBrandLogo(hulu: index == 1, logoURL: brandLogoURL,
+                                                                 height: 34, dark: lit, alignment: .center))
+                                })
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
-                               brand: OrbitDisneyLayout.brandBlue)
+                               brand: OrbitDisneyLayout.brandBlue, hidesCorner: true)
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
@@ -562,6 +571,7 @@ private struct OrbitDisneyHero: View {
     let index: Int
     let focused: Bool
     let isHulu: Bool
+    let brandLogoURL: String?
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
@@ -614,29 +624,9 @@ private struct OrbitDisneyHero: View {
             // the Hulu mark floated high above a short logo).
             // (Steven: the Disney+ logo floated above the title's — closer.)
             VStack(alignment: .leading, spacing: 6) {
-                Group {
-                    if isHulu {
-                        Text("hulu")
-                            .font(.system(size: 40, weight: .black, design: .rounded))
-                            .foregroundStyle(Color(red: 0.11, green: 0.91, blue: 0.51))
-                    } else if orbitIsDisneyOwn(meta) {
-                        // Steven: the Disney+ mark only on its own programmes, no "Nouveau".
-                        // (Steven: its logo, not a text — right on the title's logo, whatever its height.)
-                        if let logo = OrbitPlatformLogos.url(.disney) {
-                            CachedAsyncImage(string: logo, contentMode: .fit,
-                                             decodeSize: .points(width: 300, height: 110),
-                                             loading: { Color.clear },
-                                             failure: { Text("Disney+").font(.system(size: 34, weight: .bold, design: .rounded)) })
-                                .frame(width: 130, height: 44, alignment: .bottomLeading)
-                        } else {
-                            Text("Disney+")
-                                .font(.system(size: 34, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.white)
-                        }
-                    } else {
-                        Color.clear
-                    }
-                }
+                // Steven: the platform's logo (no longer in the top right corner) over every
+                // title, in white — Disney+'s, or Hulu's.
+                OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: 44)
                 .frame(height: 52, alignment: .bottomLeading)
                 OrbitTitleMark(name: item.name, logo: info.logo, maxSize: L.logoSize, textSize: 64,
                                fallbackLogo: info.logoFallback, hugsLogo: true)
@@ -1083,5 +1073,40 @@ func orbitIsDisneyOwn(_ meta: OrbitMeta?) -> Bool {
     return producers.contains { name in
         let lower = name.lowercased()
         return marks.contains { lower.contains($0) }
+    }
+}
+
+/// Disney+'s or Hulu's logo in white (black on a focused white pill).
+struct OrbitDisneyBrandLogo: View {
+    let hulu: Bool
+    let logoURL: String?
+    var height: CGFloat = 44
+    var dark = false
+    var alignment: Alignment = .bottomLeading
+
+    var body: some View {
+        Group {
+            if hulu {
+                Text("hulu")
+                    .font(.system(size: height * 0.95, weight: .black, design: .rounded))
+                    .fixedSize()
+            } else if let logoURL {
+                CachedAsyncImage(string: logoURL, contentMode: .fit,
+                                 decodeSize: .points(width: height * 3.2, height: height * 1.2),
+                                 loading: { Color.clear },
+                                 failure: { name })
+                    .frame(width: height * 2.9, height: height, alignment: alignment)
+                    .brightness(dark ? -1 : 1)
+            } else {
+                name
+            }
+        }
+        .foregroundStyle(dark ? Color.black : Color.white)
+    }
+
+    private var name: some View {
+        Text("Disney+")
+            .font(.system(size: height * 0.8, weight: .bold, design: .rounded))
+            .fixedSize()
     }
 }
