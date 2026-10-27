@@ -131,6 +131,7 @@ struct OrbitDetailView: View {
     @State private var visible = false
 
     @State private var showStreams = false
+    @State private var ownTagShown = false
     /// Steven: a platform hero's Lecture plays at once (the page opens straight into its player and
     /// closes behind it).
     @State private var autoPlayStarted = false
@@ -826,7 +827,15 @@ struct OrbitDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         OrbitDetailOwnTag(own: own, series: isSeries, titleWidth: taggedTitleWidth)
                             .shadow(color: .black.opacity(0.5), radius: 6)
+                            // (Steven: "prime original" drawn over the title's logo a beat, then
+                            // moving above it — it fades in once the logo has its height.)
+                            .opacity(ownTagShown ? 1 : 0)
+                            .animation(.easeOut(duration: 0.3), value: ownTagShown)
                         titleMark(cinema: false, hugs: true)
+                    }
+                    .transaction { if !ownTagShown { $0.animation = nil } }
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { ownTagShown = true }
                     }
                 } else {
                     titleMark(cinema: false)
