@@ -898,7 +898,7 @@ struct OrbitDetailView: View {
                         ForEach(Array(cast.prefix(40).enumerated()), id: \.offset) { index, person in
                             if let id = person.tmdbId?.value {
                                 NavigationLink(value: PersonRoute(id: id, name: person.name)) {
-                                    OrbitCastCard(person: person, focused: focus == .cast(index))
+                                    OrbitCastCard(person: person, focused: focus == .cast(index) && (returningTo == nil || returningTo == .cast(index)))
                                 }
                                 .buttonStyle(OrbitPlainStyle())
                                 .focused($focus, equals: .cast(index))
@@ -914,6 +914,9 @@ struct OrbitDetailView: View {
                 .modifier(OrbitRowMemory(key: "cast", store: rowOffsets, resetGeneration: rowResets["cast", default: 0]))
             }
             .focusSection()
+            // Back from an actor the system's own landing is his card, not the row's first (the
+            // trace: it went to the first, 7 ms after his).
+            .defaultFocus($focus, returningTo, priority: .userInitiated)
             .id(OrbitDetailSection.cast)
         }
     }
@@ -984,7 +987,7 @@ struct OrbitDetailView: View {
                     LazyHStack(spacing: 26) {
                         ForEach(items, id: \.id) { item in
                             NavigationLink(value: TitleRoute(preview: item)) {
-                                OrbitDetailPoster(item: item, focused: focus == .similar(item.id))
+                                OrbitDetailPoster(item: item, focused: focus == .similar(item.id) && (returningTo == nil || returningTo == .similar(item.id)))
                             }
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .similar(item.id))
@@ -998,6 +1001,7 @@ struct OrbitDetailView: View {
                 .modifier(OrbitRowMemory(key: "similar", store: rowOffsets, resetGeneration: rowResets["similar", default: 0]))
             }
             .focusSection()
+            .defaultFocus($focus, returningTo, priority: .userInitiated)
             .id(OrbitDetailSection.similar)
         }
     }
