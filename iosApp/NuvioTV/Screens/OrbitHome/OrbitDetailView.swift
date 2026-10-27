@@ -136,7 +136,6 @@ struct OrbitDetailView: View {
     /// closes behind it).
     @State private var autoPlayStarted = false
     @State private var autoPlayVeil = true
-    @Environment(\.dismiss) private var dismissPage
     @State private var movieRestart = false
     @State private var seriesPlay: OrbitSeriesPlayRoute?
     @State private var postPlayPending: MetaPreview?
@@ -468,7 +467,8 @@ struct OrbitDetailView: View {
         .onChange(of: coverUp) { _, up in if up { stopHeroTrailer() } else if section == .hero { armHeroTrailer() } }
         .animation(.easeInOut(duration: 0.3), value: model.trailerNotice)
         .onChange(of: model.trailerVideoURL) { _, _ in if section == .hero { armHeroTrailer() } }
-        .onReceive(model.objectWillChange) { _ in DispatchQueue.main.async { startAutoPlay() } }
+        .onReceive(model.$meta) { _ in DispatchQueue.main.async { startAutoPlay() } }
+        .onReceive(model.$isPlayEnabled) { _ in DispatchQueue.main.async { startAutoPlay() } }
         .onAppear {
             startAutoPlay()
             // No source found in time: the page shows as usual.
@@ -803,7 +803,8 @@ struct OrbitDetailView: View {
     /// Back from a player started by a platform hero: back on the platform's page (no title page).
     private func closeAfterAutoPlay() -> Bool {
         guard platform?.autoPlay == true, autoPlayStarted, postPlayPending == nil else { return false }
-        dismissPage()
+        // (The tab's own Back, not the page's dismiss: Steven, the page no longer went down.)
+        NotificationCenter.default.post(name: .orbitGoBack, object: OrbitShownTab.index)
         return true
     }
 

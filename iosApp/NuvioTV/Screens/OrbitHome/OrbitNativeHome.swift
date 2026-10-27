@@ -610,6 +610,7 @@ struct OrbitNativeRow: View {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
         restoringSince = appeared
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { restoreLock = false }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is

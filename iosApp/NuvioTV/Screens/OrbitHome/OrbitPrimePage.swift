@@ -256,10 +256,11 @@ struct OrbitPrimePage: View {
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
         // Steven (as on Disney+): a title without its logo (its name written instead) left out of
         // the hero once its details are known.
-        return Array(items.filter { item in
+        let logoed = items.filter { item in
             guard let meta = metaStore.meta(for: item) else { return true }
             return OrbitInfo.make(item, meta: meta).logo != nil
-        }.prefix(6))
+        }
+        return Array((logoed.isEmpty ? items : logoed).prefix(6))
     }
 
     /// The hero's candidates (their details asked, the ones without a logo found out).

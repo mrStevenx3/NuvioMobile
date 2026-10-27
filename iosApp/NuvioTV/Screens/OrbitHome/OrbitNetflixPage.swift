@@ -1159,9 +1159,9 @@ private struct OrbitNetflixTile: View {
         // TMDB's poster there.
         let french: String? = meta?.localPoster
         // (Steven: Orbit's own marks — TMDB's poster before the add-on's, which prints its N.)
-        let poster: String? = french ?? meta?.titledPoster ?? (top10 ? nil : item.poster)
+        let poster: String? = french ?? (top10 ? meta?.titledPoster : item.poster)
         // TMDB's art has no N: his N, drawn as his add-on draws it.
-        let drawsN = poster != item.poster && isNetflixOwn(item, meta)
+        let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
         let closedSize = CGSize(width: L.posterWidth, height: L.tileHeight)
         let openSize = CGSize(width: L.openWidth, height: L.tileHeight)
         let shape = RoundedRectangle(cornerRadius: L.radius, style: .continuous)
@@ -1174,12 +1174,8 @@ private struct OrbitNetflixTile: View {
                 Color(white: 0.09)
                 // (Before TMDB answers for a Top 10 title, the catalog's poster rather than black.)
                 OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: closedSize)
-                if drawsN {
-                    // Drawn only when the poster does not print its N already (Steven: doubles).
-                    OrbitPrintedReader(url: poster, marks: ["n", "netflix"]) { printed in
-                        if printed == false { OrbitNetflixPosterN(size: closedSize) }
-                    }
-                }
+                // (Steven: always Orbit's N on Netflix's own — no reading of the poster here.)
+                if drawsN { OrbitNetflixPosterN(size: closedSize) }
                 if let foot {
                     OrbitNetflixFootLabel(info: foot)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

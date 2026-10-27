@@ -221,11 +221,13 @@ struct OrbitParamountPage: View {
         let fresh = catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
         // Fiction first, documentaries after (as on HBO Max).
-        let withArt = items.filter { $0.banner != nil }.filter { item in
-            // Steven (every platform): no title without its logo in the hero, once its details are known.
+        let pictured = items.filter { $0.banner != nil }
+        // Steven (every platform): no title without its logo in the hero (never an empty hero).
+        let logoed = pictured.filter { item in
             guard let meta = metaStore.meta(for: item) else { return true }
             return OrbitInfo.make(item, meta: meta).logo != nil
         }
+        let withArt = logoed.isEmpty ? pictured : logoed
         let isDoc: (MetaPreview) -> Bool = { item in item.genres.contains { $0.hasPrefix("Documentaire") } }
         return Array((withArt.filter { !isDoc($0) } + withArt.filter(isDoc)).prefix(6))
     }

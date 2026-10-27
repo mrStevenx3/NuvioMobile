@@ -652,9 +652,13 @@ struct OrbitCollectionGrid: View {
                     if focused != last { focused = last }
                 }
             }
+            // (Steven: the other tiles out of reach too long — the lock only for the system's
+            // own first landing; the re-asks above go on, until a press.)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                if Self.appearedAt == appeared { restoreTarget = nil }
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                 guard Self.appearedAt == appeared else { return }
-                restoreTarget = nil
                 Self.pushedFrom = nil
             }
         }
