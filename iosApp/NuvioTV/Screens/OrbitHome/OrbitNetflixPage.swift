@@ -1109,10 +1109,14 @@ private struct OrbitNetflixTile: View {
 
     var body: some View {
         let L = OrbitNetflixLayout.self
+        // (Steven's video, Top 10 Left: the title just left — its figure and poster — faded in
+        // after the slide: both drawn at once.)
         if open && framedByRow {
             Color.clear.frame(width: L.openWidth, height: L.tileHeight)
+                .transition(.identity)
         } else {
             tile
+                .transition(.identity)
         }
     }
 
