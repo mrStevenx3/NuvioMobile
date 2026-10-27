@@ -202,6 +202,9 @@ private struct OrbitNativeDiscover<Header: View>: View {
     @FocusState private var focused: Int?
     @State private var shown: Int?
     @State private var scrolled = false
+    /// The tile a title was opened from: back from it, the focus goes there, and only there a
+    /// moment (the system's own landing elsewhere is sent back — as on Home and the title page).
+    @State private var restoringSince: TimeInterval = 0
 
     var body: some View {
         let D = OrbitDiscoverLayout.self
@@ -223,17 +226,21 @@ private struct OrbitNativeDiscover<Header: View>: View {
                         LazyVGrid(columns: columns, alignment: .leading, spacing: D.lineGap) {
                             ForEach(items.indices, id: \.self) { i in
                                 Button {
+                                    OrbitDiscoverReturn.opened = i
                                     onOpen(items[i])
                                 } label: {
                                     OrbitNativeDiscoverTile(item: items[i])
                                 }
                                 .buttonStyle(OrbitPlainStyle())
                                 .focused($focused, equals: i)
+                                // The focused tile above its neighbours (it grows over them).
+                                .zIndex(focused == i ? 1 : 0)
                                 .id(i)
                                 .onAppear { model.itemAppeared(at: i) }
                             }
                         }
                         .focusSection()
+                        .defaultFocus($focused, OrbitDiscoverReturn.opened, priority: .userInitiated)
                     }
                     .padding(.horizontal, L.margin)
                     .padding(.top, D.headerTop)
@@ -241,6 +248,7 @@ private struct OrbitNativeDiscover<Header: View>: View {
                 }
                 .scrollClipDisabled()
                 .onChange(of: model.gridKey) { _, _ in
+                    OrbitDiscoverReturn.opened = nil
                     focused = nil
                     shown = nil
                     proxy.scrollTo("header", anchor: .top)
@@ -252,7 +260,28 @@ private struct OrbitNativeDiscover<Header: View>: View {
         // Menu: from the grid, back to its top (the pills); there, to the bar.
         .onExitCommand(perform: focused == nil ? { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
                                                 : { focused = nil; NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) })
+        .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
+        .onAppear {
+            guard let back = OrbitDiscoverReturn.opened, model.items.indices.contains(back) else { return }
+            let start = ProcessInfo.processInfo.systemUptime
+            restoringSince = start
+            for delay in [0.0, 0.15, 0.35, 0.6] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    guard OrbitDiscoverReturn.opened == back, !ViewerInputClock.shared.hasInput(since: start + 0.3) else { return }
+                    if focused != back { focused = back }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                restoringSince = 0
+                if OrbitDiscoverReturn.opened == back { OrbitDiscoverReturn.opened = nil }
+            }
+        }
         .onChange(of: focused) { _, new in
+            if let new, let back = OrbitDiscoverReturn.opened, new != back, restoringSince > 0,
+               !ViewerInputClock.shared.hasInput(since: restoringSince + 0.3) {
+                DispatchQueue.main.async { focused = back }
+                return
+            }
             if let new {
                 shown = new
                 model.itemAppeared(at: min(model.items.count - 1, new + D.columns * 3))
@@ -309,3 +338,10 @@ private struct OrbitNativeDiscoverTile: View {
     }
 }
 
+
+
+/// Where the last title was opened from (a generic view cannot hold a static).
+@MainActor
+enum OrbitDiscoverReturn {
+    static var opened: Int?
+}

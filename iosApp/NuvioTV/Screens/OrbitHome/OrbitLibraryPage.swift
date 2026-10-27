@@ -7,11 +7,10 @@ import SwiftUI
 // margins. Here:
 //  - the header (title, count line, then the List / Type / Sort / filter pills) stays fixed under
 //    the Orbit bar, at Orbit's margin;
-//  - every poster is its own Button (7 a line), so focus moves at the system's own speed and a
-//    hold opens the system menu beside the poster (Mark as Watched / Unwatched, Remove), as on
-//    every other card. Nothing is scrolled by the focus engine: the posters are drawn at their
-//    places, and when the focus changes line the whole grid glides one line on one curve, the
-//    focused line resting on the grid's second line. Only the lines near the focus exist;
+//  - every poster is its own Button, so focus moves at the system's own speed and a hold opens
+//    the system menu beside the poster (Mark as Watched / Unwatched, Remove), as on every other
+//    card. (2026-10-27: the grid is a real scroll view the system moves — Apple's glide, the
+//    remote's touch surface — as Discover's.)
 //  - Menu goes back to the first line, then to the Orbit bar;
 //  - back from a title, the focus is the poster it was opened from.
 // Data, filters, sort, provider lists and the hold actions are the existing `LibraryViewModel`'s.
@@ -40,7 +39,6 @@ struct OrbitLibraryPage<Cloud: View>: View {
     let onOpen: (MetaPreview) -> Void
     @ViewBuilder let cloudContent: () -> Cloud
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The focused poster (nil when the focus is elsewhere).
     @FocusState private var focusedIndex: Int?
     /// The poster the grid is placed for (the focused one, kept when the focus leaves).
@@ -50,13 +48,14 @@ struct OrbitLibraryPage<Cloud: View>: View {
     private var line: Int { index / OrbitLibraryLayout.columns }
     private var showsGrid: Bool { !(showingCloud && cloudConnected) && model.content == .grid }
 
+    /// The poster a title was opened from (back from it, the focus goes there — and only there,
+    /// a moment: the system's own landing elsewhere is sent back, as on Home).
+    @State private var restoringSince: TimeInterval = 0
+
     var body: some View {
         let D = OrbitLibraryLayout.self
         let L = OrbitHomeLayout.self
-        let line = self.line
-        let scroll = CGFloat(min(line, 1) - line) * D.pitch
-        let lines = entries.isEmpty ? 0 : (entries.count + D.columns - 1) / D.columns
-        let window = max(0, line - 2)...max(max(0, line - 2), min(lines - 1, line + 3))
+        let columns = Array(repeating: GridItem(.fixed(D.tileWidth), spacing: D.gap, alignment: .top), count: D.columns)
 
         ZStack(alignment: .topLeading) {
             L.background.ignoresSafeArea()
@@ -67,17 +66,26 @@ struct OrbitLibraryPage<Cloud: View>: View {
             }
 
             if showsGrid {
-                ZStack(alignment: .topLeading) {
-                    if lines > 0 {
-                        ForEach(Array(window), id: \.self) { l in
-                            lineView(l)
-                                .offset(x: L.margin, y: D.gridTop + scroll + CGFloat(l) * D.pitch)
-                                .opacity(l < line - 1 ? 0 : 1)
-                                .transition(.identity)
+                // Steven (2026-10-27: "le nouveau système fluide partout"): real buttons in a grid
+                // the system scrolls (touch surface, Apple's own glide), as Discover's.
+                ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: D.lineGap) {
+                        ForEach(entries.indices, id: \.self) { i in
+                            posterButton(i)
+                                .zIndex(i == focusedIndex ? 1 : 0)
+                                .id(i)
                         }
                     }
+                    .padding(.horizontal, L.margin)
+                    .padding(.top, 24)
+                    .padding(.bottom, 240)
                 }
-                .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
+                .scrollClipDisabled()
+                .padding(.top, D.gridTop - 24)
+                .onChange(of: model.selectedSectionKey) { _, _ in proxy.scrollTo(0, anchor: .top) }
+                .onChange(of: model.selectedType) { _, _ in proxy.scrollTo(0, anchor: .top) }
+                }
                 // The lines leaving upward fade out under the header.
                 .mask {
                     VStack(spacing: 0) {
@@ -88,8 +96,9 @@ struct OrbitLibraryPage<Cloud: View>: View {
                     .ignoresSafeArea()
                 }
                 .focusSection()
+                .defaultFocus($focusedIndex, OrbitLibraryReturn.opened ?? index, priority: .userInitiated)
                 .onExitCommand {
-                    if line > 0 {
+                    if index >= D.columns {
                         focusedIndex = index % D.columns
                     } else {
                         NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil)
@@ -118,12 +127,33 @@ struct OrbitLibraryPage<Cloud: View>: View {
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .ignoresSafeArea()
-        .onChange(of: focusedIndex) { old, new in
+        .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
+        .onChange(of: focusedIndex) { _, new in
             guard let new else { syncLock(); return }
-            let D = OrbitLibraryLayout.self
-            let lineChanged = new / D.columns != index / D.columns
-            withAnimation(reduceMotion || !lineChanged || old == nil ? nil : OrbitHomeLayout.vertical) { index = new }
+            // Back from a title: the system's landing elsewhere is sent back to its poster.
+            if let back = OrbitLibraryReturn.opened, new != back, restoringSince > 0,
+               !ViewerInputClock.shared.hasInput(since: restoringSince + 0.3) {
+                DispatchQueue.main.async { focusedIndex = back }
+                return
+            }
+            index = new
             syncLock()
+        }
+        .onAppear {
+            guard let back = OrbitLibraryReturn.opened, entries.indices.contains(back) else { return }
+            let start = ProcessInfo.processInfo.systemUptime
+            restoringSince = start
+            index = back
+            for delay in [0.0, 0.15, 0.35, 0.6] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    guard OrbitLibraryReturn.opened == back, !ViewerInputClock.shared.hasInput(since: start + 0.3) else { return }
+                    if focusedIndex != back { focusedIndex = back }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                restoringSince = 0
+                if OrbitLibraryReturn.opened == back { OrbitLibraryReturn.opened = nil }
+            }
         }
         .onChange(of: model.selectedSectionKey) { _, _ in index = 0 }
         .onChange(of: model.selectedType) { _, _ in index = 0 }
@@ -133,26 +163,13 @@ struct OrbitLibraryPage<Cloud: View>: View {
         .onDisappear { OrbitBarLock.shared.set(false) }
     }
 
-    private func lineView(_ l: Int) -> some View {
-        let D = OrbitLibraryLayout.self
-        let start = l * D.columns
-        let end = min(entries.count, start + D.columns)
-        return ZStack(alignment: .topLeading) {
-            if start < end {
-                ForEach(start..<end, id: \.self) { i in
-                    posterButton(i)
-                        .offset(x: CGFloat(i - start) * (D.tileWidth + D.gap))
-                        .zIndex(i == focusedIndex ? 1 : 0)
-                }
-            }
-        }
-        .frame(width: OrbitHomeLayout.screenWidth, height: D.pitch, alignment: .topLeading)
-    }
-
     private func posterButton(_ i: Int) -> some View {
         let entry = entries[i]
         let preview = entry.item.toMetaPreview()
-        return Button { onOpen(preview) } label: {
+        return Button {
+            OrbitLibraryReturn.opened = i
+            onOpen(preview)
+        } label: {
             OrbitLibraryTile(entry: entry, focused: focusedIndex == i)
         }
         .buttonStyle(OrbitLibraryPosterStyle())
@@ -381,4 +398,11 @@ private struct OrbitLibraryPosterStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.85 : 1)
     }
+}
+
+
+/// Where the last title was opened from (a generic view cannot hold a static).
+@MainActor
+enum OrbitLibraryReturn {
+    static var opened: Int?
 }
