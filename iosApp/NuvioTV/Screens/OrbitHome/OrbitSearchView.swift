@@ -168,10 +168,7 @@ private final class OrbitSearchHostController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if returning {
-            returning = false
-            focusTarget = nil
-        }
+        OrbitTrace.log("search didAppear restore=\(results?.hasRestore == true) focused=\(Self.describe(view.window?.windowScene?.focusSystem?.focusedItem))")
         if results?.hasRestore == true {
             restoreOpenedTitle(attempt: 0)
         } else {
@@ -196,13 +193,27 @@ private final class OrbitSearchHostController: UIViewController {
     private func restoreOpenedTitle(attempt: Int) {
         guard let results, let target = results.prepareRestore() else { return }
         let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+        OrbitTrace.log("search restore \(attempt) focused=\(Self.describe(focused))")
         if let cell = results.restoredCell, let focused, focused.isDescendant(of: cell) {
             results.restoreDone()
             searchBar?.isUserInteractionEnabled = true
+            returning = false
+            focusTarget = nil
             return
         }
-        move(to: target)
-        guard attempt < 4 else { results.restoreDone(); return }
+        // (Kept as the preferred focus while the way back lasts: cleared, the system's own update
+        // went to the keyboard.)
+        returning = true
+        focusTarget = target
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        guard attempt < 6 else {
+            results.restoreDone()
+            returning = false
+            focusTarget = nil
+            searchBar?.isUserInteractionEnabled = true
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             self?.restoreOpenedTitle(attempt: attempt + 1)
         }
@@ -230,7 +241,18 @@ private final class OrbitSearchHostController: UIViewController {
 
     /// Up from the keyboard's first line: the system sends the focus to its hidden tab bar (no way
     /// back down from there) — it goes to the Orbit bar instead.
+    private static func describe(_ item: UIFocusItem?) -> String {
+        guard let item else { return "nil" }
+        var v: UIView? = item as? UIView
+        var path: [String] = []
+        while let c = v, path.count < 4 { path.append(String(describing: type(of: c))); v = c.superview }
+        return path.joined(separator: "<")
+    }
+
     @objc private func focusMoved(_ note: Notification) {
+        if let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey] as? UIFocusUpdateContext {
+            OrbitTrace.log("search focus \(Self.describe(context.previouslyFocusedItem)) -> \(Self.describe(context.nextFocusedItem))")
+        }
         guard let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey] as? UIFocusUpdateContext,
               let previous = context.previouslyFocusedItem as? UIView, previous.isDescendant(of: view),
               let next = context.nextFocusedItem as? UIView, !next.isDescendant(of: view) else { return }
