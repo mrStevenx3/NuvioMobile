@@ -898,7 +898,7 @@ struct OrbitPlatformLook {
         if OrbitNetflixPage.handles(route) {
             return .init(title: t, logoUrl: logo, brand: OrbitNetflixLayout.red, assetLogo: "NetflixN", assetInColour: true)
         }
-        if OrbitPrimePage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitPrimeLayout.blue) }
+        if OrbitPrimePage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitPrimeLayout.blue, white: true) }
         if OrbitHBOPage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitHBOLayout.blue) }
         if OrbitParamountPage.handles(route) { return .init(title: t, logoUrl: logo, brand: OrbitParamountLayout.blue, white: true) }
         if OrbitAppleTVPage.handles(route) {

@@ -151,7 +151,7 @@ struct OrbitPrimeOriginalMark: View {
         HStack(alignment: .firstTextBaseline, spacing: size * 0.3) {
             OrbitPrimeMark(size: size)
             Text("original")
-                .font(.system(size: size, weight: .regular))
+                .font(.system(size: size, weight: .heavy))
                 .foregroundStyle(Color.white)
                 .shadow(color: .black.opacity(0.5), radius: 4)
         }

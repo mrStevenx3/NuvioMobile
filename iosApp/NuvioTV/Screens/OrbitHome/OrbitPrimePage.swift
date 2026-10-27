@@ -357,7 +357,7 @@ struct OrbitPrimePage: View {
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
-                               brand: OrbitPrimeLayout.blue)
+                               brand: OrbitPrimeLayout.blue, white: true)
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
