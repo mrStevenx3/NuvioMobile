@@ -244,7 +244,6 @@ struct OrbitDetailView: View {
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
-                        .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
                     if isSeries, let meta {
                         OrbitEpisodesSection(meta: meta,
@@ -256,16 +255,13 @@ struct OrbitDetailView: View {
                                                  seriesPlay = OrbitSeriesPlayRoute(meta: meta, episode: episode)
                                              })
                             .focusSection()
-                            .disabled(returningElsewhere(.episodes))
                             .id(OrbitDetailSection.episodes)
                     }
-                    // Back from a page opened from a row, the other sections cannot take the focus a
-                    // moment (Steven: back from an actor it went to the row below).
-                    castSection.disabled(returningElsewhere(.cast))
-                    sagaSection.disabled(returningElsewhere(.saga))
-                    trailersSection.disabled(returningElsewhere(.trailers))
-                    similarSection.disabled(returningElsewhere(.similar))
-                    aboutSection.disabled(returningElsewhere(.about))
+                    castSection
+                    sagaSection
+                    trailersSection
+                    similarSection
+                    aboutSection
                 }
                 .scrollTargetLayout()
                 .padding(.bottom, 160)
@@ -895,9 +891,6 @@ struct OrbitDetailView: View {
                                 }
                                 .buttonStyle(OrbitPlainStyle())
                                 .focused($focus, equals: .cast(index))
-                                // Back from an actor, only his card can take the focus a moment
-                                // (as on Home: the system's landing elsewhere is impossible).
-                                .disabled(returningTo != nil && returningTo != .cast(index))
                             } else {
                                 OrbitCastCard(person: person, focused: false)
                             }
@@ -984,7 +977,6 @@ struct OrbitDetailView: View {
                             }
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .similar(item.id))
-                            .disabled(returningTo != nil && returningTo != .similar(item.id))
                             .onAppear { OrbitMetaStore.shared.request([item]) }
                         }
                     }
