@@ -1879,6 +1879,9 @@ private struct OrbitDisneyBrandsHub: View {
     @FocusState private var filmFocused: Int?
     /// The band's title opened (the focus back on it on the way back).
     @State private var reopenFilm: Int?
+    /// The brand it was opened from (the system's landing on the first pill on the way back
+    /// switched the band to Disney — Steven's video).
+    @State private var reopenBrand: Int?
 
     var body: some View {
         let L = OrbitDisneyLayout.self
@@ -1949,6 +1952,7 @@ private struct OrbitDisneyBrandsHub: View {
                                 ForEach(Array(titles.prefix(20).enumerated()), id: \.offset) { i, item in
                                     Button {
                                         reopenFilm = i
+                                        reopenBrand = box.lead
                                         onOpen(item)
                                     } label: {
                                         OrbitImage(url: item.poster, fallback: nil, mode: .fill, size: CGSize(width: 295, height: 440))
@@ -1997,13 +2001,22 @@ private struct OrbitDisneyBrandsHub: View {
             // restore on the brand).
             if let back = reopenFilm {
                 let appeared = ProcessInfo.processInfo.systemUptime
-                for delay in [0.1, 0.3, 0.6, 0.9] {
+                let brandBack = reopenBrand ?? box.lead
+                let restore = {
+                    if box.lead != brandBack {
+                        box.lead = brandBack
+                        films.focus(title: brands[brandBack].name)
+                    }
+                    if filmFocused != back { filmFocused = back }
+                }
+                restore()
+                for delay in [0.0, 0.1, 0.3, 0.6, 0.9] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard reopenFilm == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
-                        if filmFocused != back { filmFocused = back }
+                        restore()
                     }
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { reopenFilm = nil }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { reopenFilm = nil; reopenBrand = nil }
             }
         }
     }

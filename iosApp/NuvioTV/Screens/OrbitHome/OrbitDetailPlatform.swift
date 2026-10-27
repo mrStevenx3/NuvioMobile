@@ -42,7 +42,8 @@ enum OrbitPlatformTheme: String, Hashable {
     }
 
     /// The folder's logo drawn in white in the corner (their own colour sinks in the dark page).
-    var whiteLogo: Bool { self == .paramount || self == .appletv }
+    // (Steven: Disney+ in white too, as on its page.)
+    var whiteLogo: Bool { self == .paramount || self == .appletv || self == .disney }
 }
 
 /// Whose original the title is, for the tag above its title.
