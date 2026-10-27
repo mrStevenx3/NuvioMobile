@@ -228,7 +228,7 @@ struct OrbitLeadFrame: View {
         // Where it can be watched (Steven: Orbit gathers the platforms), top right; nothing for a
         // title on none.
         .overlay(alignment: .topTrailing) {
-            if let kind = OrbitPlatformBadgeKind.of(meta) {
+            if let kind = OrbitPlatformBadgeKind.original(meta) {
                 OrbitPlatformBadge(kind: kind, size: 20)
                     .padding(18)
                     .id(card.id)

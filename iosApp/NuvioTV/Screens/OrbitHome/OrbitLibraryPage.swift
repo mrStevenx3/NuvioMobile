@@ -392,7 +392,7 @@ private struct OrbitLibraryTile: View {
             PosterWatchBadgeView(badge: PosterWatchBadge(isWatched: entry.state.isWatched,
                                                          progress: entry.state.progress))
             // Where it can be watched, as on Home.
-            if let kind = OrbitPlatformBadgeKind.of(metaStore.meta(for: entry.item.toMetaPreview())) {
+            if let kind = OrbitPlatformBadgeKind.original(metaStore.meta(for: entry.item.toMetaPreview())) {
                 OrbitPlatformBadge(kind: kind, size: 15)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 14)

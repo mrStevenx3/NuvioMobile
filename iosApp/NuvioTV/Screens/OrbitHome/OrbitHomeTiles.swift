@@ -225,7 +225,7 @@ struct OrbitLandscapeTile: View {
                     .padding(.trailing, 14)
                     .padding(.bottom, 22)
             }
-            if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
+            if showsBadge, let kind = OrbitPlatformBadgeKind.original(meta) {
                 OrbitPlatformBadge(kind: kind, size: 15)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(12)
@@ -264,7 +264,7 @@ struct OrbitBigCard: View {
                 .init(color: .black.opacity(0.8), location: 1),
             ], startPoint: .top, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 12) {
-                if let kind = OrbitPlatformBadgeKind.of(meta) {
+                if let kind = OrbitPlatformBadgeKind.original(meta) {
                     OrbitPlatformBadge(kind: kind, size: 16)
                 }
                 OrbitTitleMark(name: card.preview.name, logo: info.logo, maxSize: CGSize(width: 290, height: 100),
@@ -382,7 +382,7 @@ struct OrbitRankedTile: View {
                     ZStack(alignment: .bottom) {
                         Color(white: 0.1)
                         OrbitStablePoster(card: card, meta: meta, size: size)
-                        if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
+                        if showsBadge, let kind = OrbitPlatformBadgeKind.original(meta) {
                             OrbitPlatformBadge(kind: kind, size: 16)
                                 .padding(.bottom, 14)
                         }
@@ -405,7 +405,7 @@ struct OrbitRankedTile: View {
                 ZStack(alignment: .bottom) {
                     Color(white: 0.1)
                     OrbitStablePoster(card: card, meta: meta, size: size)
-                    if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
+                    if showsBadge, let kind = OrbitPlatformBadgeKind.original(meta) {
                         OrbitPlatformBadge(kind: kind, size: 16)
                             .padding(.bottom, 14)
                     }

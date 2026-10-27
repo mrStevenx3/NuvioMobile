@@ -173,7 +173,7 @@ struct OrbitDiscoverTile: View {
                 .padding(.leading, 12)
                 .padding(.bottom, 10)
             // Where it can be watched, as on Home.
-            if let kind = OrbitPlatformBadgeKind.of(metaStore.meta(for: item)) {
+            if let kind = OrbitPlatformBadgeKind.original(metaStore.meta(for: item)) {
                 OrbitPlatformBadge(kind: kind, size: 14)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(10)

@@ -58,7 +58,7 @@ struct OrbitHomeHeroView: View {
                 let info = OrbitInfo.make(item, meta: meta)
                 ZStack(alignment: .topLeading) {
                     VStack(alignment: .leading, spacing: 0) {
-                        if let kind = OrbitPlatformBadgeKind.of(meta) {
+                        if let kind = OrbitPlatformBadgeKind.original(meta) {
                             OrbitPlatformBadge(kind: kind, size: 27)
                                 .padding(.bottom, 24)
                         }
