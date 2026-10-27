@@ -847,13 +847,12 @@ struct OrbitPlatformIntro: View {
 /// The neon's switching on: (dim, glow) steps, each with its animation.
 enum OrbitNeon {
     static func play(at delay: Double, _ step: @escaping (Double, Double, Animation) -> Void) {
+        // (Steven, 2026-10-27: one light-up, no flicker — it rises softly to very bright, peaks,
+        // then keeps a glow as it leaves for its corner.)
         let steps: [(Double, Double, Double, Animation)] = [
-            (0.00, 0.35, 0.55, .linear(duration: 0.04)),   // a first flicker
-            (0.06, 1.00, 0.00, .linear(duration: 0.05)),   // off again
-            (0.16, 0.15, 0.75, .linear(duration: 0.04)),   // a second one
-            (0.22, 0.70, 0.10, .linear(duration: 0.05)),   // almost off
-            (0.32, 0.00, 1.00, .easeOut(duration: 0.18)),  // on: the flash
-            (0.58, 0.00, 0.35, .easeInOut(duration: 0.5)), // its glow left on
+            (0.00, 0.00, 0.75, .easeIn(duration: 0.5)),     // rising to bright
+            (0.50, 0.00, 1.30, .easeOut(duration: 0.18)),   // its peak, very bright
+            (0.72, 0.00, 0.45, .easeInOut(duration: 0.45)), // a glow left on it
         ]
         for (at, d, g, animation) in steps {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay + at) { step(d, g, animation) }
@@ -874,8 +873,8 @@ struct OrbitLightUp: ViewModifier {
             .opacity(1 - 0.55 * dim)
             .brightness(-0.08 * dim + 0.18 * glow)
             .saturation(1 - 0.3 * dim)
-            .shadow(color: .white.opacity(0.55 * glow), radius: 16 * glow)
-            .shadow(color: tint.opacity(0.9 * glow), radius: 50 * glow)
+            .shadow(color: .white.opacity(min(1, 0.5 * glow)), radius: 18 * glow)
+            .shadow(color: tint.opacity(min(1, 0.85 * glow)), radius: 55 * glow)
     }
 }
 
