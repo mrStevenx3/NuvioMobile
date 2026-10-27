@@ -154,8 +154,10 @@ struct OrbitHomeButton: View {
             NotificationCenter.default.post(name: .orbitHomeButtonLeave, object: nil)
         }
         // Where the collection bar's own items sit (the same top and left, one item's height).
-        .padding(.top, 22 + 6)
-        .padding(.leading, 60 + 6)
+        // Steven (2026-10-27): in the corner, mirroring the platform's logo on the right — as far
+        // from the left edge as the logo is from the right one, level with its middle.
+        .padding(.top, OrbitPlatformIntro.cornerInset + OrbitPlatformIntro.cornerHeight / 2 - 31)
+        .padding(.leading, OrbitPlatformIntro.cornerInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea()
         .opacity(shown ? 1 : 0)
