@@ -987,9 +987,7 @@ private struct OrbitHBOTop10Card: View {
                 if let poster {
                     OrbitImage(url: poster, fallback: nil, mode: .fill, size: L.poster)
                 }
-                if let own = OrbitHBOOwn.made(meta) {
-                    OrbitHBOPosterMark(own: own, width: L.poster.width, atTop: false)
-                }
+                // (Steven: the official posters print HBO's mark already — no Orbit mark on them.)
             }
             .frame(width: L.poster.width, height: L.poster.height)
             .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
@@ -1232,10 +1230,8 @@ private struct OrbitHBOPoster: View {
             // (Steven's video: an empty frame at a row's end — no poster known yet: TMDB's, else his.)
             OrbitImage(url: url, fallback: ranked ? meta?.cleanPoster : item.rawPosterUrl,
                        mode: .fill, size: size, lastResort: meta?.backdrop ?? item.banner)
-            if let own = OrbitHBOOwn.made(meta) {
-                // Drawn only when the poster does not print it already (Steven: doubles).
-                OrbitHBOPosterMark(own: own, width: size.width, atTop: false)
-            }
+            // (Steven: the official posters print HBO's mark already — no Orbit mark on them; it
+            // stays on the hero, the label row's cards and the title's page.)
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
                 OrbitHBONewTag(text: text, size: 13, white: true)
                     .padding(8)
