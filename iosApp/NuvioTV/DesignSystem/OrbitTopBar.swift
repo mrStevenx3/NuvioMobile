@@ -790,8 +790,8 @@ struct CollectionFilterBar: View {
             if centreLeads {
                 // Steven (Disney+: Up from the page landed on Accueil, then the focus moved): from
                 // outside the bar, only the page's current mode can take the focus.
-                barButtons(items.filter { $0 != .home })
-                    .disabled(!barHasFocus)
+                // (Steven: Disney+ opens on Accueil — reachable from outside when it is the page's.)
+                barButtons(items.filter { $0 != .home }, lockedOutside: true)
             }
             ForEach(Array(switchItems.enumerated()), id: \.offset) { index, title in
                 // (Steven, Disney+: only the item the focus is on is lit, as a tab bar.)
@@ -869,7 +869,9 @@ struct CollectionFilterBar: View {
                 // No Films / Séries: the entry lands on the centre pill's selected item.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { searchReady = true }
                 // Nothing to land on without a centre pill (Apple TV): the page keeps its own focus.
-                if !switchItems.isEmpty {
+                if centreLeads, showsAll, filter == nil {
+                    OrbitBarLaunchFocus.place { focused = .everything }
+                } else if !switchItems.isEmpty {
                     OrbitBarLaunchFocus.place { switchFocused = switchSelection?.wrappedValue ?? 0 }
                 }
                 return
@@ -892,7 +894,7 @@ struct CollectionFilterBar: View {
     }
 
     @ViewBuilder
-    private func barButtons(_ group: [OrbitBarItem]) -> some View {
+    private func barButtons(_ group: [OrbitBarItem], lockedOutside: Bool = false) -> some View {
             ForEach(group, id: \.self) { item in
                 Button { select(item) } label: {
                     OrbitBarItemLabel(item: item, selected: isSelected(item), focused: focused == item)
@@ -901,6 +903,7 @@ struct CollectionFilterBar: View {
                 .focused($focused, equals: item)
                 // Steven: Search flashed before Films on entry; out of reach until Films has focus.
                 .disabled((item == .search || item == .home) && !searchReady)
+                .disabled(lockedOutside && !barHasFocus && !(item == .everything && filter == nil))
                 .accessibilityLabel(item.accessibilityName)
             }
     }

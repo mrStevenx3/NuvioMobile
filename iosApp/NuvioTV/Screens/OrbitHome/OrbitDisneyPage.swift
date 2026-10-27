@@ -139,7 +139,11 @@ struct OrbitDisneyPage: View {
     @State private var covered = false
 
     /// 0: Disney+, 1: Hulu.
+    /// Steven: Accueil (0, where Disney+ opens: the franchises' band), Disney+ (1), Hulu (2).
     @State private var mode = 0
+    /// A franchise opened from the band: on the way back, the bar out of reach a moment (Steven:
+    /// the focus did not come back on the brand).
+    @State private var studioOpened = false
     /// 0: the hero; then the rows.
     @State private var current = 0
     /// The page's scroll, followed by the hero alone (its fade).
@@ -167,13 +171,19 @@ struct OrbitDisneyPage: View {
 
     // MARK: Data
 
-    private var isHulu: Bool { mode == 1 }
+    private var isHulu: Bool { mode == 2 }
 
     private var rows: [OrbitDisneyRow] {
-        // Steven: the brands not under the hero — lower, after the first two rows.
         guard !isHulu else { return huluRows }
         var list = disneyRows
-        list.insert(Self.brandsRow, at: min(2, list.count))
+        // Steven: the franchises' band on Accueil only, after the first two rows; Hulu's newest
+        // under it.
+        guard mode == 0 else { return list }
+        let at = min(2, list.count)
+        list.insert(Self.brandsRow, at: at)
+        let huluNew = (hulu.seriesRows + hulu.movieRows).filter { $0.id.hasPrefix("hulu-new-") }
+            .map { OrbitDisneyRow(id: "home-" + $0.id, title: $0.title, items: $0.items, top10: false) }
+        list.insert(contentsOf: huluNew, at: min(at + 1, list.count))
         return list
     }
 
@@ -234,6 +244,13 @@ struct OrbitDisneyPage: View {
     /// Hulu: its Top 10 series (and films, when TMDB credits any to Hulu), then its rows.
     private var huluRows: [OrbitDisneyRow] {
         var out: [OrbitDisneyRow] = []
+        var shown = Set<String>()
+        // Steven: Hulu opens on its Nouvelles séries.
+        if let newest = hulu.seriesRows.first(where: { $0.id.hasPrefix("hulu-new-") }) {
+            out.append(OrbitDisneyRow(id: newest.id, title: String(localized: "Nouvelles séries"),
+                                      items: newest.items, top10: false))
+            newest.items.forEach { shown.insert(Self.identity($0)) }
+        }
         if let popular = hulu.seriesRows.first {
             out.append(OrbitDisneyRow(id: "hulu-top10-series", title: Self.top10Title(series: true),
                                       items: Array(popular.items.prefix(10)), top10: true))
@@ -244,8 +261,7 @@ struct OrbitDisneyPage: View {
         }
         // Steven: a title showed in two rows (The Bear in Drame and Comédie): each row leaves out the
         // titles of the rows above; a row left with fewer than 6 is dropped.
-        var shown = Set<String>()
-        for row in Self.alternate(hulu.seriesRows, hulu.movieRows) {
+        for row in Self.alternate(hulu.seriesRows, hulu.movieRows) where !out.contains(where: { $0.id == row.id }) {
             let fresh = row.items.filter { !shown.contains(Self.identity($0)) }
             guard fresh.count >= 6 else { continue }
             fresh.forEach { shown.insert(Self.identity($0)) }
@@ -396,8 +412,10 @@ struct OrbitDisneyPage: View {
 
             // The page's one focusable stop, under the bar's band.
 
-            CollectionFilterBar(filter: .constant(nil), onSearch: openSearch, showsTypes: false, showsAll: true,
-                                switchItems: ["Disney+", "Hulu"], switchSelection: $mode,
+            CollectionFilterBar(filter: Binding(get: { mode == 0 ? nil : "tab" }, set: { if $0 == nil { mode = 0 } }),
+                                onSearch: openSearch, showsTypes: false, showsAll: true,
+                                switchItems: ["Disney+", "Hulu"],
+                                switchSelection: Binding(get: { mode - 1 }, set: { mode = $0 + 1 }),
                                 switchLogo: { index, lit in
                                     AnyView(OrbitDisneyBrandLogo(hulu: index == 1, logoURL: brandLogoURL,
                                                                  height: 46, dark: lit, alignment: .center))
@@ -425,6 +443,10 @@ struct OrbitDisneyPage: View {
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .onAppear {
             covered = false
+            if studioOpened {
+                studioOpened = false
+                OrbitTitleGate.shared.closed()
+            }
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -483,7 +505,12 @@ struct OrbitDisneyPage: View {
                 let row = rows[s - 1]
                 if row.brands {
                     OrbitDisneyBrandsHub(box: leads.box(row.id), isCurrent: s == current,
-                                         onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select)
+                                         onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
+                                         onOpen: { item in
+                                             covered = true
+                                             trailer.reset(abortStages: true)
+                                             push(TitleRoute(preview: item, platform: detailPlatform))
+                                         })
                 } else if row.classic {
                     OrbitDisneyRowView(row: row, box: leads.box(row.id), isCurrent: s == current,
                                        focused: focused, metaStore: metaStore,
@@ -600,6 +627,8 @@ struct OrbitDisneyPage: View {
                 // Steven: from Disney+, no opening — neither the studio's going in, nor Disney+'s
                 // coming back (the way back counts as a title's).
                 if let pushStudio {
+                    studioOpened = true
+                    OrbitTitleGate.shared.opened()
                     OrbitStudioIntro.skipNext = true
                     OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
                     pushStudio(route)
@@ -1568,7 +1597,8 @@ private struct OrbitDisneyOpenFrame: View {
         let banner: String? = item.banner
         return ZStack(alignment: .bottomLeading) {
             if rank != nil { OrbitDisneyTop10Corner.ground } else { Color(red: 0.07, green: 0.08, blue: 0.12) }
-            OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: L.open)
+            // (Steven: Disney+'s and Hulu's marks on every focused title — the catalog's art: TMDB's first.)
+            OrbitSwapImage(url: meta?.backdrop ?? banner, fallback: nil, size: L.open)
                 .modifier(OrbitDisneyTop10Corner.Cut(extent: rank == nil ? 0 : L.open.height * 0.34))
             if let rank {
                 OrbitDisneyTop10Corner.rankText(rank, size: L.open.height * 0.15)
@@ -1739,8 +1769,13 @@ private struct OrbitDisneyBrandsHub: View {
     let onEnter: () -> Void
     let onLeave: () -> Void
     let onSelect: () -> Void
+    /// A title of the band opened.
+    let onOpen: (MetaPreview) -> Void
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
     @FocusState private var browseFocused: Bool
+    @FocusState private var filmFocused: Int?
+    /// The band's title opened (the focus back on it on the way back).
+    @State private var reopenFilm: Int?
 
     var body: some View {
         let L = OrbitDisneyLayout.self
@@ -1785,7 +1820,10 @@ private struct OrbitDisneyBrandsHub: View {
                             .transition(.opacity)
                         }
                         // Steven: TOUT PARCOURIR can be pressed (Down from the pills): the brand's page.
-                        Button(action: onSelect) {
+                        Button {
+                            box.reopen = box.lead
+                            onSelect()
+                        } label: {
                             Text(String(localized: "TOUT PARCOURIR"))
                                 .font(.system(size: 24, weight: .bold))
                                 .foregroundStyle(browseFocused ? Color.black : Color.white)
@@ -1801,14 +1839,36 @@ private struct OrbitDisneyBrandsHub: View {
                         .disabled(!isCurrent)
                     }
                     .frame(width: 720)
+                    // Steven: the band's titles scroll (Right from TOUT PARCOURIR), each opens its page.
                     ZStack(alignment: .leading) {
-                        HStack(spacing: 32) {
-                            ForEach(Array(titles.prefix(5).enumerated()), id: \.offset) { _, item in
-                                OrbitImage(url: item.poster, fallback: nil, mode: .fill, size: CGSize(width: 295, height: 440))
-                                    .frame(width: 295, height: 440)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 32) {
+                                ForEach(Array(titles.prefix(20).enumerated()), id: \.offset) { i, item in
+                                    Button {
+                                        reopenFilm = i
+                                        onOpen(item)
+                                    } label: {
+                                        OrbitImage(url: item.poster, fallback: nil, mode: .fill, size: CGSize(width: 295, height: 440))
+                                            .frame(width: 295, height: 440)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            .overlay {
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .strokeBorder(Color.white.opacity(filmFocused == i ? 1 : 0), lineWidth: 4)
+                                            }
+                                            .scaleEffect(filmFocused == i ? 1.06 : 1)
+                                            .shadow(color: .black.opacity(filmFocused == i ? 0.5 : 0), radius: 16, y: 8)
+                                            .animation(.easeOut(duration: 0.18), value: filmFocused == i)
+                                    }
+                                    .buttonStyle(OrbitPlainStyle())
+                                    .focused($filmFocused, equals: i)
+                                    .disabled(!isCurrent)
+                                }
                             }
+                            .padding(.vertical, 30)
                         }
+                        .contentMargins(.trailing, L.margin, for: .scrollContent)
+                        .scrollClipDisabled()
+                        .padding(.vertical, -30)
                         .id(brand.name + "|\(titles.count)")
                         .transition(.opacity)
                     }
@@ -1824,7 +1884,21 @@ private struct OrbitDisneyBrandsHub: View {
         }
         .frame(width: W, height: L.hubHeight, alignment: .topLeading)
         .clipped()
-        .onAppear { films.focus(title: brand.name) }
+        .onAppear {
+            films.focus(title: brand.name)
+            // Back from a title of the band: its poster takes the focus again (after the row's own
+            // restore on the brand).
+            if let back = reopenFilm {
+                let appeared = ProcessInfo.processInfo.systemUptime
+                for delay in [0.1, 0.3, 0.6, 0.9] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        guard reopenFilm == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                        if filmFocused != back { filmFocused = back }
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { reopenFilm = nil }
+            }
+        }
     }
 }
 
