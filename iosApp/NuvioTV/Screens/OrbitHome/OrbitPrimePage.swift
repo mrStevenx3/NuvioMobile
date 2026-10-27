@@ -276,8 +276,9 @@ struct OrbitPrimePage: View {
         case .soon: return String(localized: "BIENTÔT DISPONIBLE")
         case nil: break
         }
-        guard freshIdentities.contains(Self.identity(item)) else { return nil }
-        return item.type == "movie" ? String(localized: "NOUVEAU FILM") : String(localized: "NOUVELLE SÉRIE")
+        // (Steven, side by side with the app: "NOUVEAU FILM" on every tile of Nouveaux films said
+        // the row's own name again — only a series' news stays.)
+        return nil
     }
 
     private var sectionCount: Int { 1 + rows.count }
@@ -565,6 +566,19 @@ struct OrbitPrimePage: View {
             metaItems += row.items.indices.filter { $0 >= lead - 1 && $0 <= lead + 7 }.map { row.items[$0] }
         }
         OrbitMetaStore.shared.request(metaItems)
+        // Steven's video: Top 10 frames empty a while (his add-on draws each image on demand): all
+        // ten fetched as soon as the page has them.
+        let top10Size = OrbitPrimeLayout.top10Image
+        let decode = ArtworkDecodeRequest(size: .points(width: top10Size.width, height: top10Size.height), fill: false,
+                                          scale: UIScreen.main.scale).normalized
+        for row in rows where row.kind == .top10 {
+            OrbitMetaStore.shared.request(row.items)
+            for item in row.items {
+                guard let raw = (item.poster ?? item.rawPosterUrl).flatMap(URL.init(string:)),
+                      ArtworkStore.cached(raw, decode: decode) == nil else { continue }
+                Task { _ = try? await ArtworkStore.fetch(raw, decode: decode) }
+            }
+        }
 
         trailer.reset()
         trailerKey = nil
@@ -834,7 +848,7 @@ private struct OrbitPrimeRowView: View {
                                      focused: lit, trailerURL: index == lead ? trailerURL : nil,
                                      onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                 case .top10:
-                    OrbitPrimeTop10Image(item: item, focused: lit)
+                    OrbitPrimeTop10Image(item: item, meta: meta, focused: lit)
                 }
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: row.cardHeight, alignment: .topLeading)
@@ -847,6 +861,7 @@ private struct OrbitPrimeRowView: View {
 /// behind; focused, a white frame around the card only.
 private struct OrbitPrimeTop10Image: View {
     let item: MetaPreview
+    let meta: OrbitMeta?
     let focused: Bool
 
     var body: some View {
@@ -854,8 +869,14 @@ private struct OrbitPrimeTop10Image: View {
         let size = L.top10Image
         let card = CGRect(x: size.width * 0.24, y: (size.height - L.tile.height) / 2,
                           width: L.tile.width, height: L.tile.height)
-        OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
-            .frame(width: size.width, height: size.height)
+        ZStack(alignment: .topLeading) {
+            // Under his image while it comes (or if it never does): TMDB's art in the card's place.
+            OrbitImage(url: meta?.backdrop ?? item.banner, mode: .fill, size: card.size)
+                .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
+                .offset(x: card.minX, y: card.minY)
+            OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
+        }
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
             .overlay(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: L.radius, style: .continuous)
                     .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
@@ -957,20 +978,40 @@ private struct OrbitPrimePoster: View {
                             .transition(.opacity.animation(.easeOut(duration: 0.6)))
                     }
                     LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
+                    // Prime's own app (Steven's video): the mark above the logo, then "✓ Inclus avec
+                    // Prime", the rating, the age and the genres.
                     VStack(alignment: .leading, spacing: 12) {
-                        OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 420, height: 140), textSize: 44,
+                        OrbitPrimeMark(size: 22, color: L.blue)
+                        OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 420, height: 130), textSize: 44,
                                        fallbackLogo: info.logoFallback, hugsLogo: true)
                             .frame(width: 420, alignment: .leading)
-                        Text(info.parts.joined(separator: "  ·  "))
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.85))
-                            .lineLimit(1)
+                        HStack(spacing: 10) {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(L.blue)
+                            Text(String(localized: "Inclus avec Prime")).foregroundStyle(Color.white.opacity(0.95))
+                            if let percent = meta?.percent {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "star.fill")
+                                    Text(String(format: "%.1f/5", Double(percent) / 20).replacingOccurrences(of: ".", with: ","))
+                                }
+                                .foregroundStyle(Color.white.opacity(0.9))
+                            }
+                            if let certification = meta?.certification {
+                                Text(certification == "TP" ? String(localized: "TP") : "\(certification)+")
+                                    .font(.system(size: 14, weight: .heavy))
+                                    .foregroundStyle(Color.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.22)))
+                            }
+                            if let genres = meta?.genre ?? item.genres.first {
+                                Text(genres).foregroundStyle(Color.white.opacity(0.8))
+                            }
+                        }
+                        .font(.system(size: 18, weight: .semibold))
+                        .lineLimit(1)
                     }
                     .padding(.leading, 26)
-                    .padding(.bottom, 26)
-                    OrbitPrimeMark(size: 24)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .padding(24)
+                    .padding(.bottom, 24)
                     if let badge {
                         OrbitPrimeBadge(text: badge)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
