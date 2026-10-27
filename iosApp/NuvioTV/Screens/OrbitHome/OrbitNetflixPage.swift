@@ -924,10 +924,10 @@ private struct OrbitNetflixRank: View {
     var body: some View {
         let L = OrbitNetflixLayout.self
         let height = L.tileHeight * 0.43
-        OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1)
+        OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1.12)
             .fill(Color.black)
             .overlay {
-                OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1)
+                OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1.12)
                     // Netflix: the line fades into the tile's shadow as it nears the tile.
                     .stroke(LinearGradient(stops: [
                         .init(color: Color(white: 0.55), location: 0),
@@ -953,7 +953,7 @@ struct OrbitGlyphShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         // Netflix's figures are wide and heavy.
-        let font = UIFont.systemFont(ofSize: 200, weight: .bold, width: .expanded)
+        let font = UIFont.systemFont(ofSize: 200, weight: .bold)
         let ctFont = font as CTFont
         var glyphs = [CGGlyph](repeating: 0, count: text.utf16.count)
         let chars = Array(text.utf16)
