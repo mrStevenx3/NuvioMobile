@@ -723,7 +723,7 @@ private struct OrbitPrimeTop: View {
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .topLeading) {
             ZStack {
-                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+                OrbitSwapImage(url: meta?.backdrop ?? banner, fallback: nil, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -986,7 +986,7 @@ private struct OrbitPrimeTile: View {
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .bottomLeading) {
             Color(red: 0.10, green: 0.13, blue: 0.18)
-            OrbitImage(url: item.banner ?? meta?.backdrop, fallback: item.poster, size: size)
+            OrbitImage(url: meta?.backdrop ?? item.banner, fallback: item.poster, size: size)
             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
             OrbitTitleMark(name: item.name, logo: info.logo,
                            maxSize: CGSize(width: size.width * 0.55, height: size.height * 0.42), textSize: 24,
@@ -1055,7 +1055,7 @@ private struct OrbitPrimePoster: View {
                     // (Steven's video: the poster stretched under the art showed as a coloured smear
                     // while the row came in — the page's own dark until the art, fetched ahead, lands.)
                     Color(white: 0.09)
-                    OrbitSwapImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: openSize)
+                    OrbitSwapImage(url: meta?.backdrop ?? item.banner, fallback: nil, size: openSize)
                     if let trailerURL {
                         TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                           zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),

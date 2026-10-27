@@ -65,6 +65,12 @@ func orbitParamountIsOwn(_ item: MetaPreview) -> Bool {
     return poster.range(of: #"/img/v\d+/(movie|tv)/\d+/o"#, options: .regularExpression) != nil
 }
 
+/// Steven (2026-10-27): the mark Orbit draws — a Paramount+ production per TMDB, not the add-on's art.
+@MainActor
+func orbitParamountIsMade(_ item: MetaPreview) -> Bool {
+    OrbitPlatformBadgeKind.original(OrbitMetaStore.shared.meta(for: item)) == .paramount
+}
+
 struct OrbitParamountPage: View {
     let route: FolderRoute
     let push: (TitleRoute) -> Void
@@ -460,7 +466,7 @@ struct OrbitParamountPage: View {
 
     /// The detail page's Paramount+ touch.
     private func detailPlatform(_ item: MetaPreview) -> OrbitDetailPlatform {
-        OrbitDetailPlatform(theme: .paramount, own: orbitParamountIsOwn(item) ? .paramount : nil,
+        OrbitDetailPlatform(theme: .paramount, own: orbitParamountIsMade(item) ? .paramount : nil,
                             logoUrl: model.titleLogoUrl ?? route.titleLogoUrl)
     }
 
@@ -575,7 +581,7 @@ private struct OrbitParamountTop: View {
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .topLeading) {
             ZStack {
-                OrbitSwapImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: size)
+                OrbitSwapImage(url: meta?.backdrop ?? item.banner, fallback: nil, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -598,7 +604,7 @@ private struct OrbitParamountTop: View {
             .clipped()
 
             VStack(alignment: .leading, spacing: 0) {
-                if orbitParamountIsOwn(item) {
+                if orbitParamountIsMade(item) {
                     Image("ParamountOriginal")
                         .renderingMode(.template)
                         .resizable()

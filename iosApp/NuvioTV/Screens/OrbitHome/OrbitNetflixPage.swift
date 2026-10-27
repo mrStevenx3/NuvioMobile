@@ -696,8 +696,8 @@ private func isNetflixOwn(_ item: MetaPreview, _ meta: OrbitMeta?) -> Bool {
     if let info = item.releaseInfo,
        let range = info.range(of: #"(19|20)\d{2}"#, options: .regularExpression),
        let year = Int(info[range]), year < 2012 { return false }
-    let poster: String = item.poster ?? ""
-    if poster.contains("/n/v") || poster.range(of: #"/poster/v\d+/o"#, options: .regularExpression) != nil { return true }
+    // Steven (2026-10-27): Orbit decides on every platform — TMDB's producers and networks only,
+    // never the add-on's images.
     return meta?.producers.contains { $0.lowercased().contains("netflix") } ?? false
 }
 
@@ -1150,9 +1150,10 @@ private struct OrbitNetflixTile: View {
         // English), else his poster (his N already on it). His Top 10 images carry their numbers:
         // TMDB's poster there.
         let french: String? = meta?.localPoster
-        let poster: String? = french ?? (top10 ? meta?.titledPoster : item.poster)
+        // (Steven: Orbit's own marks — TMDB's poster before the add-on's, which prints its N.)
+        let poster: String? = french ?? meta?.titledPoster ?? (top10 ? nil : item.poster)
         // TMDB's art has no N: his N, drawn as his add-on draws it.
-        let drawsN = (french != nil || top10) && isNetflixOwn(item, meta)
+        let drawsN = poster != item.poster && isNetflixOwn(item, meta)
         let closedSize = CGSize(width: L.posterWidth, height: L.tileHeight)
         let openSize = CGSize(width: L.openWidth, height: L.tileHeight)
         let shape = RoundedRectangle(cornerRadius: L.radius, style: .continuous)

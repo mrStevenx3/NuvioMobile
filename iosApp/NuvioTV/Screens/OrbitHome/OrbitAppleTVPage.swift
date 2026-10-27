@@ -720,7 +720,7 @@ private struct OrbitAppleTVHero: View {
         let info = OrbitInfo.make(item, meta: meta)
         ZStack(alignment: .topLeading) {
             ZStack {
-                OrbitSwapImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: size)
+                OrbitSwapImage(url: meta?.backdrop ?? item.banner, fallback: nil, size: size)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
                                       zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
@@ -870,7 +870,12 @@ private struct OrbitAppleTVRowView: View {
                         OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false)
                     case .posters:
                         let meta = metaStore.meta(for: item)
-                        OrbitAppleTVPoster(url: meta?.localPoster ?? item.poster, fallback: item.rawPosterUrl, focused: lit)
+                        // Steven (2026-10-27): TMDB's poster, Orbit's own  tv mark on Apple's productions
+                        // (TMDB's producers) — not the add-on's printed one.
+                        OrbitAppleTVPoster(url: meta?.localPoster ?? meta?.titledPoster ?? item.poster, fallback: item.rawPosterUrl,
+                                           focused: lit,
+                                           mark: OrbitPlatformBadgeKind.original(meta) == .appletv
+                                               && (meta?.localPoster ?? meta?.titledPoster) != nil)
                     }
                 }
                 .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
