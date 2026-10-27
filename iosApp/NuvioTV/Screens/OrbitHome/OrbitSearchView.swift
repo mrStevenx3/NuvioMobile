@@ -156,6 +156,12 @@ private final class OrbitSearchHostController: UIViewController {
         if results?.hasRestore == true, let target = results?.prepareRestore() {
             returning = true
             focusTarget = target
+            // Steven's video (still): the keyboard took the focus first on the way back — it is
+            // out of the focus's reach until the poster has it.
+            searchBar?.isUserInteractionEnabled = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                self?.searchBar?.isUserInteractionEnabled = true
+            }
             setNeedsFocusUpdate()
         }
     }
@@ -192,6 +198,7 @@ private final class OrbitSearchHostController: UIViewController {
         let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
         if let cell = results.restoredCell, let focused, focused.isDescendant(of: cell) {
             results.restoreDone()
+            searchBar?.isUserInteractionEnabled = true
             return
         }
         move(to: target)
