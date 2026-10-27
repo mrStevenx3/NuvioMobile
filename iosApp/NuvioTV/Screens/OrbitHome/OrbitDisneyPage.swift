@@ -1419,7 +1419,8 @@ struct OrbitDisneyBrand {
               colours: [Color(red: 0.62, green: 0.06, blue: 0.08), Color(red: 0.22, green: 0.02, blue: 0.04)],
               tagline: String(localized: "L'univers Marvel"), logoInColour: true),
         .init(name: "Star Wars", keys: ["star wars", "lucasfilm"], company: "1",
-              colours: [Color(red: 0.14, green: 0.15, blue: 0.20), Color(red: 0.02, green: 0.02, blue: 0.05)],
+              // (Steven: the band read as gone on Star Wars — a deep space blue, no longer near black.)
+              colours: [Color(red: 0.16, green: 0.22, blue: 0.40), Color(red: 0.03, green: 0.05, blue: 0.13)],
               tagline: String(localized: "Il y a bien longtemps, dans une galaxie lointaine…"), asset: "StarWarsLogo"),
         .init(name: "National Geographic", keys: ["national geographic", "nat geo"], company: "7521",
               colours: [Color(red: 0.55, green: 0.45, blue: 0.05), Color(red: 0.16, green: 0.13, blue: 0.03)],
@@ -1609,6 +1610,14 @@ private struct OrbitDisneyOpenRow: View {
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
         .onAppear { prefetch(around: lead, includingIt: true) }
+        // (Steven: Up from the franchises to the Top 10, the frame sat at the margin, the title's
+        // room further right: the row, scrolled for its closed poster, put back on the open one.)
+        .onChange(of: isCurrent) { _, now in
+            guard now else { return }
+            box.realign &+= 1
+            DispatchQueue.main.async { box.realign &+= 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { box.realign &+= 1 }
+        }
     }
 
     /// Where the Top 10's open title is: at the margin, or further right once the row has reached
@@ -1698,10 +1707,13 @@ private struct OrbitDisneyOpenFrame: View {
             }
             // (Steven: Swiping Right on the Devil showed Hulu's mark as a poster, Disney+'s open: the
             // title's own platform, everywhere.)
-            OrbitDisneyBrandLogo(hulu: isHulu || orbitIsHuluTitle(meta), logoURL: nil, height: 40, alignment: .trailing, huluInColour: true)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 24)
-                .padding(.bottom, 22)
+            // (Steven: Disney+'s on every focused title — the app marks Hulu's alone.)
+            if isHulu || orbitIsHuluTitle(meta) {
+                OrbitDisneyBrandLogo(hulu: true, logoURL: nil, height: 40, alignment: .trailing, huluInColour: true)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 22)
+            }
         }
         .frame(width: L.open.width, height: L.open.height)
     }

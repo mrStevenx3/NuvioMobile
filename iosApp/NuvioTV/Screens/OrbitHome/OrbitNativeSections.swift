@@ -43,6 +43,9 @@ final class OrbitLeadBox: ObservableObject {
     @Published var lead = 0
     /// Bumped to give the row the focus (on its lead): Menu back, the page's own moves.
     @Published var focusRequest = 0
+    /// Bumped to put a pinned row's lead back at the margin at once (Disney+: the row opening as the
+    /// focus arrives — its tile grown in place, the row scrolled for the closed one).
+    @Published var realign = 0
     /// The title opened from this row: the focus comes back on it on the way back.
     var reopen: Int?
     /// Where the row is scrolled (where it comes back to when rebuilt or back from a title).
@@ -411,6 +414,14 @@ struct OrbitNativeTileStrip<Tile: View>: View {
         }
         // An unpinned row remembers where it was scrolled (its first title on screen): rebuilt —
         // back from a title, far from the page's section — it comes back there (Steven: it moved).
+        .onChange(of: box.realign) { _, _ in
+            guard keepsLeadAtMargin else { return }
+            let target = min(box.lead, max(0, count - 1))
+            anchor = target
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { scroll.scrollTo(id: target, anchor: .leading) }
+        }
         .onChange(of: box.focusRequest) { _, _ in
             let target = min(box.lead, max(0, count - 1))
             if focus != target { focus = target }
