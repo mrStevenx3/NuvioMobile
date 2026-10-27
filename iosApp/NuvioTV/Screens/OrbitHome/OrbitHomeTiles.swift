@@ -320,6 +320,9 @@ struct OrbitRankedTile: View {
         let size = CGSize(width: T.rankedPoster.width * scale, height: T.rankedPoster.height * scale)
         let rankWidth = T.rankWidth * scale
         let tenExtra = T.tenExtra * scale
+        // Steven: the 1, narrow, stood well right of the row's heading — its room trimmed so it
+        // starts on the margin (its poster comes with it; the other ranks unchanged).
+        let oneLess: CGFloat = rank == 1 ? 72 * scale : 0
         let poster: String? = meta?.localPoster ?? card.poster
         let base = tone ?? Color(white: 0.85)
         HStack(alignment: .bottom, spacing: -34 * scale) {
@@ -350,7 +353,7 @@ struct OrbitRankedTile: View {
                         .allowsHitTesting(false)
                 }
                 // "10" is wider: its own room, so it no longer runs over the 9's poster (Steven).
-                .frame(width: rankWidth + 34 * scale + (rank >= 10 ? tenExtra : 0), alignment: .trailing)
+                .frame(width: rankWidth + 34 * scale + (rank >= 10 ? tenExtra : 0) - oneLess, alignment: .trailing)
                 .offset(y: size.height * 0.12)
                 .animation(.easeInOut(duration: 0.4), value: tone)
             ZStack(alignment: .bottom) {
@@ -364,7 +367,7 @@ struct OrbitRankedTile: View {
             .frame(width: size.width, height: size.height)
             .modifier(OrbitTileFocus(focused: focused, radius: 12))
         }
-        .frame(width: rankWidth + size.width + (rank >= 10 ? tenExtra : 0), height: size.height, alignment: .bottomLeading)
+        .frame(width: rankWidth + size.width + (rank >= 10 ? tenExtra : 0) - oneLess, height: size.height, alignment: .bottomLeading)
         .task(id: poster ?? "-") {
             guard let poster else { return }
             tone = await OrbitDominantColor.color(for: poster)
