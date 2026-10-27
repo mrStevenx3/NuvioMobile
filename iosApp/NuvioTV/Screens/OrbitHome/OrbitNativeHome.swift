@@ -686,7 +686,7 @@ struct OrbitNativeRankedOpenTile: View {
 
     var body: some View {
         OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused, showsBadge: showsBadge, scale: scale,
-                        openWidth: open ? frame.width : nil, openFrame: openFrame)
+                        openWidth: open ? frame.width : nil, openFrame: openFrame, opens: true)
             .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }

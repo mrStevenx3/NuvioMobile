@@ -317,6 +317,10 @@ struct OrbitRankedTile: View {
     /// poster's height in the poster's place, its rank beside it.
     var openWidth: CGFloat? = nil
     var openFrame: (() -> AnyView)? = nil
+    /// The row opens its titles (every tile drawn the same way, the open one wider): its room grows
+    /// and shrinks on the row's curve, the rank beside it moving with it (Steven: the figures
+    /// jumped while the frames cross-faded).
+    var opens = false
 
     @State private var tone: Color?
 
@@ -361,7 +365,28 @@ struct OrbitRankedTile: View {
                 .frame(width: rankWidth + 34 * scale + (rank >= 10 ? tenExtra : 0) - oneLess, alignment: .trailing)
                 .offset(y: size.height * 0.12)
                 .animation(.easeInOut(duration: 0.4), value: tone)
-            if let openFrame, let openWidth {
+            if opens {
+                let isOpen = openFrame != nil && openWidth != nil
+                ZStack(alignment: .leading) {
+                    ZStack(alignment: .bottom) {
+                        Color(white: 0.1)
+                        OrbitStablePoster(card: card, meta: meta, size: size)
+                        if showsBadge, let kind = OrbitPlatformBadgeKind.of(meta) {
+                            OrbitPlatformBadge(kind: kind, size: 16)
+                                .padding(.bottom, 14)
+                        }
+                    }
+                    .frame(width: size.width, height: size.height)
+                    .opacity(isOpen ? 0 : 1)
+                    if let openFrame, let openWidth {
+                        openFrame()
+                            .frame(width: openWidth, height: size.height)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: isOpen ? (openWidth ?? size.width) : size.width, height: size.height, alignment: .leading)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if let openFrame, let openWidth {
                 openFrame()
                     .frame(width: openWidth, height: size.height)
                     .transition(.opacity)
