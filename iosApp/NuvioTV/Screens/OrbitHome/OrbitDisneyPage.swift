@@ -647,9 +647,10 @@ private struct OrbitDisneyHero: View {
             // the Hulu mark floated high above a short logo).
             // (Steven: the Disney+ logo floated above the title's — closer.)
             VStack(alignment: .leading, spacing: 6) {
-                // Steven: in white — Hulu's over its titles, Disney+'s over its own programmes.
+                // Steven: Disney+'s in white over its own programmes; Hulu's only at the hero's
+                // bottom right.
                 Group {
-                    if isHulu || orbitIsDisneyOwn(meta) {
+                    if !isHulu, orbitIsDisneyOwn(meta) {
                         OrbitDisneyBrandLogo(hulu: isHulu, logoURL: brandLogoURL, height: 44, huluInColour: true)
                     } else {
                         Color.clear

@@ -784,7 +784,8 @@ struct CollectionFilterBar: View {
                 barButtons(items.filter { $0 != .home })
             }
             ForEach(Array(switchItems.enumerated()), id: \.offset) { index, title in
-                let selected = switchSelection?.wrappedValue == index
+                // (Steven, Disney+: only the item the focus is on is lit, as a tab bar.)
+                let selected = !centreLeads && switchSelection?.wrappedValue == index
                 let lit = switchFocused == index
                 Button {
                     switchSelection?.wrappedValue = index
