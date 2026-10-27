@@ -507,6 +507,7 @@ final class OrbitStudioFilmsModel: ObservableObject {
         if t.contains("pathe") { return "7981|866" }
         if t.contains("gaumont") { return "9" }
         if t.contains("studiocanal") { return "694" }
+        if t.contains("nationalgeographic") || t.contains("natgeo") { return "7521" }
         if t.contains("disney") { return "2|6125" }
         return nil
     }
