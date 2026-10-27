@@ -666,9 +666,10 @@ struct OrbitStudioIntro: View {
                     shownTint = look.brand
                     var still = Transaction()
                     still.disablesAnimations = true
-                    withTransaction(still) { phase = .splash }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift(instant: true) }
-                    play(fromSplash: true)
+                    withTransaction(still) { phase = .splash; dim = 0; glow = 0.35 }
+                    let lift = max(0.5, OrbitPlatformCurtain.litAfter - 0.25)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + lift) { OrbitPlatformCurtain.shared.lift(instant: true) }
+                    play(fromSplash: true, after: lift)
                     return
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift() }
@@ -697,7 +698,8 @@ struct OrbitStudioIntro: View {
         OrbitStudioIntroLogo(name: name, logoUrl: logoUrl, corner: phase == .corner)
     }
 
-    private func play(fromSplash: Bool = false) {
+    /// `after`: under the curtain, the time it still shows (its neon) — the glide comes after it.
+    private func play(fromSplash: Bool = false, after: Double = 0) {
         guard !started, fromSplash || phase == .black, veil == 1 else { return }
         started = true
         if reduceMotion { dim = 0; onDone(); return }
@@ -709,17 +711,19 @@ struct OrbitStudioIntro: View {
         // 0 s: the logo fades in, large, in the middle (already there under the curtain).
         if !fromSplash { withAnimation(.easeOut(duration: 0.55)) { phase = .splash } }
         // Then it lights up as a neon sign: two flickers, its flash, a soft glow left on it.
-        OrbitNeon.play(at: fromSplash ? 0.5 : 0.35) { d, g, animation in
-            guard phase == .splash else { return }
-            withAnimation(animation) { dim = d; glow = g }
+        if !fromSplash {
+            OrbitNeon.play(at: 0.35) { d, g, animation in
+                guard phase == .splash else { return }
+                withAnimation(animation) { dim = d; glow = g }
+            }
         }
         // 1.5 s: it glides to its place, the page fades in under it.
-        at(1.5) {
+        at(fromSplash ? after + 0.2 : 1.5) {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.9)) { phase = .corner }
             withAnimation(.easeInOut(duration: 0.8)) { veil = 0; glow = 0 }
         }
         // 2.4 s: the page's own logo takes over (same place, same size).
-        at(2.4) { onDone() }
+        at(fromSplash ? after + 1.1 : 2.4) { onDone() }
     }
 }
 

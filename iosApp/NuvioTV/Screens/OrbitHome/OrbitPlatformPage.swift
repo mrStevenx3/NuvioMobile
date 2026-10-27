@@ -736,17 +736,19 @@ struct OrbitPlatformIntro: View {
                 still.disablesAnimations = true
                 withTransaction(still) { phase = reduceMotion ? .settled : .splash }
                 let curtained = OrbitPlatformCurtain.shared.look != nil
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift(instant: curtained) }
+                // The curtain plays the neon; the page waits under it, lit as it ends, and shows
+                // once it is over (pushed ~0.25 s after the press).
+                let lift = max(0.5, OrbitPlatformCurtain.litAfter - 0.25)
+                DispatchQueue.main.asyncAfter(deadline: .now() + lift) { OrbitPlatformCurtain.shared.lift(instant: curtained) }
                 if reduceMotion { dim = 0; glow = 0 } else {
-                    withTransaction(still) { dim = 1; glow = 0 }
-                    // (Once the curtain has gone: the logo lights up on the page.)
-                    lightUp(at: 0.5)
+                    withTransaction(still) { dim = 0; glow = curtained ? 0.35 : 0 }
+                    if !curtained { lightUp(at: 0.5) }
                     let work = DispatchWorkItem {
                         withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
                         withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
                     }
                     glide = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4, execute: work)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.2, execute: work)
                 }
                 return
             }
@@ -867,9 +869,11 @@ struct OrbitLightUp: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // (Steven: too dark while off — it reads, only asleep.)
-            .brightness(-0.3 * dim + 0.18 * glow)
-            .saturation(1 - 0.4 * dim)
+            // (Steven: too dark while off — on its own colour it vanished; it is faint, only
+            // asleep, and reads.)
+            .opacity(1 - 0.55 * dim)
+            .brightness(-0.08 * dim + 0.18 * glow)
+            .saturation(1 - 0.3 * dim)
             .shadow(color: .white.opacity(0.55 * glow), radius: 16 * glow)
             .shadow(color: tint.opacity(0.9 * glow), radius: 50 * glow)
     }
