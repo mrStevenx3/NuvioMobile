@@ -655,25 +655,29 @@ struct OrbitNativeRankedOpenTile: View {
     let trailers: OrbitNativeTrailerHost
     let trailerKey: String
     let open: Bool
+    /// A studio's page: its larger Top 10, no platform badge.
+    var scale: CGFloat = 1
+    var showsBadge = true
     @Environment(\.isFocused) private var systemFocused
     @Environment(\.orbitFocusHidden) private var focusHidden
     private var isFocused: Bool { systemFocused && !focusHidden }
 
-    private static var frame: CGSize {
-        let height = OrbitTileLayout.rankedPoster.height
+    private var frame: CGSize {
+        let height = OrbitTileLayout.rankedPoster.height * scale
         return CGSize(width: (height * 16 / 9).rounded(), height: height)
     }
 
     private var openFrame: (() -> AnyView)? {
         guard open else { return nil }
         let focused = isFocused
+        let frame = frame
         return {
             AnyView(
                 OrbitNativeTrailerReader(host: trailers, key: trailerKey) { url in
                     OrbitLeadFrame(card: card, meta: meta, focused: focused, trailerURL: url,
                                    onTrailerFailure: { trailers.model.playbackFailed($0) },
                                    onTrailerEnded: { trailers.model.playbackFinished() },
-                                   frameSize: Self.frame)
+                                   frameSize: frame)
                 }
                 .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
             )
@@ -681,8 +685,8 @@ struct OrbitNativeRankedOpenTile: View {
     }
 
     var body: some View {
-        OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused,
-                        openWidth: open ? Self.frame.width : nil, openFrame: openFrame)
+        OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused, showsBadge: showsBadge, scale: scale,
+                        openWidth: open ? frame.width : nil, openFrame: openFrame)
             .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }

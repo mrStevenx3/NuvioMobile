@@ -197,8 +197,8 @@ struct OrbitLeadFrame: View {
                 ZStack(alignment: .bottomLeading) {
                     // (Steven: a little smaller in the Top 10's frame.)
                     OrbitTitleMark(name: card.preview.name, logo: OrbitInfo.make(card.preview, meta: meta).logo,
-                                   maxSize: frameSize == nil ? CGSize(width: 440, height: 130) : CGSize(width: 370, height: 108),
-                                   textSize: frameSize == nil ? 54 : 46)
+                                   maxSize: frameSize == nil ? CGSize(width: 350, height: 102) : CGSize(width: 370, height: 108),
+                                   textSize: frameSize == nil ? 44 : 46)
                         .padding(.leading, 28)
                         .padding(.bottom, 24)
                     if let badge = card.badge {

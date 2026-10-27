@@ -116,6 +116,10 @@ struct OrbitStudioRow: Identifiable, Equatable {
     /// (Steven, 2026-10-27: under the new films' open frame only — Les incontournables carry their
     /// title on their art.)
     var showsInfo: Bool { kind == .classic }
+    /// The focused title kept at the margin, the row sliding under it: the new films, and the Top 10
+    /// when it opens as Home's (Steven: the same in the studios).
+    var pinned: Bool { showsInfo || opensRanked }
+    var opensRanked: Bool { kind == .ranked && OrbitNativeRow.rankedOpens }
 
     /// (Steven, 2026-10-27: Home's size — the same Top 10 on both pages.)
     static let rankedScale: CGFloat = 1.0
@@ -813,7 +817,7 @@ private struct OrbitNativeStudioRow: View {
     private func settle(on index: Int?) {
         var still = Transaction()
         still.disablesAnimations = true
-        if row.showsInfo, let index {
+        if row.pinned, let index {
             withTransaction(still) { scroll.scrollTo(id: index, anchor: .leading) }
         }
         // A row scrolled freely is never moved by us (Steven's video, Disney+ Top 10: at the
@@ -848,7 +852,7 @@ private struct OrbitNativeStudioRow: View {
                         } label: {
                             OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
                                                   trailers: trailers,
-                                                  open: row.kind == .classic && index == (shown ?? 0))
+                                                  open: (row.kind == .classic || row.opensRanked) && index == (shown ?? 0))
                         }
                         .buttonStyle(OrbitPlainStyle())
                         .focused($focused, equals: index)
@@ -864,11 +868,11 @@ private struct OrbitNativeStudioRow: View {
                 .scrollTargetLayout()
                 .padding(.vertical, 34)
                 // The frame opening on the new title and closing on the old one, on the row's curve.
-                .animation(row.kind == .classic ? OrbitHomeLayout.horizontal : nil, value: shown)
+                .animation(row.kind == .classic || row.opensRanked ? OrbitHomeLayout.horizontal : nil, value: shown)
             }
             // A row with its title's details under it is pinned: placed by its anchor alone (the
             // alignment snapped it back — Steven, simulator: the title stopped second).
-            .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !row.showsInfo))
+            .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !row.pinned))
             // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
             // binding kept the first title the system wrote back (one half off screen) and brought it
             // in on the way back from a title — the row moved by one (Steven, simulator).
@@ -881,7 +885,7 @@ private struct OrbitNativeStudioRow: View {
             .contentMargins(.leading, L.margin, for: .scrollContent)
             // A saga's shelf keeps its logo panel in view (Steven's video: the panel left, an empty band
             // behind a few posters) — the system scrolls it only as far as needed.
-            .contentMargins(.trailing, row.showsInfo ? max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth) : L.margin,
+            .contentMargins(.trailing, row.pinned ? max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth) : L.margin,
                             for: .scrollContent)
             .scrollClipDisabled()
             .padding(.vertical, -34)
@@ -942,7 +946,7 @@ private struct OrbitNativeStudioRow: View {
             }
             shown = new
             // The trailer plays in the featured cards and the new films' open frame.
-            if row.kind == .featured || row.kind == .classic, row.items.indices.contains(new) {
+            if row.kind == .featured || row.kind == .classic || row.opensRanked, row.items.indices.contains(new) {
                 let item = row.items[new]
                 trailers.arm("\(row.id)|\(item.type):\(item.id)", item: item)
             } else {
@@ -950,13 +954,13 @@ private struct OrbitNativeStudioRow: View {
             }
             // Only a row with the title's details under it keeps it at the margin; the others scroll as
             // Apple's app does (Steven), the row moving only when the focus reaches its edge.
-            if row.showsInfo, anchor != new {
+            if row.pinned, anchor != new {
                 anchor = new
                 withAnimation(OrbitStudioLayout.horizontal) { scroll.scrollTo(id: new, anchor: .leading) }
             }
             // As on Home: once the focus has settled, the title brought back exactly to the margin
             // (Steven's video: the focused title stopped a poster right of it).
-            if row.showsInfo, moving {
+            if row.pinned, moving {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
                     guard shown == new, focused == new else { return }
                     withAnimation(.easeOut(duration: 0.16)) { scroll.scrollTo(id: new, anchor: .leading) }
@@ -1045,6 +1049,11 @@ private struct OrbitNativeStudioTile: View {
                 }
             case .posters(let transparent):
                 OrbitStudioPoster(item: item, size: size, transparent: transparent, focused: isFocused)
+            case .ranked where row.opensRanked:
+                OrbitNativeRankedOpenTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                          meta: meta, rank: index + 1, trailers: trailers,
+                                          trailerKey: "\(row.id)|\(item.type):\(item.id)", open: open,
+                                          scale: OrbitStudioRow.rankedScale, showsBadge: false)
             case .ranked:
                 OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
                                 meta: meta, rank: index + 1, focused: isFocused, showsBadge: false,
