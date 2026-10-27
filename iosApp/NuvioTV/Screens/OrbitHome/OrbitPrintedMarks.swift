@@ -55,6 +55,8 @@ final class OrbitPrintedMarks: ObservableObject {
             // (Steven, Lanterns: HBO's mark printed so small it could not be read — a mark that
             // small does not count, Orbit draws its own.)
             guard observation.boundingBox.height >= 0.03 else { continue }
+            // The credits block at a poster's foot names the network in small print: not its mark.
+            guard observation.boundingBox.minY > 0.1 || observation.boundingBox.height >= 0.05 else { continue }
             for candidate in observation.topCandidates(3) {
                 let text = candidate.string.lowercased()
                 out.insert(text.trimmingCharacters(in: .whitespacesAndNewlines))
