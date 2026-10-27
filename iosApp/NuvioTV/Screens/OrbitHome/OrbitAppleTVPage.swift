@@ -872,10 +872,9 @@ private struct OrbitAppleTVRowView: View {
                         let meta = metaStore.meta(for: item)
                         // Steven (2026-10-27): TMDB's poster, Orbit's own  tv mark on Apple's productions
                         // (TMDB's producers) — not the add-on's printed one.
+                        // (Steven: Apple's posters print their  tv already — no Orbit mark on them.)
                         OrbitAppleTVPoster(url: meta?.localPoster ?? meta?.titledPoster ?? item.poster, fallback: item.rawPosterUrl,
-                                           focused: lit,
-                                           mark: OrbitPlatformBadgeKind.original(meta) == .appletv
-                                               && (meta?.localPoster ?? meta?.titledPoster) != nil)
+                                           focused: lit, mark: false)
                     }
                 }
                 .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
