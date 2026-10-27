@@ -346,7 +346,9 @@ struct OrbitNativeRow: View {
     private var pinned: Bool { showsDetails }
     /// The focused title's details under the row — not under the large cards (they carry theirs)
     /// nor under the great sagas (Steven).
-    private var showsDetails: Bool { row.style != .cards && row.style != .sagas }
+    /// (Steven, 2026-10-27: only under the first row's open 16:9 frame — the posters' rows are
+    /// cleaner without, and scroll as Apple's app does.)
+    private var showsDetails: Bool { row.style == .classic }
 
     var body: some View {
         let L = OrbitHomeLayout.self
