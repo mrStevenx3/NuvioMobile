@@ -52,9 +52,19 @@ nonisolated enum OrbitPlatformBadgeKind: CaseIterable {
     /// Steven (2026-10-27, Home and the studios): a platform's badge only on its own programmes —
     /// a Netflix production, an Amazon Original… — not on a title it merely carries.
     static func original(_ meta: OrbitMeta?) -> OrbitPlatformBadgeKind? {
-        guard let meta, !meta.producers.isEmpty else { return nil }
+        guard let meta else { return nil }
         let makers = meta.producers.map { $0.lowercased() }
-        return allCases.first { kind in makers.contains { kind.isMaker($0) } }
+        if let made = allCases.first(where: { kind in makers.contains { kind.isMaker($0) } }) { return made }
+        // Steven (Animaux, a Netflix film): TMDB credits a streamer's own films to their studio
+        // only. A recent title found on one streamer alone (Netflix, Prime Video, Apple TV) is its own.
+        var on = Set<OrbitPlatformBadgeKind>()
+        for id in meta.platforms {
+            if let kind = allCases.first(where: { $0.providerIds.contains(id) }) { on.insert(kind) }
+        }
+        guard on.count == 1, let only = on.first, [.netflix, .prime, .appletv].contains(only),
+              let released = meta.released, released.count >= 4, let year = Int(released.prefix(4)) else { return nil }
+        let now = Calendar.current.component(.year, from: Date())
+        return year >= now - 2 ? only : nil
     }
 
     /// The production company or network is this platform's own.

@@ -158,14 +158,13 @@ struct OrbitDetailOwnTag: View {
             // (Steven: a little big over the title — as tall as the title's own capitals.)
             OrbitPrimeOriginalMark(size: 26 * k)
         case .hbo, .hboMax:
-            HStack(spacing: 10) {
-                Text(own == .hbo ? "HBO" : "HBO max")
-                    .font(.system(size: 30 * k, weight: .black))
-                Text(String(localized: "ORIGINAL"))
-                    .font(.system(size: 21 * k, weight: .semibold))
-                    .kerning(7 * k)
-            }
-            .foregroundStyle(Color.white)
+            // Steven: the real marks (his files), not drawn text.
+            Image(own == .hbo ? "HBOOriginalLogo" : "MaxOriginalLogo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(Color.white)
+                .frame(height: own == .hbo ? 28 * k : 46 * k)
         case .paramount:
             Image("ParamountOriginal")
                 .renderingMode(.template)

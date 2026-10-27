@@ -327,7 +327,11 @@ struct OrbitHBOPage: View {
             : catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
         // Steven (the HBO tab showed only documentaries): fiction first, documentaries after.
-        let withArt = items.filter { $0.banner != nil }
+        let withArt = items.filter { $0.banner != nil }.filter { item in
+            // Steven (every platform): no title without its logo in the hero, once its details are known.
+            guard let meta = metaStore.meta(for: item) else { return true }
+            return OrbitInfo.make(item, meta: meta).logo != nil
+        }
         let isDoc: (MetaPreview) -> Bool = { item in item.genres.contains { $0.hasPrefix("Documentaire") } }
         return Array((withArt.filter { !isDoc($0) } + withArt.filter(isDoc)).prefix(6))
     }
@@ -909,7 +913,8 @@ private struct OrbitHBOTop10Heading: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 22) {
-            OrbitHBOGlassText(text: "TOP 10", size: 80, filled: false)
+            // (Steven: TOP 10 read faint on the dark page — a brighter rim, lighter glass.)
+            OrbitHBOGlassText(text: "TOP 10", size: 80, filled: false, bright: true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(series ? String(localized: "DES SÉRIES") : String(localized: "DES FILMS"))
                 Text(String(localized: "DU JOUR"))
@@ -927,27 +932,31 @@ private struct OrbitHBOGlassText: View {
     let text: String
     let size: CGFloat
     let filled: Bool
+    var bright = false
 
     var body: some View {
         let font = Font.system(size: size, weight: .medium)
-        let w = max(1.5, size * 0.022)
+        let w = max(1.5, size * (bright ? 0.03 : 0.022))
+        // (Steven: the 1 and the 0 of 10 touching.)
+        let tight: CGFloat = text == "10" ? -size * 0.09 : 0
         let offsets: [CGSize] = (0..<16).map { i in
             let a = Double(i) / 16 * 2 * .pi
             return CGSize(width: cos(a) * w, height: sin(a) * w)
         }
         let rim = LinearGradient(colors: [Color(white: 0.97), Color(white: 0.55), Color(white: 0.3), Color(white: 0.85)],
                                  startPoint: .bottomLeading, endPoint: .topTrailing)
-        let glass = LinearGradient(colors: [Color(red: 0.03, green: 0.04, blue: 0.06), Color(red: 0.15, green: 0.17, blue: 0.24)],
+        let glass = LinearGradient(colors: bright ? [Color(red: 0.16, green: 0.18, blue: 0.26), Color(red: 0.34, green: 0.37, blue: 0.46)]
+                                          : [Color(red: 0.03, green: 0.04, blue: 0.06), Color(red: 0.15, green: 0.17, blue: 0.24)],
                                    startPoint: .top, endPoint: .bottom)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         ZStack {
             ForEach(offsets.indices, id: \.self) { i in
-                Text(text).font(font).foregroundStyle(rim).offset(offsets[i])
+                Text(text).font(font).kerning(tight).foregroundStyle(rim).offset(offsets[i])
             }
             // Steven (device: the rank arrived offset, then filled): both fills drawn, the lit one
             // faded in on the move's own curve (a style swap cannot animate; it jumped afterwards).
-            Text(text).font(font).foregroundStyle(glass)
-            Text(text).font(font).foregroundStyle(lit).opacity(filled ? 1 : 0)
+            Text(text).font(font).kerning(tight).foregroundStyle(glass)
+            Text(text).font(font).kerning(tight).foregroundStyle(lit).opacity(filled ? 1 : 0)
         }
         .compositingGroup()
         .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
@@ -971,14 +980,16 @@ private struct OrbitHBOTop10Card: View {
             OrbitHBOGlassText(text: String(rank), size: L.poster.height * 0.52, filled: focused)
                 .frame(width: rankW, alignment: .trailing)
                 // (Steven: the 1, narrow, almost all behind its poster — a little out, still tucked.)
-                .offset(x: rank == 1 ? -22 : 0, y: L.poster.height * 0.1)
+                .offset(x: rank == 1 ? -10 : 0, y: L.poster.height * 0.1)
             ZStack {
                 Color(red: 0.08, green: 0.10, blue: 0.20)
                 if let poster {
                     OrbitImage(url: poster, fallback: nil, mode: .fill, size: L.poster)
                 }
                 if let own = OrbitHBOOwn.made(meta) {
-                    OrbitHBOPosterMark(own: own, width: L.poster.width)
+                    OrbitPrintedReader(url: poster, marks: ["hbo", "max"]) { printed in
+                        if printed == false { OrbitHBOPosterMark(own: own, width: L.poster.width) }
+                    }
                 }
             }
             .frame(width: L.poster.width, height: L.poster.height)
@@ -1186,7 +1197,10 @@ private struct OrbitHBOPoster: View {
             OrbitImage(url: url, fallback: ranked ? meta?.cleanPoster : item.rawPosterUrl,
                        mode: .fill, size: size, lastResort: meta?.backdrop ?? item.banner)
             if let own = OrbitHBOOwn.made(meta) {
-                OrbitHBOPosterMark(own: own, width: size.width)
+                // Drawn only when the poster does not print it already (Steven: doubles).
+                OrbitPrintedReader(url: url, marks: ["hbo", "max"]) { printed in
+                    if printed == false { OrbitHBOPosterMark(own: own, width: size.width) }
+                }
             }
             if let text = orbitHBOLabel(item, meta, isNew: isNew) {
                 OrbitHBONewTag(text: text, size: 13, white: true)

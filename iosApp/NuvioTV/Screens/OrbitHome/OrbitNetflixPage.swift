@@ -211,7 +211,13 @@ struct OrbitNetflixPage: View {
     private var billboardItem: MetaPreview? {
         let rows = rows
         let source = rows.first(where: \.fresh) ?? rows.first
-        return source?.items.first { $0.banner != nil } ?? source?.items.first
+        // Steven (every platform): a title with its logo (once its details are known).
+        let hasLogo: (MetaPreview) -> Bool = { item in
+            guard let meta = metaStore.meta(for: item) else { return true }
+            return OrbitInfo.make(item, meta: meta).logo != nil
+        }
+        return source?.items.first { $0.banner != nil && hasLogo($0) } ?? source?.items.first { $0.banner != nil }
+            ?? source?.items.first
     }
 
     /// "N° 3 des films" for a title of the Top 10.
@@ -696,9 +702,11 @@ private func isNetflixOwn(_ item: MetaPreview, _ meta: OrbitMeta?) -> Bool {
     if let info = item.releaseInfo,
        let range = info.range(of: #"(19|20)\d{2}"#, options: .regularExpression),
        let year = Int(info[range]), year < 2012 { return false }
-    // Steven (2026-10-27): Orbit decides on every platform — TMDB's producers and networks only,
-    // never the add-on's images.
-    return meta?.producers.contains { $0.lowercased().contains("netflix") } ?? false
+    // Steven (2026-10-27): every sign counts — TMDB's producers (or a recent film on Netflix alone),
+    // and his add-on's own mark in its image address (N FILM / N SÉRIE must never go missing).
+    if OrbitPlatformBadgeKind.original(meta) == .netflix { return true }
+    let poster: String = item.poster ?? ""
+    return poster.contains("/n/v") || poster.range(of: #"/poster/v\d+/o"#, options: .regularExpression) != nil
 }
 
 /// The billboard: a large rounded card at the top.
@@ -1166,7 +1174,12 @@ private struct OrbitNetflixTile: View {
                 Color(white: 0.09)
                 // (Before TMDB answers for a Top 10 title, the catalog's poster rather than black.)
                 OrbitImage(url: poster ?? item.poster, fallback: top10 ? nil : item.poster, mode: .fill, size: closedSize)
-                if drawsN { OrbitNetflixPosterN(size: closedSize) }
+                if drawsN {
+                    // Drawn only when the poster does not print its N already (Steven: doubles).
+                    OrbitPrintedReader(url: poster, marks: ["n", "netflix"]) { printed in
+                        if printed == false { OrbitNetflixPosterN(size: closedSize) }
+                    }
+                }
                 if let foot {
                     OrbitNetflixFootLabel(info: foot)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
