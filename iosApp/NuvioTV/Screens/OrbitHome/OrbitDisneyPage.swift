@@ -423,6 +423,24 @@ struct OrbitDisneyPage: View {
 
     /// The focus came into section `s` (a row's title, or the hero).
     private func nativeEnter(_ s: Int) {
+        let clock = ViewerInputClock.shared
+        let recent = clock.hasInput(since: ProcessInfo.processInfo.systemUptime - 0.6)
+        OrbitTrace.log("disney enter \(s) current=\(current) last=\(clock.lastKindLabel) recent=\(recent)")
+        // Steven (Disney+ / Hulu: the page ran down on its own, Up went down): a row taking the focus
+        // against the viewer's press (below on Up, above on Down) is the system's — the focus goes
+        // back to the row the press meant.
+        if recent, s >= 1, (clock.lastKind == .up && s > current) || (clock.lastKind == .down && s < current) {
+            let meant = clock.lastKind == .up ? current - 1 : current + 1
+            OrbitTrace.log("disney enter \(s) refused, back to \(meant)")
+            let rows = rows
+            if meant >= 1, rows.indices.contains(meant - 1) {
+                if current != meant { withAnimation(.easeInOut(duration: 0.3)) { current = meant } }
+                leads.box(rows[meant - 1].id).focusRequest &+= 1
+            } else if meant <= 0 {
+                withAnimation(.easeInOut(duration: 0.3)) { current = 0 }
+            }
+            return
+        }
         nativeFocusStamp = ProcessInfo.processInfo.systemUptime
         if !nativeHasFocus { nativeHasFocus = true }
         if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }

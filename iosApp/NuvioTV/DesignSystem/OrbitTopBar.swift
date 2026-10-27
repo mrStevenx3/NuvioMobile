@@ -794,7 +794,8 @@ struct CollectionFilterBar: View {
                 } label: {
                     Group {
                         if let switchLogo {
-                            switchLogo(index, lit)
+                            // (Steven: Accueil read higher than the logos — text sits above its box's centre.)
+                            switchLogo(index, lit).offset(y: -3)
                         } else {
                             Text(title)
                                 .font(.system(size: OrbitBarMetrics.fontSize, weight: .semibold))
@@ -846,6 +847,15 @@ struct CollectionFilterBar: View {
         .defaultFocus($focused, entryItem, priority: .userInitiated)
         // Steven: Films / Séries switch on focus, no press (as Disney+ / Hulu), after a short rest.
         .onChange(of: focused) { _, item in
+            // Steven (Disney+: Up from the page landed on Accueil): coming up into the bar, the
+            // focus goes to the page's current mode (Disney+ / Hulu), not the nearest item.
+            if centreLeads, let item, item == .everything || item == .search,
+               ViewerInputClock.shared.lastKind == .up,
+               ViewerInputClock.shared.hasInput(since: ProcessInfo.processInfo.systemUptime - 0.6),
+               let selection = switchSelection?.wrappedValue {
+                switchFocused = selection
+                return
+            }
             guard let item, item == .everything || type(of: item) != nil else { return }
             let wanted = self.type(of: item)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
