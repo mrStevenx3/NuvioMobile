@@ -301,3 +301,26 @@ extension EnvironmentValues {
         set { self[OrbitPushStudioKey.self] = newValue }
     }
 }
+
+// MARK: - Simulator trace
+
+/// A line in ~/Orbit/logs/focus.log on the Mac (simulator only: Claude reads it to see what the
+/// focus really did — Steven's videos cannot show the system's own landings).
+enum OrbitTrace {
+    #if targetEnvironment(simulator)
+    nonisolated(unsafe) private static var handle: FileHandle? = {
+        guard let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] else { return nil }
+        let path = home + "/Orbit/logs/focus.log"
+        FileManager.default.createFile(atPath: path, contents: nil)
+        return FileHandle(forWritingAtPath: path)
+    }()
+    nonisolated(unsafe) private static let start = ProcessInfo.processInfo.systemUptime
+    #endif
+
+    nonisolated static func log(_ text: @autoclosure () -> String) {
+        #if targetEnvironment(simulator)
+        let t = String(format: "%8.3f", ProcessInfo.processInfo.systemUptime - start)
+        if let data = "\(t) \(text())\n".data(using: .utf8) { handle?.seekToEndOfFile(); handle?.write(data) }
+        #endif
+    }
+}

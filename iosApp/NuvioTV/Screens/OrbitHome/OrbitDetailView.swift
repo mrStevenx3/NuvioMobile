@@ -387,6 +387,7 @@ struct OrbitDetailView: View {
         // Menu from a section: back to the hero; from the hero, the page leaves (system default).
         .onExitCommand(perform: section == .hero || showSynopsis ? nil : { backToHero() })
         .onChange(of: focus) { old, new in
+            OrbitTrace.log("detail focus \(String(describing: old)) -> \(String(describing: new)) resuming=\(resuming) back=\(String(describing: resumeFocus)) section=\(section)")
             guard let new else { return }
             if resuming {
                 if new == resumeFocus {
@@ -428,6 +429,7 @@ struct OrbitDetailView: View {
         }
         .onDisappear { OrbitNavClock.titlesShown = max(0, OrbitNavClock.titlesShown - 1) }
         .onAppear {
+            OrbitTrace.log("detail appear \(preview.name) resume=\(String(describing: resumeFocus)) focus=\(String(describing: focus)) section=\(section)")
             if let back = resumeFocus {
                 returningTo = back
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { returningTo = nil }
@@ -448,6 +450,7 @@ struct OrbitDetailView: View {
                             if let focus { enter(focus.section) }
                             return
                         }
+                        OrbitTrace.log("detail ask \(delay) focus=\(String(describing: focus)) -> \(back)")
                         if focus != back { focus = back }
                         anchorTick &+= 1
                     }
@@ -481,6 +484,7 @@ struct OrbitDetailView: View {
             OrbitHomeButtonHost.shared.hidden = false
             // Leaving for an actor, a saga, a similar title…: where to come back.
             resumeFocus = section != .hero ? lastFocus : nil
+            OrbitTrace.log("detail disappear \(preview.name) section=\(section) last=\(String(describing: lastFocus)) focus=\(String(describing: focus))")
             // Set before the way back begins (the system lands as the page comes back, before
             // its onAppear).
             returningTo = resumeFocus
