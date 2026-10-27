@@ -65,6 +65,7 @@ struct LibraryView: View {
             }
         }
         .environment(\.orbitPush, { path.append($0) })
+        .orbitHouseFollows(path.count)
         .orbitPopsToRootOnGoHome($path, tab: 2)
         // A failed remove. The shared toast controller is a no-op on tvOS, so the screen says it.
         .alert(

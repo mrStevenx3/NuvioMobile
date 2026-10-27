@@ -69,6 +69,9 @@ final class OrbitHomeButtonHost: ObservableObject {
     @Published private var canvases = 0
     /// Steven (device): out of sight while a trailer plays full screen on a title's page.
     @Published var hidden = false
+    /// The tab's stack is going back to its root: the house goes at once (Steven: back to Search
+    /// it showed a second, the time the pushed page took to go).
+    @Published var poppingToRoot = false
 
     var mode: Mode { ownBars > 0 ? .ownBar : (canvases > 0 ? .onRequest : .free) }
 
@@ -117,7 +120,7 @@ struct OrbitHomeButton: View {
     @State private var requested = false
     @FocusState private var focused: Bool
 
-    private var shown: Bool { immersive && host.mode != .ownBar && !host.hidden }
+    private var shown: Bool { immersive && host.mode != .ownBar && !host.hidden && !host.poppingToRoot }
     private var reachable: Bool { shown && ready && (host.mode == .free || requested) }
 
     var body: some View {
@@ -160,6 +163,7 @@ struct OrbitHomeButton: View {
         .animation(.easeOut(duration: 0.2), value: shown)
         .onReceive(tabBarVisibility.$immersiveHidden) { hidden in
             guard hidden != immersive else { return }
+            if host.poppingToRoot { host.poppingToRoot = false }
             immersive = hidden
             ready = false
             requested = false
@@ -322,5 +326,15 @@ enum OrbitTrace {
         let t = String(format: "%8.3f", ProcessInfo.processInfo.systemUptime - start)
         if let data = "\(t) \(text())\n".data(using: .utf8) { handle?.seekToEndOfFile(); handle?.write(data) }
         #endif
+    }
+}
+
+
+extension View {
+    /// The house goes the moment this stack heads back to its root (not once the page has gone).
+    func orbitHouseFollows(_ depth: Int) -> some View {
+        onChange(of: depth) { old, new in
+            if new == 0, old > 0 { OrbitHomeButtonHost.shared.poppingToRoot = true }
+        }
     }
 }

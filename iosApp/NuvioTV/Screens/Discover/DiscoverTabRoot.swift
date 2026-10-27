@@ -44,6 +44,7 @@ struct DiscoverTabRoot: View {
             }
         }
         .environment(\.orbitPush, { path.append($0) })
+        .orbitHouseFollows(path.count)
         .orbitPopsToRootOnGoHome($path, tab: 6)
         .onAppear { model.start() }
         // Steven's fork (device pass): leaving Discover puts it back on Films, every genre, so a

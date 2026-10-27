@@ -103,6 +103,7 @@ struct HomeView: View {
             }
         }
         .environment(\.orbitPush, { homePath.append($0) })
+        .orbitHouseFollows(homePath.count)
         .environment(\.orbitPushFolder, { homePath.append($0) })
         .environment(\.orbitPushStudio, { homePath.append($0) })
         .orbitPopsToRootOnGoHome($homePath, tab: 0, delay: 0)
