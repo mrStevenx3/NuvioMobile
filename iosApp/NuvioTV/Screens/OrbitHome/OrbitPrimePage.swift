@@ -943,9 +943,9 @@ private struct OrbitPrimePoster: View {
             .overlay { shape.strokeBorder(Color.white.opacity(focused && !open ? 0.95 : 0), lineWidth: 3) }
             if open {
                 ZStack(alignment: .bottomLeading) {
-                    OrbitImage(url: poster ?? item.banner, fallback: item.poster, mode: .fill, size: L.poster)
-                        .frame(width: openSize.width, height: openSize.height)
-                        .clipped()
+                    // (Steven's video: the poster stretched under the art showed as a coloured smear
+                    // while the row came in — the page's own dark until the art, fetched ahead, lands.)
+                    Color(white: 0.09)
                     OrbitSwapImage(url: item.banner ?? meta?.backdrop, fallback: nil, size: openSize)
                     if let trailerURL {
                         TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
