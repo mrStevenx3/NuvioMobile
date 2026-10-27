@@ -195,8 +195,10 @@ struct OrbitLeadFrame: View {
                 LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
                 // The title's own marks change with it.
                 ZStack(alignment: .bottomLeading) {
+                    // (Steven: a little smaller in the Top 10's frame.)
                     OrbitTitleMark(name: card.preview.name, logo: OrbitInfo.make(card.preview, meta: meta).logo,
-                                   maxSize: CGSize(width: 440, height: 130), textSize: 54)
+                                   maxSize: frameSize == nil ? CGSize(width: 440, height: 130) : CGSize(width: 370, height: 108),
+                                   textSize: frameSize == nil ? 54 : 46)
                         .padding(.leading, 28)
                         .padding(.bottom, 24)
                     if let badge = card.badge {
