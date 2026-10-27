@@ -1083,10 +1083,10 @@ private struct OrbitHBOBrandTile: View {
                 ZStack {
                     OrbitWBShield().fill(Color.white)
                     Text("WB")
-                        .font(.system(size: d * 0.2, weight: .black, design: .serif))
-                        .kerning(-d * 0.01)
+                        .font(.system(size: d * 0.14, weight: .black, design: .serif))
+                        .kerning(-d * 0.006)
                         .foregroundStyle(brand.colours[0])
-                        .offset(y: -d * 0.01)
+                        .offset(y: -d * 0.02)
                 }
                 .frame(width: d * 0.4, height: d * 0.46)
             } else if let logo = logos.logos[brand.name] {
