@@ -865,8 +865,10 @@ private struct OrbitNetflixRowView: View {
                                      trailerURL: nil,
                                      onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded,
                                      framedByRow: true)
+                        // (The Top 10 alone: its figures differ in width and it stops at its end. Every
+                        // other row loops, its open title always at the margin.)
                         .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .named("netflixRow")).minX }) { x in
-                            if open { openX = x }
+                            if open, row.top10, openX != x { openX = x }
                         }
                 }
             }
@@ -884,7 +886,7 @@ private struct OrbitNetflixRowView: View {
                                           badges: badges(rank: rank, fresh: row.fresh, news: OrbitTitleNews.of(item, meta)),
                                           trailerURL: isCurrent ? trailerURL : nil,
                                           onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
-                        .offset(x: openX ?? (L.margin + (row.top10 ? OrbitNetflixRank.width(lead + 1) : 0)))
+                        .offset(x: row.top10 ? (openX ?? (L.margin + OrbitNetflixRank.width(lead + 1))) : L.margin)
                         .animation(OrbitHomeLayout.horizontal, value: openX)
                 }
             }
@@ -1215,11 +1217,14 @@ private struct OrbitNetflixOpenFrame: View {
         let key = "\(item.type):\(item.id)"
         ZStack {
             Color(white: 0.09)
+            // The next title fades in over the last one, which stays until it is covered (Steven's
+            // video: the frame went dark between two titles).
             content
                 .id(key)
-                .transition(.opacity)
+                .zIndex(1)
+                .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22)),
+                                        removal: .opacity.animation(.linear(duration: 0.01).delay(0.24))))
         }
-        .animation(.easeInOut(duration: 0.28), value: key)
         .frame(width: openSize.width, height: openSize.height)
         .clipShape(shape)
         .overlay { shape.strokeBorder(Color.white.opacity(lit ? 0.95 : 0), lineWidth: 3) }
