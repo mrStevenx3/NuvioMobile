@@ -956,6 +956,9 @@ private struct OrbitNetflixRank: View {
                 .init(color: .black, location: visible * 0.72),
                 .init(color: .black.opacity(0.12), location: visible),
             ], startPoint: .leading, endPoint: .trailing)
+            // (Steven: the 6's left and foot looked rubbed out — the line's outer half, past the
+            // figure's box, was cut by the mask: the mask reaches past the box.)
+            .padding(-8)
         }
         .frame(width: width, height: height)
         // Its right part behind the tile (drawn after it, over it).
