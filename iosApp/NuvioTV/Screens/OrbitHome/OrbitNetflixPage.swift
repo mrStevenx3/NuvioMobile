@@ -928,7 +928,13 @@ private struct OrbitNetflixRank: View {
             .fill(Color.black)
             .overlay {
                 OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1)
-                    .stroke(Color(white: 0.5), style: StrokeStyle(lineWidth: 3, lineJoin: .round))
+                    // Netflix: the line fades into the tile's shadow as it nears the tile.
+                    .stroke(LinearGradient(stops: [
+                        .init(color: Color(white: 0.55), location: 0),
+                        .init(color: Color(white: 0.5), location: 0.66),
+                        .init(color: Color(white: 0.08), location: 0.88),
+                    ], startPoint: .leading, endPoint: .trailing),
+                            style: StrokeStyle(lineWidth: 3, lineJoin: .round))
             }
             .frame(width: 420, height: height)
             .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .topTrailing)
