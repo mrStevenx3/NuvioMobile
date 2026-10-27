@@ -41,8 +41,11 @@ enum OrbitNetflixLayout {
     static let infoHeight: CGFloat = 205
     static let rowGap: CGFloat = 33
     static let radius: CGFloat = 8
-    static let rankWidth: CGFloat = 128
-    static let rankWidthTen: CGFloat = 236
+    /// A rank's room before its tile (the figure's left part, and the gap after the previous tile);
+    /// the figure goes `rankTuck` further, behind the tile.
+    static let rankWidth: CGFloat = 150
+    static let rankWidthTen: CGFloat = 330
+    static let rankTuck: CGFloat = 50
     static let horizontal = Animation.easeOut(duration: 0.26)
     static let vertical = Animation.easeInOut(duration: 0.38)
 }
@@ -913,24 +916,25 @@ private struct OrbitNetflixRowView: View {
     }
 }
 
-/// Netflix's rank (its own app, Steven's video): a tall figure drawn as a thin grey line, black
-/// inside, its top level with the tile's top, its foot well above the tile's middle, close to the tile.
-/// Steven ("les chiffres du Top 10 sont ratés"): the figure is the glyph's own outline now (a clean
-/// stroke), placed by its drawn edges, not by its text box.
+/// Netflix's rank (its own app, Steven's photos side by side): a wide figure drawn as a thin grey
+/// line, black inside, its top level with the tile's, its right part tucked behind the tile.
 private struct OrbitNetflixRank: View {
     let rank: Int
 
     var body: some View {
         let L = OrbitNetflixLayout.self
-        let height = L.tileHeight * 0.44
-        let shape = OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.04 : 0)
-        ZStack {
-            shape.fill(Color.black)
-            shape.stroke(Color(white: 0.62), style: StrokeStyle(lineWidth: 3, lineJoin: .round))
-        }
-        .frame(width: (rank == 10 ? L.rankWidthTen : L.rankWidth) - 14, height: height)
-        .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .topLeading)
-        .padding(.top, 2)
+        let height = L.tileHeight * 0.43
+        OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1)
+            .fill(Color.black)
+            .overlay {
+                OrbitGlyphShape(text: "\(rank)", tracking: rank == 10 ? -0.02 : 0, narrowing: 1)
+                    .stroke(Color(white: 0.5), style: StrokeStyle(lineWidth: 3, lineJoin: .round))
+            }
+            .frame(width: 420, height: height)
+            .frame(width: rank == 10 ? L.rankWidthTen : L.rankWidth, height: L.tileHeight, alignment: .topTrailing)
+            // Its right part behind the tile (drawn after it, over it).
+            .offset(x: L.rankTuck)
+            .padding(.top, 2)
     }
 }
 
@@ -942,7 +946,8 @@ struct OrbitGlyphShape: Shape {
     var narrowing: CGFloat = 0.8
 
     func path(in rect: CGRect) -> Path {
-        let font = UIFont.systemFont(ofSize: 200, weight: .bold)
+        // Netflix's figures are wide and heavy.
+        let font = UIFont.systemFont(ofSize: 200, weight: .bold, width: .expanded)
         let ctFont = font as CTFont
         var glyphs = [CGGlyph](repeating: 0, count: text.utf16.count)
         let chars = Array(text.utf16)
@@ -958,7 +963,9 @@ struct OrbitGlyphShape: Shape {
             }
             x += advances[i].width + tracking * 200
         }
-        let box = combined.boundingBoxOfPath
+        // (The system font's contours overlap — stroked, the overlaps showed inside the figure.)
+        let whole = combined.normalized(using: .winding)
+        let box = whole.boundingBoxOfPath
         guard box.height > 0 else { return Path() }
         let k = rect.height / box.height
         // (Netflix's figures are narrower than the system's.)
@@ -967,7 +974,7 @@ struct OrbitGlyphShape: Shape {
         var t = CGAffineTransform(translationX: rect.maxX - width, y: rect.minY)
             .scaledBy(x: kx, y: k)
             .translatedBy(x: -box.minX, y: -box.minY)
-        return Path(combined.copy(using: &t) ?? combined)
+        return Path(whole.copy(using: &t) ?? whole)
     }
 }
 
