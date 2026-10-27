@@ -1007,7 +1007,7 @@ struct OrbitGlyphShape: Shape {
             // his photo (in the figure's height): flag 13 % wide, its left side 22 % tall.
             if chars[i] == UInt16(UInt8(ascii: "1")) {
                 let h = CTFontGetCapHeight(ctFont)
-                let xs = h * 0.13, xr = xs + h * 0.27
+                let xs = h * 0.13, xr = xs + h * 0.3
                 let one = CGMutablePath()
                 one.addLines(between: [
                     CGPoint(x: xs, y: 0), CGPoint(x: xr, y: 0), CGPoint(x: xr, y: h),
