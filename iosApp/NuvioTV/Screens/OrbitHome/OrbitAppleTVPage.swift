@@ -869,13 +869,8 @@ private struct OrbitAppleTVRowView: View {
                                          trailerURL: index == lead ? trailerURL : nil,
                                          onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                     case .top10:
-                        // Steven (Apple's app): Orbit draws the rank and the genre under the title on
-                        // TMDB's poster; his add-on's image (its rank printed) only without one.
-                        let meta = metaStore.meta(for: item)
-                        let own: String? = meta?.localPoster ?? meta?.titledPoster
-                        OrbitAppleTVPoster(url: own ?? item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false,
-                                           rank: own != nil ? index + 1 : nil,
-                                           caption: orbitAppleTVGenre(item, meta, withKind: false), captionAlways: true)
+                        // (Steven: his add-on's image, its own rank; no genre on the Top 10.)
+                        OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false)
                     case .posters:
                         let meta = metaStore.meta(for: item)
                         // Steven (2026-10-27): TMDB's poster, Orbit's own  tv mark on Apple's productions
