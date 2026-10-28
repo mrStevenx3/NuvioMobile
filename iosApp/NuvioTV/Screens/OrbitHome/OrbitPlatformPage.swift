@@ -673,6 +673,9 @@ struct OrbitPlatformIntro: View {
     /// the opening's fades onto it), and its scale there.
     var settlesAt: CGPoint? = nil
     var settledScale: CGFloat = 0.3
+    /// Steven (2026-10-28, Prime Video / Paramount+ were right): the logo's top on the corner's
+    /// line, as before, instead of centred on the bar's line.
+    var cornerTop = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Phase = .hidden
@@ -721,7 +724,7 @@ struct OrbitPlatformIntro: View {
             ? CGPoint(x: W - Self.cornerInset - size.width * Self.cornerScale / 2,
                       // Steven (2026-10-28: Netflix's N, Apple TV's and HBO Max's logos sat lower than the
                       // bar's Search): every corner logo centred on the bar's own line, whatever its height.
-                      y: Self.cornerCentreY)
+                      y: cornerTop ? Self.cornerInset + size.height * Self.cornerScale / 2 : Self.cornerCentreY)
             : CGPoint(x: W / 2, y: H / 2)
         ZStack(alignment: .topLeading) {
             // Black tinted with the platform's colour.
@@ -738,7 +741,7 @@ struct OrbitPlatformIntro: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
                     if width > 1 { OrbitCornerLogo.shared.width = width * Self.cornerScale }
                 }
-                .frame(width: size.width, height: size.height, alignment: phase == .settled && settlesAt == nil ? .trailing : .center)
+                .frame(width: size.width, height: size.height, alignment: phase == .settled && settlesAt == nil ? (cornerTop ? .topTrailing : .trailing) : .center)
                 // Steven: the logo switched on — it comes up dim, lights up, then takes the viewer in.
                 .modifier(OrbitLightUp(dim: dim, glow: glow, tint: brand))
                 .scaleEffect(scale, anchor: .center)

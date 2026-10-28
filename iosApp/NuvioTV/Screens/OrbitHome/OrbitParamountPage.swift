@@ -332,7 +332,7 @@ struct OrbitParamountPage: View {
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
-                               brand: OrbitParamountLayout.blue, white: true)
+                               brand: OrbitParamountLayout.blue, white: true, cornerTop: true)
 
             if let search {
                 OrbitPlatformSearchLayer(model: search, platform: model.folderTitle,
