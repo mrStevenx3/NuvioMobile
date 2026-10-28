@@ -504,7 +504,10 @@ struct OrbitHBOPage: View {
                                 news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
                                 metaStore: metaStore,
                                 onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
-                                onLeadChange: { refreshAfterMove() })
+                                onLeadChange: { refreshAfterMove() },
+                                trailerURL: s == current && row.featured ? trailerURL(for: focusedItem) : nil,
+                                onTrailerFailure: { trailer.playbackFailed($0) },
+                                onTrailerEnded: { trailer.playbackFinished() })
             }
         }
     }
@@ -663,8 +666,13 @@ struct OrbitHBOPage: View {
         trailer.reset()
         trailerKey = nil
         // The carousel's trailer plays whether or not it has the focus (the bar can).
-        guard trailersOn, !covered, search == nil, current == 0, UIAccessibility.isVideoAutoplayEnabled,
-              let item = heroItem else { return }
+        // The label row's large cards play theirs too (Steven).
+        var target: MetaPreview? = current == 0 ? heroItem : nil
+        if let r = rowIndex(of: current), rows.indices.contains(r), rows[r].featured, pageFocused {
+            target = focusedItem
+        }
+        guard trailersOn, !covered, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+              let item = target else { return }
         trailer.prefersReducedMotion = reduceMotion
         trailer.restSource = .custom(motion)
         trailerKey = "\(item.type):\(item.id)"
@@ -864,9 +872,13 @@ private struct OrbitHBORowView: View {
     let onLeave: () -> Void
     let onSelect: () -> Void
     let onLeadChange: () -> Void
+    var trailerURL: String? = nil
+    var onTrailerFailure: (TrailerFailureReport) -> Void = { _ in }
+    var onTrailerEnded: () -> Void = {}
 
     var body: some View {
         let L = OrbitHBOLayout.self
+        let lead = min(box.lead, max(0, row.items.count - 1))
         VStack(alignment: .leading, spacing: 0) {
             Group {
                 if row.top10 {
@@ -888,7 +900,9 @@ private struct OrbitHBORowView: View {
                     OrbitHBOBrandTile(brand: OrbitHBOBrand.all[index], focused: lit)
                 } else if row.featured {
                     let item = row.items[index]
-                    OrbitHBOFeaturedCard(item: item, meta: metaStore.meta(for: item), focused: lit)
+                    OrbitHBOFeaturedCard(item: item, meta: metaStore.meta(for: item), focused: lit,
+                                         trailerURL: index == lead ? trailerURL : nil,
+                                         onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                 } else if row.top10 {
                     let item = row.items[index]
                     OrbitHBOTop10Card(item: item, meta: metaStore.meta(for: item), rank: index + 1, focused: lit)
@@ -1154,6 +1168,9 @@ private struct OrbitHBOFeaturedCard: View {
     let item: MetaPreview
     let meta: OrbitMeta?
     let focused: Bool
+    var trailerURL: String? = nil
+    var onTrailerFailure: (TrailerFailureReport) -> Void = { _ in }
+    var onTrailerEnded: () -> Void = {}
 
     var body: some View {
         let L = OrbitHBOLayout.self
@@ -1162,6 +1179,13 @@ private struct OrbitHBOFeaturedCard: View {
         ZStack(alignment: .bottomLeading) {
             Color(red: 0.08, green: 0.10, blue: 0.20)
             OrbitImage(url: meta?.backdrop ?? item.banner, fallback: item.banner, size: size)
+            if let trailerURL {
+                TrailerHeroPlayer(urlString: trailerURL, onFailure: onTrailerFailure,
+                                  zoomKey: TrailerResolutionCache.key(type: item.type, id: item.id),
+                                  loops: false, onPlaybackEnded: onTrailerEnded, cornerRadius: L.radius)
+                    .frame(width: size.width, height: size.height)
+                    .transition(.opacity.animation(.easeOut(duration: 0.6)))
+            }
             LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 8) {
                 OrbitHBOMark(own: OrbitHBOOwn.made(meta) ?? .hbo, size: 16)
