@@ -652,6 +652,7 @@ struct OrbitSpreadMetaLine: View {
         .font(.system(size: size, weight: .semibold))
         .lineLimit(1)
         // Steven (2026-10-28): a soft shadow under the line, readable on any art.
-        .shadow(color: .black.opacity(0.75), radius: 5, y: 2)
+        .shadow(color: .black, radius: 1.5, y: 1)
+        .shadow(color: .black.opacity(0.9), radius: 8, y: 2)
     }
 }

@@ -427,10 +427,15 @@ struct OrbitDetailView: View {
             // stayed on the card): during the way back the neighbours cannot take the focus — the
             // press is carried out here, onto the neighbour, and the way back ends.
             if returningTo != nil {
+                // (Steven: quick presses after the way back moved several titles — the return's own
+                // re-asks and the system's move came on top of this one: all of them end here.)
                 returningTo = nil
+                resuming = false
+                resumeFocus = nil
                 if let current = focus, let next = neighbour(of: current, direction) {
                     DispatchQueue.main.async { focus = next }
                 }
+                return
             }
             guard resuming, let back = resumeFocus else { return }
             // Past the first moment, or the card already focused: the press is his.

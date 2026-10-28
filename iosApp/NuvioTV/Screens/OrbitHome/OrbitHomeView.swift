@@ -371,7 +371,7 @@ struct OrbitRowsBackdrop: View {
             guard let url else { return }
             // Steven (device: still a hitch Left / Right): the wash follows the title once the
             // remote rests — a full-screen colour change animating under every step was part of it.
-            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
             if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
                 show(color)
                 if opaque { OrbitHomeTone.shared.color = color }
@@ -388,7 +388,7 @@ struct OrbitRowsBackdrop: View {
         withTransaction(still) {
             if showsB { colourA = color } else { colourB = color }
         }
-        withAnimation(.easeInOut(duration: 0.6)) { showsB.toggle() }
+        withAnimation(.easeInOut(duration: 0.4)) { showsB.toggle() }
     }
 }
 

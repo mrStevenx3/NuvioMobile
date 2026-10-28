@@ -101,6 +101,9 @@ struct OrbitNativeHome: View {
         let L = OrbitHomeLayout.self
         ZStack(alignment: .topLeading) {
             OrbitNativeBackdrop(visible: !onHero)
+            // The clickpad's swipes, for the open row holding the focus (`OrbitSwipeHub`).
+            OrbitSwipeCatcher(active: true) { step in OrbitSwipeHub.shared.onStep?(step) }
+                .frame(width: 0, height: 0)
 
             // Steven (device, 2026-10-26: "le défilement dans le studio fonctionne parfaitement, il
             // faut mettre ce défilement partout"): the studio page's scroll — a vertical scroll view
@@ -1003,6 +1006,19 @@ struct OrbitNativeOpenRow: View {
                     }
                 }
                 .frame(width: L.screenWidth, height: height, alignment: .bottomLeading)
+                // Steven (2026-10-28: "je vois l'image de droite ou gauche se déplacer en mode
+                // image fantôme — peut-être juste faire apparaître l'image en fondu dans le
+                // focus"): the open frame stays at the margin; the next title fades in inside it
+                // while the posters slide under (Netflix's).
+                .overlay(alignment: .bottomLeading) {
+                    if cards.indices.contains(leadIndex) {
+                        openFrame(cards[leadIndex], index: leadIndex)
+                            .id(cards[leadIndex].id)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.22)))
+                            .offset(x: L.margin + room(leadIndex))
+                            .animation(reduceMotion ? nil : OrbitHomeLayout.horizontal, value: leadIndex)
+                    }
+                }
                 .contentShape(Rectangle())
             }
             .buttonStyle(OrbitPlainStyle())
@@ -1017,9 +1033,14 @@ struct OrbitNativeOpenRow: View {
             .frame(height: height)
             // Steven (2026-10-28: the touch surface no longer moved these rows): a swipe across the
             // clickpad moves the lead, one title per stretch of the swipe.
-            .background {
-                OrbitSwipeCatcher(active: rowFocused) { step in move(step) }
-                    .frame(width: 0, height: 0)
+            .onChange(of: rowFocused, initial: true) { _, focused in
+                if focused {
+                    OrbitSwipeHub.shared.owner = row.id
+                    OrbitSwipeHub.shared.onStep = { step in move(step) }
+                } else if OrbitSwipeHub.shared.owner == row.id {
+                    OrbitSwipeHub.shared.owner = nil
+                    OrbitSwipeHub.shared.onStep = nil
+                }
             }
 
             if row.style == .classic {
@@ -1047,15 +1068,42 @@ struct OrbitNativeOpenRow: View {
         .onAppear(perform: restoreIfReturning)
     }
 
+    /// A title of the strip. The open one keeps only its room (and its rank): its frame is drawn
+    /// apart, fixed at the margin (`openFrame`).
     @ViewBuilder
     private func tile(_ card: OrbitCard, index: Int, open: Bool) -> some View {
         let meta = metaStore.meta(for: card.preview)
-        let key = "\(row.id)|\(card.id)"
         if ranked {
-            OrbitNativeRankedOpenTile(card: card, meta: meta, rank: index + 1, trailers: trailers, trailerKey: key, open: open)
+            OrbitRankedTile(card: card, meta: meta, rank: index + 1, focused: open && rowFocused && !focusHidden,
+                            openWidth: open ? OrbitNativeRankedOpenTile.frame(scale: 1).width : nil,
+                            openFrame: open ? { AnyView(Color.clear) } : nil)
+                .transaction { $0.animation = nil }
+        } else if open {
+            Color.clear.frame(width: width(index, open: true), height: height)
         } else {
-            OrbitNativeClassicTile(card: card, meta: meta, trailers: trailers, trailerKey: key, open: open)
-                .frame(width: width(index, open: open), height: height, alignment: .bottomLeading)
+            OrbitPosterCard(card: card)
+                .frame(width: width(index, open: false), height: height, alignment: .bottomLeading)
+        }
+    }
+
+    /// The open title's frame, fixed at the margin (its trailer in it).
+    @ViewBuilder
+    private func openFrame(_ card: OrbitCard, index: Int) -> some View {
+        let meta = metaStore.meta(for: card.preview)
+        let key = "\(row.id)|\(card.id)"
+        let lit = rowFocused && !focusHidden
+        if ranked {
+            OrbitRankedOpenFrame(card: card, meta: meta, focused: lit, trailers: trailers, trailerKey: key,
+                                 size: OrbitNativeRankedOpenTile.frame(scale: 1))
+        } else {
+            OrbitNativeTrailerReader(host: trailers, key: key) { url in
+                OrbitLeadFrame(card: card, meta: meta, focused: lit, trailerURL: url,
+                               onTrailerFailure: { trailers.model.playbackFailed($0) },
+                               onTrailerEnded: { trailers.model.playbackFinished() })
+            }
+            .shadow(color: .black.opacity(lit ? 0.55 : 0), radius: lit ? 18 : 0, y: lit ? 10 : 0)
+            .animation(.easeOut(duration: 0.18), value: lit)
+            .allowsHitTesting(false)
         }
     }
 
@@ -1066,7 +1114,8 @@ struct OrbitNativeOpenRow: View {
         sliding = true
         slideGeneration &+= 1
         let generation = slideGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+        // (Steven: the glow came back late — now as the slide ends.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             if generation == slideGeneration { sliding = false }
         }
         leadChanged()
@@ -1137,6 +1186,15 @@ struct OrbitNativeOpenRow: View {
     }
 }
 
+
+/// The open row holding the focus: where the clickpad's swipes go (one catcher for the page —
+/// Steven: with one per row, Nouveaux films never moved).
+@MainActor
+final class OrbitSwipeHub {
+    static let shared = OrbitSwipeHub()
+    var owner: String?
+    var onStep: ((Int) -> Void)?
+}
 
 /// Swipes across the remote's clickpad while `active`: one step per stretch of travel (left -1,
 /// right +1). Installed on the window, alongside the focus engine (it never takes the touches).
