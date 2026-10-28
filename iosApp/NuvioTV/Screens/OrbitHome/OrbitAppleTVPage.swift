@@ -427,7 +427,8 @@ struct OrbitAppleTVPage: View {
     private var nativeHero: some View {
         let items = heroItems
         let line = OrbitAppleTVLayout.firstRowLine
-        return ScrollView(.horizontal, showsIndicators: false) {
+        return ScrollViewReader { proxy in
+        ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                     Button {
@@ -447,6 +448,7 @@ struct OrbitAppleTVPage: View {
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($heroFocus, equals: index)
+                    .id(index)
                 }
             }
             .scrollTargetLayout()
@@ -466,6 +468,13 @@ struct OrbitAppleTVPage: View {
         // The carousel's own clock (or a trailer's end) moves the page: the focus follows.
         .onChange(of: heroIndex) { _, page in
             if heroFocus != nil, heroFocus != page { heroFocus = page }
+            // Steven (2026-10-28: the carousel's own clock showed an empty hero): with the focus
+            // elsewhere, nothing scrolled the carousel — the page on screen went out of the live
+            // ones and drew nothing. The carousel now follows the page itself.
+            if heroFocus == nil {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) { proxy.scrollTo(page, anchor: .leading) }
+            }
+        }
         }
     }
 
