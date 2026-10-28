@@ -157,7 +157,7 @@ struct OrbitTopBar: View {
         ZStack {
             pill([[.search, .discover]])
                 .frame(maxWidth: .infinity, alignment: .leading)
-            pill([[.films, .series, .services, .studios]])
+            pill([[.films, .series], [.services, .studios]])
                 .frame(maxWidth: .infinity, alignment: .center)
             pill([[.library, .settings, .profile]])
                 .frame(maxWidth: .infinity, alignment: .trailing)
