@@ -126,8 +126,17 @@ struct OrbitNativeHome: View {
                             .id("hero")
                     }
                     ForEach(rows) { row in
-                        OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
-                                       onEnter: { enter(row.id) })
+                        Group {
+                            // Steven (2026-10-28, device: Left poor, quick presses left the row blank):
+                            // the rows that open their title are moved by the page itself.
+                            if row.style == .classic || (row.style == .ranked && OrbitNativeRow.rankedOpens) {
+                                OrbitNativeOpenRow(row: row, isCurrent: currentRow == row.id, actions: actions,
+                                                   trailers: trailers, onEnter: { enter(row.id) })
+                            } else {
+                                OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
+                                               onEnter: { enter(row.id) })
+                            }
+                        }
                             .id(row.id)
                             // (Steven's videos: back from a title the focus landed a moment in the
                             // row above, then came back.)
@@ -912,6 +921,196 @@ private struct OrbitRowEntry: ViewModifier {
             content.defaultFocus(focused, target, priority: .userInitiated)
         } else {
             content
+        }
+    }
+}
+
+
+// MARK: - The rows that open their title (Nouveaux films, the Top 10)
+
+/// Steven (2026-10-28, device videos: Right fine slowly, Left poor, quick presses left the row
+/// half blank — a lazy row slid past what it had built): the row is ONE focusable stop. Left /
+/// Right move its lead; every tile is placed from the lead on one curve — the old title closing,
+/// the new one opening, the row sliding — the same both ways, retargeted smoothly on quick presses.
+/// Up / Down are the system's (nothing else in the row to go to).
+struct OrbitNativeOpenRow: View {
+    let row: OrbitRow
+    let isCurrent: Bool
+    let actions: StageHomeActions
+    let trailers: OrbitNativeTrailerHost
+    let onEnter: () -> Void
+
+    @FocusState private var rowFocused: Bool
+    @State private var lead = 0
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
+    @Environment(\.orbitFocusHidden) private var focusHidden
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var ranked: Bool { row.style == .ranked }
+    private var gap: CGFloat { OrbitTileLayout.gap(row.style) }
+    private var height: CGFloat { OrbitTileLayout.size(row.style).height }
+
+    /// A tile's room before its poster (the Top 10's rank).
+    private func room(_ i: Int) -> CGFloat { ranked ? OrbitRankedTile.rankRoom(i + 1) : 0 }
+    private func width(_ i: Int, open: Bool) -> CGFloat {
+        if ranked {
+            return room(i) + (open ? OrbitNativeRankedOpenTile.frame(scale: 1).width : OrbitTileLayout.rankedPoster.width)
+        }
+        return open ? OrbitHomeLayout.frameWidth : OrbitHomeLayout.posterWidth
+    }
+
+    /// Tile `i`'s left edge, the lead's at the margin.
+    private func x(_ i: Int) -> CGFloat {
+        let margin = OrbitHomeLayout.margin
+        if i == lead { return margin }
+        if i > lead {
+            return margin + (lead..<i).reduce(CGFloat(0)) { $0 + width($1, open: $1 == lead) + gap }
+        }
+        return margin - (i..<lead).reduce(CGFloat(0)) { $0 + width($1, open: false) + gap }
+    }
+
+    var body: some View {
+        let L = OrbitHomeLayout.self
+        let cards = row.cards
+        let leadIndex = min(lead, max(0, cards.count - 1))
+        VStack(alignment: .leading, spacing: 14) {
+            OrbitRowHeading(title: row.title, isCurrent: isCurrent)
+                .padding(.leading, L.margin + 4)
+
+            Button {
+                if cards.indices.contains(leadIndex) { open(cards[leadIndex]) }
+            } label: {
+                ZStack(alignment: .bottomLeading) {
+                    Color.clear
+                    ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
+                        if i >= leadIndex - 2, i <= leadIndex + 7 {
+                            tile(card, index: i, open: i == leadIndex)
+                                .environment(\.orbitFocusHidden, focusHidden || i != leadIndex)
+                                .offset(x: x(i))
+                                .zIndex(i == leadIndex ? 1 : 0)
+                                .transition(.identity)
+                        }
+                    }
+                }
+                .frame(width: L.screenWidth, height: height, alignment: .bottomLeading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(OrbitPlainStyle())
+            .focused($rowFocused)
+            .onMoveCommand { direction in
+                switch direction {
+                case .left: move(-1)
+                case .right: move(1)
+                default: break
+                }
+            }
+            .frame(height: height)
+
+            if row.style == .classic {
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    if isCurrent, cards.indices.contains(leadIndex) { details(cards[leadIndex]) }
+                }
+                .frame(width: 1200, height: OrbitNativeRow.infoHeight, alignment: .topLeading)
+                .clipped()
+                .padding(.top, 20)
+                .padding(.bottom, -8)
+                .padding(.leading, L.margin + 6)
+            }
+        }
+        .onChange(of: rowFocused) { _, focused in
+            if focused {
+                onEnter()
+                leadChanged()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
+            guard note.object as? String == row.id else { return }
+            rowFocused = true
+        }
+        .onAppear(perform: restoreIfReturning)
+    }
+
+    @ViewBuilder
+    private func tile(_ card: OrbitCard, index: Int, open: Bool) -> some View {
+        let meta = metaStore.meta(for: card.preview)
+        let key = "\(row.id)|\(card.id)"
+        if ranked {
+            OrbitNativeRankedOpenTile(card: card, meta: meta, rank: index + 1, trailers: trailers, trailerKey: key, open: open)
+        } else {
+            OrbitNativeClassicTile(card: card, meta: meta, trailers: trailers, trailerKey: key, open: open)
+                .frame(width: width(index, open: open), height: height, alignment: .bottomLeading)
+        }
+    }
+
+    private func move(_ step: Int) {
+        let next = lead + step
+        guard row.cards.indices.contains(next) else { return }
+        withAnimation(reduceMotion ? nil : OrbitHomeLayout.horizontal) { lead = next }
+        leadChanged()
+    }
+
+    /// The lead's trailer, wash and the titles ahead.
+    private func leadChanged() {
+        let cards = row.cards
+        guard cards.indices.contains(lead) else { return }
+        let card = cards[lead]
+        trailers.arm("\(row.id)|\(card.id)", item: card.preview)
+        OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
+        let ahead = cards[max(0, lead - 2)..<min(cards.count, lead + 8)].map(\.preview)
+        OrbitMetaStore.shared.request(Array(ahead))
+    }
+
+    @ViewBuilder
+    private func details(_ card: OrbitCard) -> some View {
+        let info = OrbitInfo.make(card.preview, meta: metaStore.meta(for: card.preview))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 16) {
+                Text(card.preview.name)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                OrbitMetaLine(info: info, size: 24)
+            }
+            .frame(height: 34)
+            Text(info.synopsis)
+                .font(.system(size: 23, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.85))
+                .lineSpacing(3)
+                .lineLimit(2)
+                .frame(width: 1100, alignment: .topLeading)
+        }
+        .id(card.id)
+        .transition(.opacity.animation(.easeInOut(duration: 0.18)))
+    }
+
+    private func open(_ card: OrbitCard) {
+        OrbitNativeRow.reopen = (row.id, card.id)
+        OrbitNativeRow.reopenedAt = ProcessInfo.processInfo.systemUptime
+        trailers.stop(abort: true)
+        trailers.suspended = true
+        if let entry = card.entry {
+            actions.resume(ResumeTarget(entry: entry))
+        } else {
+            actions.push(TitleRoute(preview: card.preview))
+        }
+    }
+
+    /// Back from a title opened here: the row takes the focus back (on its lead, unchanged).
+    private func restoreIfReturning() {
+        guard let target = OrbitNativeRow.reopen, target.row == row.id else { return }
+        if let i = row.cards.firstIndex(where: { $0.id == target.card }), i != lead {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { lead = i }
+        }
+        let appeared = ProcessInfo.processInfo.systemUptime
+        for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3, 1.8, 2.4] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard OrbitNativeRow.reopen?.card == target.card,
+                      !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                if !rowFocused { rowFocused = true }
+            }
         }
     }
 }
