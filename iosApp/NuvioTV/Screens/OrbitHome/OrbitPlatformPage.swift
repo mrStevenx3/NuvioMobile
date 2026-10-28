@@ -705,7 +705,7 @@ struct OrbitPlatformIntro: View {
     /// Steven (2026-10-28): the platform's Search, alone at the top right, just left of the corner logo.
     static let searchBesideLogo: CGFloat = cornerInset + logoSize.width * cornerScale + 18
     /// Disney+ (its logo settles in the hero): Search in the corner itself, mirroring the house.
-    static let searchInCorner: CGFloat = cornerInset - OrbitBarMetrics.pillPadding
+    static let searchInCorner: CGFloat = cornerInset - 6  // the bar pill's padding
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
