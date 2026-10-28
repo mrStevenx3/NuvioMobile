@@ -174,10 +174,12 @@ struct StreamPickerView: View {
             PlayerScreen(context: context,
                          onPlayNext: { next in selected = next },
                          onPlaybackFailed: { failure in playbackFailed(failure, context: context) },
-                         onPlaybackHealthy: { seconds in playbackHealthy(seconds, context: context) })
+                         onPlaybackHealthy: { seconds in playbackHealthy(seconds, context: context) },
+                         overLoadingCover: true,
+                         onPictureShown: { playerWasUp = true })
                 .ignoresSafeArea()
                 .id(context.id)
-                .onAppear { playerWasUp = true }
+                .presentationBackground(.clear)
         }
         .fullScreenCover(item: $nextEpisodePage, onDismiss: closePage) { page in
             StreamPickerView(type: page.context.contentType,

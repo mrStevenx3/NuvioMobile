@@ -514,6 +514,7 @@ struct OrbitDetailView: View {
         }
         .onAppear {
             OrbitMetaStore.shared.request([preview])
+            OrbitLoadingView.prefetch(backdropURL)
             OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
             OrbitNavClock.titlesShown += 1
             OrbitTitleGate.shared.opened()
@@ -572,6 +573,7 @@ struct OrbitDetailView: View {
         .onChange(of: realBackdrop, initial: true) { _, v in
             OrbitTrace.log("detail backdrop \(preview.name): \(v ?? "nil") (meta \(meta?.background != nil), banner \(preview.banner != nil), tmdb \(tmdbBackdrop != nil))")
             if keptBackdrop == nil, let v { keptBackdrop = v }
+            OrbitLoadingView.prefetch(backdropURL)
         }
         // Steven (device): the house hides while the trailer plays full screen.
         .onChange(of: cinema) { _, on in OrbitHomeButtonHost.shared.hidden = on }

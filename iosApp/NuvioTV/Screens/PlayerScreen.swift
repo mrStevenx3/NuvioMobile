@@ -14,6 +14,12 @@ struct PlayerScreen: View {
     var onPlaybackHealthy: ((Double) -> Void)? = nil
     /// Kept for the call sites (Chris's post-play row is gone).
     var onOpenTitle: ((MetaPreview) -> Void)? = nil
+    /// Steven (2026-10-28: the loading screen blinked — the sources' loading screen, then the
+    /// player's own, black while its art loaded, then the film): opened over the sources' loading
+    /// screen, the player stays see-through until its first picture — that one screen is all
+    /// that shows until the film. `onPictureShown` tells the host when.
+    var overLoadingCover = false
+    var onPictureShown: () -> Void = {}
 
     @StateObject private var session: OrbitPlayerSession
     @StateObject private var upNext: NextEpisodeEngine
@@ -27,7 +33,11 @@ struct PlayerScreen: View {
          onPlayNext: ((PlaybackContext) -> Void)? = nil,
          onPlaybackFailed: ((PlaybackFailure) -> Void)? = nil,
          onPlaybackHealthy: ((Double) -> Void)? = nil,
-         onOpenTitle: ((MetaPreview) -> Void)? = nil) {
+         onOpenTitle: ((MetaPreview) -> Void)? = nil,
+         overLoadingCover: Bool = false,
+         onPictureShown: @escaping () -> Void = {}) {
+        self.overLoadingCover = overLoadingCover
+        self.onPictureShown = onPictureShown
         self.context = context
         self.onPlayNext = onPlayNext
         self.onPlaybackFailed = onPlaybackFailed
@@ -38,8 +48,10 @@ struct PlayerScreen: View {
     }
 
     var body: some View {
+        let seeThrough = overLoadingCover && !session.firstFrameShown
         ZStack {
             Color.black.ignoresSafeArea()
+                .opacity(seeThrough ? 0 : 1)
 
             OrbitPlayerContainer(
                 session: session,
@@ -51,6 +63,7 @@ struct PlayerScreen: View {
                 onMenu: { upNext.dismissIfVisible() }
             )
             .ignoresSafeArea()
+            .opacity(seeThrough ? 0.001 : 1)
 
             if pauseCardShown {
                 OrbitPauseCard(context: context, session: session)
@@ -62,7 +75,7 @@ struct PlayerScreen: View {
                     .transition(.opacity)
             }
 
-            if !session.firstFrameShown {
+            if !session.firstFrameShown, !overLoadingCover {
                 OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background)
                     .transition(.opacity)
             }
@@ -71,6 +84,7 @@ struct PlayerScreen: View {
         .animation(.easeInOut(duration: 0.25), value: pauseCardShown)
         .animation(.easeInOut(duration: 0.25), value: upNext.phase)
         .onAppear(perform: start)
+        .onChange(of: session.firstFrameShown) { _, shown in if shown { onPictureShown() } }
         .onDisappear {
             pauseCardTask?.cancel()
             session.stop()

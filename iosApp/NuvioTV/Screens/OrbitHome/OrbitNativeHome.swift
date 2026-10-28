@@ -153,6 +153,11 @@ struct OrbitNativeHome: View {
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition($page)
+            // Steven (2026-10-28, device video: Up / Down jerky, a row sometimes arriving at once):
+            // two scrolls fought — the system's own (bringing the focused title into view) and the
+            // page's (bringing its row to the line). The system's is off: only the page moves, on
+            // its one curve (as the title page does on its seasons).
+            .scrollDisabled(true)
             .contentMargins(.top, Self.topLine, for: .scrollContent)
             .scrollClipDisabled()
 

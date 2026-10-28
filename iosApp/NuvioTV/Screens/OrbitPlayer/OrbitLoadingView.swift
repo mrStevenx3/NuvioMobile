@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Orbit's one loading screen (Steven, 2026-10-25): black, the title's backdrop faint behind, its logo
 // breathing in the middle; nothing technical. Only when it lasts does a quiet "Encore un instant…"
@@ -13,6 +14,16 @@ struct OrbitLoadingView: View {
     var plain = false
 
     @State private var appearedAt = Date()
+
+    /// Steven (2026-10-28: the loading screen came up black, its art a moment later): the art
+    /// fetched ahead, at the loading screen's own size, so it is there from its first frame.
+    @MainActor static func prefetch(_ raw: String?) {
+        guard let raw, !raw.isEmpty, let url = URL(string: raw) else { return }
+        let request = ArtworkDecodeRequest(size: .points(width: 960, height: 540), fill: true,
+                                           scale: UIScreen.main.scale).normalized
+        guard ArtworkStore.cached(url, decode: request) == nil else { return }
+        Task { _ = try? await ArtworkStore.fetch(url, decode: request) }
+    }
 
     /// A message after this long.
     static let slowAfter: TimeInterval = 8
