@@ -137,8 +137,8 @@ struct OrbitNativeHome: View {
                                 OrbitNativeOpenRow(row: row, isCurrent: currentRow == row.id, actions: actions,
                                                    trailers: trailers, onEnter: { enter(row.id) })
                             } else {
-                                OrbitNativeRow(row: row, isCurrent: currentRow == row.id, actions: actions, trailers: trailers,
-                                               onEnter: { enter(row.id) })
+                                OrbitNativeRow(row: row.looped(), isCurrent: currentRow == row.id, actions: actions,
+                                               trailers: trailers, onEnter: { enter(row.id) })
                             }
                         }
                             .id(row.id)
@@ -383,6 +383,7 @@ struct OrbitNativeRow: View {
     /// From the opening of a title until just after the way back: only its card can take the focus.
     @State private var restoreLock = false
     @State private var disappeared = false
+    @State private var placedLoop = false
     /// The Top 10's Left: the row put at once where it ends, slid there (as Netflix's).
     @State private var slideX: CGFloat = 0
     /// Where the Top 10's open title is in the row (its tile's left): the frame follows it on the
@@ -538,7 +539,17 @@ struct OrbitNativeRow: View {
         .focusSection()
         // (Every appearance: a row scrolled off the page and back stopped keeping where it was —
         // Steven: back from a title the row came back far from where he left it.)
-        .onAppear { disappeared = false; restoreIfReturning() }
+        .onAppear {
+            disappeared = false
+            // A looping row starts in its middle copy (once: it keeps where it was after).
+            if let start = row.loopStart, !placedLoop {
+                placedLoop = true
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { scroll.scrollTo(id: start, anchor: .leading) }
+            }
+            restoreIfReturning()
+        }
         .onDisappear {
             disappeared = true
             if let back = Self.reopen, back.row == row.id {
@@ -947,7 +958,12 @@ struct OrbitNativeOpenRow: View {
     let onEnter: () -> Void
 
     @FocusState private var rowFocused: Bool
+    /// The open title, as a place in the strip. Nouveaux films loops (Steven, 2026-10-28: "les
+    /// lignes doivent être en boucle"): the place runs on past the end, its title taken round.
     @State private var lead = 0
+    /// The Top 10 (Steven's choice A): its first place on screen. The row stays put while the open
+    /// title is on screen — it opens in its own place — and slides only at the screen's edge.
+    @State private var first = 0
     /// The row is sliding (the rank's glow waits for it to rest).
     @State private var sliding = false
     @State private var slideGeneration = 0
@@ -956,64 +972,70 @@ struct OrbitNativeOpenRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var ranked: Bool { row.style == .ranked }
+    private var count: Int { row.cards.count }
+    private var loops: Bool { !ranked && count >= 3 }
     private var gap: CGFloat { OrbitTileLayout.gap(row.style) }
     private var height: CGFloat { OrbitTileLayout.size(row.style).height }
 
+    /// The title at place `v` (taken round in a looping row).
+    private func index(_ v: Int) -> Int { count == 0 ? 0 : ((v % count) + count) % count }
+    private func card(_ v: Int) -> OrbitCard { row.cards[index(v)] }
+
     /// A tile's room before its poster (the Top 10's rank).
-    private func room(_ i: Int) -> CGFloat { ranked ? OrbitRankedTile.rankRoom(i + 1) : 0 }
-    private func width(_ i: Int, open: Bool) -> CGFloat {
+    private func room(_ v: Int) -> CGFloat { ranked ? OrbitRankedTile.rankRoom(index(v) + 1) : 0 }
+    private func width(_ v: Int, open: Bool) -> CGFloat {
         if ranked {
-            return room(i) + (open ? OrbitNativeRankedOpenTile.frame(scale: 1).width : OrbitTileLayout.rankedPoster.width)
+            return room(v) + (open ? OrbitNativeRankedOpenTile.frame(scale: 1).width : OrbitTileLayout.rankedPoster.width)
         }
         return open ? OrbitHomeLayout.frameWidth : OrbitHomeLayout.posterWidth
     }
 
-    /// Tile `i`'s left edge, the lead's at the margin.
-    private func x(_ i: Int) -> CGFloat {
+    /// Place `v`'s left edge: the anchor (the open title, or the Top 10's first on screen) at the
+    /// margin, the others beside it.
+    private func x(_ v: Int, lead: Int, first: Int) -> CGFloat {
         let margin = OrbitHomeLayout.margin
-        if i == lead { return margin }
-        if i > lead {
-            return margin + (lead..<i).reduce(CGFloat(0)) { $0 + width($1, open: $1 == lead) + gap }
+        let anchor = ranked ? first : lead
+        if v >= anchor {
+            return margin + (anchor..<v).reduce(CGFloat(0)) { $0 + width($1, open: $1 == lead) + gap }
         }
-        return margin - (i..<lead).reduce(CGFloat(0)) { $0 + width($1, open: false) + gap }
+        return margin - (v..<anchor).reduce(CGFloat(0)) { $0 + width($1, open: $1 == lead) + gap }
+    }
+
+    private var places: [Int] {
+        guard count > 0 else { return [] }
+        return ranked ? Array(0..<count) : Array((lead - 2)...(lead + 7))
     }
 
     var body: some View {
         let L = OrbitHomeLayout.self
-        let cards = row.cards
-        let leadIndex = min(lead, max(0, cards.count - 1))
         VStack(alignment: .leading, spacing: 14) {
             OrbitRowHeading(title: row.title, isCurrent: isCurrent)
                 .padding(.leading, L.margin + 4)
 
             Button {
-                if cards.indices.contains(leadIndex) { open(cards[leadIndex]) }
+                if count > 0 { open(card(lead)) }
             } label: {
                 ZStack(alignment: .bottomLeading) {
                     Color.clear
-                    ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
-                        if i >= leadIndex - 2, i <= leadIndex + 7 {
-                            tile(card, index: i, open: i == leadIndex)
-                                .environment(\.orbitFocusHidden, focusHidden || i != leadIndex)
-                                .environment(\.orbitRankGlowHidden, sliding)
-                                .offset(x: x(i))
-                                .zIndex(i == leadIndex ? 1 : 0)
-                                .transition(.identity)
-                        }
+                    ForEach(places, id: \.self) { v in
+                        tile(v, open: v == lead)
+                            .environment(\.orbitFocusHidden, focusHidden || v != lead)
+                            .environment(\.orbitRankGlowHidden, sliding)
+                            .offset(x: x(v, lead: lead, first: first))
+                            .zIndex(v == lead ? 1 : 0)
+                            .transition(.identity)
                     }
                 }
                 .frame(width: L.screenWidth, height: height, alignment: .bottomLeading)
-                // Steven (2026-10-28: "je vois l'image de droite ou gauche se déplacer en mode
-                // image fantôme — peut-être juste faire apparaître l'image en fondu dans le
-                // focus"): the open frame stays at the margin; the next title fades in inside it
-                // while the posters slide under (Netflix's).
+                // Steven (2026-10-28: "image fantôme"): the open frame is drawn apart and the next
+                // title fades in inside it — at the margin for Nouveaux films, in its own place
+                // for the Top 10.
                 .overlay(alignment: .bottomLeading) {
-                    if cards.indices.contains(leadIndex) {
-                        openFrame(cards[leadIndex], index: leadIndex)
-                            .id(cards[leadIndex].id)
+                    if count > 0 {
+                        openFrame(card(lead))
+                            .id(lead)
                             .transition(.opacity.animation(.easeInOut(duration: 0.22)))
-                            .offset(x: L.margin + room(leadIndex))
-                            .animation(reduceMotion ? nil : OrbitHomeLayout.horizontal, value: leadIndex)
+                            .offset(x: x(lead, lead: lead, first: first) + room(lead))
                     }
                 }
                 .contentShape(Rectangle())
@@ -1043,7 +1065,7 @@ struct OrbitNativeOpenRow: View {
             if row.style == .classic {
                 ZStack(alignment: .topLeading) {
                     Color.clear
-                    if isCurrent, cards.indices.contains(leadIndex) { details(cards[leadIndex]) }
+                    if isCurrent, count > 0 { details(card(lead)) }
                 }
                 .frame(width: 1200, height: OrbitNativeRow.infoHeight, alignment: .topLeading)
                 .clipped()
@@ -1066,25 +1088,26 @@ struct OrbitNativeOpenRow: View {
     }
 
     /// A title of the strip. The open one keeps only its room (and its rank): its frame is drawn
-    /// apart, fixed at the margin (`openFrame`).
+    /// apart (`openFrame`).
     @ViewBuilder
-    private func tile(_ card: OrbitCard, index: Int, open: Bool) -> some View {
+    private func tile(_ v: Int, open: Bool) -> some View {
+        let card = card(v)
         let meta = metaStore.meta(for: card.preview)
         if ranked {
-            OrbitRankedTile(card: card, meta: meta, rank: index + 1, focused: open && rowFocused && !focusHidden,
+            OrbitRankedTile(card: card, meta: meta, rank: index(v) + 1, focused: open && rowFocused && !focusHidden,
                             openWidth: open ? OrbitNativeRankedOpenTile.frame(scale: 1).width : nil,
                             openFrame: open ? { AnyView(Color.clear) } : nil)
         } else if open {
-            Color.clear.frame(width: width(index, open: true), height: height)
+            Color.clear.frame(width: width(v, open: true), height: height)
         } else {
             OrbitPosterCard(card: card)
-                .frame(width: width(index, open: false), height: height, alignment: .bottomLeading)
+                .frame(width: width(v, open: false), height: height, alignment: .bottomLeading)
         }
     }
 
-    /// The open title's frame, fixed at the margin (its trailer in it).
+    /// The open title's frame (its trailer in it).
     @ViewBuilder
-    private func openFrame(_ card: OrbitCard, index: Int) -> some View {
+    private func openFrame(_ card: OrbitCard) -> some View {
         let meta = metaStore.meta(for: card.preview)
         let key = "\(row.id)|\(card.id)"
         let lit = rowFocused && !focusHidden
@@ -1105,8 +1128,12 @@ struct OrbitNativeOpenRow: View {
 
     private func move(_ step: Int) {
         let next = lead + step
-        guard row.cards.indices.contains(next) else { return }
-        withAnimation(reduceMotion ? nil : OrbitHomeLayout.horizontal) { lead = next }
+        guard loops || row.cards.indices.contains(next) else { return }
+        let nextFirst = ranked ? firstForMove(next) : first
+        withAnimation(reduceMotion ? nil : OrbitHomeLayout.horizontal) {
+            lead = next
+            first = nextFirst
+        }
         sliding = true
         slideGeneration &+= 1
         let generation = slideGeneration
@@ -1117,15 +1144,21 @@ struct OrbitNativeOpenRow: View {
         leadChanged()
     }
 
+    private func firstForMove(_ next: Int) -> Int {
+        var f = min(first, next)
+        let limit = OrbitHomeLayout.screenWidth - OrbitHomeLayout.margin
+        while f < next, x(next, lead: next, first: f) + width(next, open: true) > limit { f += 1 }
+        return f
+    }
+
     /// The lead's trailer, wash and the titles ahead.
     private func leadChanged() {
-        let cards = row.cards
-        guard cards.indices.contains(lead) else { return }
-        let card = cards[lead]
+        guard count > 0 else { return }
+        let card = card(lead)
         trailers.arm("\(row.id)|\(card.id)", item: card.preview)
         OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
-        let ahead = cards[max(0, lead - 2)..<min(cards.count, lead + 8)].map(\.preview)
-        OrbitMetaStore.shared.request(Array(ahead))
+        let around = ranked ? Array(max(0, lead - 2)..<min(count, lead + 8)) : Array((lead - 2)..<(lead + 8))
+        OrbitMetaStore.shared.request(around.map { self.card($0).preview })
         // Steven (2026-10-28: the frame came up empty a moment, on the last titles above all): the
         // art of the titles around is fetched ahead at the frame's own size, so each new title's
         // image is already there when it fades in.
@@ -1133,7 +1166,9 @@ struct OrbitNativeOpenRow: View {
                           : CGSize(width: OrbitHomeLayout.frameWidth, height: OrbitHomeLayout.cardHeight)
         let request = ArtworkDecodeRequest(size: .points(width: size.width, height: size.height), fill: true,
                                            scale: UIScreen.main.scale)
-        for neighbour in cards[max(0, lead - 2)..<min(cards.count, lead + 4)] {
+        let near = ranked ? Array(max(0, lead - 2)..<min(count, lead + 4)) : Array((lead - 2)..<(lead + 4))
+        for v in near {
+            let neighbour = self.card(v)
             let raw: String? = neighbour.landscape ?? metaStore.meta(for: neighbour.preview)?.backdrop
             guard let raw, let url = URL(string: raw) else { continue }
             let best = ArtworkURLUpgrade.upgraded(url, role: .backdrop) ?? url
@@ -1162,7 +1197,7 @@ struct OrbitNativeOpenRow: View {
                 .lineLimit(2)
                 .frame(width: 1100, alignment: .topLeading)
         }
-        .id(card.id)
+        .id(lead)
         // Steven (2026-10-28): the synopsis fades in with the title in the frame; the old one goes
         // at once (two texts over each other were unreadable).
         .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.05)), removal: .identity))
@@ -1183,10 +1218,14 @@ struct OrbitNativeOpenRow: View {
     /// Back from a title opened here: the row takes the focus back (on its lead, unchanged).
     private func restoreIfReturning() {
         guard let target = OrbitNativeRow.reopen, target.row == row.id else { return }
-        if let i = row.cards.firstIndex(where: { $0.id == target.card }), i != lead {
+        if let i = row.cards.firstIndex(where: { $0.id == target.card }), i != index(lead) {
             var still = Transaction()
             still.disablesAnimations = true
-            withTransaction(still) { lead = i }
+            let place = loops ? lead - index(lead) + i : i
+            withTransaction(still) {
+                lead = place
+                if ranked { first = firstForMove(place) }
+            }
         }
         let appeared = ProcessInfo.processInfo.systemUptime
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3, 1.8, 2.4] {

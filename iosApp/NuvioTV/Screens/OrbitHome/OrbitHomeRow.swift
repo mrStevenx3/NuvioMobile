@@ -56,6 +56,26 @@ struct OrbitRow: Identifiable, Equatable {
     var sectionKey: String?
     /// Steven (pass 3): the kind of tiles (the classic frame and posters, landscape, cards…).
     var style: OrbitRowStyle = .classic
+    /// A looping row (its titles repeated): the title it starts on, in the middle copy.
+    var loopStart: String? = nil
+
+    /// Steven (2026-10-28: "les lignes doivent être en boucle et pas avoir de fin"): the row's
+    /// titles repeated, the row starting in the middle — the system never reaches an end. Not the
+    /// Top 10 (its ranks), Prochainement (its dates) nor Reprendre (his own list).
+    func looped(copies: Int = 7) -> OrbitRow {
+        guard style != .ranked, id != "continue-watching", !id.hasPrefix("orbit-soon"), cards.count >= 4 else { return self }
+        var out: [OrbitCard] = []
+        for k in 0..<copies {
+            for card in cards {
+                out.append(OrbitCard(id: "\(k)~\(card.id)", preview: card.preview, poster: card.poster,
+                                     landscape: card.landscape, badge: card.badge, progress: card.progress,
+                                     entry: card.entry))
+            }
+        }
+        var row = OrbitRow(id: id, title: title, cards: out, sectionKey: sectionKey, style: style)
+        row.loopStart = "\(copies / 2)~\(cards[0].id)"
+        return row
+    }
 }
 
 /// A poster in a row.
