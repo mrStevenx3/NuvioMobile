@@ -218,7 +218,11 @@ struct OrbitHomeView: View {
                                 cards: Self.unique(section.items.map(OrbitCard.catalog)), sectionKey: section.key,
                                 style: style))
             catalogs += 1
-            // Steven: the Top 10 well forward, right after the first catalog.
+            // Steven (2026-10-28): after the first catalog (Nouveaux films), Nouveau sur vos
+            // plateformes, then the Top 10.
+            if catalogs == 1, let i = platforms.firstIndex(where: { $0.id.hasPrefix("orbit-new") }) {
+                out.append(platforms.remove(at: i))
+            }
             if catalogs == 1, !top.isEmpty { out.append(top.removeFirst()) }
             if catalogs >= 2, !platforms.isEmpty { out.append(platforms.removeFirst()) }
         }
