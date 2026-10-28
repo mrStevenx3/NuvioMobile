@@ -43,7 +43,24 @@ struct OrbitNativeHome: View {
     /// The page is on its hero (else on a row): the wash shows, the bar locks, Menu goes up.
     @State private var onHero = true
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
-    @State private var position: String? = "hero"
+    @State private var position: String = "hero"
+    /// The page's scroll. Steven (2026-10-28, device: after a while Up / Down moved the page at once,
+    /// no slide): the id binding was written back by the scroll itself, the page then thought it
+    /// was there already and asked nothing — the system's own jump showed. `position` is ours alone
+    /// and every move is asked for, on the curve.
+    @State private var page = ScrollPosition(idType: String.self)
+
+    private func go(to id: String, animated: Bool = true) {
+        guard position != id else { return }
+        position = id
+        if animated && !reduceMotion {
+            withAnimation(.easeInOut(duration: 0.32)) { page.scrollTo(id: id, anchor: .top) }
+        } else {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { page.scrollTo(id: id, anchor: .top) }
+        }
+    }
     /// The row holding the focus (its heading lit, its details shown) — set by the page, so a
     /// row's own focus passing through "none" between two titles never dims it.
     @State private var currentRow: String?
@@ -51,6 +68,22 @@ struct OrbitNativeHome: View {
     @State private var heroLocked = false
     /// Back from a title: the row it was opened from (the only one the focus can land in a moment).
     @State private var returnRow: String?
+    /// Steven (2026-10-28, device: back from a title the focus ended in the row above, or on the
+    /// neighbour): the system's own landing comes late on the TV. Until the viewer presses anything
+    /// (2.6 s at most), a landing anywhere else is sent back to the title's row.
+    @State private var returnTarget: String?
+    @State private var returnSince: TimeInterval = 0
+
+    private var returning: Bool {
+        guard let returnTarget, rows.contains(where: { $0.id == returnTarget }) else { return false }
+        let now = ProcessInfo.processInfo.systemUptime
+        return now - returnSince < 2.6 && !ViewerInputClock.shared.hasInput(since: returnSince)
+    }
+
+    private func sendBack() {
+        guard let returnTarget else { return }
+        NotificationCenter.default.post(name: .orbitHomeRowFocus, object: returnTarget)
+    }
 
     /// The line under the bar the page aligns its sections on (the bar's band is above it).
     static let topLine: CGFloat = 120
@@ -109,7 +142,7 @@ struct OrbitNativeHome: View {
                 .padding(.bottom, OrbitHomeLayout.screenHeight)
             }
             .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(id: $position, anchor: .top)
+            .scrollPosition($page)
             .contentMargins(.top, Self.topLine, for: .scrollContent)
             .scrollClipDisabled()
 
@@ -122,6 +155,7 @@ struct OrbitNativeHome: View {
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
         .onChange(of: heroFocus) { _, page in
+            if page != nil, returning { sendBack(); return }
             guard let page else {
                 // Gone up to the bar (not down to a row): the hero's trailer stops.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -136,7 +170,7 @@ struct OrbitNativeHome: View {
             heroPage = page
             currentRow = nil
             setOnHero(true)
-            if position != "hero" { withAnimation(.easeInOut(duration: 0.32)) { position = "hero" } }
+            go(to: "hero")
             if heroItems.indices.contains(page + 1) { OrbitMetaStore.shared.request([heroItems[page + 1]]) }
         }
         .onChange(of: active) { _, now in
@@ -157,13 +191,16 @@ struct OrbitNativeHome: View {
                OrbitNavClock.titleOpenedAt >= OrbitNativeRow.reopenedAt - 1 {
                 heroLocked = true
                 returnRow = back.row
-                position = back.row
+                returnTarget = back.row
+                returnSince = ProcessInfo.processInfo.systemUptime
+                go(to: back.row, animated: false)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false; returnRow = nil }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { returnTarget = nil }
             } else {
                 OrbitNativeRow.reopen = nil
             }
             // Never kept beyond this return.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { OrbitNativeRow.reopen = nil }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { OrbitNativeRow.reopen = nil }
             trailers.suspended = !active
             if active { OrbitBarLock.shared.set(!onHero) }
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
@@ -217,15 +254,16 @@ struct OrbitNativeHome: View {
             return { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
         }
         return {
-            withAnimation(.easeInOut(duration: 0.32)) { position = "hero" }
+            go(to: "hero")
             heroFocus = heroPage
         }
     }
 
     private func enter(_ rowID: String) {
+        if returning, rowID != returnTarget { sendBack(); return }
         currentRow = rowID
         setOnHero(false)
-        if position != rowID { withAnimation(.easeInOut(duration: 0.32)) { position = rowID } }
+        go(to: rowID)
     }
 
     private func setOnHero(_ value: Bool) {
@@ -332,6 +370,8 @@ struct OrbitNativeRow: View {
     /// Where the Top 10's open title is in the row (its tile's left): the frame follows it on the
     /// row's slide (Netflix's).
     @State private var openX: CGFloat?
+    /// The last move was Left (the classic frame then changes room at once: the row is slid).
+    @State private var movingLeft = false
 
     /// The row put back where it is shown: a pinned row on its title at the margin (exact, whatever
     /// was recorded), the others at their kept scroll.
@@ -424,7 +464,7 @@ struct OrbitNativeRow: View {
                 .offset(x: slideX)
                 // The frame opening on the new title and closing on the old one, on the row's curve.
                 // (The Top 10: its room changes at once, only the row slides — Netflix's.)
-                .animation(classic ? OrbitHomeLayout.horizontal : nil, value: lead)
+                .animation(classic && !movingLeft ? OrbitHomeLayout.horizontal : nil, value: lead)
             }
             // Steven (simulator: always a whole poster left of the focused title): the alignment on
             // the tiles snapped the pinned row back while its frame was opening — a pinned row is
@@ -514,6 +554,12 @@ struct OrbitNativeRow: View {
                 holds = true
                 onEnter()
             }
+            if pinned, let oldIndex = anchor.flatMap({ id in row.cards.firstIndex(where: { $0.id == id }) }),
+               let newIndex = row.cards.firstIndex(where: { $0.id == new }) {
+                movingLeft = newIndex < oldIndex
+            } else {
+                movingLeft = false
+            }
             shown = new
             // Every row keeps its focused title at the margin, the row sliding under it (Steven: the
             // synopsis stayed on the left while the focus ran off to the right). The classic row's
@@ -524,11 +570,11 @@ struct OrbitNativeRow: View {
                 let old = anchor.flatMap { id in row.cards.firstIndex(where: { $0.id == id }) }
                 let now = row.cards.firstIndex(where: { $0.id == new })
                 anchor = new
-                // (Steven: Left as Right — the same slide; the put-at-once-then-slid trick is off.)
-                if false, rankedOpen, let old, let now, now < old, old - now <= 3 {
-                    // (Steven: Left as Netflix's — at once where it ends, slid there.)
+                // Steven (2026-10-28, device: Right fine, Left poor): Left as Netflix's page (validated
+                // there) — the row put at once where it ends and slid there, so Left looks as Right.
+                if opens, let old, let now, now < old, old - now <= 3 {
                     let distance = (now..<old).reduce(CGFloat(0)) {
-                        $0 + OrbitRankedTile.closedWidth($1 + 1) + T.gap(style)
+                        $0 + (rankedOpen ? OrbitRankedTile.closedWidth($1 + 1) : size.width) + T.gap(style)
                     }
                     var still = Transaction()
                     still.disablesAnimations = true
@@ -553,8 +599,9 @@ struct OrbitNativeRow: View {
             }
             guard let index = row.cards.firstIndex(where: { $0.id == new }) else { return }
             let card = row.cards[index]
-            // The trailer plays in the classic frame and in the large cards only.
-            if row.style == .classic || row.style == .cards || rankedOpen {
+            // The trailer plays in the open frames only (Steven, 2026-10-28: none in the large cards of
+            // "Films recommandés pour vous").
+            if row.style == .classic || rankedOpen {
                 trailers.arm("\(row.id)|\(card.id)", item: card.preview)
             } else {
                 trailers.stop()
@@ -610,12 +657,13 @@ struct OrbitNativeRow: View {
         guard let target = Self.reopen, target.row == row.id else { return }
         let appeared = ProcessInfo.processInfo.systemUptime
         restoringSince = appeared
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoreLock = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { if restoringSince == appeared { restoringSince = 0 } }
         shown = target.card
         // Steven (simulator: back from a title the row jumped, then slid back): only a pinned row is
         // brought to its title; the others are where they were left.
         disappeared = false
-        for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
+        for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3, 1.8, 2.4] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.reopen?.card == target.card, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
                 if focused != target.card { focused = target.card }
@@ -623,7 +671,7 @@ struct OrbitNativeRow: View {
                 settle(on: target.card)
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
             if Self.reopen?.card == target.card { Self.reopen = nil }
         }
     }

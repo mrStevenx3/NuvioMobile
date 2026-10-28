@@ -466,6 +466,21 @@ struct OrbitMetaLine: View {
     var size: CGFloat = OrbitHomeLayout.metaFont
 
     var body: some View {
+        // Steven (Films recommandés pour vous: "7…" — the score cut, the line too long for the
+        // card): the longest line that fits whole; parts drop from the middle (the genre) first,
+        // the score never cut.
+        let parts = info.parts
+        ViewThatFits(in: .horizontal) {
+            line(parts)
+            if parts.count > 2 { line(parts.enumerated().filter { $0.offset != 1 }.map(\.element)) }
+            if parts.count > 1 { line([parts[0]]) }
+            line([])
+        }
+        .font(.system(size: size, weight: .semibold))
+        .lineLimit(1)
+    }
+
+    private func line(_ parts: [String]) -> some View {
         HStack(spacing: 18) {
             if let percent = info.percent {
                 HStack(spacing: 8) {
@@ -474,12 +489,11 @@ struct OrbitMetaLine: View {
                 }
                 .foregroundStyle(OrbitHomeLayout.green)
             }
-            ForEach(Array(info.parts.enumerated()), id: \.offset) { _, part in
+            ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
                 Text(part).foregroundStyle(Color.white)
             }
         }
-        .font(.system(size: size, weight: .semibold))
-        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
