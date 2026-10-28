@@ -166,12 +166,7 @@ struct OrbitStudiosPage: View {
                 focused = selected
                 return
             }
-            // Down from the bar: the first studio, not the one under the bar's button.
-            if old == nil, now > Self.restoringUntil, !fromFilms,
-               let first = folders.first, id != first.id {
-                focused = first.id
-                return
-            }
+            // Steven (2026-10-28): Down from the bar lands where the system takes it (no jump to the first).
             withAnimation(.easeOut(duration: 0.2)) { lit = id }
             Self.lastFocused = id
             if let from = folders.firstIndex(where: { $0.id == shownId }),
