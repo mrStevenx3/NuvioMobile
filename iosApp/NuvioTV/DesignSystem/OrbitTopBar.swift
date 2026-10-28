@@ -560,15 +560,8 @@ struct OrbitCollectionGrid: View {
             // Back from a title of the rows below: the system's landing on a tile is passing (the
             // rows take the focus back) — the rows must not switch platform under it.
             if OrbitPlatformTrendingRow.restorePending { return }
-            // Steven: coming down from the bar, the focus goes to the first platform (far left),
-            // not the one under the bar's button. Not on a return from a folder, nor coming back
-            // up from the trending row.
-            if old == nil, restoreTarget == nil,
-               ProcessInfo.processInfo.systemUptime - OrbitPlatformTrendingRow.lostAt > 0.6,
-               let first = entries.first, id != first.id {
-                focused = first.id
-                return
-            }
+            // Steven (2026-10-28): coming down from the bar, the focus lands where the system takes it
+            // (the tile under the bar's button), as everywhere in the app — no jump to the first one.
             Self.lastFocused = id
             selectedId = id
             scrollLine = "grid-top"
