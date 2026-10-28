@@ -307,6 +307,8 @@ struct OrbitAppleTVPage: View {
 
 
                             nativeSections(rows)
+                    // Steven: a tab change came up on the Top 10 — each filter its own page, from its hero.
+                    .id(typeFilter ?? "all")
                     .disabled(search != nil)
             
 
