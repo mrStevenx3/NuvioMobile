@@ -49,6 +49,10 @@ struct StreamPickerView: View {
     @State private var holdCover = false
     /// The page is leaving: the loading screen, plain black.
     @State private var closing = false
+    /// A player has come up over the loading screen: under it, plain black from then on (back
+    /// from the player, no "Encore un instant…"). Steven (2026-10-28: the loading screen blinked —
+    /// its art, black at once on the source's pick, then the player): the art stays until then.
+    @State private var playerWasUp = false
     @State private var started = false
 
     @State private var selected: PlaybackContext?
@@ -173,6 +177,7 @@ struct StreamPickerView: View {
                          onPlaybackHealthy: { seconds in playbackHealthy(seconds, context: context) })
                 .ignoresSafeArea()
                 .id(context.id)
+                .onAppear { playerWasUp = true }
         }
         .fullScreenCover(item: $nextEpisodePage, onDismiss: closePage) { page in
             StreamPickerView(type: page.context.contentType,
@@ -221,7 +226,7 @@ struct StreamPickerView: View {
     private var cover: some View {
         // Steven (device: back from the player, the loading screen with "Encore un instant…"):
         // once a player is up, what is left under it is plain black.
-        OrbitLoadingView(title: title, logoUrl: logoUrl, backdropUrl: backdropUrl, plain: closing || selected != nil)
+        OrbitLoadingView(title: title, logoUrl: logoUrl, backdropUrl: backdropUrl, plain: closing || playerWasUp)
             .overlay(OrbitCoverFocus(onMenu: autoMode && !holdCover ? { cancelAutoPlay() } : nil))
     }
 
