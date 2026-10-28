@@ -131,6 +131,8 @@ struct OrbitDetailView: View {
     @State private var visible = false
 
     @State private var showStreams = false
+    /// Steven (2026-10-28): held Lire — the sources listed, the automatic play skipped.
+    @State private var manualPick = false
     @State private var ownTagShown = false
     /// Steven: a platform hero's Lecture plays at once (the page opens straight into its player and
     /// closes behind it).
@@ -586,12 +588,13 @@ struct OrbitDetailView: View {
         // Playback: the film's source picker, a series episode's, the full-screen trailer.
         .fullScreenCover(isPresented: $showStreams, onDismiss: {
             movieRestart = false
+            manualPick = false
             if closeAfterAutoPlay() { return }
             openPostPlayPick()
         }) {
             StreamPickerView(type: preview.type, videoId: streamVideoId, title: title,
                              poster: posterURL, synopsis: overview, meta: playbackMeta,
-                             logoUrl: logoURL, backdrop: backdropURL, forceManual: false,
+                             logoUrl: logoURL, backdrop: backdropURL, forceManual: manualPick,
                              startFromBeginning: movieRestart,
                              onOpenTitle: { postPlayPending = $0 })
         }
@@ -607,7 +610,7 @@ struct OrbitDetailView: View {
                              meta: playbackMeta,
                              logoUrl: logoURL,
                              backdrop: backdropURL,
-                             forceManual: false,
+                             forceManual: route.forceManual,
                              startFromBeginning: route.startFromBeginning,
                              onOpenTitle: { postPlayPending = $0 })
         }
@@ -980,7 +983,13 @@ struct OrbitDetailView: View {
         if isSeries {
             if let action = model.seriesAction, let meta {
                 OrbitPlayButton(label: model.isPlayEnabled ? OrbitDetailFormat.playLabel(action.label) : String(localized: "Lecture indisponible"),
-                                focused: focus == .play, theme: platform?.theme) {
+                                focused: focus == .play, theme: platform?.theme,
+                                onManual: model.isPlayEnabled ? {
+                                    model.noteSeriesPlayStarted(action)
+                                    var route = OrbitSeriesPlayRoute(meta: meta, action: action)
+                                    route.forceManual = true
+                                    seriesPlay = route
+                                } : nil) {
                     model.noteSeriesPlayStarted(action)
                     seriesPlay = OrbitSeriesPlayRoute(meta: meta, action: action)
                 }
@@ -994,7 +1003,8 @@ struct OrbitDetailView: View {
         } else {
             OrbitPlayButton(label: !model.isPlayEnabled ? String(localized: "Lecture indisponible")
                                 : (model.hasResumableProgress ? String(localized: "Reprendre") : String(localized: "Lire")),
-                            focused: focus == .play, theme: platform?.theme) { showStreams = true }
+                            focused: focus == .play, theme: platform?.theme,
+                            onManual: model.isPlayEnabled ? { manualPick = true; showStreams = true } : nil) { showStreams = true }
                 .disabled(!model.isPlayEnabled)
                 .focused($focus, equals: .play)
         }
@@ -1523,9 +1533,23 @@ private struct OrbitPlayButton: View {
     let focused: Bool
     /// The platform's Lecture button (its colour and shape), else Orbit's white capsule.
     var theme: OrbitPlatformTheme? = nil
+    /// Held: play choosing the source (even with the automatic play on).
+    var onManual: (() -> Void)? = nil
     let action: () -> Void
 
     var body: some View {
+        if let onManual {
+            button.contextMenu {
+                Button(action: onManual) {
+                    Label(String(localized: "Play Manually"), systemImage: "list.bullet")
+                }
+            }
+        } else {
+            button
+        }
+    }
+
+    private var button: some View {
         Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: "play.fill")
@@ -1898,6 +1922,8 @@ struct OrbitSeriesPlayRoute: Identifiable {
     let episodeStill: String?
     let synopsis: String?
     var startFromBeginning: Bool = false
+    /// Held Lire: the sources listed, no automatic play.
+    var forceManual: Bool = false
     var id: String { videoId }
 
     /// The hero's Play: the series' next episode (or the resumed one).

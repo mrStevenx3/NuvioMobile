@@ -446,6 +446,8 @@ struct OrbitNativeRow: View {
                             }
                         }
                         .buttonStyle(OrbitPlainStyle())
+                        // Steven (2026-10-28): Continue Watching, held — its options again.
+                        .modifier(OrbitContinueWatchingMenu(entry: card.entry, preview: card.preview, actions: actions))
                         .focused($focused, equals: card.id)
                         // The focused tile above its neighbours (Steven, Prochainement: the next
                         // tile covered the grown one's edge).
@@ -841,5 +843,53 @@ struct OrbitRowScrollBehavior: ScrollTargetBehavior {
         // way back — was snapped to a tile, a tile to the right. No row is aligned any more: the
         // focus scrolls them as Apple's app does, and a pinned row is placed by its anchor.
         _ = aligned
+    }
+}
+
+
+/// Continue Watching, held (the old Home's menu): choose the source, the title's page, the episode
+/// marked watched, from the start, out of the row.
+private struct OrbitContinueWatchingMenu: ViewModifier {
+    let entry: WatchProgressEntry?
+    let preview: MetaPreview
+    let actions: StageHomeActions
+
+    func body(content: Content) -> some View {
+        if let entry {
+            content.contextMenu {
+                let isEpisode = TitleHoldMenuPolicy.isEpisode(season: entry.seasonNumber?.intValue,
+                                                              episode: entry.episodeNumber?.intValue)
+                ForEach(TitleHoldMenuPolicy.continueWatchingActions(isEpisode: isEpisode), id: \.self) { action in
+                    Button(role: action.isDestructive ? .destructive : nil) {
+                        perform(action, entry)
+                    } label: {
+                        Label(action.title, systemImage: action.systemImage)
+                    }
+                }
+            }
+        } else {
+            content
+        }
+    }
+
+    private func perform(_ action: TitleHoldMenuPolicy.CWAction, _ entry: WatchProgressEntry) {
+        switch action {
+        case .playManually:
+            actions.resume(ResumeTarget(entry: entry, forceManual: true))
+        case .goToDetails:
+            actions.push(TitleRoute(preview: preview))
+        case .markEpisodeWatched:
+            WatchedRepository.shared.markWatched(
+                item: WatchingActionsKt.watchedItemFromProgress(
+                    entry: entry,
+                    markedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
+                )
+            )
+            WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)
+        case .startOver:
+            actions.resume(ResumeTarget(entry: entry, startFromBeginning: true))
+        case .remove:
+            WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)
+        }
     }
 }
