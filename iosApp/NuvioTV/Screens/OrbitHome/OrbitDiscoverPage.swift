@@ -355,6 +355,7 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         collectionView.backgroundColor = .clear
         collectionView.clipsToBounds = false
         collectionView.contentInsetAdjustmentBehavior = .never
+        collectionView.insetsLayoutMarginsFromSafeArea = false
         collectionView.contentInset = UIEdgeInsets(top: topInset, left: 0, bottom: 200, right: 0)
         collectionView.showsVerticalScrollIndicator = false
         // Back from a title (or down from the pills), the focus goes to the tile it left.
@@ -367,6 +368,9 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
                 cell.contentConfiguration = UIHostingConfiguration {
                     OrbitDiscoverTile(item: item, focused: state.isFocused)
                         .animation(.easeOut(duration: 0.16), value: state.isFocused)
+                        // (Device: the tiles near the screen's edges were pushed in by the TV's safe
+                        // area — the top lines and the last column overlapped.)
+                        .ignoresSafeArea()
                 }
                 .margins(.all, 0)
             }
@@ -428,11 +432,32 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         // The focused tile grows over its neighbours.
         if let path = context.previouslyFocusedIndexPath { collectionView.cellForItem(at: path)?.layer.zPosition = 0 }
         if let path = context.nextFocusedIndexPath { collectionView.cellForItem(at: path)?.layer.zPosition = 1 }
+        // On the first line, the grid back at its top: the title and the pills in view above it
+        // (Up goes to them, then to the bar).
+        if let path = context.nextFocusedIndexPath, path.item < OrbitDiscoverLayout.columns {
+            let top = CGPoint(x: 0, y: -topInset)
+            if collectionView.contentOffset.y != top.y {
+                coordinator.addCoordinatedAnimations { collectionView.setContentOffset(top, animated: false) }
+            }
+        }
         onFocus(context.nextFocusedIndexPath?.item)
     }
 
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        let y = max(0, scrollView.contentOffset.y + topInset)
+    func scrollViewDidScroll(_ scrollView: UIScrollView) { followHeader() }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        followHeader()
+    }
+
+    /// The header rides on the grid's first line (34 pt above it), wherever the grid is.
+    private func followHeader() {
+        guard let collectionView else { return }
+        var y: CGFloat = 0
+        if items.count > 0, let first = collectionView.layoutAttributesForItem(at: IndexPath(item: 0, section: 0)) {
+            let lineTop = first.frame.minY - collectionView.contentOffset.y
+            y = max(0, topInset - lineTop)
+        }
         if abs(scroll.y - y) > 0.5 { scroll.y = y }
     }
 
@@ -447,6 +472,8 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         let section = NSCollectionLayoutSection(group: group)
         section.interGroupSpacing = D.lineGap
         section.contentInsets = .init(top: 0, leading: OrbitHomeLayout.margin, bottom: 0, trailing: OrbitHomeLayout.margin)
+        // The screen's whole width (not the TV's safe area): six tiles fit exactly.
+        section.contentInsetsReference = .none
         return UICollectionViewCompositionalLayout(section: section)
     }
 }
