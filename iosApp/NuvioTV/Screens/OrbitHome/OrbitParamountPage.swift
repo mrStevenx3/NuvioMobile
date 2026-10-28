@@ -221,7 +221,13 @@ struct OrbitParamountPage: View {
         let fresh = catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
         // Fiction first, documentaries after (as on HBO Max).
-        let withArt = items.filter { $0.banner != nil }
+        let pictured = items.filter { $0.banner != nil }
+        // Steven: no title without its logo in the hero once its details are known (never empty).
+        let logoed = pictured.filter { item in
+            guard let meta = metaStore.meta(for: item) else { return true }
+            return OrbitInfo.make(item, meta: meta).logo != nil
+        }
+        let withArt = logoed.isEmpty ? pictured : logoed
         let isDoc: (MetaPreview) -> Bool = { item in item.genres.contains { $0.hasPrefix("Documentaire") } }
         return Array((withArt.filter { !isDoc($0) } + withArt.filter(isDoc)).prefix(6))
     }
@@ -320,7 +326,7 @@ struct OrbitParamountPage: View {
             }
 
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true)
+            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, centred: true)
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
@@ -528,6 +534,8 @@ struct OrbitParamountPage: View {
             let lead = lead(of: row)
             metaItems += row.items.indices.filter { $0 >= lead - 1 && $0 <= lead + 9 }.map { row.items[$0] }
         }
+        // The Top 10's titles all asked (their TMDB poster under his image while it comes).
+        metaItems += rows.filter(\.top10).flatMap(\.items)
         OrbitMetaStore.shared.request(metaItems)
 
         trailer.reset()
@@ -703,7 +711,7 @@ private struct OrbitParamountRowView: View {
                                  onLeadChange: { _ in onLeadChange() }) { index, lit in
                 let item = row.items[index]
                 if row.top10 {
-                    OrbitParamountTop10Image(item: item, focused: lit)
+                    OrbitParamountTop10Image(item: item, meta: metaStore.meta(for: item), focused: lit)
                 } else {
                     OrbitParamountPoster(item: item, meta: metaStore.meta(for: item),
                                          isNew: news.contains(item.id), focused: lit)
@@ -776,13 +784,21 @@ private struct OrbitParamountPoster: View {
 /// His Top 10 image as it is (the big white rank above the poster's corner); focused, larger.
 private struct OrbitParamountTop10Image: View {
     let item: MetaPreview
+    let meta: OrbitMeta?
     let focused: Bool
 
     var body: some View {
         let L = OrbitParamountLayout.self
         let k = L.top10Image.width / 640
-        OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: L.top10Image)
-            .frame(width: L.top10Image.width, height: L.top10Image.height)
+        ZStack(alignment: .topLeading) {
+            // (Steven's video: an empty frame in the Top 10 — his image late or missing: TMDB's
+            // poster in its place meanwhile.)
+            OrbitImage(url: meta?.localPoster ?? meta?.cleanPoster, mode: .fill, size: CGSize(width: 500 * k, height: 750 * k))
+                .clipShape(RoundedRectangle(cornerRadius: 14 * k, style: .continuous))
+                .offset(x: 140 * k, y: 170 * k)
+            OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: L.top10Image)
+        }
+            .frame(width: L.top10Image.width, height: L.top10Image.height, alignment: .topLeading)
             // Steven (the focused title hardly stood out): a white frame around its poster only.
             .overlay(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 14 * k, style: .continuous)
