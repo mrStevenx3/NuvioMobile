@@ -167,11 +167,14 @@ struct OrbitQualityBadges: View {
             // Each logo at its height, but never wider than 80 pt (the wide marks come down).
             // Steven: the 4K mark looked stretched — drawn narrower than its file (`squeeze`).
             let aspect = image.size.width / image.size.height * Self.squeeze(asset)
-            let height = min(Self.logoHeight(asset), 80 / aspect)
+            let height = min(Self.logoHeight(asset) * Self.scale, 80 * Self.scale / aspect)
+            // Steven (2026-10-28): the Dolby marks lighter — a little less white, so their thick
+            // strokes read thinner beside the framed marks.
+            let dolby = asset.hasPrefix("orbit-badge-dolby")
             Image(asset)
                 .renderingMode(.template)
                 .resizable()
-                .foregroundStyle(Color.white.opacity(0.92))
+                .foregroundStyle(Color.white.opacity(dolby ? 0.72 : 0.92))
                 .frame(width: height * aspect, height: height)
                 // Steven: every technical badge in a thin rounded frame, the age box's own stroke;
                 // the Full HD and HDR10 marks are boxes already, the Dolby marks stay free.
@@ -190,17 +193,17 @@ struct OrbitQualityBadges: View {
         if UIImage(named: "orbit-badge-hd") != nil {
             HStack(spacing: 5) {
                 Text("FULL")
-                    .font(.system(size: 14, weight: .black))
+                    .font(.system(size: 14 * Self.scale, weight: .black))
                     .italic()
                     .kerning(0.5)
                 Image("orbit-badge-hd")
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(height: 13)
+                    .frame(height: 13 * Self.scale)
             }
             .foregroundStyle(Color.white.opacity(0.92))
-            .frame(height: 16)
+            .frame(height: 16 * Self.scale)
             .modifier(OrbitBadgeFrame(on: true))
             .accessibilityLabel("Full HD")
             .transition(.opacity)
@@ -208,6 +211,9 @@ struct OrbitQualityBadges: View {
             textBadge("Full HD")
         }
     }
+
+    /// Steven (2026-10-28): every badge a little smaller under the title.
+    static let scale: CGFloat = 0.82
 
     static func framed(_ flag: OrbitQuality) -> Bool {
         // Everything but the Dolby marks, and the Full HD and HDR10 marks (boxes already).
@@ -235,7 +241,7 @@ struct OrbitQualityBadges: View {
 
     private func textBadge(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 20, weight: .heavy))
+            .font(.system(size: 20 * Self.scale, weight: .heavy))
             .foregroundStyle(Color.white.opacity(0.92))
             .padding(.horizontal, 10)
             .padding(.vertical, 3)
@@ -253,9 +259,9 @@ private struct OrbitBadgeFrame: ViewModifier {
     func body(content: Content) -> some View {
         if on {
             content
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.8), lineWidth: 2))
+                .padding(.horizontal, 8 * OrbitQualityBadges.scale)
+                .padding(.vertical, 6 * OrbitQualityBadges.scale)
+                .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.white.opacity(0.8), lineWidth: 1.7))
         } else {
             content
         }
