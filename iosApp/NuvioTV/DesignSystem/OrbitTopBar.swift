@@ -151,12 +151,19 @@ struct OrbitTopBar: View {
         // Steven (2026-10-27): the pages' block at the screen's centre (as the platforms' bars now),
         // Plateformes / Studios split off by a rule inside it; Settings and the profile in a block
         // of their own at the far right.
+        // Steven (2026-10-28: the bar too long): three blocks by role — finding (Search, Discover) on
+        // the left, what to watch (Films, Séries, Plateformes, Studios) at the centre, his own
+        // (Library, Settings, profile) on the right.
         ZStack {
-            pill([[.search, .films, .series, .library, .discover], [.services, .studios]])
+            pill([[.search, .discover]])
+                .frame(maxWidth: .infinity, alignment: .leading)
+            pill([[.films, .series, .services, .studios]])
                 .frame(maxWidth: .infinity, alignment: .center)
-            pill([[.settings, .profile]])
+            pill([[.library, .settings, .profile]])
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        // (The left block where the platforms' house sits, the right one mirroring it.)
+        .padding(.horizontal, OrbitPlatformIntro.cornerInset - OrbitBarMetrics.pillPadding - OrbitBarMetrics.leading)
         .padding(.trailing, OrbitBarMetrics.leading)
         // Orbit Home: out of reach while the page is scrolled down (Up is the page's own).
         .disabled(barLock.locked)
