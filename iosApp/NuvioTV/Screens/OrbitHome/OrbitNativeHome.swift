@@ -1126,6 +1126,21 @@ struct OrbitNativeOpenRow: View {
         OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
         let ahead = cards[max(0, lead - 2)..<min(cards.count, lead + 8)].map(\.preview)
         OrbitMetaStore.shared.request(Array(ahead))
+        // Steven (2026-10-28: the frame came up empty a moment, on the last titles above all): the
+        // art of the titles around is fetched ahead at the frame's own size, so each new title's
+        // image is already there when it fades in.
+        let size = ranked ? OrbitNativeRankedOpenTile.frame(scale: 1)
+                          : CGSize(width: OrbitHomeLayout.frameWidth, height: OrbitHomeLayout.cardHeight)
+        let request = ArtworkDecodeRequest(size: .points(width: size.width, height: size.height), fill: true,
+                                           scale: UIScreen.main.scale)
+        for neighbour in cards[max(0, lead - 2)..<min(cards.count, lead + 4)] {
+            let raw: String? = neighbour.landscape ?? metaStore.meta(for: neighbour.preview)?.backdrop
+            guard let raw, let url = URL(string: raw) else { continue }
+            let best = ArtworkURLUpgrade.upgraded(url, role: .backdrop) ?? url
+            if ArtworkStore.cached(best, decode: request) == nil {
+                Task { _ = try? await ArtworkStore.fetch(best, decode: request) }
+            }
+        }
     }
 
     @ViewBuilder
