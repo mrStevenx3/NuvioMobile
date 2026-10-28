@@ -49,16 +49,11 @@ final class OrbitPlayerViewController: AVPlayerViewController {
             .receive(on: RunLoop.main)
             .sink { [weak self] player in
                 guard let self else { return }
-                // Steven (2026-10-28: the sound played under the loading screen, the picture not
-                // there yet): silent until the first picture shows.
-                player?.isMuted = !self.session.firstFrameShown
+                // (Steven, 2026-10-28: no longer silent until the first picture — the player shows
+                // it as soon as it is ready, the sound came a little after.)
                 self.player = player
                 self.watchItems(of: player)
             }
-            .store(in: &bag)
-        session.$firstFrameShown
-            .receive(on: RunLoop.main)
-            .sink { [weak self] shown in if shown { self?.player?.isMuted = false } }
             .store(in: &bag)
         engine.$playbackBackend
             .receive(on: RunLoop.main)
