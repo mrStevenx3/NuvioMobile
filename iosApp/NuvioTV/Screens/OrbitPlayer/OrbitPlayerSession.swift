@@ -60,6 +60,8 @@ final class OrbitPlayerSession: ObservableObject {
     private var lastTickAt: TimeInterval = 0
     private var lastSaveAt: TimeInterval = 0
     private var resumeTarget: Double?
+    /// Where the film starts (0, or the resume point).
+    private var startPoint: Double = 0
     private var trackersStarted = false
     private var healthyReported = false
     private var stopped = false
@@ -83,6 +85,7 @@ final class OrbitPlayerSession: ObservableObject {
 
         let start = resumePosition()
         resumeTarget = start
+        startPoint = start ?? 0
         let options = loadOptions()
         let url = context.url
         if let start { onResumeSeek?(start) }
@@ -215,6 +218,11 @@ final class OrbitPlayerSession: ObservableObject {
             .sink { [weak self] ready in
                 guard let self, ready, !self.firstFrameShown else { return }
                 self.firstFrameShown = true
+                // Steven (2026-10-28: back to the start of a film just launched, its first seconds
+                // of sound had gone by under the loading screen): the sound plays before the first
+                // picture is up — once it is, the film goes back to where it started.
+                let point = self.startPoint
+                Task { [weak self] in await self?.engine?.seek(to: point) }
                 if let target = self.resumeTarget {
                     self.resumeTarget = nil
                     self.onResumeLanded?(target)

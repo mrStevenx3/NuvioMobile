@@ -12,6 +12,9 @@ struct OrbitLoadingView: View {
     let backdropUrl: String?
     /// The close-time hold (the page leaving after a player): plain black, no logo.
     var plain = false
+    /// The logo lights up as the screen opens (off: it opens lit — the player's, taking over from
+    /// the sources' page already lit).
+    var lightsUp = true
 
     @State private var appearedAt = Date()
     /// Steven (2026-10-28, B): the logo comes up dim and lights up, a glow in the film's own colour
@@ -50,8 +53,8 @@ struct OrbitLoadingView: View {
                     let now = timeline.date
                     VStack(spacing: 40) {
                         mark
-                            .brightness(lit ? 0 : -0.45)
-                            .shadow(color: (tone ?? .white).opacity(glow), radius: 44)
+                            .brightness(lit || !lightsUp ? 0 : -0.45)
+                            .shadow(color: (tone ?? .white).opacity(lightsUp ? glow : 0.3), radius: 44)
                             .opacity(Self.breath(at: now))
                         Text("Encore un instant…")
                             .font(.system(size: 26, weight: .medium))
@@ -66,6 +69,11 @@ struct OrbitLoadingView: View {
         .accessibilityLabel(Text("Chargement"))
         .onAppear {
             guard !plain else { return }
+            if !lightsUp {
+                lit = true
+                glow = 0.3
+                return
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 withAnimation(.easeOut(duration: 0.7)) { lit = true }
                 withAnimation(.easeOut(duration: 0.45)) { glow = 0.85 }

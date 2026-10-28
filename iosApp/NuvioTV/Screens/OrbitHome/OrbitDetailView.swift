@@ -449,8 +449,12 @@ struct OrbitDetailView: View {
                 returningTo = nil
                 resuming = false
                 resumeFocus = nil
+                // (Steven: still several titles at once — the system moved too, the neighbours enabled
+                // again by then. The press is carried out here only if the system did not.)
                 if let current = focus, let next = neighbour(of: current, direction) {
-                    DispatchQueue.main.async { focus = next }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                        if focus == current { focus = next }
+                    }
                 }
                 return
             }

@@ -48,10 +48,8 @@ struct PlayerScreen: View {
     }
 
     var body: some View {
-        let seeThrough = overLoadingCover && !session.firstFrameShown
         ZStack {
             Color.black.ignoresSafeArea()
-                .opacity(seeThrough ? 0 : 1)
 
             OrbitPlayerContainer(
                 session: session,
@@ -63,7 +61,6 @@ struct PlayerScreen: View {
                 onMenu: { upNext.dismissIfVisible() }
             )
             .ignoresSafeArea()
-            .opacity(seeThrough ? 0.001 : 1)
 
             if pauseCardShown {
                 OrbitPauseCard(context: context, session: session)
@@ -75,8 +72,11 @@ struct PlayerScreen: View {
                     .transition(.opacity)
             }
 
-            if !session.firstFrameShown, !overLoadingCover {
-                OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background)
+            // (Steven's video: a see-through player showed black — tvOS keeps its own ground under
+            // the cover. The player opens on the very same loading screen instead, already lit.)
+            if !session.firstFrameShown {
+                OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
+                                 lightsUp: !overLoadingCover)
                     .transition(.opacity)
             }
         }

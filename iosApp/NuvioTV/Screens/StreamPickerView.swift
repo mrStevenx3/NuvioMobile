@@ -179,7 +179,6 @@ struct StreamPickerView: View {
                          onPictureShown: { playerWasUp = true })
                 .ignoresSafeArea()
                 .id(context.id)
-                .presentationBackground(.clear)
         }
         .fullScreenCover(item: $nextEpisodePage, onDismiss: closePage) { page in
             StreamPickerView(type: page.context.contentType,

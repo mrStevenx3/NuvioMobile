@@ -156,11 +156,8 @@ struct OrbitNativeHome: View {
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition($page)
-            // Steven (2026-10-28, device video: Up / Down jerky, a row sometimes arriving at once):
-            // two scrolls fought — the system's own (bringing the focused title into view) and the
-            // page's (bringing its row to the line). The system's is off: only the page moves, on
-            // its one curve (as the title page does on its seasons).
-            .scrollDisabled(true)
+            // (Tried, 2026-10-28: the system's own scroll off — jerkier on the device, and Down from the
+            // hero took two presses. Back to the page's scroll alongside the system's.)
             .contentMargins(.top, Self.topLine, for: .scrollContent)
             .scrollClipDisabled()
 
@@ -1077,7 +1074,6 @@ struct OrbitNativeOpenRow: View {
             OrbitRankedTile(card: card, meta: meta, rank: index + 1, focused: open && rowFocused && !focusHidden,
                             openWidth: open ? OrbitNativeRankedOpenTile.frame(scale: 1).width : nil,
                             openFrame: open ? { AnyView(Color.clear) } : nil)
-                .transaction { $0.animation = nil }
         } else if open {
             Color.clear.frame(width: width(index, open: true), height: height)
         } else {
@@ -1115,7 +1111,7 @@ struct OrbitNativeOpenRow: View {
         slideGeneration &+= 1
         let generation = slideGeneration
         // (Steven: the glow came back late — now as the slide ends.)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
             if generation == slideGeneration { sliding = false }
         }
         leadChanged()
@@ -1152,7 +1148,9 @@ struct OrbitNativeOpenRow: View {
                 .frame(width: 1100, alignment: .topLeading)
         }
         .id(card.id)
-        .transition(.opacity.animation(.easeInOut(duration: 0.18)))
+        // Steven (2026-10-28): the synopsis fades in with the title in the frame; the old one goes
+        // at once (two texts over each other were unreadable).
+        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.05)), removal: .identity))
     }
 
     private func open(_ card: OrbitCard) {
@@ -1208,7 +1206,7 @@ struct OrbitSwipeCatcher: UIViewRepresentable {
         private var pan: UIPanGestureRecognizer?
         private var lastX: CGFloat = 0
         /// Points of travel for one title (the clickpad's whole width is about 1 900).
-        private let stretch: CGFloat = 300
+        private let stretch: CGFloat = 220
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
