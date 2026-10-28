@@ -383,7 +383,7 @@ struct OrbitAppleTVPage: View {
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             customHero: true,
-            focusHero: { heroFocus = min(heroIndex, max(0, heroItems.count - 1)) * 2 },
+            focusHero: { heroFocus = min(heroIndex, max(0, heroItems.count - 1)) },
             rowsFocusable: true,
             focusRow: { s in if rows.indices.contains(s - 1) { leads.box(rows[s - 1].id).focusRequest &+= 1 } },
             line: { s in
@@ -414,51 +414,6 @@ struct OrbitAppleTVPage: View {
         }
     }
 
-    /// The hero's own buttons: Regarder (plays at once) and ⓘ (the title's page).
-    @ViewBuilder
-    private func heroButtons(_ item: MetaPreview, index: Int) -> some View {
-        let playLit = heroFocus == index * 2
-        let infoLit = heroFocus == index * 2 + 1
-        HStack(spacing: 18) {
-            Button {
-                covered = true
-                trailer.reset(abortStages: true)
-                var platform = OrbitDetailPlatform(theme: .appletv)
-                platform.autoPlay = true
-                push(TitleRoute(preview: item, platform: platform))
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "play.fill").font(.system(size: 20, weight: .bold))
-                    Text(String(localized: "Regarder")).font(.system(size: 23, weight: .semibold))
-                }
-                .foregroundStyle(Color.black)
-                .padding(.horizontal, 30)
-                .frame(height: 60)
-                .background(Capsule().fill(Color.white.opacity(playLit ? 1 : 0.85)))
-                .shadow(color: .black.opacity(playLit ? 0.4 : 0), radius: 14, y: 6)
-                .scaleEffect(playLit ? 1.08 : 1, anchor: .leading)
-                .animation(.easeOut(duration: 0.18), value: playLit)
-            }
-            .buttonStyle(OrbitPlainStyle())
-            .focused($heroFocus, equals: index * 2)
-            Button {
-                covered = true
-                trailer.reset(abortStages: true)
-                push(TitleRoute(preview: item, zoom: zoomSpace != nil, platform: OrbitDetailPlatform(theme: .appletv)))
-            } label: {
-                Image(systemName: "info")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(infoLit ? Color.black : Color.white)
-                    .frame(width: 60, height: 60)
-                    .background(Circle().fill(infoLit ? Color.white : Color.white.opacity(0.25)))
-                    .scaleEffect(infoLit ? 1.1 : 1)
-                    .animation(.easeOut(duration: 0.18), value: infoLit)
-            }
-            .buttonStyle(OrbitPlainStyle())
-            .focused($heroFocus, equals: index * 2 + 1)
-        }
-    }
-
     /// The native hero: a carousel of buttons the system slides (Left / Right), as Orbit Home's.
     private var nativeHero: some View {
         let items = heroItems
@@ -466,28 +421,31 @@ struct OrbitAppleTVPage: View {
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    // Steven (as Apple's app): Regarder plays the title at once, ⓘ beside it opens its
-                    // page; Right from ⓘ goes on to the next title. Focus ids: 2·page, 2·page + 1.
-                    OrbitNativeAppleTVHeroPage(live: abs(index - heroIndex) <= 1, line: line) { _ in
-                        OrbitAppleTVHero(item: item, meta: metaStore.meta(for: item), isNew: isNew(item), line: rankLine(item),
-                                         buttonLit: heroFocus == index * 2,
-                                         count: items.count, index: index,
-                                         trailerURL: index == heroIndex && current == 0 ? trailerURL(for: item) : nil,
-                                         onTrailerFailure: { trailer.playbackFailed($0) },
-                                         onTrailerEnded: {
-                                             trailer.playbackFinished()
-                                             advanceHero()
-                                         },
-                                         actions: AnyView(heroButtons(item, index: index)))
+                    Button {
+                        push(TitleRoute(preview: item))
+                    } label: {
+                        OrbitNativeAppleTVHeroPage(live: abs(index - heroIndex) <= 1, line: line) { lit in
+                            OrbitAppleTVHero(item: item, meta: metaStore.meta(for: item), isNew: isNew(item), line: rankLine(item),
+                                             buttonLit: lit,
+                                             count: items.count, index: index,
+                                             trailerURL: index == heroIndex && current == 0 ? trailerURL(for: item) : nil,
+                                             onTrailerFailure: { trailer.playbackFailed($0) },
+                                             onTrailerEnded: {
+                                                 trailer.playbackFinished()
+                                                 advanceHero()
+                                             })
+                        }
                     }
+                    .buttonStyle(OrbitPlainStyle())
+                    .focused($heroFocus, equals: index)
                 }
             }
             .scrollTargetLayout()
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollClipDisabled()
-        .onChange(of: heroFocus) { _, focus in
-            guard let page = focus.map({ $0 / 2 }) else {
+        .onChange(of: heroFocus) { _, page in
+            guard let page else {
                 nativeHeroFocused = false
                 nativeLeave()
                 return
@@ -498,7 +456,7 @@ struct OrbitAppleTVPage: View {
         }
         // The carousel's own clock (or a trailer's end) moves the page: the focus follows.
         .onChange(of: heroIndex) { _, page in
-            if let focus = heroFocus, focus / 2 != page { heroFocus = page * 2 }
+            if heroFocus != nil, heroFocus != page { heroFocus = page }
         }
     }
 
@@ -757,8 +715,6 @@ private struct OrbitAppleTVHero: View {
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
-    /// Its buttons (Regarder, ⓘ), real ones.
-    var actions: AnyView? = nil
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
@@ -820,9 +776,6 @@ private struct OrbitAppleTVHero: View {
                         .foregroundStyle(Color.white)
                         .padding(.top, 12)
                 }
-                if let actions {
-                    actions.padding(.top, 24)
-                } else {
                 HStack(spacing: 12) {
                     Image(systemName: "play.fill").font(.system(size: 20, weight: .bold))
                     Text(String(localized: "Regarder")).font(.system(size: 23, weight: .semibold))
@@ -835,7 +788,6 @@ private struct OrbitAppleTVHero: View {
                 .scaleEffect(buttonLit ? 1.08 : 1, anchor: .leading)
                 .animation(.easeOut(duration: 0.18), value: buttonLit)
                 .padding(.top, 24)
-                }
             }
             .frame(width: L.synopsisWidth, alignment: .topLeading)
             .offset(x: L.margin, y: L.infoTop)
@@ -859,7 +811,7 @@ private struct OrbitAppleTVHero: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
-        // (Its buttons are real ones now: the page itself is not touched.)
+        .allowsHitTesting(false)
     }
 }
 
@@ -959,47 +911,60 @@ private struct OrbitAppleTVPoster: View {
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
-        ZStack(alignment: .topTrailing) {
-            Color.white.opacity(0.08)
-            OrbitImage(url: url, fallback: fallback, mode: .fill, size: L.poster)
-            if let caption, captionAlways || focused {
-                VStack {
-                    Spacer(minLength: 0)
+        // Steven (Apple's app): focused, the card grows a dark band under its art, its kind and genre
+        // in it; the Top 10 says its genre on the art itself, under the title.
+        let band: CGFloat = !captionAlways && caption != nil && focused ? 40 : 0
+        VStack(spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                Color.white.opacity(0.08)
+                OrbitImage(url: url, fallback: fallback, mode: .fill, size: L.poster)
+                if let caption, captionAlways {
                     Text(caption)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.92))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.95))
                         .lineLimit(1)
-                        .shadow(color: .black.opacity(0.7), radius: 3)
+                        .shadow(color: .black.opacity(0.8), radius: 4)
                         .padding(.horizontal, 8)
-                        .padding(.bottom, 10)
-                        .frame(maxWidth: .infinity)
-                        .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom))
+                        .padding(.bottom, 12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
-                .transition(.opacity)
+                if let rank {
+                    Text(String(rank))
+                        .font(.system(size: L.poster.height * 0.15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white)
+                        .shadow(color: .black.opacity(0.55), radius: 6, y: 2)
+                        .padding(.leading, 12)
+                        .padding(.top, 4)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                if mark {
+                    Image("AppleTVMark")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(Color.white)
+                        .frame(width: 34)
+                        .shadow(color: .black.opacity(0.6), radius: 4)
+                        .padding(12)
+                }
             }
-            if let rank {
-                Text(String(rank))
-                    .font(.system(size: L.poster.height * 0.15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Color.white)
-                    .shadow(color: .black.opacity(0.55), radius: 6, y: 2)
-                    .padding(.leading, 12)
-                    .padding(.top, 4)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-            if mark {
-                Image("AppleTVMark")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(Color.white)
-                    .frame(width: 34)
-                    .shadow(color: .black.opacity(0.6), radius: 4)
-                    .padding(12)
+            .frame(width: L.poster.width, height: L.poster.height)
+            if band > 0, let caption {
+                Text(caption)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.92))
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .frame(width: L.poster.width, height: band)
+                    .background(Color(white: 0.1).opacity(0.92))
             }
         }
-        .frame(width: L.poster.width, height: L.poster.height)
+        .frame(width: L.poster.width, height: L.poster.height + band, alignment: .top)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         .modifier(OrbitAppleTVFocus(focused: focused))
+        // The row keeps its height: the band runs over the gap under it.
+        .frame(width: L.poster.width, height: L.poster.height, alignment: .top)
+        .animation(.easeOut(duration: 0.18), value: band)
     }
 }
 
