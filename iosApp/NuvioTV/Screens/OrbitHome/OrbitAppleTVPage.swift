@@ -383,7 +383,7 @@ struct OrbitAppleTVPage: View {
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             customHero: true,
-            focusHero: { heroFocus = min(heroIndex, max(0, heroItems.count - 1)) },
+            focusHero: { heroFocus = min(heroIndex, max(0, heroItems.count - 1)) * 2 },
             rowsFocusable: true,
             focusRow: { s in if rows.indices.contains(s - 1) { leads.box(rows[s - 1].id).focusRequest &+= 1 } },
             line: { s in
@@ -414,6 +414,51 @@ struct OrbitAppleTVPage: View {
         }
     }
 
+    /// The hero's own buttons: Regarder (plays at once) and ⓘ (the title's page).
+    @ViewBuilder
+    private func heroButtons(_ item: MetaPreview, index: Int) -> some View {
+        let playLit = heroFocus == index * 2
+        let infoLit = heroFocus == index * 2 + 1
+        HStack(spacing: 18) {
+            Button {
+                covered = true
+                trailer.reset(abortStages: true)
+                var platform = OrbitDetailPlatform(theme: .appletv)
+                platform.autoPlay = true
+                push(TitleRoute(preview: item, platform: platform))
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "play.fill").font(.system(size: 20, weight: .bold))
+                    Text(String(localized: "Regarder")).font(.system(size: 23, weight: .semibold))
+                }
+                .foregroundStyle(Color.black)
+                .padding(.horizontal, 30)
+                .frame(height: 60)
+                .background(Capsule().fill(Color.white.opacity(playLit ? 1 : 0.85)))
+                .shadow(color: .black.opacity(playLit ? 0.4 : 0), radius: 14, y: 6)
+                .scaleEffect(playLit ? 1.08 : 1, anchor: .leading)
+                .animation(.easeOut(duration: 0.18), value: playLit)
+            }
+            .buttonStyle(OrbitPlainStyle())
+            .focused($heroFocus, equals: index * 2)
+            Button {
+                covered = true
+                trailer.reset(abortStages: true)
+                push(TitleRoute(preview: item, zoom: zoomSpace != nil, platform: OrbitDetailPlatform(theme: .appletv)))
+            } label: {
+                Image(systemName: "info")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(infoLit ? Color.black : Color.white)
+                    .frame(width: 60, height: 60)
+                    .background(Circle().fill(infoLit ? Color.white : Color.white.opacity(0.25)))
+                    .scaleEffect(infoLit ? 1.1 : 1)
+                    .animation(.easeOut(duration: 0.18), value: infoLit)
+            }
+            .buttonStyle(OrbitPlainStyle())
+            .focused($heroFocus, equals: index * 2 + 1)
+        }
+    }
+
     /// The native hero: a carousel of buttons the system slides (Left / Right), as Orbit Home's.
     private var nativeHero: some View {
         let items = heroItems
@@ -421,31 +466,28 @@ struct OrbitAppleTVPage: View {
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    Button {
-                        push(TitleRoute(preview: item))
-                    } label: {
-                        OrbitNativeAppleTVHeroPage(live: abs(index - heroIndex) <= 1, line: line) { lit in
-                            OrbitAppleTVHero(item: item, meta: metaStore.meta(for: item), isNew: isNew(item), line: rankLine(item),
-                                             buttonLit: lit,
-                                             count: items.count, index: index,
-                                             trailerURL: index == heroIndex && current == 0 ? trailerURL(for: item) : nil,
-                                             onTrailerFailure: { trailer.playbackFailed($0) },
-                                             onTrailerEnded: {
-                                                 trailer.playbackFinished()
-                                                 advanceHero()
-                                             })
-                        }
+                    // Steven (as Apple's app): Regarder plays the title at once, ⓘ beside it opens its
+                    // page; Right from ⓘ goes on to the next title. Focus ids: 2·page, 2·page + 1.
+                    OrbitNativeAppleTVHeroPage(live: abs(index - heroIndex) <= 1, line: line) { _ in
+                        OrbitAppleTVHero(item: item, meta: metaStore.meta(for: item), isNew: isNew(item), line: rankLine(item),
+                                         buttonLit: heroFocus == index * 2,
+                                         count: items.count, index: index,
+                                         trailerURL: index == heroIndex && current == 0 ? trailerURL(for: item) : nil,
+                                         onTrailerFailure: { trailer.playbackFailed($0) },
+                                         onTrailerEnded: {
+                                             trailer.playbackFinished()
+                                             advanceHero()
+                                         },
+                                         actions: AnyView(heroButtons(item, index: index)))
                     }
-                    .buttonStyle(OrbitPlainStyle())
-                    .focused($heroFocus, equals: index)
                 }
             }
             .scrollTargetLayout()
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollClipDisabled()
-        .onChange(of: heroFocus) { _, page in
-            guard let page else {
+        .onChange(of: heroFocus) { _, focus in
+            guard let page = focus.map({ $0 / 2 }) else {
                 nativeHeroFocused = false
                 nativeLeave()
                 return
@@ -456,7 +498,7 @@ struct OrbitAppleTVPage: View {
         }
         // The carousel's own clock (or a trailer's end) moves the page: the focus follows.
         .onChange(of: heroIndex) { _, page in
-            if heroFocus != nil, heroFocus != page { heroFocus = page }
+            if let focus = heroFocus, focus / 2 != page { heroFocus = page * 2 }
         }
     }
 
@@ -595,6 +637,8 @@ struct OrbitAppleTVPage: View {
             let start = first(of: row)
             metaItems += row.items.indices.filter { $0 >= start - 1 && $0 <= start + row.visibleCount + 2 }.map { row.items[$0] }
         }
+        // The Top 10s' posters (TMDB's, Orbit's rank on them): all asked at once.
+        metaItems += rows.filter { $0.kind == .top10 }.flatMap(\.items)
         OrbitMetaStore.shared.request(metaItems)
 
         trailer.reset()
@@ -713,6 +757,8 @@ private struct OrbitAppleTVHero: View {
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
+    /// Its buttons (Regarder, ⓘ), real ones.
+    var actions: AnyView? = nil
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
@@ -774,6 +820,9 @@ private struct OrbitAppleTVHero: View {
                         .foregroundStyle(Color.white)
                         .padding(.top, 12)
                 }
+                if let actions {
+                    actions.padding(.top, 24)
+                } else {
                 HStack(spacing: 12) {
                     Image(systemName: "play.fill").font(.system(size: 20, weight: .bold))
                     Text(String(localized: "Regarder")).font(.system(size: 23, weight: .semibold))
@@ -786,6 +835,7 @@ private struct OrbitAppleTVHero: View {
                 .scaleEffect(buttonLit ? 1.08 : 1, anchor: .leading)
                 .animation(.easeOut(duration: 0.18), value: buttonLit)
                 .padding(.top, 24)
+                }
             }
             .frame(width: L.synopsisWidth, alignment: .topLeading)
             .offset(x: L.margin, y: L.infoTop)
@@ -809,7 +859,7 @@ private struct OrbitAppleTVHero: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .allowsHitTesting(false)
+        // (Its buttons are real ones now: the page itself is not touched.)
     }
 }
 
@@ -867,14 +917,22 @@ private struct OrbitAppleTVRowView: View {
                                          trailerURL: index == lead ? trailerURL : nil,
                                          onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                     case .top10:
-                        OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false)
+                        // Steven (Apple's app): Orbit draws the rank and the genre under the title on
+                        // TMDB's poster; his add-on's image (its rank printed) only without one.
+                        let meta = metaStore.meta(for: item)
+                        let own: String? = meta?.localPoster ?? meta?.titledPoster
+                        OrbitAppleTVPoster(url: own ?? item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false,
+                                           rank: own != nil ? index + 1 : nil,
+                                           caption: orbitAppleTVGenre(item, meta, withKind: false), captionAlways: true)
                     case .posters:
                         let meta = metaStore.meta(for: item)
                         // Steven (2026-10-27): TMDB's poster, Orbit's own  tv mark on Apple's productions
                         // (TMDB's producers) — not the add-on's printed one.
                         // (Steven: Apple's posters print their  tv already — no Orbit mark on them.)
+                        // (Steven, Apple's app: focused, "Série TV · Drame" under its title.)
                         OrbitAppleTVPoster(url: meta?.localPoster ?? meta?.titledPoster ?? item.poster, fallback: item.rawPosterUrl,
-                                           focused: lit, mark: false)
+                                           focused: lit, mark: false,
+                                           caption: orbitAppleTVGenre(item, meta, withKind: true))
                     }
                 }
                 .modifier(OrbitAppleTVZoomSource(id: "\(item.type):\(item.id)", space: zoomSpace))
@@ -893,12 +951,41 @@ private struct OrbitAppleTVPoster: View {
     let focused: Bool
     /// Off (Steven: Apple's own posters already print their  tv, it showed twice).
     var mark = false
+    /// The Top 10's rank, drawn top left (nil: none, or printed on the image).
+    var rank: Int? = nil
+    /// The line under the title ("Drame", "Série TV · Drame"): always (Top 10) or when focused.
+    var caption: String? = nil
+    var captionAlways = false
 
     var body: some View {
         let L = OrbitAppleTVLayout.self
         ZStack(alignment: .topTrailing) {
             Color.white.opacity(0.08)
             OrbitImage(url: url, fallback: fallback, mode: .fill, size: L.poster)
+            if let caption, captionAlways || focused {
+                VStack {
+                    Spacer(minLength: 0)
+                    Text(caption)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.92))
+                        .lineLimit(1)
+                        .shadow(color: .black.opacity(0.7), radius: 3)
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom))
+                }
+                .transition(.opacity)
+            }
+            if let rank {
+                Text(String(rank))
+                    .font(.system(size: L.poster.height * 0.15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .shadow(color: .black.opacity(0.55), radius: 6, y: 2)
+                    .padding(.leading, 12)
+                    .padding(.top, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
             if mark {
                 Image("AppleTVMark")
                     .renderingMode(.template)
@@ -914,6 +1001,14 @@ private struct OrbitAppleTVPoster: View {
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         .modifier(OrbitAppleTVFocus(focused: focused))
     }
+}
+
+/// "Drame", or "Série TV · Drame" (Apple's words under a poster's title).
+func orbitAppleTVGenre(_ item: MetaPreview, _ meta: OrbitMeta?, withKind: Bool) -> String? {
+    let genre: String? = meta?.genre ?? item.genres.first
+    let kind = item.type == "movie" ? String(localized: "Film") : String(localized: "Série TV")
+    guard withKind else { return genre }
+    return genre.map { "\(kind) · \($0)" } ?? kind
 }
 
 /// A large card: the art without its title (TMDB's textless poster, else the backdrop), the
