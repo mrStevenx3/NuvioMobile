@@ -156,7 +156,7 @@ struct OrbitHBOPage: View {
     /// Each row's focused title (a box per row: a press redraws its row alone — native pages).
     @State private var leads = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
-    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    /// Steven (2026-10-26): the page built like Home — sections the system moves.
     @State private var nativeHasFocus = false
     @State private var nativeHeroFocused = false
     @State private var nativeFocusStamp: TimeInterval = 0

@@ -104,7 +104,7 @@ struct OrbitAppleTVPage: View {
     /// which scrolls only when the focus would leave the screen.
     @State private var firsts = OrbitLeadStore()
     @FocusState private var canvasFocused: Bool
-    /// Steven (2026-10-26): the page built like Home — sections the system moves (Nouvel accueil).
+    /// Steven (2026-10-26): the page built like Home — sections the system moves.
     @State private var nativeHasFocus = false
     @State private var nativeHeroFocused = false
     @State private var nativeFocusStamp: TimeInterval = 0

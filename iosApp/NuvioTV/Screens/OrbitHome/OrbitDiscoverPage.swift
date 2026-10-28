@@ -35,7 +35,7 @@ struct OrbitDiscoverPage: View {
     @FocusState private var canvasFocused: Bool
     @State private var index = 0
     /// Native grid (Steven, 2026-10-26: as fluid as Home): real buttons in a grid the system
-    /// scrolls (Settings ▸ Nouvel accueil off brings the drawn grid back).
+    /// scrolls.
 
     private var items: [MetaPreview] { model.items }
     private var line: Int { index / OrbitDiscoverLayout.columns }

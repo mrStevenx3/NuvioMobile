@@ -11,7 +11,7 @@ import SwiftUI
 //  - Left / Right: a row's lead lives in its own little box (`OrbitLeadBox`), so a press redraws
 //    that row alone, not the whole page.
 //  - Rows far from the focus are not drawn at all.
-// Settings ▸ Nouvel accueil off brings the drawn pages back.
+// (Native only: the old drawn pages and their switch are gone.)
 
 /// A page's vertical scroll, observed by the one view that follows it.
 @MainActor

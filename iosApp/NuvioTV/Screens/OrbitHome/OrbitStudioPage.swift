@@ -195,7 +195,7 @@ struct OrbitStudioPage: View {
     @MainActor private static var pushedAt: TimeInterval = 0
 
     // Native page (Steven, 2026-10-25: as fluid as Home): real rows of real buttons, moved by the
-    // system (Settings ▸ Nouvel accueil off brings the canvas page back).
+    // system.
     @FocusState private var nativeHeroFocus: Int?
     @State private var nativeHeroPage = 0
     @State private var nativeOnHero = true
