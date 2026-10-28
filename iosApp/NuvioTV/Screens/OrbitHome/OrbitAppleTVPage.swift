@@ -918,7 +918,8 @@ private struct OrbitAppleTVPoster: View {
         let L = OrbitAppleTVLayout.self
         // Steven (Apple's app): focused, the card grows a dark band under its art, its kind and genre
         // in it; the Top 10 says its genre on the art itself, under the title.
-        let foot: CGFloat = !captionAlways && caption != nil && focused ? L.captionFoot : 0
+        let hasFoot = !captionAlways && caption != nil
+        let foot: CGFloat = hasFoot && focused ? L.captionFoot : 0
         let total = CGSize(width: L.poster.width, height: L.poster.height + foot)
         ZStack(alignment: .bottom) {
             Color.white.opacity(0.08)
@@ -926,24 +927,32 @@ private struct OrbitAppleTVPoster: View {
             // taller box would crop it): the bottom rows of the art drawn again, darkened.
             VStack(spacing: 0) {
                 OrbitImage(url: url, fallback: fallback, mode: .fill, size: L.poster)
-                if foot > 0 {
+                // (Always there, its height opening with the focus: Steven — the foot and its words
+                // popped in and out on each move.)
+                if hasFoot {
                     OrbitImage(url: url, fallback: fallback, mode: .fill, size: L.poster)
                         .scaleEffect(x: 1, y: -1)
-                        .frame(width: L.poster.width, height: foot, alignment: .top)
+                        .frame(width: L.poster.width, height: L.captionFoot, alignment: .top)
                         .clipped()
                         .blur(radius: 6)
+                        .frame(width: L.poster.width, height: foot, alignment: .top)
+                        .clipped()
                 }
             }
             .frame(width: total.width, height: total.height, alignment: .top)
-            if foot > 0, let caption {
+            if hasFoot, let caption {
                 LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: foot + 40)
+                    .frame(height: L.captionFoot + 40)
+                    .opacity(focused ? 1 : 0)
                 Text(caption)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.95))
                     .lineLimit(1)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
+                    // In once the foot is open; out at once.
+                    .opacity(focused ? 1 : 0)
+                    .animation(focused ? .easeOut(duration: 0.15).delay(0.12) : nil, value: focused)
             }
             if let rank {
                 Text(String(rank))
@@ -971,7 +980,7 @@ private struct OrbitAppleTVPoster: View {
         .modifier(OrbitAppleTVFocus(focused: focused))
         // Laid out at the poster's size (the row has room under it for the foot).
         .frame(width: L.poster.width, height: L.poster.height, alignment: .top)
-        .animation(.easeOut(duration: 0.18), value: foot)
+        .animation(.easeOut(duration: 0.2), value: foot)
     }
 }
 
