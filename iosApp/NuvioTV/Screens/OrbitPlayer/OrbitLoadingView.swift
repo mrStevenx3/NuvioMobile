@@ -14,6 +14,11 @@ struct OrbitLoadingView: View {
     var plain = false
 
     @State private var appearedAt = Date()
+    /// Steven (2026-10-28, B): the logo comes up dim and lights up, a glow in the film's own colour
+    /// (as the platforms' logos switch on), then breathes.
+    @State private var lit = false
+    @State private var glow: Double = 0
+    @State private var tone: Color?
 
     /// Steven (2026-10-28: the loading screen came up black, its art a moment later): the art
     /// fetched ahead, at the loading screen's own size, so it is there from its first frame.
@@ -44,7 +49,10 @@ struct OrbitLoadingView: View {
                 TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
                     let now = timeline.date
                     VStack(spacing: 40) {
-                        mark.opacity(Self.breath(at: now))
+                        mark
+                            .brightness(lit ? 0 : -0.45)
+                            .shadow(color: (tone ?? .white).opacity(glow), radius: 44)
+                            .opacity(Self.breath(at: now))
                         Text("Encore un instant…")
                             .font(.system(size: 26, weight: .medium))
                             .foregroundStyle(Color.white.opacity(0.55))
@@ -56,6 +64,20 @@ struct OrbitLoadingView: View {
         }
         .allowsHitTesting(false)
         .accessibilityLabel(Text("Chargement"))
+        .onAppear {
+            guard !plain else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeOut(duration: 0.7)) { lit = true }
+                withAnimation(.easeOut(duration: 0.45)) { glow = 0.85 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.easeInOut(duration: 1.2)) { glow = 0.3 }
+                }
+            }
+        }
+        .task(id: backdropUrl ?? "-") {
+            guard let backdropUrl, !backdropUrl.isEmpty else { return }
+            tone = await OrbitDominantColor.color(for: backdropUrl)
+        }
     }
 
     /// 0.5 → 1 → 0.5, the same phase for every instance (wall clock).

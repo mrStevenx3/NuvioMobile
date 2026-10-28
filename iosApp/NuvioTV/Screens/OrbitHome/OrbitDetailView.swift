@@ -133,6 +133,10 @@ struct OrbitDetailView: View {
     @State private var showStreams = false
     /// Steven (2026-10-28): held Lire — the sources listed, the automatic play skipped.
     @State private var manualPick = false
+    /// Steven (2026-10-28, A + B): Lecture pressed — the title glides to the screen's middle and
+    /// grows while the page fades into the loading screen's blurred art; the loading screen then
+    /// takes over with the logo in the same place, which lights up.
+    @State private var launching = false
     /// The cinema's trailer started cold: its art held, its sound off, until its first picture.
     @State private var waitingForPicture = false
     @State private var ownTagShown = false
@@ -400,6 +404,19 @@ struct OrbitDetailView: View {
                     .transition(.opacity)
                     .allowsHitTesting(false)
                     .zIndex(8)
+            }
+
+            if launching {
+                OrbitLaunchVeil(backdropURL: backdropURL)
+                    .transition(.opacity)
+                    .zIndex(6)
+                VStack(spacing: 40) {
+                    launchMark
+                    // (The loading screen's line under its logo, unseen: the logo in its very place.)
+                    Text("Encore un instant…").font(.system(size: 26, weight: .medium)).opacity(0)
+                }
+                .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+                .zIndex(7)
             }
 
             if showSynopsis, let overview {
@@ -749,6 +766,32 @@ struct OrbitDetailView: View {
 
     /// The title (logo or name), in the hero or in the cinema corner: ONE matched view, so going
     /// into the trailer and back it glides and resizes between the two places.
+    /// The title in the middle of the screen, at the loading screen's size, a little dimmed (the
+    /// loading screen lights it up again).
+    private var launchMark: some View {
+        OrbitTitleMark(name: title, logo: logoURL, maxSize: CGSize(width: 640, height: 260), textSize: 64,
+                       moreLogos: Array(logoCandidates.dropFirst()), hugsLogo: false)
+            .frame(width: 640, height: 260, alignment: .center)
+            .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .center)
+            .opacity(0.5)
+    }
+
+    /// Lecture: the launch's glide, then the sources' page over it at once (it opens on the same
+    /// screen). Without motion, straight to the page.
+    private func launch(_ present: @escaping () -> Void) {
+        guard !reduceMotion, section == .hero, !cinema else { present(); return }
+        withAnimation(.easeInOut(duration: 0.5)) { launching = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { present() }
+            // Under the page now: the hero back as it was, for the way back.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                withTransaction(still) { launching = false }
+            }
+        }
+    }
+
     private func titleMark(cinema corner: Bool, hugs: Bool = false) -> some View {
         let size = corner ? Self.cinemaTitleSize : Self.heroTitleSize
         // `hugs`: its own height (a tag sits on it), within the same box.
@@ -893,7 +936,7 @@ struct OrbitDetailView: View {
         let L = OrbitDetailLayout.self
         return VStack(alignment: .leading, spacing: 0) {
             Group {
-                if cinema {
+                if cinema || launching {
                     Color.clear
                 } else if let own = platform?.own {
                     // The platform's "original" tag right on top of the title (Steven: above the
@@ -1014,7 +1057,7 @@ struct OrbitDetailView: View {
                 OrbitActionButton(icon: "arrow.counterclockwise", label: String(localized: "Recommencer"),
                                   focused: focus == .restart) {
                     movieRestart = true
-                    showStreams = true
+                    launch { showStreams = true }
                 }
                 .focused($focus, equals: .restart)
             }
@@ -1050,7 +1093,8 @@ struct OrbitDetailView: View {
                                     seriesPlay = route
                                 } : nil) {
                     model.noteSeriesPlayStarted(action)
-                    seriesPlay = OrbitSeriesPlayRoute(meta: meta, action: action)
+                    let route = OrbitSeriesPlayRoute(meta: meta, action: action)
+                    launch { seriesPlay = route }
                 }
                 .disabled(!model.isPlayEnabled)
                 .focused($focus, equals: .play)
@@ -1063,7 +1107,9 @@ struct OrbitDetailView: View {
             OrbitPlayButton(label: !model.isPlayEnabled ? String(localized: "Lecture indisponible")
                                 : (model.hasResumableProgress ? String(localized: "Reprendre") : String(localized: "Lire")),
                             focused: focus == .play, theme: platform?.theme,
-                            onManual: model.isPlayEnabled ? { manualPick = true; showStreams = true } : nil) { showStreams = true }
+                            onManual: model.isPlayEnabled ? { manualPick = true; showStreams = true } : nil) {
+                launch { showStreams = true }
+            }
                 .disabled(!model.isPlayEnabled)
                 .focused($focus, equals: .play)
         }
@@ -2037,5 +2083,26 @@ struct OrbitSeriesPlayRoute: Identifiable {
         let overview: String? = video.overview
         let description: String? = meta.description_
         synopsis = !(overview ?? "").isEmpty ? overview : description
+    }
+}
+
+
+/// The loading screen's ground (black, the art blurred and dim), coming up over the title's page
+/// as Lecture is pressed — the page fades into it.
+private struct OrbitLaunchVeil: View {
+    let backdropURL: String?
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if let backdropURL, !backdropURL.isEmpty {
+                CachedAsyncImage(string: backdropURL, contentMode: .fill, decodeSize: .points(width: 960, height: 540))
+                    .opacity(0.2)
+                    .blur(radius: 34)
+            }
+        }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
