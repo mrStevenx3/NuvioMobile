@@ -753,9 +753,13 @@ struct OrbitDetailView: View {
             withTransaction(still) { holdArt = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
                 withAnimation(.easeInOut(duration: 1.0)) { holdArt = false }
+                // Steven (2026-10-28: the sound came at once, the picture seconds later): the sound
+                // comes in with the picture, as the art lifts off it.
+                if cinema { HeroTrailerAudioState.shared.setMuted(value: false) }
             }
+        } else {
+            HeroTrailerAudioState.shared.setMuted(value: false)
         }
-        HeroTrailerAudioState.shared.setMuted(value: false)
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) {
             cinema = true
             heroTrailerOn = true
