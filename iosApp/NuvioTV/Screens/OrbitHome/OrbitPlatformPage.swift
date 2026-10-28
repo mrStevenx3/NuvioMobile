@@ -719,9 +719,9 @@ struct OrbitPlatformIntro: View {
         let centre: CGPoint = phase == .settled && settlesAt != nil ? settlesAt!
             : phase == .settled && !hidesCorner
             ? CGPoint(x: W - Self.cornerInset - size.width * Self.cornerScale / 2,
-                      // Steven (2026-10-28: Netflix's N sat lower than the bar's Search): the N, shorter
-                      // than its box, centred on the bar's line (59 pt) — 10 pt up.
-                      y: Self.cornerInset + size.height * Self.cornerScale / 2 - (assetInColour ? 10 : 0))
+                      // Steven (2026-10-28: Netflix's N, Apple TV's and HBO Max's logos sat lower than the
+                      // bar's Search): every corner logo centred on the bar's own line, whatever its height.
+                      y: Self.cornerCentreY)
             : CGPoint(x: W / 2, y: H / 2)
         ZStack(alignment: .topLeading) {
             // Black tinted with the platform's colour.
@@ -738,7 +738,7 @@ struct OrbitPlatformIntro: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
                     if width > 1 { OrbitCornerLogo.shared.width = width * Self.cornerScale }
                 }
-                .frame(width: size.width, height: size.height, alignment: phase == .settled && settlesAt == nil ? .topTrailing : .center)
+                .frame(width: size.width, height: size.height, alignment: phase == .settled && settlesAt == nil ? .trailing : .center)
                 // Steven: the logo switched on — it comes up dim, lights up, then takes the viewer in.
                 .modifier(OrbitLightUp(dim: dim, glow: glow, tint: brand))
                 .scaleEffect(scale, anchor: .center)
@@ -949,7 +949,7 @@ struct OrbitPlatformIntroLogo: View {
                 .scaledToFit()
                 // (Steven: Netflix's N touched the billboard under it — a little shorter, its top
                 // still on the corner's line.)
-                .padding(.bottom, OrbitPlatformIntro.logoSize.height * 0.3)
+                .padding(.vertical, OrbitPlatformIntro.logoSize.height * 0.15)
         } else if let assetLogo {
             Image(assetLogo)
                 .renderingMode(.template)
@@ -957,7 +957,7 @@ struct OrbitPlatformIntroLogo: View {
                 .scaledToFit()
                 .foregroundStyle(Color.white)
                 // (Its room below it: its top on the corner's line, as the other logos.)
-                .padding(.bottom, OrbitPlatformIntro.logoSize.height * 0.36)
+                .padding(.vertical, OrbitPlatformIntro.logoSize.height * 0.18)
         } else if let logoUrl, !logoUrl.isEmpty {
             CachedAsyncImage(string: logoUrl, contentMode: .fit,
                              decodeSize: .points(width: OrbitPlatformIntro.logoSize.width * OrbitPlatformIntro.splashScale,
