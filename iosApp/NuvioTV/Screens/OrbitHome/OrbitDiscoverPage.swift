@@ -1,17 +1,12 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
-// Orbit Discover (Steven's fork, 2026-10-23): the Discover tab's grid rebuilt on Orbit Home's
-// principle. The focus engine scrolled the old grid in big jumps ("le défilement qui se fait en
-// grand"); here nothing is scrolled by it. The header (title and the Type / Genre / Catalog pills)
-// stays fixed under the bar; the grid is ONE focusable stop that takes the presses itself and is
-// drawn rather than scrolled:
-//  - Left / Right move the selection inside the line;
-//  - Down / Up move one line, and the whole grid glides one line on one curve, the selected line
-//    resting on the grid's second line (the first one stays in view above it, like the reference);
-//  - Select opens the title; Up from the first line goes to the pills.
-// Only the lines near the selection exist. The model (`DiscoverGridViewModel`) is unchanged.
+// Orbit Discover (Steven's fork): the Discover tab's grid of landscape tiles, six to a line, under
+// its title and the Type / Genre / Catalog pills. Since 2026-10-28 the grid is a UIKit collection
+// view scrolled by the focus engine, as Search's results. The model (`DiscoverGridViewModel`) is
+// unchanged.
 
 enum OrbitDiscoverLayout {
     static let columns = 6
@@ -192,130 +187,76 @@ struct OrbitDiscoverTile: View {
     }
 }
 
-/// Discover's grid, native: real buttons in a lazy grid the system scrolls, the selected title's
-/// colour behind the page (only the two tiles whose focus changed redraw on a press).
+/// Discover's grid, native. Steven (2026-10-28: "le défilement vertical est bizarre, mets le même
+/// que dans Rechercher"): the grid is a UIKit collection view, as Search's results — the focus
+/// engine scrolls it the way Apple's own apps do. The header (title and pills) is SwiftUI, drawn
+/// over the grid's top and carried up with its scroll.
 private struct OrbitNativeDiscover<Header: View>: View {
     @ObservedObject var model: DiscoverGridViewModel
     let onOpen: (MetaPreview) -> Void
     @ViewBuilder let header: () -> Header
 
-    @FocusState private var focused: Int?
+    @StateObject private var scroll = OrbitDiscoverScroll()
     @State private var shown: Int?
     @State private var scrolled = false
-    /// The tile a title was opened from: back from it, the focus goes there, and only there a
-    /// moment (the system's own landing elsewhere is sent back — as on Home and the title page).
-    @State private var restoringSince: TimeInterval = 0
-    @State private var page = ScrollPosition(edge: .top)
+    @State private var headerHeight: CGFloat = 70
 
     var body: some View {
         let D = OrbitDiscoverLayout.self
         let L = OrbitHomeLayout.self
         let items = model.items
-        let columns = Array(repeating: GridItem(.fixed(D.tileWidth), spacing: D.gap, alignment: .top), count: D.columns)
         ZStack(alignment: .topLeading) {
             L.background.ignoresSafeArea()
             OrbitNativeDiscoverBackdrop(item: shown.flatMap { items.indices.contains($0) ? items[$0] : nil })
 
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 34) {
-                        header()
-                            .id("header")
-                        if model.selectedType == nil || model.phase != .loaded {
-                            status
+            OrbitDiscoverGrid(items: items, gridKey: model.gridKey,
+                              topInset: D.headerTop + headerHeight + 34,
+                              scroll: scroll,
+                              onOpen: { i in
+                                  guard items.indices.contains(i) else { return }
+                                  OrbitDiscoverReturn.opened = i
+                                  onOpen(items[i])
+                              },
+                              onFocus: { i in focusChanged(i) },
+                              onAppear: { i in model.itemAppeared(at: i) })
+                .ignoresSafeArea()
+
+            OrbitDiscoverHeaderLayer(scroll: scroll) {
+                VStack(alignment: .leading, spacing: 34) {
+                    header()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                            if abs(h - headerHeight) > 0.5 { headerHeight = h }
                         }
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: D.lineGap) {
-                            ForEach(items.indices, id: \.self) { i in
-                                Button {
-                                    OrbitDiscoverReturn.opened = i
-                                    onOpen(items[i])
-                                } label: {
-                                    OrbitNativeDiscoverTile(item: items[i])
-                                }
-                                .buttonStyle(OrbitPlainStyle())
-                                .focused($focused, equals: i)
-                                // Back from a title, only its tile is drawn focused a moment (the
-                                // system's landing on the first film was seen — Steven).
-                                .environment(\.orbitFocusHidden, restoringSince > 0 && OrbitDiscoverReturn.opened != nil
-                                             && OrbitDiscoverReturn.opened != i)
-                                // The focused tile above its neighbours (it grows over them).
-                                .zIndex(focused == i ? 1 : 0)
-                                .id(i)
-                                .onAppear { model.itemAppeared(at: i) }
-                            }
-                        }
-                        .focusSection()
-                        .defaultFocus($focused, OrbitDiscoverReturn.opened, priority: .userInitiated)
+                    if model.selectedType == nil || model.phase != .loaded {
+                        status
                     }
-                    .padding(.horizontal, L.margin)
-                    .padding(.top, D.headerTop)
-                    .padding(.bottom, 200)
-                }
-                .scrollClipDisabled()
-                // Where the page is scrolled, kept, and put back on the way back from a title (the
-                // system's own landing elsewhere scrolled it — Steven: the grid rose).
-                .scrollPosition($page)
-                .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in
-                    if restoringSince == 0, OrbitDiscoverReturn.opened == nil { OrbitDiscoverReturn.offsetY = y }
-                }
-                .onChange(of: model.gridKey) { _, _ in
-                    OrbitDiscoverReturn.opened = nil
-                    focused = nil
-                    shown = nil
-                    proxy.scrollTo("header", anchor: .top)
                 }
             }
+            .padding(.horizontal, L.margin)
+            .padding(.top, D.headerTop)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .ignoresSafeArea()
-        // Menu: from the grid, back to its top (the pills); there, to the bar.
-        .onExitCommand(perform: focused == nil ? { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
-                                                : { focused = nil; NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) })
-        .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
-        .onAppear {
-            guard let back = OrbitDiscoverReturn.opened, model.items.indices.contains(back) else { return }
-            let start = ProcessInfo.processInfo.systemUptime
-            restoringSince = start
-            for delay in [0.0, 0.15, 0.35, 0.6] {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    guard OrbitDiscoverReturn.opened == back, !ViewerInputClock.shared.hasInput(since: start + 0.3) else { return }
-                    if focused != back { focused = back }
-                    keepPage()
-                }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                restoringSince = 0
-                if OrbitDiscoverReturn.opened == back { OrbitDiscoverReturn.opened = nil }
-            }
-        }
-        .onChange(of: focused) { _, new in
-            if let new, let back = OrbitDiscoverReturn.opened, restoringSince > 0,
-               !ViewerInputClock.shared.hasInput(since: restoringSince + 0.3) {
-                if new != back {
-                    DispatchQueue.main.async { focused = back; keepPage() }
-                    return
-                }
-                keepPage()
-            }
-            if let new {
-                shown = new
-                model.itemAppeared(at: min(model.items.count - 1, new + D.columns * 3))
-            }
-            let down = (new ?? 0) >= D.columns
-            if scrolled != down {
-                scrolled = down
-                OrbitBarLock.shared.set(down)
-            }
+        // Menu: from the grid, back to the bar.
+        .onExitCommand { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
+        .onChange(of: model.gridKey) { _, _ in
+            OrbitDiscoverReturn.opened = nil
+            shown = nil
         }
         .onDisappear { OrbitBarLock.shared.set(false) }
     }
 
-    /// The page exactly where it was when the title was opened.
-    private func keepPage() {
-        guard let y = OrbitDiscoverReturn.offsetY else { return }
-        var still = Transaction()
-        still.disablesAnimations = true
-        withTransaction(still) { page.scrollTo(y: y) }
+    private func focusChanged(_ new: Int?) {
+        let D = OrbitDiscoverLayout.self
+        if let new {
+            shown = new
+            model.itemAppeared(at: min(model.items.count - 1, new + D.columns * 3))
+        }
+        let down = (new ?? 0) >= D.columns
+        if scrolled != down {
+            scrolled = down
+            OrbitBarLock.shared.set(down)
+        }
     }
 
     @ViewBuilder
@@ -340,6 +281,176 @@ private struct OrbitNativeDiscover<Header: View>: View {
     }
 }
 
+/// How far the grid is scrolled (the header follows it; only the header redraws).
+@MainActor
+final class OrbitDiscoverScroll: ObservableObject {
+    @Published var y: CGFloat = 0
+}
+
+private struct OrbitDiscoverHeaderLayer<Content: View>: View {
+    @ObservedObject var scroll: OrbitDiscoverScroll
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .offset(y: -scroll.y)
+            // Gone once scrolled well past it (no focus target far above the screen).
+            .opacity(scroll.y > 400 ? 0 : 1)
+    }
+}
+
+/// The grid itself: a collection view, as Search's results.
+private struct OrbitDiscoverGrid: UIViewControllerRepresentable {
+    let items: [MetaPreview]
+    let gridKey: String
+    let topInset: CGFloat
+    let scroll: OrbitDiscoverScroll
+    let onOpen: (Int) -> Void
+    let onFocus: (Int?) -> Void
+    let onAppear: (Int) -> Void
+
+    func makeUIViewController(context: Context) -> OrbitDiscoverGridController {
+        let controller = OrbitDiscoverGridController(scroll: scroll)
+        update(controller)
+        return controller
+    }
+
+    func updateUIViewController(_ controller: OrbitDiscoverGridController, context: Context) {
+        update(controller)
+    }
+
+    private func update(_ controller: OrbitDiscoverGridController) {
+        controller.onOpen = onOpen
+        controller.onFocus = onFocus
+        controller.onAppear = onAppear
+        controller.show(items: items, gridKey: gridKey, topInset: topInset)
+    }
+}
+
+@MainActor
+final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
+    var onOpen: (Int) -> Void = { _ in }
+    var onFocus: (Int?) -> Void = { _ in }
+    var onAppear: (Int) -> Void = { _ in }
+
+    private let scroll: OrbitDiscoverScroll
+    private var collectionView: UICollectionView!
+    private var items: [MetaPreview] = []
+    private var gridKey: String?
+    private var topInset: CGFloat = 0
+    private var cell: UICollectionView.CellRegistration<UICollectionViewCell, MetaPreview>!
+
+    init(scroll: OrbitDiscoverScroll) {
+        self.scroll = scroll
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: Self.layout())
+        collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        collectionView.backgroundColor = .clear
+        collectionView.clipsToBounds = false
+        collectionView.contentInsetAdjustmentBehavior = .never
+        collectionView.contentInset = UIEdgeInsets(top: topInset, left: 0, bottom: 200, right: 0)
+        collectionView.showsVerticalScrollIndicator = false
+        // Back from a title (or down from the pills), the focus goes to the tile it left.
+        collectionView.remembersLastFocusedIndexPath = true
+        collectionView.dataSource = self
+        collectionView.delegate = self
+        view.addSubview(collectionView)
+        cell = UICollectionView.CellRegistration<UICollectionViewCell, MetaPreview> { cell, _, item in
+            cell.configurationUpdateHandler = { cell, state in
+                cell.contentConfiguration = UIHostingConfiguration {
+                    OrbitDiscoverTile(item: item, focused: state.isFocused)
+                        .animation(.easeOut(duration: 0.16), value: state.isFocused)
+                }
+                .margins(.all, 0)
+            }
+        }
+        collectionView.setContentOffset(CGPoint(x: 0, y: -topInset), animated: false)
+    }
+
+    func show(items new: [MetaPreview], gridKey key: String, topInset inset: CGFloat) {
+        loadViewIfNeeded()
+        if abs(inset - topInset) > 0.5 {
+            let atTop = collectionView.contentOffset.y <= -topInset + 1
+            topInset = inset
+            collectionView.contentInset.top = inset
+            if atTop { collectionView.setContentOffset(CGPoint(x: 0, y: -inset), animated: false) }
+        }
+        if key != gridKey {
+            // Another catalog or genre: a new grid, from its top.
+            gridKey = key
+            items = new
+            collectionView.reloadData()
+            collectionView.layoutIfNeeded()
+            collectionView.setContentOffset(CGPoint(x: 0, y: -topInset), animated: false)
+            return
+        }
+        guard new.count != items.count || zip(new, items).contains(where: { $0.id != $1.id }) else { return }
+        let old = items
+        items = new
+        // The next page arrived: added at the end, the focus and the scroll untouched.
+        if new.count > old.count, zip(new, old).allSatisfy({ $0.id == $1.id }) {
+            let added = (old.count..<new.count).map { IndexPath(item: $0, section: 0) }
+            UIView.performWithoutAnimation { collectionView.insertItems(at: added) }
+        } else {
+            collectionView.reloadData()
+        }
+    }
+
+    // MARK: Data
+
+    func numberOfSections(in collectionView: UICollectionView) -> Int { 1 }
+
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { items.count }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        collectionView.dequeueConfiguredReusableCell(using: cell, for: indexPath, item: items[indexPath.item])
+    }
+
+    // MARK: Delegate
+
+    func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+        onAppear(indexPath.item)
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        onOpen(indexPath.item)
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
+                        with coordinator: UIFocusAnimationCoordinator) {
+        // The focused tile grows over its neighbours.
+        if let path = context.previouslyFocusedIndexPath { collectionView.cellForItem(at: path)?.layer.zPosition = 0 }
+        if let path = context.nextFocusedIndexPath { collectionView.cellForItem(at: path)?.layer.zPosition = 1 }
+        onFocus(context.nextFocusedIndexPath?.item)
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let y = max(0, scrollView.contentOffset.y + topInset)
+        if abs(scroll.y - y) > 0.5 { scroll.y = y }
+    }
+
+    private static func layout() -> UICollectionViewCompositionalLayout {
+        let D = OrbitDiscoverLayout.self
+        let item = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .absolute(D.tileWidth),
+                                                            heightDimension: .absolute(D.tileHeight)))
+        let group = NSCollectionLayoutGroup.horizontal(layoutSize: .init(widthDimension: .fractionalWidth(1),
+                                                                         heightDimension: .absolute(D.tileHeight)),
+                                                       repeatingSubitem: item, count: D.columns)
+        group.interItemSpacing = .fixed(D.gap)
+        let section = NSCollectionLayoutSection(group: group)
+        section.interGroupSpacing = D.lineGap
+        section.contentInsets = .init(top: 0, leading: OrbitHomeLayout.margin, bottom: 0, trailing: OrbitHomeLayout.margin)
+        return UICollectionViewCompositionalLayout(section: section)
+    }
+}
+
 /// The colour behind Discover (its own view: a new colour redraws only it).
 private struct OrbitNativeDiscoverBackdrop: View {
     let item: MetaPreview?
@@ -350,24 +461,8 @@ private struct OrbitNativeDiscoverBackdrop: View {
     }
 }
 
-/// One Discover tile, focused as its button is.
-private struct OrbitNativeDiscoverTile: View {
-    let item: MetaPreview
-    @Environment(\.isFocused) private var systemFocused
-    @Environment(\.orbitFocusHidden) private var focusHidden
-    private var isFocused: Bool { systemFocused && !focusHidden }
-
-    var body: some View {
-        OrbitDiscoverTile(item: item, focused: isFocused)
-            .animation(.easeOut(duration: 0.16), value: isFocused)
-    }
-}
-
-
-
 /// Where the last title was opened from (a generic view cannot hold a static).
 @MainActor
 enum OrbitDiscoverReturn {
     static var opened: Int?
-    static var offsetY: CGFloat?
 }
