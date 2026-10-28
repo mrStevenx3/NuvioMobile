@@ -56,7 +56,7 @@ struct OrbitAppleTVRow: Identifiable, Equatable {
 
     var cardHeight: CGFloat { kind == .cards ? OrbitAppleTVLayout.card.height : OrbitAppleTVLayout.poster.height }
     /// The posters' rows: room under them for the focused one's lengthened foot (its kind and genre).
-    var height: CGFloat { OrbitAppleTVLayout.headingHeight + cardHeight + OrbitAppleTVLayout.rowGap + (kind == .posters ? OrbitAppleTVLayout.captionFoot : 0) }
+    var height: CGFloat { OrbitAppleTVLayout.headingHeight + cardHeight + OrbitAppleTVLayout.rowGap + (kind != .cards ? OrbitAppleTVLayout.captionFoot : 0) }
     /// The titles that fit whole on screen (the last one before the right margin).
     var visibleCount: Int {
         max(1, Int((OrbitHomeLayout.screenWidth - OrbitAppleTVLayout.margin * 2 + (slot - (kind == .cards ? OrbitAppleTVLayout.card.width : OrbitAppleTVLayout.poster.width))) / slot))
@@ -604,7 +604,7 @@ struct OrbitAppleTVPage: View {
             metaItems += row.items.indices.filter { $0 >= start - 1 && $0 <= start + row.visibleCount + 2 }.map { row.items[$0] }
         }
         // The Top 10s' posters (TMDB's, Orbit's rank on them): all asked at once.
-        metaItems += rows.filter { $0.kind == .top10 }.flatMap(\.items)
+        metaItems += rows.filter { $0.kind == .top10 }.flatMap(\.items) // (their genre)
         OrbitMetaStore.shared.request(metaItems)
 
         trailer.reset()
@@ -877,8 +877,10 @@ private struct OrbitAppleTVRowView: View {
                                          trailerURL: index == lead ? trailerURL : nil,
                                          onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                     case .top10:
-                        // (Steven: his add-on's image, its own rank; no genre on the Top 10.)
-                        OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false)
+                        // (Steven: his add-on's image and its own rank; focused, its kind and genre in
+                        // the lengthened foot, as the other rows.)
+                        OrbitAppleTVPoster(url: item.poster, fallback: item.rawPosterUrl, focused: lit, mark: false,
+                                           caption: orbitAppleTVGenre(item, metaStore.meta(for: item), withKind: true))
                     case .posters:
                         let meta = metaStore.meta(for: item)
                         // Steven (2026-10-27): TMDB's poster, Orbit's own  tv mark on Apple's productions
