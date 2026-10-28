@@ -777,6 +777,7 @@ struct OrbitDetailView: View {
                        moreLogos: Array(logoCandidates.dropFirst()), hugsLogo: false)
             .frame(width: 640, height: 260, alignment: .center)
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .center)
+            .transition(.identity)
             .opacity(0.5)
     }
 
@@ -810,6 +811,9 @@ struct OrbitDetailView: View {
             }
             .frame(width: size.width, height: tagged ? nil : size.height, alignment: .bottomLeading)
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
+            // (Steven's video: the title twice during Lecture's glide — the one leaving faded out
+            // while the other moved. It goes at once; only the moving one is seen.)
+            .transition(launching ? .identity : .opacity)
     }
 
     /// What the sources are asked for (the film, or the series' next episode), once known.
