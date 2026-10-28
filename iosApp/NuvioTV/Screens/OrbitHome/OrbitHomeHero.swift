@@ -132,55 +132,6 @@ nonisolated struct OrbitGenre: Identifiable, Hashable, Sendable {
     ].map { OrbitGenre(id: $0.0, name: $0.1, tv: true) }
 }
 
-struct OrbitGenresView: View {
-    let genres: [OrbitGenre]
-    let lead: Int
-    let focused: Bool
-
-    var body: some View {
-        let L = OrbitHomeLayout.self
-        let window = max(0, lead - 1)...max(max(0, lead - 1), min(genres.count - 1, lead + 7))
-        ZStack(alignment: .topLeading) {
-            if !genres.isEmpty {
-                ForEach(Array(zip(window, genres[window])), id: \.1.id) { index, genre in
-                    OrbitGenreChip(name: genre.name, focused: focused && index == lead)
-                        .offset(x: L.chipX(index - lead))
-                        .transition(.identity)
-                }
-            }
-        }
-        .frame(width: L.screenWidth, height: L.chipHeight + 20, alignment: .topLeading)
-    }
-}
-
-struct OrbitGenreChip: View {
-    let name: String
-    let focused: Bool
-
-    var body: some View {
-        let L = OrbitHomeLayout.self
-        ZStack(alignment: .bottomLeading) {
-            LinearGradient(colors: [Color(white: 0.42), Color(white: 0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            LinearGradient(colors: [Color.white.opacity(0.18), .clear], startPoint: .top, endPoint: .center)
-            Text(name)
-                .font(.system(size: 27, weight: .heavy).width(.condensed))
-                .foregroundStyle(Color.white)
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
-                .padding(.leading, 22)
-                .padding(.trailing, 14)
-                .padding(.bottom, 20)
-        }
-        .frame(width: L.chipWidth, height: L.chipHeight)
-        .clipShape(RoundedRectangle(cornerRadius: L.chipRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: L.chipRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 1 : 0.22), lineWidth: focused ? 4 : 1.5)
-        }
-        .scaleEffect(focused ? 1.04 : 1)
-    }
-}
-
 // MARK: - Pre-blurred art
 
 /// Fluidity (Steven, 2026-10-25, before the IPA): a blurred copy of an art, blurred ONCE on a

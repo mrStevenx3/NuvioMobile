@@ -1356,16 +1356,6 @@ func orbitIsHuluTitle(_ meta: OrbitMeta?) -> Bool {
     meta?.producers.contains { $0.lowercased().contains("hulu") } ?? false
 }
 
-/// A Disney+ programme of its own: made by Disney's studios or for Disney+ (TMDB's producers).
-func orbitIsDisneyOwn(_ meta: OrbitMeta?) -> Bool {
-    guard let producers = meta?.producers, !producers.isEmpty else { return false }
-    let marks = ["disney", "pixar", "marvel studios", "lucasfilm", "national geographic"]
-    return producers.contains { name in
-        let lower = name.lowercased()
-        return marks.contains { lower.contains($0) }
-    }
-}
-
 /// Disney+'s or Hulu's logo in white (black on a focused white pill).
 struct OrbitDisneyBrandLogo: View {
     let hulu: Bool
@@ -1472,68 +1462,6 @@ struct OrbitDisneyBrand {
     func route() -> OrbitStudioRoute {
         if let found = folder { return .folder(collectionId: found.collectionId, folder: found.folder) }
         return OrbitStudioRoute(name: name, companies: company, isNetwork: false, logo: nil, collectionId: nil, folderId: nil)
-    }
-}
-
-/// The brands' row: five dark tiles, the studio's logo in white (Marvel in its red).
-private struct OrbitDisneyBrandsRow: View {
-    @ObservedObject var box: OrbitLeadBox
-    let onEnter: () -> Void
-    let onLeave: () -> Void
-    let onSelect: () -> Void
-
-    var body: some View {
-        let L = OrbitDisneyLayout.self
-        OrbitNativeTileStrip(count: OrbitDisneyBrand.all.count, spacing: L.brandGap, height: L.brandTile.height,
-                             lastWidth: L.brandTile.width, box: box, alignment: .top,
-                             onEnter: onEnter, onLeave: onLeave, onSelect: onSelect) { index, lit in
-            OrbitDisneyBrandTile(brand: OrbitDisneyBrand.all[index], focused: lit)
-        }
-        .frame(width: OrbitHomeLayout.screenWidth, height: L.brandTile.height, alignment: .topLeading)
-    }
-}
-
-private struct OrbitDisneyBrandTile: View {
-    let brand: OrbitDisneyBrand
-    let focused: Bool
-
-    var body: some View {
-        let L = OrbitDisneyLayout.self
-        let logoBox = CGSize(width: L.brandTile.width * 0.68, height: L.brandTile.height * 0.46)
-        ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.12))
-            if let logo = brand.logoURL {
-                if brand.name == "Marvel" {
-                    CachedAsyncImage(string: logo, contentMode: .fit,
-                                     decodeSize: .points(width: logoBox.width, height: logoBox.height),
-                                     loading: { Color.clear }, failure: { name })
-                        .frame(width: logoBox.width, height: logoBox.height)
-                } else {
-                    Color.white
-                        .frame(width: logoBox.width, height: logoBox.height)
-                        .mask {
-                            CachedAsyncImage(string: logo, contentMode: .fit,
-                                             decodeSize: .points(width: logoBox.width, height: logoBox.height),
-                                             loading: { Color.clear }, failure: { name })
-                                .frame(width: logoBox.width, height: logoBox.height)
-                        }
-                }
-            } else {
-                name
-            }
-        }
-        .frame(width: L.brandTile.width, height: L.brandTile.height)
-        .modifier(OrbitDisneyFocus(focused: focused))
-    }
-
-    private var name: some View {
-        Text(brand.name)
-            .font(.system(size: 32, weight: .heavy))
-            .foregroundStyle(Color.white)
-            .multilineTextAlignment(.center)
-            .lineLimit(2)
-            .minimumScaleFactor(0.6)
-            .padding(.horizontal, 16)
     }
 }
 
@@ -2094,17 +2022,6 @@ private struct OrbitDisneyBrandPill: View {
         .overlay { Capsule().strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 5) }
         .scaleEffect(focused ? 1.1 : 1)
         .animation(.easeOut(duration: 0.18), value: focused)
-    }
-}
-
-/// The brand's logo, large, in the hub.
-private struct OrbitDisneyBrandLogoBig: View {
-    let brand: OrbitDisneyBrand
-
-    var body: some View {
-        OrbitDisneyWhiteLogo(brand: brand, box: CGSize(width: 460, height: 190), nameSize: 80)
-            .id(brand.name)
-            .transition(.opacity)
     }
 }
 

@@ -682,34 +682,6 @@ struct OrbitHBOPage: View {
 
 // MARK: - Pieces
 
-/// HBO Max's mark at a poster's foot, centred, on a soft shade (its top left is the "NOUVEAU" tag's).
-private struct OrbitHBOPosterMark: View {
-    let own: OrbitHBOOwn
-    let width: CGFloat
-    /// Steven: where the poster leaves room — its top (its title at its foot), else its foot.
-    var atTop = true
-    /// The "NOUVEAU" tag sits at the top left: the mark under it.
-    var belowTag = false
-
-    var body: some View {
-        ZStack(alignment: atTop ? .top : .bottom) {
-            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: atTop ? .bottom : .top,
-                           endPoint: atTop ? .top : .bottom)
-                .frame(height: atTop ? 70 : 60)
-            Image(own == .hbo ? "HBOOriginalLogo" : "MaxOriginalLogo")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(Color.white)
-                .frame(width: width * (own == .hbo ? 0.5 : 0.36), height: own == .hbo ? 13 : 22)
-                .padding(atTop ? .top : .bottom, atTop && belowTag ? 38 : 12)
-        }
-        .frame(width: width)
-        .frame(maxHeight: .infinity, alignment: atTop ? .top : .bottom)
-        .allowsHitTesting(false)
-    }
-}
-
 /// "HBO ORIGINAL" / "HBO MAX ORIGINAL" above a title's logo.
 private struct OrbitHBOMark: View {
     let own: OrbitHBOOwn

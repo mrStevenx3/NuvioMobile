@@ -337,23 +337,6 @@ struct OrbitRowHeading: View {
     }
 }
 
-/// The band behind a Top 10 (Steven: "un fond foncé en fondu tout le long de la ligne"): a dark
-/// strip across the whole row, deepest behind the posters, melting away above and below — no rims.
-struct OrbitTop10Band: View {
-    let height: CGFloat
-
-    var body: some View {
-        LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
-                               .init(color: .black.opacity(0.38), location: 0.18),
-                               .init(color: .black.opacity(0.58), location: 0.5),
-                               .init(color: .black.opacity(0.38), location: 0.82),
-                               .init(color: .black.opacity(0), location: 1)],
-                       startPoint: .top, endPoint: .bottom)
-            .frame(width: OrbitHomeLayout.screenWidth, height: height)
-            .allowsHitTesting(false)
-    }
-}
-
 struct OrbitRowsBackdrop: View {
     let url: String?
     /// The page's black under it (off where the page has its own ground).
