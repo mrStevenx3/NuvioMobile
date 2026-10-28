@@ -474,7 +474,8 @@ struct OrbitDisneyPage: View {
                                 switchLogo: { index, lit in
                                     AnyView(OrbitDisneyBrandLogo(hulu: index == 1, logoURL: brandLogoURL,
                                                                  height: 46, dark: lit, alignment: .center))
-                                }, centreLeads: true)
+                                }, centreLeads: true,
+                                searchTrailing: OrbitPlatformIntro.searchInCorner)
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 

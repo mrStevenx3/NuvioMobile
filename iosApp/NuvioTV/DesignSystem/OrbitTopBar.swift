@@ -760,6 +760,10 @@ struct CollectionFilterBar: View {
     /// Steven (Netflix): the platform's pill (Search · Accueil · Films · Séries) at the screen's
     /// centre, the house alone on the left.
     var centred = false
+    /// Steven (2026-10-28): Search on its own at the top right (the house leaves, Search looks in the
+    /// platform): its gap to the screen's right edge — left of the platform's corner logo.
+    var searchTrailing: CGFloat? = nil
+    private var searchApart: Bool { searchTrailing != nil }
 
     @FocusState private var focused: OrbitBarItem?
     @FocusState private var switchFocused: Int?
@@ -780,9 +784,14 @@ struct CollectionFilterBar: View {
                 centrePill
                     .frame(maxWidth: .infinity, alignment: .center)
             } else if centred {
-                pill(for: items.filter { $0 != .home })
+                pill(for: items.filter { $0 != .home && !(searchApart && $0 == .search) })
                     .defaultFocus($focused, entryItem, priority: .userInitiated)
                     .frame(maxWidth: .infinity, alignment: .center)
+            }
+            if let searchTrailing {
+                pill(for: [.search])
+                    .padding(.trailing, searchTrailing)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         // Steven: back from a title, the system landed on the house before the page's restore.
@@ -806,7 +815,7 @@ struct CollectionFilterBar: View {
                 // Steven (Disney+: Up from the page landed on Accueil, then the focus moved): from
                 // outside the bar, only the page's current mode can take the focus.
                 // (Steven: Disney+ opens on Accueil — reachable from outside when it is the page's.)
-                barButtons(items.filter { $0 != .home }, lockedOutside: true)
+                barButtons(items.filter { $0 != .home && !(searchApart && $0 == .search) }, lockedOutside: true)
             }
             ForEach(Array(switchItems.enumerated()), id: \.offset) { index, title in
                 // (Steven, Disney+: only the item the focus is on is lit, as a tab bar.)

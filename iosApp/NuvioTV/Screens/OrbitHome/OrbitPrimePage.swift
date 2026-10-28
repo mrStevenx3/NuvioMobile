@@ -379,7 +379,8 @@ struct OrbitPrimePage: View {
             }
 
 
-            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, centred: true)
+            CollectionFilterBar(filter: $typeFilter, onSearch: openSearch, showsAll: true, centred: true,
+                                searchTrailing: OrbitPlatformIntro.searchBesideLogo)
                 .disabled(search != nil || (pageFocused && current > 0))
                 .opacity(search != nil ? 0 : 1)
 
