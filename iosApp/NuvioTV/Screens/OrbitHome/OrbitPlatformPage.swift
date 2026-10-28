@@ -703,7 +703,8 @@ struct OrbitPlatformIntro: View {
     /// Steven (device: not far enough right): level with the bar's right end.
     static let cornerTrailing: CGFloat = 50
     /// Steven (2026-10-28): the platform's Search, alone at the top right, just left of the corner logo.
-    static let searchBesideLogo: CGFloat = cornerInset + logoSize.width * cornerScale + 18
+    /// (The corner logo's drawn width: Netflix's N is far narrower than its box.)
+    static let searchBesideLogo: CGFloat = -1
     /// Disney+ (its logo settles in the hero): Search in the corner itself, mirroring the house.
     static let searchInCorner: CGFloat = cornerInset - 6  // the bar pill's padding
 
@@ -730,6 +731,11 @@ struct OrbitPlatformIntro: View {
             .opacity(phase == .settled ? 0 : 1)
 
             logo
+                // Steven (2026-10-28: Search too far left of Netflix's N): the logo's own drawn width,
+                // for the bar's Search to sit just left of it.
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+                    if width > 1 { OrbitCornerLogo.shared.width = width * Self.cornerScale }
+                }
                 .frame(width: size.width, height: size.height, alignment: phase == .settled && settlesAt == nil ? .topTrailing : .center)
                 // Steven: the logo switched on — it comes up dim, lights up, then takes the viewer in.
                 .modifier(OrbitLightUp(dim: dim, glow: glow, tint: brand))
@@ -1096,4 +1102,12 @@ final class OrbitPlatformExtrasModel: ObservableObject {
                                rawLandscapePosterUrl: nil, customPosterApplied: false)
         }
     }
+}
+
+
+/// The platform's corner logo as drawn (its width at the corner's scale), for the bar's Search.
+@MainActor
+final class OrbitCornerLogo: ObservableObject {
+    static let shared = OrbitCornerLogo()
+    @Published var width: CGFloat = OrbitPlatformIntro.logoSize.width * OrbitPlatformIntro.cornerScale
 }

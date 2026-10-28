@@ -772,6 +772,7 @@ struct CollectionFilterBar: View {
     private var barHasFocus: Bool { focused != nil || switchFocused != nil }
     @State private var searchReady = false
     @ObservedObject private var titleGate = OrbitTitleGate.shared
+    @ObservedObject private var cornerLogo = OrbitCornerLogo.shared
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -790,7 +791,8 @@ struct CollectionFilterBar: View {
             }
             if let searchTrailing {
                 pill(for: [.search])
-                    .padding(.trailing, searchTrailing)
+                    .padding(.trailing, searchTrailing == OrbitPlatformIntro.searchBesideLogo
+                             ? OrbitPlatformIntro.cornerInset + cornerLogo.width + 28 : searchTrailing)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
