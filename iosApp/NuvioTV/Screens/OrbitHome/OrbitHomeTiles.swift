@@ -231,6 +231,7 @@ struct OrbitRankedTile: View {
     var opens = false
 
     @State private var tone: Color?
+    @Environment(\.orbitRankGlowHidden) private var glowHidden
 
     /// Where its poster (or open room) starts: the rank's room.
     static func rankRoom(_ rank: Int, scale: CGFloat = 1) -> CGFloat {
@@ -274,10 +275,11 @@ struct OrbitRankedTile: View {
                 // (a spotlight on the dark band).
                 .background {
                     // (Steven: stronger and a little wider once the band behind the row was gone.)
-                    RadialGradient(colors: [base.opacity(focused ? 0.78 : 0), base.opacity(focused ? 0.26 : 0), .clear],
+                    let lit = focused && !glowHidden
+                    RadialGradient(colors: [base.opacity(lit ? 0.78 : 0), base.opacity(lit ? 0.26 : 0), .clear],
                                    center: .center, startRadius: 0, endRadius: size.height * 0.62)
                         .frame(width: size.height * 1.35, height: size.height * 1.35)
-                        .animation(.easeOut(duration: 0.25), value: focused)
+                        .animation(.easeOut(duration: 0.25), value: lit)
                         .allowsHitTesting(false)
                 }
                 // "10" is wider: its own room, so it no longer runs over the 9's poster (Steven).
@@ -649,5 +651,7 @@ struct OrbitSpreadMetaLine: View {
         }
         .font(.system(size: size, weight: .semibold))
         .lineLimit(1)
+        // Steven (2026-10-28): a soft shadow under the line, readable on any art.
+        .shadow(color: .black.opacity(0.75), radius: 5, y: 2)
     }
 }

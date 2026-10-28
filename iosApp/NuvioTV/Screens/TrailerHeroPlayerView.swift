@@ -39,6 +39,24 @@ import SharedCore
 final class TrailerPlayerUIView: UIView {
     let playerLayer = AVPlayerLayer()
 
+    /// Orbit (Steven, 2026-10-28: Home's trailer still heard on the title's page): a trailer whose
+    /// view leaves the screen (a page pushed over it) is paused, and goes on when it is back.
+    private var pausedOffScreen = false
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard let player = playerLayer.player else { return }
+        if window == nil {
+            if player.rate != 0 {
+                player.pause()
+                pausedOffScreen = true
+            }
+        } else if pausedOffScreen {
+            pausedOffScreen = false
+            player.play()
+        }
+    }
+
     /// The measured crop zoom (UX-9/BUG-59). Stored so every layout pass re-applies it; set it
     /// through `setCropZoom(_:animated:)`.
     private var cropZoom: CGFloat = 1

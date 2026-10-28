@@ -422,7 +422,16 @@ struct OrbitDetailView: View {
         // Steven: a press while the focus still sat on the engine's card (the first one) went
         // from there (Left even left the row). During the return a press puts the card back
         // first; the next press moves from it.
-        .onMoveCommand { _ in
+        .onMoveCommand { direction in
+            // Steven (2026-10-28: back from a title, Left / Right scrolled the row while the focus
+            // stayed on the card): during the way back the neighbours cannot take the focus — the
+            // press is carried out here, onto the neighbour, and the way back ends.
+            if returningTo != nil {
+                returningTo = nil
+                if let current = focus, let next = neighbour(of: current, direction) {
+                    DispatchQueue.main.async { focus = next }
+                }
+            }
             guard resuming, let back = resumeFocus else { return }
             // Past the first moment, or the card already focused: the press is his.
             if focus == back || ProcessInfo.processInfo.systemUptime - resumeStart > 0.3 {
@@ -630,6 +639,38 @@ struct OrbitDetailView: View {
     }
 
     // MARK: Focus / scroll
+
+    /// The card beside `focus` in its row (Left / Right), nil at a row's end or off the rows.
+    private func neighbour(of focus: OrbitDetailFocus, _ direction: MoveCommandDirection) -> OrbitDetailFocus? {
+        let step: Int
+        switch direction {
+        case .left: step = -1
+        case .right: step = 1
+        default: return nil
+        }
+        func pick<T>(_ list: [T], _ index: Int?, _ make: (T, Int) -> OrbitDetailFocus) -> OrbitDetailFocus? {
+            guard let index, list.indices.contains(index + step) else { return nil }
+            return make(list[index + step], index + step)
+        }
+        switch focus {
+        case .cast(let i):
+            let cast = Array((meta?.cast ?? []).prefix(40))
+            return pick(cast, i) { _, j in .cast(j) }
+        case .saga(let id):
+            let items = meta?.collectionItems ?? []
+            return pick(items, items.firstIndex { $0.id == id }) { item, _ in .saga(item.id) }
+        case .trailerClip(let id):
+            let clips = Array((meta?.trailers ?? []).prefix(12))
+            return pick(clips, clips.firstIndex { $0.id == id }) { clip, _ in .trailerClip(clip.id) }
+        case .similar(let id):
+            let items = meta?.moreLikeThis ?? []
+            return pick(items, items.firstIndex { $0.id == id }) { item, _ in .similar(item.id) }
+        case .company(let i):
+            return pick(companies, i) { _, j in .company(j) }
+        default:
+            return nil
+        }
+    }
 
     private func returningElsewhere(_ target: OrbitDetailSection) -> Bool {
         guard let returningTo else { return false }

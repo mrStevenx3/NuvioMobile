@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Home, native (Steven, 2026-10-25: "dans l'app Apple TV tout paraît ultra fluide"). The
 // canvas Home draws the whole page and redraws it on every press; this one is built like Apple's
@@ -942,6 +943,9 @@ struct OrbitNativeOpenRow: View {
 
     @FocusState private var rowFocused: Bool
     @State private var lead = 0
+    /// The row is sliding (the rank's glow waits for it to rest).
+    @State private var sliding = false
+    @State private var slideGeneration = 0
     @ObservedObject private var metaStore = OrbitMetaStore.shared
     @Environment(\.orbitFocusHidden) private var focusHidden
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -986,6 +990,7 @@ struct OrbitNativeOpenRow: View {
                         if i >= leadIndex - 2, i <= leadIndex + 7 {
                             tile(card, index: i, open: i == leadIndex)
                                 .environment(\.orbitFocusHidden, focusHidden || i != leadIndex)
+                                .environment(\.orbitRankGlowHidden, sliding)
                                 .offset(x: x(i))
                                 .zIndex(i == leadIndex ? 1 : 0)
                                 .transition(.identity)
@@ -1005,6 +1010,12 @@ struct OrbitNativeOpenRow: View {
                 }
             }
             .frame(height: height)
+            // Steven (2026-10-28: the touch surface no longer moved these rows): a swipe across the
+            // clickpad moves the lead, one title per stretch of the swipe.
+            .background {
+                OrbitSwipeCatcher(active: rowFocused) { step in move(step) }
+                    .frame(width: 0, height: 0)
+            }
 
             if row.style == .classic {
                 ZStack(alignment: .topLeading) {
@@ -1047,6 +1058,12 @@ struct OrbitNativeOpenRow: View {
         let next = lead + step
         guard row.cards.indices.contains(next) else { return }
         withAnimation(reduceMotion ? nil : OrbitHomeLayout.horizontal) { lead = next }
+        sliding = true
+        slideGeneration &+= 1
+        let generation = slideGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            if generation == slideGeneration { sliding = false }
+        }
         leadChanged()
     }
 
@@ -1112,5 +1129,66 @@ struct OrbitNativeOpenRow: View {
                 if !rowFocused { rowFocused = true }
             }
         }
+    }
+}
+
+
+/// Swipes across the remote's clickpad while `active`: one step per stretch of travel (left -1,
+/// right +1). Installed on the window, alongside the focus engine (it never takes the touches).
+struct OrbitSwipeCatcher: UIViewRepresentable {
+    let active: Bool
+    let onStep: (Int) -> Void
+
+    final class Catcher: UIView, UIGestureRecognizerDelegate {
+        var active = false
+        var onStep: (Int) -> Void = { _ in }
+        private var pan: UIPanGestureRecognizer?
+        private var lastX: CGFloat = 0
+        /// Points of travel for one title (the clickpad's whole width is about 1 900).
+        private let stretch: CGFloat = 300
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if let pan { pan.view?.removeGestureRecognizer(pan); self.pan = nil }
+            guard let window else { return }
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+            pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+            pan.cancelsTouchesInView = false
+            pan.delegate = self
+            window.addGestureRecognizer(pan)
+            self.pan = pan
+        }
+
+        @objc private func panned(_ pan: UIPanGestureRecognizer) {
+            let t = pan.translation(in: pan.view)
+            switch pan.state {
+            case .began:
+                lastX = t.x
+            case .changed:
+                guard active, abs(t.x) > abs(t.y) else { return }
+                let travel = t.x - lastX
+                if abs(travel) >= stretch {
+                    lastX = t.x
+                    onStep(travel > 0 ? 1 : -1)
+                }
+            default:
+                lastX = 0
+            }
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
+
+    func makeUIView(context: Context) -> Catcher {
+        let view = Catcher()
+        view.isUserInteractionEnabled = false
+        view.active = active
+        view.onStep = onStep
+        return view
+    }
+
+    func updateUIView(_ view: Catcher, context: Context) {
+        view.active = active
+        view.onStep = onStep
     }
 }

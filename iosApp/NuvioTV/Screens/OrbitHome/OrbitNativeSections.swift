@@ -607,6 +607,19 @@ private struct OrbitFocusHiddenKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct OrbitRankGlowHiddenKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// The Top 10's rank glow off while its row slides (Steven: the glow travelling with the figure
+    /// looked poor) — it comes back once the row rests.
+    var orbitRankGlowHidden: Bool {
+        get { self[OrbitRankGlowHiddenKey.self] }
+        set { self[OrbitRankGlowHiddenKey.self] = newValue }
+    }
+}
+
 extension EnvironmentValues {
     /// A tile drawn unfocused even while the system holds the focus on it (the moment of a return
     /// from a title, when the system's own landing is sent back to the title's tile).
