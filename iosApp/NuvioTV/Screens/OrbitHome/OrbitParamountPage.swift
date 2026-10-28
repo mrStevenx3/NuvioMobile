@@ -730,7 +730,9 @@ private func orbitParamountLabel(_ item: MetaPreview, _ meta: OrbitMeta?, isNew:
     case .newSeason: return String(localized: "NOUVELLE SAISON")
     case .newEpisodes: return String(localized: "NOUVEL ÉPISODE")
     case .soon: return String(localized: "BIENTÔT")
-    case nil: return isNew ? String(localized: "NOUVEAU") : nil
+    // (Steven, the app's videos: no "NOUVEAU" on a film's tile — "NOUVEAU FILM" in the hero only;
+    // a new series says "NOUVELLE SÉRIE".)
+    case nil: return isNew && item.type != "movie" ? String(localized: "NOUVELLE SÉRIE") : nil
     }
 }
 
