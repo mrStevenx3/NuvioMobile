@@ -37,6 +37,11 @@ enum OrbitAppleTVLayout {
     static let vertical = Animation.easeInOut(duration: 0.4)
 }
 
+extension OrbitAppleTVLayout {
+    /// The focused poster's lengthened foot (Apple's app: the art goes on, darkening, its words in it).
+    static let captionFoot: CGFloat = 38
+}
+
 struct OrbitAppleTVRow: Identifiable, Equatable {
     enum Kind: Equatable { case posters, top10, cards }
 
@@ -50,7 +55,8 @@ struct OrbitAppleTVRow: Identifiable, Equatable {
     }
 
     var cardHeight: CGFloat { kind == .cards ? OrbitAppleTVLayout.card.height : OrbitAppleTVLayout.poster.height }
-    var height: CGFloat { OrbitAppleTVLayout.headingHeight + cardHeight + OrbitAppleTVLayout.rowGap }
+    /// The posters' rows: room under them for the focused one's lengthened foot (its kind and genre).
+    var height: CGFloat { OrbitAppleTVLayout.headingHeight + cardHeight + OrbitAppleTVLayout.rowGap + (kind == .posters ? OrbitAppleTVLayout.captionFoot : 0) }
     /// The titles that fit whole on screen (the last one before the right margin).
     var visibleCount: Int {
         max(1, Int((OrbitHomeLayout.screenWidth - OrbitAppleTVLayout.margin * 2 + (slot - (kind == .cards ? OrbitAppleTVLayout.card.width : OrbitAppleTVLayout.poster.width))) / slot))
@@ -908,58 +914,60 @@ private struct OrbitAppleTVPoster: View {
         let L = OrbitAppleTVLayout.self
         // Steven (Apple's app): focused, the card grows a dark band under its art, its kind and genre
         // in it; the Top 10 says its genre on the art itself, under the title.
-        let band: CGFloat = !captionAlways && caption != nil && focused ? 40 : 0
-        VStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                Color.white.opacity(0.08)
+        let foot: CGFloat = !captionAlways && caption != nil && focused ? L.captionFoot : 0
+        let total = CGSize(width: L.poster.width, height: L.poster.height + foot)
+        ZStack(alignment: .bottom) {
+            Color.white.opacity(0.08)
+            // The art at the poster's size, its foot going on below it (the image stretched to the
+            // taller box would crop it): the bottom rows of the art drawn again, darkened.
+            VStack(spacing: 0) {
                 OrbitImage(url: url, fallback: fallback, mode: .fill, size: L.poster)
-                if let caption, captionAlways {
-                    Text(caption)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.95))
-                        .lineLimit(1)
-                        .shadow(color: .black.opacity(0.8), radius: 4)
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 12)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                }
-                if let rank {
-                    Text(String(rank))
-                        .font(.system(size: L.poster.height * 0.15, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.white)
-                        .shadow(color: .black.opacity(0.55), radius: 6, y: 2)
-                        .padding(.leading, 12)
-                        .padding(.top, 4)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
-                if mark {
-                    Image("AppleTVMark")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(Color.white)
-                        .frame(width: 34)
-                        .shadow(color: .black.opacity(0.6), radius: 4)
-                        .padding(12)
+                if foot > 0 {
+                    OrbitImage(url: url, fallback: fallback, mode: .fill, size: L.poster)
+                        .scaleEffect(x: 1, y: -1)
+                        .frame(width: L.poster.width, height: foot, alignment: .top)
+                        .clipped()
+                        .blur(radius: 6)
                 }
             }
-            .frame(width: L.poster.width, height: L.poster.height)
-            if band > 0, let caption {
+            .frame(width: total.width, height: total.height, alignment: .top)
+            if foot > 0, let caption {
+                LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: foot + 40)
                 Text(caption)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.92))
+                    .foregroundStyle(Color.white.opacity(0.95))
                     .lineLimit(1)
                     .padding(.horizontal, 10)
-                    .frame(width: L.poster.width, height: band)
-                    .background(Color(white: 0.1).opacity(0.92))
+                    .padding(.bottom, 10)
+            }
+            if let rank {
+                Text(String(rank))
+                    .font(.system(size: L.poster.height * 0.15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .shadow(color: .black.opacity(0.55), radius: 6, y: 2)
+                    .padding(.leading, 12)
+                    .padding(.top, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            if mark {
+                Image("AppleTVMark")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.white)
+                    .frame(width: 34)
+                    .shadow(color: .black.opacity(0.6), radius: 4)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
         }
-        .frame(width: L.poster.width, height: L.poster.height + band, alignment: .top)
+        .frame(width: total.width, height: total.height)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
         .modifier(OrbitAppleTVFocus(focused: focused))
-        // The row keeps its height: the band runs over the gap under it.
+        // Laid out at the poster's size (the row has room under it for the foot).
         .frame(width: L.poster.width, height: L.poster.height, alignment: .top)
-        .animation(.easeOut(duration: 0.18), value: band)
+        .animation(.easeOut(duration: 0.18), value: foot)
     }
 }
 
