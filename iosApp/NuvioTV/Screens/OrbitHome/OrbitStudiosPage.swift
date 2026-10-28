@@ -34,7 +34,6 @@ struct OrbitStudiosPage: View {
 
     @MainActor private static var lastFocused: String?
     @MainActor private static var leftWithFocus = false
-    @MainActor private static var restoringUntil: TimeInterval = 0
     @MainActor private static var lostTilesAt: TimeInterval = 0
 
     static let tileSize = CGSize(width: 236, height: 133)
@@ -234,7 +233,6 @@ struct OrbitStudiosPage: View {
     /// restoration lands late), until the viewer presses anything.
     private func restore(_ id: String) {
         let start = ProcessInfo.processInfo.systemUptime
-        Self.restoringUntil = start + 1.6
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard !ViewerInputClock.shared.hasInput(since: start), focused != id else { return }

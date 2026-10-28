@@ -731,11 +731,6 @@ struct OrbitPlatformTileStyle: ButtonStyle {
 /// shows every row); Search opens `CollectionSearchLayer` over the page.
 struct CollectionFilterBar: View {
     @Binding var filter: String?
-    /// Pass 2 (Steven): top-right, just left of the folder logo; `trailing` is its gap to the
-    /// screen's right edge (the logo's corner margin plus the logo's own room).
-    var trailing: CGFloat = 0
-    /// The pill's width, for the logo to make room for it.
-    var onWidth: (CGFloat) -> Void = { _ in }
     let onSearch: () -> Void
     /// Films / Séries (Disney+ mixes them: none there).
     var showsTypes = true
@@ -868,7 +863,6 @@ struct CollectionFilterBar: View {
             pill(for: [.home])
             if !centreLeads && !(centred && switchItems.isEmpty) { pill(for: items.filter { $0 != .home }) }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { onWidth($0) }
         // Steven: entering a collection puts the cursor on Films (Séries for a series-only one).
         // Once: a pop back from Detail keeps its own restore.
         // Steven: the engine's first pick (Search, top-left) flashed before Films.
