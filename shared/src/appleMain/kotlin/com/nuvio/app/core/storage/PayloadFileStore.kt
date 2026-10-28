@@ -4,6 +4,8 @@ package com.nuvio.app.core.storage
 
 import kotlinx.cinterop.BetaInteropApi
 import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSCachesDirectory
+import platform.Foundation.NSSearchPathDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSString
@@ -29,6 +31,19 @@ import platform.Foundation.writeToFile
 internal object PayloadFileStore {
 
     fun load(subdirectory: String, key: String): String? {
+        // Orbit (Steven, 2026-10-28: Continue Watching gone after quitting the app): on the Apple TV
+        // an app cannot write to Application Support — every save failed and nothing survived a
+        // relaunch. The Caches folder (writable on tvOS, kept across launches) takes the payload;
+        // Application Support stays first where it works (iOS, the simulator).
+        cachesPath(subdirectory, key)?.let { cached ->
+            val supportCopy = path(subdirectory, key)?.let {
+                NSString.stringWithContentsOfFile(it, encoding = NSUTF8StringEncoding, error = null)
+            }
+            if (supportCopy == null) {
+                NSString.stringWithContentsOfFile(cached, encoding = NSUTF8StringEncoding, error = null)
+                    ?.let { return it }
+            }
+        }
         val path = path(subdirectory, key) ?: return legacyDefaultsValue(key)
         NSString.stringWithContentsOfFile(path, encoding = NSUTF8StringEncoding, error = null)
             ?.let { return it }
@@ -42,8 +57,10 @@ internal object PayloadFileStore {
 
     /** Returns false when the write did not durably land (no resolvable path, or the file write failed). */
     fun save(subdirectory: String, key: String, payload: String): Boolean {
-        val path = path(subdirectory, key) ?: return false
-        if (!writeFile(path, payload)) return false
+        val supportPath = path(subdirectory, key)
+        val landed = (supportPath != null && writeFile(supportPath, payload)) ||
+            (cachesPath(subdirectory, key)?.let { writeFile(it, payload) } ?: false)
+        if (!landed) return false
         // Keep shrinking the defaults plist even for keys that are never read back.
         removeLegacyDefaultsValue(key)
         return true
@@ -51,6 +68,9 @@ internal object PayloadFileStore {
 
     fun remove(subdirectory: String, key: String) {
         path(subdirectory, key)?.let {
+            NSFileManager.defaultManager.removeItemAtPath(it, error = null)
+        }
+        cachesPath(subdirectory, key)?.let {
             NSFileManager.defaultManager.removeItemAtPath(it, error = null)
         }
         removeLegacyDefaultsValue(key)
@@ -61,15 +81,22 @@ internal object PayloadFileStore {
         directory(subdirectory, create = false)?.let {
             NSFileManager.defaultManager.removeItemAtPath(it, error = null)
         }
+        directory("OrbitStore/$subdirectory", create = false, base = NSCachesDirectory)?.let {
+            NSFileManager.defaultManager.removeItemAtPath(it, error = null)
+        }
     }
 
-    private fun directory(subdirectory: String, create: Boolean = true): String? {
-        val base = NSSearchPathForDirectoriesInDomains(
-            NSApplicationSupportDirectory,
+    private fun directory(
+        subdirectory: String,
+        create: Boolean = true,
+        base: NSSearchPathDirectory = NSApplicationSupportDirectory,
+    ): String? {
+        val root = NSSearchPathForDirectoriesInDomains(
+            base,
             NSUserDomainMask,
             true,
         ).firstOrNull() as? String ?: return null
-        val dir = "$base/$subdirectory"
+        val dir = "$root/$subdirectory"
         if (create) {
             NSFileManager.defaultManager.createDirectoryAtPath(
                 dir,
@@ -83,6 +110,9 @@ internal object PayloadFileStore {
 
     private fun path(subdirectory: String, key: String): String? =
         directory(subdirectory)?.let { "$it/$key.json" }
+
+    private fun cachesPath(subdirectory: String, key: String): String? =
+        directory("OrbitStore/$subdirectory", base = NSCachesDirectory)?.let { "$it/$key.json" }
 
     private fun legacyDefaultsValue(key: String): String? =
         NSUserDefaults.standardUserDefaults.stringForKey(key)

@@ -96,6 +96,15 @@ struct HomeView: View {
                     poster: target.entry.poster,
                     episodeStill: { let still: String? = target.entry.episodeThumbnail; return (still ?? "").isEmpty ? nil : still }(),
                     synopsis: { let d: String? = target.entry.pauseDescription; return (d ?? "").isEmpty ? nil : d }(),
+                    // Steven (2026-10-28: from Continuer à regarder, the loading screen showed the
+                    // title as text): the title's logo (its own, else TMDB's) and its backdrop.
+                    logoUrl: {
+                        let own: String? = target.entry.logo
+                        if let own, !own.isEmpty { return own }
+                        let preview = StageCopy.preview(from: target.entry)
+                        return OrbitMetaStore.shared.metas[OrbitMetaStore.key(preview)]?.logo
+                    }(),
+                    backdrop: { let b: String? = target.entry.background; return (b ?? "").isEmpty ? nil : b }(),
                     forceManual: target.forceManual,
                     startFromBeginning: target.startFromBeginning,
                     onOpenTitle: { homePostPlayPending = $0 }
