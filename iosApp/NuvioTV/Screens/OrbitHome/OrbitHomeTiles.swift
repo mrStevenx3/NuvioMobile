@@ -175,7 +175,10 @@ struct OrbitBigCard: View {
                 OrbitTitleMark(name: card.preview.name, logo: info.logo, maxSize: CGSize(width: 290, height: 100),
                                textSize: 36, fallbackLogo: info.logoFallback, hugsLogo: true)
                     .frame(width: 290, alignment: .leading)
-                OrbitMetaLine(info: info, size: 20)
+                // Steven (2026-10-28): spread across the card — the score left, the year in the
+                // middle, the length right.
+                OrbitSpreadMetaLine(info: info, size: 20)
+                    .frame(width: size.width - 44)
                 // Steven: no synopsis on the card — the title, year and length sit lower.
             }
             .padding(22)
@@ -619,5 +622,32 @@ struct OrbitStablePoster: View {
         .onChange(of: meta?.localPoster) { _, local in
             if picked == nil, meta != nil { picked = .some(local ?? card.poster) }
         }
+    }
+}
+
+
+/// The score, the year and the length spread over a card's width (left, middle, right).
+struct OrbitSpreadMetaLine: View {
+    let info: OrbitInfo
+    var size: CGFloat = 20
+
+    var body: some View {
+        let year = info.parts.first { $0.count == 4 && Int($0) != nil }
+        let length = info.parts.last { $0 != year && $0.contains(where: \.isNumber) }
+        HStack(spacing: 0) {
+            if let percent = info.percent {
+                HStack(spacing: 8) {
+                    Image(systemName: "hand.thumbsup.fill")
+                    Text("\(percent)%")
+                }
+                .foregroundStyle(OrbitHomeLayout.green)
+            }
+            Spacer(minLength: 12)
+            if let year { Text(year).foregroundStyle(Color.white) }
+            Spacer(minLength: 12)
+            if let length { Text(length).foregroundStyle(Color.white) }
+        }
+        .font(.system(size: size, weight: .semibold))
+        .lineLimit(1)
     }
 }

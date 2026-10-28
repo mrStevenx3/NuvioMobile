@@ -347,7 +347,7 @@ struct StreamPickerView: View {
     private func playInOrbit(_ stream: StreamItem, rowKey: String, attempt: Int = 0) {
         ready(stream, rowKey: rowKey) { resolved, url in
             NextEpisodeEngine.consecutiveAutoPlays = 0
-            selected = context(url: url, stream: resolved, listed: stream, source: .manual, attempt: attempt)
+            present(context(url: url, stream: resolved, listed: stream, source: .manual, attempt: attempt))
         }
     }
 
@@ -435,9 +435,9 @@ struct StreamPickerView: View {
             if orbitIfFails {
                 showToast(String(localized: "Le lecteur externe n'a pas pu s'ouvrir : lecture dans Orbit."))
                 NextEpisodeEngine.consecutiveAutoPlays = 0
-                selected = context(url: url, stream: stream, listed: listed,
+                present(context(url: url, stream: stream, listed: listed,
                                    source: autoAttempt == nil ? .manual : .autoPlay,
-                                   attempt: max(0, (autoAttempt ?? 1) - 1))
+                                   attempt: max(0, (autoAttempt ?? 1) - 1)))
             } else {
                 holdCover = false
                 showToast(String(localized: "Le lecteur externe n'a pas pu s'ouvrir."))
@@ -487,8 +487,8 @@ struct StreamPickerView: View {
                         orbitIfFails: true, autoAttempt: pick.attempt)
                 return
             }
-            selected = context(url: pick.url, stream: pick.resolved, listed: pick.listed,
-                               source: .autoPlay, attempt: pick.attempt - 1)
+            present(context(url: pick.url, stream: pick.resolved, listed: pick.listed,
+                               source: .autoPlay, attempt: pick.attempt - 1))
         case .gaveUp(let duringFailover):
             autoMode = false
             rejectedKeys = RejectedStreamLinks.rejected(for: videoId)
@@ -578,6 +578,15 @@ struct StreamPickerView: View {
 
     /// The player's cover. When the page is going to close behind it, the plain loading screen goes
     /// up first and the player leaves without its slide, so the list never shows.
+    /// Steven (2026-10-28: the loading screen blinked before the film): the player comes up at
+    /// once over the loading screen — it opens on the same loading screen itself, no fade through
+    /// black between the two.
+    private func present(_ ctx: PlaybackContext) {
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { selected = ctx }
+    }
+
     private var playerBinding: Binding<PlaybackContext?> {
         Binding(
             get: { selected },

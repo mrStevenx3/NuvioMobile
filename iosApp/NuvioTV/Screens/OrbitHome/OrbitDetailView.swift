@@ -133,6 +133,8 @@ struct OrbitDetailView: View {
     @State private var showStreams = false
     /// Steven (2026-10-28): held Lire — the sources listed, the automatic play skipped.
     @State private var manualPick = false
+    /// The cinema's trailer started cold: its art held, its sound off, until its first picture.
+    @State private var waitingForPicture = false
     @State private var ownTagShown = false
     /// Steven: a platform hero's Lecture plays at once (the page opens straight into its player and
     /// closes behind it).
@@ -273,7 +275,8 @@ struct OrbitDetailView: View {
                                   },
                                   onTrailerEnded: {
                                       if cinema { exitCinema() } else { withAnimation(.easeInOut(duration: 0.6)) { heroTrailerOn = false } }
-                                  })
+                                  },
+                                  onTrailerFirstFrame: { trailerPictureCame() })
 
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
@@ -754,12 +757,11 @@ struct OrbitDetailView: View {
             var still = Transaction()
             still.disablesAnimations = true
             withTransaction(still) { holdArt = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                withAnimation(.easeInOut(duration: 1.0)) { holdArt = false }
-                // Steven (2026-10-28: the sound came at once, the picture seconds later): the sound
-                // comes in with the picture, as the art lifts off it.
-                if cinema { HeroTrailerAudioState.shared.setMuted(value: false) }
-            }
+            // Steven (2026-10-28: the sound came at once, the picture seconds later — then still a
+            // second or two): the art lifts and the sound comes in as soon as the trailer's first
+            // picture is on screen (`trailerPictureCame`); 2.2 s at most.
+            waitingForPicture = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { trailerPictureCame() }
         } else {
             HeroTrailerAudioState.shared.setMuted(value: false)
         }
@@ -777,11 +779,20 @@ struct OrbitDetailView: View {
         }
     }
 
+    /// The cinema's trailer shows its first picture: the art lifts off it, its sound comes in.
+    private func trailerPictureCame() {
+        guard waitingForPicture else { return }
+        waitingForPicture = false
+        withAnimation(.easeInOut(duration: 0.5)) { holdArt = false }
+        if cinema { HeroTrailerAudioState.shared.setMuted(value: false) }
+    }
+
     /// Back (or the trailer's end): the trailer fades to the backdrop, the backdrop eases back,
     /// the interface rises again, the focus on Bande-annonce.
     private func exitCinema() {
         guard cinema else { return }
         cinemaHintTask?.cancel()
+        waitingForPicture = false
         HeroTrailerAudioState.shared.setMuted(value: true)
         holdArt = false
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) {
@@ -1036,6 +1047,8 @@ struct OrbitDetailView: View {
                                 }
                                 .buttonStyle(OrbitPlainStyle())
                                 .focused($focus, equals: .cast(index))
+                                // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
+                                .disabled(returningTo != nil && returningTo != .cast(index))
                             } else {
                                 OrbitCastCard(person: person, focused: false)
                             }
@@ -1071,6 +1084,8 @@ struct OrbitDetailView: View {
                             }
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .saga(item.id))
+                            // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
+                            .disabled(returningTo != nil && returningTo != .saga(item.id))
                         }
                     }
                     .padding(.horizontal, OrbitDetailLayout.margin)
@@ -1099,6 +1114,8 @@ struct OrbitDetailView: View {
                             }
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .trailerClip(trailer.id))
+                            // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
+                            .disabled(returningTo != nil && returningTo != .trailerClip(trailer.id))
                         }
                     }
                     .padding(.horizontal, OrbitDetailLayout.margin)
@@ -1125,6 +1142,8 @@ struct OrbitDetailView: View {
                             }
                             .buttonStyle(OrbitPlainStyle())
                             .focused($focus, equals: .similar(item.id))
+                            // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
+                            .disabled(returningTo != nil && returningTo != .similar(item.id))
                             .onAppear { OrbitMetaStore.shared.request([item]) }
                             // Its art fetched once it is focused (Steven: the page opened from it
                             // waited for its image).
@@ -1188,6 +1207,8 @@ struct OrbitDetailView: View {
                                     }
                                     .buttonStyle(OrbitPlainStyle())
                                     .focused($focus, equals: .company(index))
+                                    // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
+                                    .disabled(returningTo != nil && returningTo != .company(index))
                                 } else {
                                     OrbitCompanyLogo(company: entry.company, focused: false)
                                 }
@@ -1201,6 +1222,8 @@ struct OrbitDetailView: View {
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($focus, equals: .about)
+                    // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
+                    .disabled(returningTo != nil && returningTo != .about)
                     .padding(.leading, OrbitDetailLayout.margin - 24)
                 }
                 .focusSection()
@@ -1229,6 +1252,7 @@ private struct OrbitDetailBackground: View {
     var tint: Color = .black
     let onTrailerFailure: () -> Void
     let onTrailerEnded: () -> Void
+    var onTrailerFirstFrame: (() -> Void)? = nil
 
     var body: some View {
         let size = CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
@@ -1271,7 +1295,8 @@ private struct OrbitDetailBackground: View {
                                   loops: false,
                                   onPlaybackEnded: onTrailerEnded,
                                   cornerRadius: 0,
-                                  uncropped: cinema)
+                                  uncropped: cinema,
+                                  onFirstFrame: onTrailerFirstFrame)
                     .frame(width: size.width, height: size.height)
                     .transition(.opacity)
             }

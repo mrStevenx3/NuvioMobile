@@ -176,6 +176,8 @@ struct TrailerHeroPlayer: UIViewRepresentable {
     /// Steven (Orbit): a trailer watched full screen with its sound shows its whole picture — the
     /// crop that fills a poster's frame is for the previews only (the full-screen surface's policy).
     var uncropped: Bool = false
+    /// Orbit: the trailer's first picture is on screen (once).
+    var onFirstFrame: (() -> Void)? = nil
 
     /// UX-9: our YouTube trailer encodes bake letterboxing directly into the frame (2.39:1 film
     /// inside a 16:9 container), so `.resizeAspectFill` alone still shows black bars — it fills the
@@ -218,6 +220,13 @@ struct TrailerHeroPlayer: UIViewRepresentable {
         view.playerLayer.videoGravity = .resizeAspectFill
         context.coordinator.uncropped = uncropped
         context.coordinator.attach(to: view, urlString: urlString, loops: loops, zoomKey: zoomKey, videoId: videoId, surfaceTag: surfaceTag)
+        if let onFirstFrame {
+            context.coordinator.firstFrameWatch = view.playerLayer.publisher(for: \.isReadyForDisplay)
+                .filter { $0 }
+                .first()
+                .receive(on: RunLoop.main)
+                .sink { _ in onFirstFrame() }
+        }
         return view
     }
 
@@ -244,6 +253,8 @@ struct TrailerHeroPlayer: UIViewRepresentable {
 
     /// Owns the AVPlayer, looping, and failure detection.
     final class Coordinator {
+        /// Orbit: the first picture's watch (`onFirstFrame`).
+        var firstFrameWatch: AnyCancellable?
         private let onFailure: (TrailerFailureReport) -> Void
         private let onPlaybackEnded: (() -> Void)?
         private var player: AVQueuePlayer?

@@ -281,6 +281,28 @@ private struct OrbitNativeDiscover<Header: View>: View {
     }
 }
 
+/// A Discover tile's cell: its SwiftUI tile in a hosting controller that ignores the TV's safe
+/// area. Steven (device, twice): tiles near the screen's edges (the top lines, the last column,
+/// then the bottom lines) were pushed in by it and overlapped — a hosting configuration keeps it.
+final class OrbitDiscoverCell: UICollectionViewCell {
+    private var host: UIHostingController<AnyView>?
+
+    func show(_ view: AnyView) {
+        if let host {
+            host.rootView = view
+            return
+        }
+        let host = UIHostingController(rootView: view)
+        host.safeAreaRegions = []
+        host.view.backgroundColor = .clear
+        host.view.frame = contentView.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        host.view.insetsLayoutMarginsFromSafeArea = false
+        contentView.addSubview(host.view)
+        self.host = host
+    }
+}
+
 /// How far the grid is scrolled (the header follows it; only the header redraws).
 @MainActor
 final class OrbitDiscoverScroll: ObservableObject {
@@ -338,7 +360,7 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
     private var items: [MetaPreview] = []
     private var gridKey: String?
     private var topInset: CGFloat = 0
-    private var cell: UICollectionView.CellRegistration<UICollectionViewCell, MetaPreview>!
+    private var cell: UICollectionView.CellRegistration<OrbitDiscoverCell, MetaPreview>!
 
     init(scroll: OrbitDiscoverScroll) {
         self.scroll = scroll
@@ -363,16 +385,12 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         collectionView.dataSource = self
         collectionView.delegate = self
         view.addSubview(collectionView)
-        cell = UICollectionView.CellRegistration<UICollectionViewCell, MetaPreview> { cell, _, item in
+        cell = UICollectionView.CellRegistration<OrbitDiscoverCell, MetaPreview> { cell, _, item in
             cell.configurationUpdateHandler = { cell, state in
-                cell.contentConfiguration = UIHostingConfiguration {
-                    OrbitDiscoverTile(item: item, focused: state.isFocused)
-                        .animation(.easeOut(duration: 0.16), value: state.isFocused)
-                        // (Device: the tiles near the screen's edges were pushed in by the TV's safe
-                        // area — the top lines and the last column overlapped.)
-                        .ignoresSafeArea()
-                }
-                .margins(.all, 0)
+                (cell as? OrbitDiscoverCell)?.show(
+                    AnyView(OrbitDiscoverTile(item: item, focused: state.isFocused)
+                        .animation(.easeOut(duration: 0.16), value: state.isFocused))
+                )
             }
         }
         collectionView.setContentOffset(CGPoint(x: 0, y: -topInset), animated: false)
@@ -436,8 +454,9 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         // (Up goes to them, then to the bar).
         if let path = context.nextFocusedIndexPath, path.item < OrbitDiscoverLayout.columns {
             let top = CGPoint(x: 0, y: -topInset)
-            if collectionView.contentOffset.y != top.y {
-                coordinator.addCoordinatedAnimations { collectionView.setContentOffset(top, animated: false) }
+            // (Steven: up into the first line the page jumped — now slid, as every other line.)
+            DispatchQueue.main.async {
+                if abs(collectionView.contentOffset.y - top.y) > 0.5 { collectionView.setContentOffset(top, animated: true) }
             }
         }
         onFocus(context.nextFocusedIndexPath?.item)

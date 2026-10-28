@@ -225,6 +225,9 @@ struct OrbitNativeHome: View {
             HStack(spacing: 0) {
                 ForEach(Array(heroItems.enumerated()), id: \.offset) { index, item in
                     Button {
+                        // Steven (2026-10-28: the hero's trailer still heard on the title's page).
+                        trailers.stop(abort: true)
+                        trailers.suspended = true
                         actions.push(TitleRoute(preview: item))
                     } label: {
                         OrbitNativeHeroPage(item: item, count: count, index: index,
@@ -534,7 +537,11 @@ struct OrbitNativeRow: View {
         }
         // Steven: coming into a row lands on its first title (the row back at its start).
         // (Steven: no return to the row's start — the row keeps where it was, as in Apple's app.)
-        .defaultFocus($focused, shown ?? row.cards.first?.id, priority: .userInitiated)
+        // Steven (2026-10-28: "on s'était dit le défilement naturel de l'Apple TV partout" — coming
+        // into a row of posters always landed on its far-left title): only the rows whose title
+        // sits at the margin (Nouveaux films, the Top 10) take it there; the others are the
+        // system's own landing, the title under the focus.
+        .modifier(OrbitRowEntry(focused: $focused, target: pinned ? (shown ?? row.cards.first?.id) : nil))
         .onChange(of: focused) { _, new in
             guard let new else {
                 // Gone for good, or only passing between two titles?
@@ -890,6 +897,21 @@ private struct OrbitContinueWatchingMenu: ViewModifier {
             actions.resume(ResumeTarget(entry: entry, startFromBeginning: true))
         case .remove:
             WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)
+        }
+    }
+}
+
+
+/// A pinned row's entry on its title at the margin; any other row: the system's own landing.
+private struct OrbitRowEntry: ViewModifier {
+    var focused: FocusState<String?>.Binding
+    let target: String?
+
+    func body(content: Content) -> some View {
+        if let target {
+            content.defaultFocus(focused, target, priority: .userInitiated)
+        } else {
+            content
         }
     }
 }
