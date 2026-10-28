@@ -719,7 +719,9 @@ struct OrbitPlatformIntro: View {
         let centre: CGPoint = phase == .settled && settlesAt != nil ? settlesAt!
             : phase == .settled && !hidesCorner
             ? CGPoint(x: W - Self.cornerInset - size.width * Self.cornerScale / 2,
-                      y: Self.cornerInset + size.height * Self.cornerScale / 2)
+                      // Steven (2026-10-28: Netflix's N sat lower than the bar's Search): the N, shorter
+                      // than its box, centred on the bar's line (59 pt) — 10 pt up.
+                      y: Self.cornerInset + size.height * Self.cornerScale / 2 - (assetInColour ? 10 : 0))
             : CGPoint(x: W / 2, y: H / 2)
         ZStack(alignment: .topLeading) {
             // Black tinted with the platform's colour.
