@@ -282,6 +282,7 @@ struct OrbitDetailView: View {
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
+                        .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
                     if isSeries, let meta {
                         OrbitEpisodesSection(meta: meta,
@@ -293,13 +294,17 @@ struct OrbitDetailView: View {
                                                  seriesPlay = OrbitSeriesPlayRoute(meta: meta, episode: episode)
                                              })
                             .focusSection()
+                            .disabled(returningElsewhere(.episodes))
                             .id(OrbitDetailSection.episodes)
                     }
-                    castSection
-                    sagaSection
-                    trailersSection
-                    similarSection
-                    aboutSection
+                    // Steven (2026-10-28, device: back from a studio, a saga, À voir aussi, the page
+                    // went up a moment, then came back): while the way back lasts, only the section
+                    // left from can take the focus — the system's late landing elsewhere scrolled it.
+                    castSection.disabled(returningElsewhere(.cast))
+                    sagaSection.disabled(returningElsewhere(.saga))
+                    trailersSection.disabled(returningElsewhere(.trailers))
+                    similarSection.disabled(returningElsewhere(.similar))
+                    aboutSection.disabled(returningElsewhere(.about))
                 }
                 .scrollTargetLayout()
                 .padding(.bottom, 160)
@@ -418,6 +423,7 @@ struct OrbitDetailView: View {
             if focus == back || ProcessInfo.processInfo.systemUptime - resumeStart > 0.3 {
                 resuming = false
                 resumeFocus = nil
+                returningTo = nil
                 return
             }
             DispatchQueue.main.async { focus = back; anchorTick &+= 1 }
@@ -448,6 +454,7 @@ struct OrbitDetailView: View {
                     // His own move: the focus is his.
                     resuming = false
                     resumeFocus = nil
+                    returningTo = nil
                     lastFocus = new
                     enter(new.section)
                 }
@@ -505,7 +512,7 @@ struct OrbitDetailView: View {
             OrbitTrace.log("detail appear \(preview.name) resume=\(String(describing: resumeFocus)) focus=\(String(describing: focus)) section=\(section)")
             if let back = resumeFocus {
                 returningTo = back
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { returningTo = nil }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { if returningTo == back { returningTo = nil } }
                 // The engine restores late and more than once: the card is asked again a few
                 // times (as the old page did), until Steven presses something.
                 resuming = true

@@ -31,6 +31,8 @@ struct OrbitEpisodesSection: View {
     /// Steven (2026-10-26): the focused episode always at the margin, the row sliding under it
     /// (as on Home) — its text stays put under it.
     @State private var episodeAnchor: String?
+    /// The focus is (or was last) on a season's poster.
+    @State private var comingFromSeason = false
     static let detailsWidth: CGFloat = 1300
 
     static let stillSize = CGSize(width: 384, height: 216)
@@ -98,6 +100,9 @@ struct OrbitEpisodesSection: View {
                 }
                 .scrollClipDisabled()
                 .focusSection()
+                // Steven (2026-10-28: Up from an episode lit the far-left season a moment, then
+                // his): the season shown takes the focus coming in, from the start.
+                .defaultFocus(focus, season.map { OrbitDetailFocus.season($0) }, priority: .userInitiated)
             }
 
             // A ZStack: the old season's row and the new one overlap while they cross-fade.
@@ -130,12 +135,20 @@ struct OrbitEpisodesSection: View {
                 .id("season-\(season ?? -1)")
                 .transition(.opacity)
                 .onAppear {
-                    if let nextUp { DispatchQueue.main.async { proxy.scrollTo(nextUp.id, anchor: .leading) } }
+                    // Chosen from its poster, a season shows from its first episode (Steven); else
+                    // from the next one to watch.
+                    let onSeason: Bool = { if case .season? = focus.wrappedValue { return true }; return false }()
+                    if let target = onSeason ? list.first : nextUp {
+                        DispatchQueue.main.async { proxy.scrollTo(target.id, anchor: .leading) }
+                    }
                 }
             }
             }
             .frame(height: Self.episodeRowHeight, alignment: .topLeading)
             .focusSection()
+            // Steven (2026-10-28): Down from a season's poster always lands on its first episode.
+            .defaultFocus(focus, comingFromSeason ? list.first.map { OrbitDetailFocus.episode($0.id) } : nil,
+                          priority: .userInitiated)
             .animation(.easeInOut(duration: 0.25), value: season)
 
             // Fixed and overlapping: the old episode's text fades out under the new one, in place
@@ -155,6 +168,20 @@ struct OrbitEpisodesSection: View {
         // Steven: entering from above (the hero) lands on the season being shown — the season
         // row is no longer skipped (the engine took the poster under Lire, or the episodes).
         .onChange(of: focus.wrappedValue) { old, new in
+            if case .season(let s)? = new {
+                comingFromSeason = true
+                // Its episodes from the first, ready for Down.
+                if let first = episodes(of: s).first?.id, episodeAnchor != first {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { episodeAnchor = first }
+                }
+            } else if new != nil { comingFromSeason = false }
+            // Down from a season's poster: its first episode (whatever the engine took).
+            if case .season? = old, case .episode(let id)? = new, let first = list.first, id != first.id {
+                DispatchQueue.main.async { focus.wrappedValue = .episode(first.id) }
+                return
+            }
             if case .episode(let id)? = new {
                 if episodeAnchor != id { withAnimation(.easeOut(duration: 0.26)) { episodeAnchor = id } }
             }
