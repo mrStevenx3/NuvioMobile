@@ -724,7 +724,8 @@ struct OrbitPlatformIntro: View {
             ? CGPoint(x: W - Self.cornerInset - size.width * Self.cornerScale / 2,
                       // Steven (2026-10-28: Netflix's N, Apple TV's and HBO Max's logos sat lower than the
                       // bar's Search): every corner logo centred on the bar's own line, whatever its height.
-                      y: cornerTop ? Self.cornerInset + size.height * Self.cornerScale / 2 : Self.cornerCentreY)
+                      y: cornerTop ? Self.cornerInset + size.height * Self.cornerScale / 2
+                         : Self.cornerCentreY + (assetInColour ? 4 : 0))  // (Steven: Netflix's N a touch lower, by eye)
             : CGPoint(x: W / 2, y: H / 2)
         ZStack(alignment: .topLeading) {
             // Black tinted with the platform's colour.
