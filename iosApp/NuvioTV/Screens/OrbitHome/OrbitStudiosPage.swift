@@ -24,6 +24,9 @@ struct OrbitStudiosPage: View {
     /// The studio the page shows (backdrop, logo, films): the focused one, kept when the focus
     /// goes down to the films.
     @State private var shownId: String?
+    /// The studio whose colour the page is on: Home's timing (it follows once the remote rests,
+    /// `OrbitRowsBackdrop.wait`, on Home's fade).
+    @State private var groundId: String?
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
     /// Each studio's colour, sampled from its backdrop (a known brand colour first).
     @State private var tints: [String: Color] = [:]
@@ -72,7 +75,7 @@ struct OrbitStudiosPage: View {
             // Steven (2026-10-24): the page on the studio's colour; its backdrop in a large frame
             // top right (whole, no blur, a shadow as on the platforms) — the image no longer runs
             // under the tiles and the posters.
-            let ground = shown.map(tint) ?? OrbitPlatformBrand.color(title: "")
+            let ground = (folders.first { $0.id == groundId } ?? shown).map(tint) ?? OrbitPlatformBrand.color(title: "")
             ZStack {
                 OrbitHomeLayout.background
                 LinearGradient(stops: [
@@ -82,7 +85,7 @@ struct OrbitStudiosPage: View {
                 ], startPoint: .topLeading, endPoint: .bottomTrailing)
             }
             .ignoresSafeArea()
-            .animation(.easeInOut(duration: 0.4), value: shown?.id)
+            .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: groundId)
 
             // Steven (2026-10-24): a panoramic frame across the page, centred; the studio's name
             // on it, bottom left (a soft shade in that corner only).
@@ -140,6 +143,12 @@ struct OrbitStudiosPage: View {
         // Menu goes to the Orbit bar (not the hidden system tab bar).
         .onExitCommand { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
         .animation(.easeInOut(duration: 0.3), value: shownId)
+        .onChange(of: shownId, initial: true) { _, id in
+            guard groundId != nil else { groundId = id; return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(OrbitRowsBackdrop.wait) / 1000) {
+                if shownId == id { groundId = id }
+            }
+        }
         .onChange(of: focused) { old, id in
             guard let id else {
                 if old != nil { Self.lostTilesAt = ProcessInfo.processInfo.systemUptime }

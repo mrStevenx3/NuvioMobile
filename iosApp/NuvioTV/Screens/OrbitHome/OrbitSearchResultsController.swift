@@ -430,8 +430,8 @@ private struct OrbitSearchBackdrop: View {
     @ObservedObject var spotlight: OrbitSearchSpotlight
 
     var body: some View {
+        // (Home's own wash and timing — no curve of its own on top.)
         OrbitFocusBackdrop(item: spotlight.item)
-            .animation(.easeInOut(duration: 0.35), value: spotlight.item?.id)
             .ignoresSafeArea()
     }
 }

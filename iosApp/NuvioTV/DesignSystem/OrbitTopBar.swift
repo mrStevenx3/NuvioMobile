@@ -550,7 +550,7 @@ struct OrbitCollectionGrid: View {
             }
         }
         .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.45), value: haloColor?.description)
+        .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: haloColor?.description)
         .onChange(of: focused) { old, id in
             guard let id, let entry = entries.first(where: { $0.id == id }) else {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
@@ -609,10 +609,12 @@ struct OrbitCollectionGrid: View {
     }
 
     private func updateHalo(_ entry: Entry) {
+        // Steven (2026-10-29): Home's timing everywhere — the colour follows once the remote rests
+        // (`OrbitRowsBackdrop.wait`), on Home's fade (`.animation` on `haloColor` above).
+        let id = entry.id
+        let rest = Double(OrbitRowsBackdrop.wait) / 1000
         if let brand = Self.brandColor(entry.folder.title) {
-            // The full-screen colour follows once the remote rests (not on every step of a pass).
-            let id = entry.id
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + rest) {
                 guard focused == id || haloColor == nil else { return }
                 haloColor = brand
             }
@@ -620,10 +622,12 @@ struct OrbitCollectionGrid: View {
         }
         let url = OrbitPlatformTile.coverURL(entry.folder, collectionBackdropUrl: entry.collection.backdropImageUrl)
         if let cached = ArtworkColorStore.shared.cachedColor(for: [url], use: .wash) {
-            haloColor = cached
+            DispatchQueue.main.asyncAfter(deadline: .now() + rest) {
+                guard focused == id || haloColor == nil else { return }
+                haloColor = cached
+            }
             return
         }
-        let id = entry.id
         ArtworkColorStore.shared.color(for: [url], use: .wash) { color in
             guard focused == id || (focused == nil && Self.lastFocused == id) || haloColor == nil else { return }
             haloColor = color
