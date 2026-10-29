@@ -1284,8 +1284,16 @@ struct OrbitNativeOpenRow: View {
     @State private var stripHasFocus = false
     @State private var placedLoop = false
     /// The places of the strip: the titles repeated (the row loops), the lead starting in the middle.
-    private var copies: Int { loops ? 7 : 1 }
+    /// (Steven, 2026-10-29: "ne tourne pas en boucle" — copies enough that the end is never met.)
+    private var copies: Int { loops ? 41 : 1 }
     private var stripPlaces: Int { count * copies }
+
+    /// A looping row starts in its middle copy (once its titles are there).
+    private func placeInLoop() {
+        guard loops, !placedLoop, count > 0 else { return }
+        placedLoop = true
+        lead = count * (copies / 2) + index(lead)
+    }
 
     var body: some View {
         if ranked {
@@ -1353,10 +1361,7 @@ struct OrbitNativeOpenRow: View {
         }
         .onAppear {
             // A looping row starts in its middle copy (once).
-            if loops, !placedLoop, count > 0 {
-                placedLoop = true
-                lead = count * 3 + index(lead)
-            }
+            placeInLoop()
             // Back from a title opened here: its place takes the focus back.
             if let target = OrbitNativeRow.reopen, target.row == row.id,
                let i = row.cards.firstIndex(where: { $0.id == target.card }) {
@@ -1365,6 +1370,9 @@ struct OrbitNativeOpenRow: View {
                 DispatchQueue.main.async { strip.controller?.restore(index: place) }
             }
         }
+        // (The titles often arrive after the row appears: placed in the middle once they are there —
+        // it stayed on its first copy, nothing to its left.)
+        .onChange(of: count) { _, _ in placeInLoop() }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
             guard note.object as? String == row.id else { return }
             strip.controller?.takeFocus(on: lead)
