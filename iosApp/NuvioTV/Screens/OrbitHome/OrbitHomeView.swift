@@ -337,7 +337,7 @@ struct OrbitRowHeading: View {
         // The whole heading dimmed (not its colour): an emoji in a catalogue's name dims with it.
         .opacity(isCurrent ? 1 : 0.55)
         .frame(height: size * 1.3, alignment: .center)
-        .animation(.easeInOut(duration: 0.5), value: colour)
+        .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: colour)
     }
 }
 
@@ -416,19 +416,22 @@ struct OrbitRowsBackdrop: View {
             // missed two or three frames about 0.3 s into each slide — the wash changing colour
             // (two full-screen washes, the headings) while the row still moved; the slide then
             // caught up in a jump. The colour now changes once the slide has ended (about 0.5 s).
-            do { try await Task.sleep(for: .milliseconds(560)) } catch { return }
+            // Steven (2026-10-29, the rows now UIKit — their slides no longer held up by a redraw):
+            // more reactive again, 250 ms, and the headings' bar with the wash, on its curve.
+            do { try await Task.sleep(for: .milliseconds(Self.wait)) } catch { return }
             if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
                 show(color)
-                // The headings' bar takes the colour once the wash has crossed (not on the same
-                // frame: less to redraw at once).
                 if opaque {
-                    do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
-                    OrbitHomeTone.shared.color = color
+                    withAnimation(.easeInOut(duration: Self.fade)) { OrbitHomeTone.shared.color = color }
                 }
             }
         }
         .allowsHitTesting(false)
     }
+
+    /// The wait once the focus rests, and the cross-fade (the headings' bar on the same curve).
+    static let wait = 250
+    static let fade: Double = 0.45
 
     private func show(_ color: Color) {
         if (showsB ? colourB : colourA) == color { return }
@@ -443,7 +446,7 @@ struct OrbitRowsBackdrop: View {
                 if showsB { mirror.colourA = color } else { mirror.colourB = color }
             }
         }
-        withAnimation(.easeInOut(duration: 0.6)) {
+        withAnimation(.easeInOut(duration: Self.fade)) {
             showsB.toggle()
             mirror?.showsB = showsB
         }
