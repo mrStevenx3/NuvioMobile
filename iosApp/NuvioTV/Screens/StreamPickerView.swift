@@ -1,5 +1,6 @@
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit's source page (Steven's fork, 2026-10-25), rewritten from scratch.
 //
@@ -73,6 +74,10 @@ struct StreamPickerView: View {
     @State private var nextEpisodePage: NextEpisodePage?
     /// The list as shown when the viewer chose: "Essayer la source suivante" walks it.
     @State private var chosenFromList: [StreamItem] = []
+    @StateObject private var streamScroll = OrbitStreamScroll()
+    @State private var headerHeight: CGFloat = 200
+    @State private var focusFirstTick = 0
+    @State private var listFocusAsked = false
     @State private var rejectedKeys: Set<String> = []
     /// A "Reprendre du début" playback has run long enough: later tries resume normally.
     @State private var startOverDone = false
@@ -127,19 +132,25 @@ struct StreamPickerView: View {
     // MARK: - Body
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            list
-                .padding(.horizontal, OrbitHomeLayout.margin)
-                .padding(.top, 70)
-                .padding(.bottom, 120)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(coverShown)
-                // Steven (device: the list showed for an instant before the automatic start): it is
-                // drawn only when it is the page's content, never under the opening cover.
-                .opacity(coverShown ? 0 : 1)
+        // Steven (2026-10-29: the list did not scroll as Search's results): the sources in a UIKit
+        // collection view (`OrbitStreamCollection`), the header over its top, carried with it.
+        ZStack(alignment: .topLeading) {
+            sourcesList
+                .ignoresSafeArea()
+            OrbitStreamHeaderLayer(scroll: streamScroll) {
+                list
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                        if abs(h - headerHeight) > 0.5 { headerHeight = h }
+                    }
+            }
+            .padding(.horizontal, OrbitHomeLayout.margin)
+            .padding(.top, 70)
         }
-        .scrollClipDisabled()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .disabled(coverShown)
+        // Steven (device: the list showed for an instant before the automatic start): it is
+        // drawn only when it is the page's content, never under the opening cover.
+        .opacity(coverShown ? 0 : 1)
         .background(OrbitStreamBackground(url: backdropUrl))
         .overlay(alignment: .bottom) { toastView }
         .overlay { if coverShown { cover } }
@@ -147,8 +158,9 @@ struct StreamPickerView: View {
         .onReceive(autoPlay.events) { handle($0) }
         .onChange(of: rows.first?.key) { _, first in
             // The best source takes the focus when the list arrives, unless the viewer moved it.
-            guard let first, !coverShown, focusedRow == nil else { return }
-            DispatchQueue.main.async { focusedRow = first }
+            guard first != nil, !coverShown, !listFocusAsked else { return }
+            listFocusAsked = true
+            focusFirstTick &+= 1
         }
         .onAppear(perform: appear)
         .onDisappear {
@@ -286,13 +298,13 @@ struct StreamPickerView: View {
                 }
                 .focusSection()
             }
-            LazyVStack(alignment: .leading, spacing: 18) {
-                ForEach(shown) { row in card(row, list: shown, showsInstant: showsInstant) }
-                if all.isEmpty, model.isLoading {
+            if all.isEmpty, model.isLoading {
+                VStack(alignment: .leading, spacing: 18) {
                     ForEach(0..<4, id: \.self) { _ in OrbitStreamPlaceholder() }
                 }
             }
-            .focusSection()
+            let _ = showsInstant
+            let _ = shown
             if let reason = model.emptyReason {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(reason)
@@ -306,6 +318,46 @@ struct StreamPickerView: View {
                 }
             }
         }
+    }
+
+    /// The sources (the filtered list) in their collection view.
+    private var sourcesList: some View {
+        let all = rows
+        let shown = all.filter { filter.matches($0.tags) }
+        let showsInstant = all.contains { !$0.tags.instant }
+        let version = "\(resolvingKey ?? "-")|\(rejectedKeys.count)|\(showsInstant)|\(filter.rawValue)"
+        return OrbitStreamCollection(
+            rows: shown, version: version, topInset: 70 + headerHeight + 18, scroll: streamScroll,
+            focusFirst: focusFirstTick,
+            card: { row, focused in
+                AnyView(OrbitStreamCard(stream: row.stream, tags: row.tags, focused: focused,
+                                        resolving: resolvingKey == row.key,
+                                        failedRecently: rejectedKeys.contains(row.stream.playbackStreamKey),
+                                        fromYouTube: Self.isYouTubeResolved(row.stream),
+                                        showsInstant: showsInstant, plain: true, action: {}))
+            },
+            onSelect: { row in
+                chosenFromList = shown.map(\.stream)
+                choose(row.stream, rowKey: row.key)
+            },
+            menu: { row in
+                // Hold a source: the other player(s), when Infuse or Native Player is installed.
+                guard !externalPlayers.isEmpty else { return nil }
+                var actions: [UIMenuElement] = []
+                if defaultPlayer != nil {
+                    actions.append(UIAction(title: String(localized: "Lire dans Orbit"), image: UIImage(systemName: "play.tv")) { _ in
+                        chosenFromList = shown.map(\.stream)
+                        playInOrbit(row.stream, rowKey: row.key)
+                    })
+                }
+                for player in externalPlayers where player.id != defaultPlayer?.id {
+                    actions.append(UIAction(title: String(localized: "Ouvrir dans \(player.name)"),
+                                            image: UIImage(systemName: "arrow.up.forward.app")) { _ in
+                        playExternally(row.stream, rowKey: row.key, playerId: player.id)
+                    })
+                }
+                return actions.isEmpty ? nil : UIMenu(children: actions)
+            })
     }
 
     private func card(_ row: OrbitStreamRow, list: [OrbitStreamRow], showsInstant: Bool) -> some View {
@@ -516,7 +568,8 @@ struct StreamPickerView: View {
 
     private func focusList() {
         DispatchQueue.main.async {
-            if focusedRow == nil, let first = rows.first?.key { focusedRow = first }
+            listFocusAsked = true
+            focusFirstTick &+= 1
         }
     }
 
@@ -805,5 +858,18 @@ private struct OrbitOtherPlayerMenu: ViewModifier {
                 }
             }
         }
+    }
+}
+
+
+/// The sources' header (title, notice, filters), carried up with the list.
+private struct OrbitStreamHeaderLayer<Content: View>: View {
+    @ObservedObject var scroll: OrbitStreamScroll
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .offset(y: -scroll.y)
+            .opacity(scroll.y > 500 ? 0 : 1)
     }
 }

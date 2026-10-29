@@ -1,5 +1,6 @@
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Sources (Steven, 2026-10-24): the source list rebuilt from scratch in the Orbit style.
 // What it looks like only: the playback machinery (debrid resolve, auto-play, failover, external
@@ -429,10 +430,20 @@ struct OrbitStreamCard: View {
     let fromYouTube: Bool
     /// "Instantané" only means something when some sources are not.
     let showsInstant: Bool
+    /// In the sources' collection view the cell itself is the focusable thing: no button of its own.
+    var plain = false
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        if plain {
+            card
+        } else {
+            Button(action: action) { card }
+                .buttonStyle(OrbitPlainStyle())
+        }
+    }
+
+    private var card: some View {
             HStack(alignment: .center, spacing: 34) {
                 // The quality marks, the description page's own.
                 // Steven: the marks on one line, as under the description page's title (the
@@ -526,8 +537,6 @@ struct OrbitStreamCard: View {
             .scaleEffect(focused ? 1.015 : 1)
             .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 22, y: 10)
             .animation(.easeOut(duration: 0.18), value: focused)
-        }
-        .buttonStyle(OrbitPlainStyle())
     }
 
     /// Source · codec · sound · channels · languages, as small outlined tags.
@@ -570,5 +579,183 @@ struct OrbitStreamPlaceholder: View {
             .onAppear {
                 withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
             }
+    }
+}
+
+
+// MARK: - The sources' collection view
+
+/// Steven (2026-10-28: "le défilement dans la liste des sources n'est pas le même que Rechercher"):
+/// the sources in a UIKit collection view, scrolled by the focus engine as Search's results. The
+/// header (title, notice, filters) is SwiftUI, drawn over the list's top and carried with it.
+struct OrbitStreamCollection: UIViewControllerRepresentable {
+    let rows: [OrbitStreamRow]
+    /// Anything a card shows besides its row (a source resolving, failing): a change redraws them.
+    let version: String
+    let topInset: CGFloat
+    let scroll: OrbitStreamScroll
+    /// Asks for the first source to take the focus (each change of the value).
+    let focusFirst: Int
+    let card: (OrbitStreamRow, Bool) -> AnyView
+    let onSelect: (OrbitStreamRow) -> Void
+    let menu: (OrbitStreamRow) -> UIMenu?
+
+    func makeUIViewController(context: Context) -> OrbitStreamCollectionController {
+        let controller = OrbitStreamCollectionController(scroll: scroll)
+        update(controller)
+        return controller
+    }
+
+    func updateUIViewController(_ controller: OrbitStreamCollectionController, context: Context) {
+        update(controller)
+    }
+
+    private func update(_ controller: OrbitStreamCollectionController) {
+        controller.card = card
+        controller.onSelect = onSelect
+        controller.menu = menu
+        controller.show(rows: rows, version: version, topInset: topInset, focusFirst: focusFirst)
+    }
+}
+
+/// How far the sources are scrolled (the header follows the first one).
+@MainActor
+final class OrbitStreamScroll: ObservableObject {
+    @Published var y: CGFloat = 0
+}
+
+@MainActor
+final class OrbitStreamCollectionController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
+    var card: (OrbitStreamRow, Bool) -> AnyView = { _, _ in AnyView(EmptyView()) }
+    var onSelect: (OrbitStreamRow) -> Void = { _ in }
+    var menu: (OrbitStreamRow) -> UIMenu? = { _ in nil }
+
+    private let scroll: OrbitStreamScroll
+    private var collectionView: UICollectionView!
+    private var rows: [OrbitStreamRow] = []
+    private var version = ""
+    private var topInset: CGFloat = 0
+    private var focusFirst = 0
+    private var preferFirst = false
+    private var registration: UICollectionView.CellRegistration<UICollectionViewCell, String>!
+
+    init(scroll: OrbitStreamScroll) {
+        self.scroll = scroll
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        var config = UICollectionLayoutListConfiguration(appearance: .plain)
+        config.backgroundColor = .clear
+        config.showsSeparators = false
+        let layout = UICollectionViewCompositionalLayout { _, environment in
+            let section = NSCollectionLayoutSection.list(using: config, layoutEnvironment: environment)
+            section.interGroupSpacing = 18
+            section.contentInsets = .init(top: 0, leading: OrbitHomeLayout.margin, bottom: 0,
+                                          trailing: OrbitHomeLayout.margin)
+            section.contentInsetsReference = .none
+            return section
+        }
+        collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
+        collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        collectionView.backgroundColor = .clear
+        collectionView.clipsToBounds = false
+        collectionView.contentInsetAdjustmentBehavior = .never
+        collectionView.insetsLayoutMarginsFromSafeArea = false
+        collectionView.contentInset = UIEdgeInsets(top: topInset, left: 0, bottom: 120, right: 0)
+        collectionView.showsVerticalScrollIndicator = false
+        collectionView.remembersLastFocusedIndexPath = true
+        collectionView.dataSource = self
+        collectionView.delegate = self
+        view.addSubview(collectionView)
+        registration = UICollectionView.CellRegistration<UICollectionViewCell, String> { [weak self] cell, _, key in
+            cell.backgroundConfiguration = .clear()
+            cell.configurationUpdateHandler = { [weak self] cell, state in
+                guard let self, let row = self.rows.first(where: { $0.key == key }) else { return }
+                cell.contentConfiguration = UIHostingConfiguration { self.card(row, state.isFocused) }
+                    .margins(.all, 0)
+            }
+        }
+    }
+
+    func show(rows new: [OrbitStreamRow], version newVersion: String, topInset inset: CGFloat, focusFirst ask: Int) {
+        loadViewIfNeeded()
+        if abs(inset - topInset) > 0.5 {
+            let atTop = collectionView.contentOffset.y <= -topInset + 1
+            topInset = inset
+            collectionView.contentInset.top = inset
+            if atTop { collectionView.setContentOffset(CGPoint(x: 0, y: -inset), animated: false) }
+        }
+        let oldKeys = rows.map(\.key)
+        rows = new
+        if oldKeys != new.map(\.key) {
+            collectionView.reloadData()
+            if oldKeys.isEmpty {
+                collectionView.layoutIfNeeded()
+                collectionView.setContentOffset(CGPoint(x: 0, y: -topInset), animated: false)
+            }
+        } else if newVersion != version {
+            for cell in collectionView.visibleCells { cell.setNeedsUpdateConfiguration() }
+        }
+        version = newVersion
+        if ask != focusFirst {
+            focusFirst = ask
+            guard !rows.isEmpty else { return }
+            preferFirst = true
+            collectionView.setContentOffset(CGPoint(x: 0, y: -topInset), animated: false)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.collectionView.setNeedsFocusUpdate()
+                self.collectionView.updateFocusIfNeeded()
+                self.view.window?.windowScene?.focusSystem?.requestFocusUpdate(to: self.collectionView)
+            }
+        }
+    }
+
+    // MARK: Data
+
+    func numberOfSections(in collectionView: UICollectionView) -> Int { 1 }
+
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { rows.count }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        collectionView.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: rows[indexPath.item].key)
+    }
+
+    // MARK: Delegate
+
+    func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+        guard preferFirst, !rows.isEmpty else { return nil }
+        preferFirst = false
+        return IndexPath(item: 0, section: 0)
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard rows.indices.contains(indexPath.item) else { return }
+        onSelect(rows[indexPath.item])
+    }
+
+    func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+                        point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let path = indexPaths.first, rows.indices.contains(path.item), let menu = menu(rows[path.item]) else { return nil }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) { followHeader() }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        followHeader()
+    }
+
+    /// The header rides on the first source.
+    private func followHeader() {
+        guard let collectionView else { return }
+        let y = max(0, collectionView.contentOffset.y + topInset)
+        if abs(scroll.y - y) > 0.5 { scroll.y = y }
     }
 }
