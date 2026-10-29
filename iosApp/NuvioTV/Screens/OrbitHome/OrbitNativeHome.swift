@@ -59,6 +59,8 @@ struct OrbitNativeHome: View {
     /// and every move is asked for, on the curve.
     @State private var page = ScrollPosition(idType: String.self)
     @State private var lastGo: TimeInterval = 0
+    /// The page is shown (not under a title's page, the sources, the player).
+    @State private var onScreen = false
 
     private func go(to id: String, animated: Bool = true) {
         // Steven (2026-10-29, device: now and then a vertical move snapped, no slide): the page could
@@ -235,13 +237,17 @@ struct OrbitNativeHome: View {
             } else {
                 OrbitNativeRow.reopen = nil
             }
-            // Never kept beyond this return.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { OrbitNativeRow.reopen = nil }
+            // Never kept beyond this return — unless the page has gone again meanwhile (Steven,
+            // 2026-10-29: Continue Watching's menu closing showed Home a moment, the card was
+            // forgotten while the title's page was up, and the way back came to the hero).
+            onScreen = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { if onScreen { OrbitNativeRow.reopen = nil } }
             trailers.suspended = !active
             if active { OrbitBarLock.shared.set(!onHero) }
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
         }
         .onDisappear {
+            onScreen = false
             OrbitBarLock.shared.set(false)
             trailers.stop(abort: true)
             trailers.suspended = true
@@ -481,7 +487,9 @@ struct OrbitNativeRow: View {
             let lead = shown ?? row.cards.first?.id
             ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .bottom, spacing: T.gap(style)) {
+                // Steven (2026-10-29, videos: frames missed during each slide): a short row (the Top
+                // 10…) is built whole once — a lazy one built the tile coming in mid-slide.
+                OrbitRowStack(lazy: row.cards.count > 14, spacing: T.gap(style)) {
                     ForEach(Array(row.cards.enumerated()), id: \.element.id) { index, card in
                         Button {
                             open(card)
@@ -517,7 +525,6 @@ struct OrbitNativeRow: View {
                         .onAppear { OrbitMetaStore.shared.request([card.preview]) }
                     }
                 }
-                .scrollTargetLayout()
                 .padding(.vertical, 34)
                 .offset(x: slideX)
                 // The frame opening on the new title and closing on the old one, on the row's curve.
@@ -531,7 +538,11 @@ struct OrbitNativeRow: View {
             // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
             // binding kept the first title the system wrote back (one half off screen) and brought it
             // in on the way back from a title — the row moved by one (Steven, simulator).
-            .scrollPosition($scroll)
+            // Steven (2026-10-29, videos: a shake at the end of every slide, a frame missed then a
+            // little jump): the system wrote the row's first visible title back into the binding as
+            // the slide ended, and the row was re-placed on it. A row the focus scrolls freely is no
+            // longer bound at all — only a row placed by its anchor.
+            .modifier(OrbitRowBinding(bound: pinned, scroll: $scroll))
             // Where the row is scrolled, kept (not while it comes back from a title): the way back
             // puts it exactly there again (Steven, simulator: every return moved it right).
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
@@ -578,12 +589,22 @@ struct OrbitNativeRow: View {
         // Steven: back from a title the row came back far from where he left it.)
         .onAppear {
             disappeared = false
+            // (Steven, 2026-10-29: back from a film started in Continue Watching the row no longer
+            // moved — its other cards stayed locked when the way back was not this row's.)
+            if Self.reopen?.row != row.id { restoreLock = false }
             // A looping row starts in its middle copy (once: it keeps where it was after).
             if let start = row.loopStart, !placedLoop {
                 placedLoop = true
                 var still = Transaction()
                 still.disablesAnimations = true
-                withTransaction(still) { scroll.scrollTo(id: start, anchor: .leading) }
+                if pinned {
+                    withTransaction(still) { scroll.scrollTo(id: start, anchor: .leading) }
+                } else {
+                    // (Unbound: placed through the reader, once it is there.)
+                    DispatchQueue.main.async {
+                        withTransaction(still) { rowProxy?.scrollTo(start, anchor: .leading) }
+                    }
+                }
             }
             restoreIfReturning()
         }
@@ -744,7 +765,7 @@ struct OrbitNativeRow: View {
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
-            if Self.reopen?.card == target.card { Self.reopen = nil }
+            if !disappeared, Self.reopen?.card == target.card { Self.reopen = nil }
         }
     }
 
@@ -881,37 +902,17 @@ private struct OrbitNativeTile: View {
     /// Steven (2026-10-29): the Top 10's poster, rested on, widens into a 16:9 frame with its
     /// trailer, over its own rank (hidden behind it); the row does not move. Any move: a poster again.
     @State private var landscape = false
-    /// The tile's left edge on the screen (the frame stays inside the screen).
-    @State private var tileX: CGFloat = 0
     static let dwellTime: Duration = .milliseconds(1500)
 
     private func dwell() async {
         guard isFocused else {
-            if landscape { withAnimation(.easeOut(duration: 0.18)) { landscape = false } }
+            if landscape { withAnimation(.easeInOut(duration: 0.28)) { landscape = false } }
             return
         }
         do { try await Task.sleep(for: Self.dwellTime) } catch { return }
         guard isFocused, !Task.isCancelled else { return }
         trailers.arm(trailerKey, item: card.preview)
-        withAnimation(.easeInOut(duration: 0.32)) { landscape = true }
-    }
-
-    /// The 16:9 frame of the poster's height, centred on the tile (its rank and poster), kept on
-    /// the screen.
-    @ViewBuilder
-    private var rankedFocusFrame: some View {
-        if landscape, isFocused {
-            let size = OrbitNativeRankedOpenTile.frame(scale: 1)
-            let tile = OrbitRankedTile.closedWidth(rank)
-            let W = OrbitHomeLayout.screenWidth
-            let edge: CGFloat = 40
-            let centred = (tile - size.width) / 2
-            let dx = min(max(centred, edge - tileX), W - edge - size.width - tileX)
-            OrbitRankedOpenFrame(card: card, meta: meta, focused: true, trailers: trailers,
-                                 trailerKey: trailerKey, size: size)
-                .offset(x: dx)
-                .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .bottom)))
-        }
+        withAnimation(.easeInOut(duration: 0.4)) { landscape = true }
     }
 
     var body: some View {
@@ -927,11 +928,18 @@ private struct OrbitNativeTile: View {
                                  onTrailerEnded: { trailers.model.playbackFinished() })
                 }
             case .ranked:
-                OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused)
-                    .overlay(alignment: .bottomLeading) { rankedFocusFrame }
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minX } action: { x in
-                        if !landscape { tileX = x }
-                    }
+                // Steven (2026-10-29, device: the frame drawn over the neighbours "ça va pas du
+                // tout"): the poster itself widens into the 16:9 frame in its own place, its rank
+                // staying on its left (a little behind it), the titles after it making room.
+                let open = landscape && isFocused
+                let frame = OrbitNativeRankedOpenTile.frame(scale: 1)
+                OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused,
+                                openWidth: open ? frame.width : nil,
+                                openFrame: open ? {
+                                    AnyView(OrbitRankedOpenFrame(card: card, meta: meta, focused: false,
+                                                                 trailers: trailers, trailerKey: trailerKey, size: frame))
+                                } : nil,
+                                opens: true)
                     .task(id: isFocused) { await dwell() }
             case .posters:
                 OrbitSmallPoster(card: card, meta: meta, focused: isFocused)
@@ -952,6 +960,31 @@ extension Notification.Name {
 
 /// A row's scroll: aligned on its tiles (Apple's own rows), or free for a row whose focused title is
 /// pinned at the margin by the page (the alignment snapped it back while its frame was opening).
+/// A row's tiles: lazy for the long rows, built whole for the short ones.
+private struct OrbitRowStack<Content: View>: View {
+    let lazy: Bool
+    let spacing: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if lazy {
+            LazyHStack(alignment: .bottom, spacing: spacing, content: content).scrollTargetLayout()
+        } else {
+            HStack(alignment: .bottom, spacing: spacing, content: content).scrollTargetLayout()
+        }
+    }
+}
+
+/// A row's scroll bound to its position only where the row is placed by its anchor.
+private struct OrbitRowBinding: ViewModifier {
+    let bound: Bool
+    @Binding var scroll: ScrollPosition
+
+    func body(content: Content) -> some View {
+        if bound { content.scrollPosition($scroll) } else { content }
+    }
+}
+
 struct OrbitRowScrollBehavior: ScrollTargetBehavior {
     let aligned: Bool
 
@@ -994,13 +1027,18 @@ private struct OrbitContinueWatchingMenu: ViewModifier {
     }
 
     private func perform(_ action: TitleHoldMenuPolicy.CWAction, _ entry: WatchProgressEntry) {
+        // Steven (2026-10-29, device: the card's lifted image stayed over the title's page a moment):
+        // the page opens once the menu has closed.
+        let later: (@escaping () -> Void) -> Void = { go in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: go)
+        }
         switch action {
         case .playManually:
             onLeave()
-            actions.resume(ResumeTarget(entry: entry, forceManual: true))
+            later { actions.resume(ResumeTarget(entry: entry, forceManual: true)) }
         case .goToDetails:
             onLeave()
-            actions.push(TitleRoute(preview: preview))
+            later { actions.push(TitleRoute(preview: preview)) }
         case .markEpisodeWatched:
             WatchedRepository.shared.markWatched(
                 item: WatchingActionsKt.watchedItemFromProgress(
@@ -1011,7 +1049,7 @@ private struct OrbitContinueWatchingMenu: ViewModifier {
             WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)
         case .startOver:
             onLeave()
-            actions.resume(ResumeTarget(entry: entry, startFromBeginning: true))
+            later { actions.resume(ResumeTarget(entry: entry, startFromBeginning: true)) }
         case .remove:
             WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)
         }

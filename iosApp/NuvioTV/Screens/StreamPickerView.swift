@@ -248,7 +248,10 @@ struct StreamPickerView: View {
     private var cover: some View {
         // Steven (device: back from the player, the loading screen with "Encore un instant…"):
         // once a player is up, what is left under it is plain black.
-        OrbitLoadingView(title: title, logoUrl: logoUrl, backdropUrl: backdropUrl, plain: closing || playerWasUp)
+        // Steven (2026-10-29, device: the title, come to the middle, changed colour, then came back):
+        // the screen opens lit — the logo gliding in from the title's page is already at its tone.
+        OrbitLoadingView(title: title, logoUrl: logoUrl, backdropUrl: backdropUrl, plain: closing || playerWasUp,
+                         lightsUp: false)
             .overlay(OrbitCoverFocus(onMenu: autoMode && !holdCover ? { cancelAutoPlay() } : nil))
     }
 

@@ -306,7 +306,8 @@ struct OrbitRankedTile: View {
                     }
                 }
                 .frame(width: isOpen ? (openWidth ?? size.width) : size.width, height: size.height, alignment: .leading)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // (The poster, or the frame it widened into: the focus's own lift and border.)
+                .modifier(OrbitTileFocus(focused: focused, radius: 12))
             } else if let openFrame, let openWidth {
                 openFrame()
                     .frame(width: openWidth, height: size.height)

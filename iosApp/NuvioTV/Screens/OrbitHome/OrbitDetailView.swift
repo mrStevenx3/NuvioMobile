@@ -145,6 +145,8 @@ struct OrbitDetailView: View {
     @State private var heroTitleBox: CGRect = .zero
     /// Where the gliding logo starts: its offset from the middle and its scale.
     @State private var launchFrom: (offset: CGSize, scale: CGFloat)?
+    /// The loading screen's logo opacity when it takes over (its breath, read off the clock).
+    @State private var launchEndOpacity: Double = 1
     /// The cinema's trailer started cold: its art held, its sound off, until its first picture.
     @State private var waitingForPicture = false
     @State private var ownTagShown = false
@@ -470,15 +472,11 @@ struct OrbitDetailView: View {
             }
         }
         .onMoveCommand { direction in
-            // The way back ended by this very press: the system moved, or (the cards still
-            // disabled when it looked) did not — then the press is carried out here, once.
-            if let from = pressedFrom, ProcessInfo.processInfo.systemUptime - pressedAt < 0.5 {
+            // The way back ended by this very press: the cards were freed before the system moved,
+            // the move is the system's alone. (Steven, 2026-10-29, device: a move of ours on top —
+            // the focus not yet updated when it looked — went several titles.)
+            if pressedFrom != nil, ProcessInfo.processInfo.systemUptime - pressedAt < 0.5 {
                 pressedFrom = nil
-                if let next = neighbour(of: from, direction) {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                        if focus == from { focus = next }
-                    }
-                }
                 return
             }
             pressedFrom = nil
@@ -829,8 +827,9 @@ struct OrbitDetailView: View {
             // From exactly over the hero's title (its size and place) to the loading screen's.
             .scaleEffect(from.map { $0.scale + ($0.scale.distance(to: 1)) * g } ?? 1)
             .offset(x: (from?.offset.width ?? 0) * (1 - g), y: (from?.offset.height ?? 0) * (1 - g))
-            // Without a known shape (no logo): it fades in in the middle.
-            .opacity(from == nil ? Double(g) * 0.6 : 1 - 0.4 * Double(g))
+            // Ending at the loading screen's own breath at the hand-over (no change of tone there);
+            // without a known shape (no logo) it fades in in the middle.
+            .opacity(from == nil ? Double(g) * launchEndOpacity : 1 - (1 - launchEndOpacity) * Double(g))
             .transition(.identity)
     }
 
@@ -874,6 +873,7 @@ struct OrbitDetailView: View {
         // At once: the hero's title hidden, the one logo over it.
         withTransaction(still) {
             launchFrom = launchStart()
+            launchEndOpacity = OrbitLoadingView.breath(at: Date().addingTimeInterval(0.5))
             launchGlide = 0
             launching = true
         }

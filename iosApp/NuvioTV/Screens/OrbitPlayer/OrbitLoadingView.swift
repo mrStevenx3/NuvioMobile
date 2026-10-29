@@ -114,7 +114,7 @@ struct OrbitLoadingView: View {
     }
 
     /// 0.5 → 1 → 0.5, the same phase for every instance (wall clock).
-    private static func breath(at date: Date) -> Double {
+    static func breath(at date: Date) -> Double {
         let t = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
         return 0.75 - 0.25 * cos(t * 2 * .pi)
     }
