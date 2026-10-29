@@ -262,6 +262,19 @@ struct OrbitStudioPage: View {
         return row.items[lead(of: row)]
     }
 
+    /// The title focused in the rows (Home's wash and the headings' bar follow it).
+    @State private var rowItem: MetaPreview?
+    /// Its colour, on Home's timing (the headings' bar).
+    @State private var rowTone: Color?
+
+    private func toneFollow(_ item: MetaPreview?) async {
+        guard let item else { return }
+        do { try await Task.sleep(for: .milliseconds(OrbitRowsBackdrop.wait)) } catch { return }
+        let raw = metaStore.meta(for: item)?.backdrop ?? item.banner ?? item.poster
+        guard let raw, let color = await OrbitDominantColor.color(for: raw), !Task.isCancelled else { return }
+        withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { rowTone = color }
+    }
+
     private var brand: Color {
         tint ?? OrbitPlatformBrand.color(title: model.name)
     }
@@ -290,6 +303,15 @@ struct OrbitStudioPage: View {
 
         ZStack(alignment: .topLeading) {
             OrbitStudioBackground(brand: brand)
+            // Steven (2026-10-29: "intérieur studio comme accueil"): in the rows, the focused title's
+            // colour washes the page as on Home (same wash, same 250 ms rest and 0.45 s fade); the
+            // banner keeps the studio's own colour.
+            OrbitFocusBackdrop(item: nativeRow == nil ? nil : rowItem)
+                .opacity(nativeRow == nil ? 0 : 1)
+                .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: nativeRow == nil)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .task(id: rowItem.map { "\($0.type):\($0.id)" } ?? "-") { await toneFollow(rowItem) }
 
                             nativeContent
             
@@ -395,8 +417,10 @@ struct OrbitStudioPage: View {
                             .id("header")
                     }
                     ForEach(rows) { row in
-                        OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id, accent: brand, trailers: nativeTrailers,
-                                             onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) })
+                        OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id,
+                                             accent: nativeRow == nil ? brand : (rowTone ?? brand), trailers: nativeTrailers,
+                                             onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) },
+                                             onItem: { rowItem = $0 })
                             // (As Home's rows: a row is redrawn only when it changes — the page's
                             // moves no longer redraw every row.)
                             .equatable()
@@ -825,6 +849,8 @@ private struct OrbitNativeStudioRow: View {
     let trailers: OrbitNativeTrailerHost
     let onEnter: () -> Void
     let onOpen: (MetaPreview) -> Void
+    /// The title focused in this row (the page's wash follows it).
+    var onItem: (MetaPreview) -> Void = { _ in }
 
     @FocusState private var focused: Int?
     @State private var holds = false
@@ -913,6 +939,7 @@ private struct OrbitNativeStudioRow: View {
         }
         // (As Home's new films: the lead set plainly — the strip slides, the frame fades.)
         shown = new
+        if row.items.indices.contains(new) { onItem(row.items[new]) }
         if row.kind == .featured || row.kind == .classic || row.opensRanked, row.items.indices.contains(new) {
             let item = row.items[new]
             trailers.arm("\(row.id)|\(item.type):\(item.id)", item: item)
