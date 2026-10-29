@@ -338,6 +338,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     @State private var slideX: CGFloat = 0
 
     @State private var rowProxy: ScrollViewProxy?
+    @State private var leadWork: DispatchWorkItem?
     /// When the way back from a title began (0: not coming back).
     @State private var restoringSince: TimeInterval = 0
     @State private var disappeared = false
@@ -414,7 +415,13 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             // plainly, as Home's new films — the strip slides on its own curve, the frame fades;
             // nothing else of the page is animated with it.
             box.lead = new
-            onLeadChange(new)
+            // Steven (2026-10-29: the platforms' rows not fluid): the page's own work for the new title
+            // (its trailer, its look-ahead) redrew the whole page under every step of the slide — it
+            // waits for the remote to rest, as Home's colour does.
+            leadWork?.cancel()
+            let work = DispatchWorkItem { onLeadChange(new) }
+            leadWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
         }
     }
 
