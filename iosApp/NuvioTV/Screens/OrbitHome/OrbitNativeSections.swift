@@ -257,7 +257,10 @@ struct OrbitNativeSections<SectionContent: View>: View {
         .scrollPosition($scroll)
         .scrollDisabled(systemScrollOff)
         .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
-            if let tracker, abs(tracker.y - y) > 0.5 { tracker.y = y }
+            // (Only near the top, where a hero fades with the scroll: below it, nothing is redrawn on
+            // every frame of a move — Steven, Disney+ jerky up and down.)
+            let clamped = min(max(y, 0), 1300)
+            if let tracker, abs(tracker.y - clamped) > 0.5 { tracker.y = clamped }
         }
         // The line follows the page's section only (Steven's videos, Prime Video / Paramount+: the
         // rows jumped — the line also followed the section the scroll wrote back mid-move).
@@ -425,6 +428,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                            onSelect()
                        })
             .frame(height: height)
+            .modifier(OrbitShadeBeforeMargin(active: keepsLeadAtMargin, margin: margin))
             .onChange(of: box.focusRequest) { _, _ in
                 strip.controller?.takeFocus(on: min(box.lead, max(0, count - 1)))
             }

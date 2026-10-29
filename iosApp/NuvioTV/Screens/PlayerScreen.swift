@@ -100,21 +100,10 @@ struct PlayerScreen: View {
                 // its title — the logo rushes towards the viewer while a hole opens from its centre and
                 // widens to the screen's edges, the film showing through it. Drawn frame by frame from
                 // the clock (a timeline), so no presentation or transaction can turn it into a cut.
-                TimelineView(.animation(minimumInterval: nil, paused: revealStart == nil)) { timeline in
-                    let p = revealStart.map { min(1, max(0, timeline.date.timeIntervalSince($0) / Self.revealTime)) } ?? 0
-                    let e = p * p * (3 - 2 * p)            // smooth start and end
-                    let hole = e * 2600                    // past the corners of a 1920 × 1080 screen
-                    OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
-                                     lightsUp: !overLoadingCover)
-                        .scaleEffect(1 + 0.9 * e * e)      // the title comes at the viewer
-                        .mask {
-                            Rectangle()
-                                .overlay(Circle().frame(width: hole, height: hole).blendMode(.destinationOut))
-                                .compositingGroup()
-                                .ignoresSafeArea()
-                        }
-                        .opacity(1 - max(0, (p - 0.7) / 0.3))
-                }
+                // (Steven, 2026-10-29: no reveal effect — the logo, lit, simply gives way to the film.)
+                OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
+                                 lightsUp: !overLoadingCover)
+                    .opacity(loadingGone ? 0 : 1)
                 .allowsHitTesting(false)
             }
         }
@@ -141,9 +130,8 @@ struct PlayerScreen: View {
                         // (The picture back after a switch: a moment for the TV to show it.)
                         try? await Task.sleep(for: .milliseconds(350))
                     }
-                    loadingGone = true
-                    revealStart = Date()
-                    try? await Task.sleep(for: .seconds(Self.revealTime + 0.05))
+                    withAnimation(.easeInOut(duration: 0.5)) { loadingGone = true }
+                    try? await Task.sleep(for: .seconds(0.55))
                     loadingRemoved = true
                 }
             } else {

@@ -1584,7 +1584,12 @@ private struct OrbitDisneyOpenRow: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
-        .onAppear { prefetch(around: lead, includingIt: true) }
+        .onAppear {
+            // Steven (2026-10-29: "le défilement n'est pas infini"): a looping row starts in its
+            // middle copy, titles on both sides.
+            if row.loops, box.lead < row.items.count { box.lead = row.items.count * 15 + box.lead }
+            prefetch(around: lead, includingIt: true)
+        }
         // (Steven: Up from the franchises to the Top 10, the frame sat at the margin, the title's
         // room further right: the row, scrolled for its closed poster, put back on the open one.)
         .onChange(of: isCurrent) { _, now in

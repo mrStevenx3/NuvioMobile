@@ -972,7 +972,12 @@ private struct OrbitNetflixRowView: View {
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
         // Steven (video: a row's first open title came up dark, its art not there yet): the art of
         // its focused title and its neighbours fetched as soon as the row is drawn.
-        .onAppear { prefetchOpenArt(around: lead, includingIt: true) }
+        .onAppear {
+            // Steven (2026-10-29: "le défilement n'est pas infini"): a looping row starts in its
+            // middle copy, titles on both sides.
+            if row.loops, box.lead < row.items.count { box.lead = row.items.count * 15 + box.lead }
+            prefetchOpenArt(around: lead, includingIt: true)
+        }
     }
 
     /// The open tile's pills, as Netflix shows them side by side: what is new, then its rank.

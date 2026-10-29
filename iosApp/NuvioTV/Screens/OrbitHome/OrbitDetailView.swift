@@ -888,6 +888,8 @@ struct OrbitDetailView: View {
         let from = launchFrom
         let g = launchGlide
         return OrbitLoadingView.logo(logoURL, title: title)
+            // (It arrives a little dim: the loading screen lights it up — Steven, 2026-10-29.)
+            .brightness(-0.45 * Double(g))
             .frame(width: 640, height: 260, alignment: .center)
             // From exactly over the hero's title (its size and place) to the loading screen's.
             .scaleEffect(from.map { $0.scale + ($0.scale.distance(to: 1)) * g } ?? 1)

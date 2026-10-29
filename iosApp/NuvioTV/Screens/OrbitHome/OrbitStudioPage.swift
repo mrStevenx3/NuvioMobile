@@ -436,11 +436,13 @@ struct OrbitStudioPage: View {
             // 2026-10-29 — "toujours très d'ombre en haut"), the rows sliding away under it.
             OrbitStudioBackground(brand: brand)
                 .mask(alignment: .top) {
+                    // (Steven: bits of the posters above showed — whole down to just above the rows'
+                    // line, then a short edge.)
                     LinearGradient(stops: [.init(color: .black, location: 0),
-                                           .init(color: .black, location: 0.6),
+                                           .init(color: .black, location: (Self.nativeTop - 26) / Self.nativeTop),
                                            .init(color: .black.opacity(0), location: 1)],
                                    startPoint: .top, endPoint: .bottom)
-                        .frame(width: OrbitHomeLayout.screenWidth, height: 150)
+                        .frame(width: OrbitHomeLayout.screenWidth, height: Self.nativeTop)
                 }
                 .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .top)
                 .opacity(nativeOnHero ? 0 : 1)
@@ -1050,6 +1052,7 @@ private struct OrbitNativeStudioRow: View {
                                onOpen(row.items[i])
                            })
                 .frame(height: size.height)
+                .modifier(OrbitShadeBeforeMargin(active: row.kind == .classic, margin: L.margin))
                 .overlay(alignment: .bottomLeading) {
                     if row.kind == .classic { classicFrame(lit: holds && !rowFocusHidden) }
                 }

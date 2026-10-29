@@ -305,7 +305,7 @@ struct OrbitParamountPage: View {
             if let focusedTop = shownItem {
                 // (Steven, 2026-10-29: the screen-wide art follows once the remote rests, not under
                 // every step of a slide; the hero's own Left / Right at once.)
-                OrbitAfterRest(key: "\(focusedTop.type):\(focusedTop.id)", value: focusedTop, delay: current == 0 ? 0 : 0.28) { shown in
+                OrbitAfterRest(key: "\(focusedTop.type):\(focusedTop.id)", value: focusedTop, delay: current == 0 ? 0 : 0.5) { shown in
                 OrbitParamountTop(item: shown, meta: metaStore.meta(for: shown), line: greenLine(shown),
                                   onArrival: onArrival, buttonLit: pageFocused && onArrival,
                                   count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),

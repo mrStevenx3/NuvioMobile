@@ -91,6 +91,9 @@ struct OrbitLoadingView: View {
                         mark
                             // (Steven, 2026-10-29: still a glow — the halo behind the logo, white then the
                             // film's colour once read, changed under his eyes. No halo: the logo alone.)
+                            // Steven (2026-10-29, later: "le logo se place au centre et s'illumine"): come
+                            // to the middle a little dim, it lights up once — no pulse, no halo.
+                            .brightness(lit || !lightsUp ? 0 : -0.45)
                             .opacity(Self.breath(at: now))
                         Text("Encore un instant…")
                             .font(.system(size: 26, weight: .medium))
@@ -110,9 +113,10 @@ struct OrbitLoadingView: View {
                 glow = 0.3
                 return
             }
-            // (Steven, 2026-10-29: no glow coming and going — lit at once, a quiet halo.)
-            lit = true
-            glow = 0.3
+            lit = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeOut(duration: 0.9)) { lit = true }
+            }
         }
         .task(id: backdropUrl ?? "-") {
             guard let backdropUrl, !backdropUrl.isEmpty else { return }

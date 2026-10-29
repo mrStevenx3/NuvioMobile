@@ -775,7 +775,9 @@ struct OrbitPlatformIntro: View {
                 let curtained = OrbitPlatformCurtain.shared.look != nil
                 // The curtain plays the neon; the page waits under it, lit as it ends, and shows
                 // once it is over (pushed ~0.25 s after the press).
-                let lift = max(0.3, OrbitPlatformCurtain.litAfter - (curtained ? OrbitPlatformCurtain.pushAt : 0.25))
+                // (Steven, 2026-10-29: the platform's page showed a second during the opening — the
+                // curtain goes only as the logo leaves for its corner, the page fading in under it.)
+                let lift = curtained ? 0.75 : max(0.3, OrbitPlatformCurtain.litAfter - 0.25)
                 DispatchQueue.main.asyncAfter(deadline: .now() + lift) { OrbitPlatformCurtain.shared.lift(instant: curtained) }
                 if reduceMotion { dim = 0; glow = 0 } else {
                     withTransaction(still) { dim = 0; glow = curtained ? 0.35 : 0 }
@@ -785,7 +787,7 @@ struct OrbitPlatformIntro: View {
                         withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
                     }
                     glide = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.4, execute: work)  // (Steven: a hitch as it left the centre — the page had just been built; a moment more for it to settle.)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.05, execute: work)  // (Steven: a hitch as it left the centre — the page had just been built; a moment more for it to settle.)
                 }
                 return
             }

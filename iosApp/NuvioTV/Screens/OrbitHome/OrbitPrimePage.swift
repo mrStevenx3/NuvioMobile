@@ -321,7 +321,10 @@ struct OrbitPrimePage: View {
     }
 
     private func lead(of row: OrbitPrimeRow) -> Int {
-        min(leads[row.id] ?? 0, max(0, row.items.count - 1))
+        let raw = leads[row.id] ?? 0
+        // (The Originals loop: their places run on, the title taken round.)
+        if row.kind == .originals, row.items.count > 1 { return raw % row.items.count }
+        return min(raw, max(0, row.items.count - 1))
     }
 
     /// The title the top of the screen shows: the hero's on arrival, else the focused one.
@@ -351,7 +354,8 @@ struct OrbitPrimePage: View {
                 // Steven (2026-10-29, slow-motion video: Prime jerky across and down): the screen-wide
                 // art changed under every step of a slide — it follows once the remote rests (Home's
                 // colour does the same); the hero's own Left / Right change it at once.
-                OrbitAfterRest(key: "\(focusedTop.type):\(focusedTop.id)", value: focusedTop, delay: current == 0 ? 0 : 0.28) { shown in
+                // (After the row's slide is over, 0.4 s: Steven, Prime still jerky down.)
+                OrbitAfterRest(key: "\(focusedTop.type):\(focusedTop.id)", value: focusedTop, delay: current == 0 ? 0 : 0.5) { shown in
                 OrbitPrimeTop(item: shown, meta: metaStore.meta(for: shown), line: rankLine(shown),
                               onArrival: onArrival, buttonsLit: pageFocused && current == 0 && !heroOnInfo,
                               infoLit: pageFocused && current == 0 && heroOnInfo,
@@ -880,9 +884,16 @@ private struct OrbitPrimeRowView: View {
     let onSelect: () -> Void
     let onLeadChange: () -> Void
 
+    /// Steven (2026-10-29: "le défilement n'est pas infini"): the Originals loop, as Home's new films —
+    /// the titles repeated in the strip, starting in the middle.
+    private var loops: Bool { row.kind == .originals && row.items.count > 1 }
+    private var slots: Int { loops ? row.items.count * 30 : row.items.count }
+    private func at(_ slot: Int) -> Int { row.items.isEmpty ? 0 : slot % row.items.count }
+
     var body: some View {
         let L = OrbitPrimeLayout.self
-        let lead = min(box.lead, max(0, row.items.count - 1))
+        let leadSlot = min(box.lead, max(0, slots - 1))
+        let lead = at(leadSlot)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 if row.kind == .originals {
@@ -898,7 +909,7 @@ private struct OrbitPrimeRowView: View {
             .lineLimit(1)
             .frame(height: L.headingHeight, alignment: .topLeading)
             .padding(.leading, L.margin)
-            OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: row.cardHeight,
+            OrbitNativeTileStrip(count: slots, spacing: L.gap, height: row.cardHeight,
                                  lastWidth: row.kind == .originals ? L.openWidth : row.x(of: 1, lead: 0, current: false) - L.gap,
                                  box: box, alignment: .top,
                                  // Steven: the row of opening posters scrolls as Home's first row —
@@ -910,7 +921,8 @@ private struct OrbitPrimeRowView: View {
                                  // (UIKit strip: the open title's room; the others measured.)
                                  width: row.kind == .originals ? { _ in L.poster.width } : nil,
                                  redrawKey: AnyHashable(row.kind == .originals ? AnyHashable(badges) : AnyHashable([AnyHashable(isCurrent), AnyHashable(badges)])),
-                                 openDelta: row.kind == .originals && isCurrent ? L.openWidth - L.poster.width : nil) { index, lit in
+                                 openDelta: row.kind == .originals && isCurrent ? L.openWidth - L.poster.width : nil) { slot, lit in
+                let index = at(slot)
                 let item = row.items[index]
                 let meta = metaStore.meta(for: item)
                 let badge = badges[item.id].flatMap { $0.isEmpty ? nil : $0 }
@@ -920,7 +932,7 @@ private struct OrbitPrimeRowView: View {
                 case .originals:
                     // Steven: as Netflix's — the open frame drawn by the row, fixed at the margin;
                     // the lead keeps its room (its poster at the room's right, under the frame).
-                    if isCurrent && index == lead {
+                    if isCurrent && slot == leadSlot {
                         // (Steven, 2026-10-29: as Home's new films — the lead's room left empty.)
                         Color.clear
                             .frame(width: L.openWidth, height: L.poster.height)
@@ -962,6 +974,9 @@ private struct OrbitPrimeRowView: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, alignment: .topLeading)
+        .onAppear {
+            if loops, box.lead < row.items.count { box.lead = row.items.count * 15 + box.lead }
+        }
     }
 }
 

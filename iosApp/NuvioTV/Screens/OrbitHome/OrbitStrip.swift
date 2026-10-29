@@ -31,6 +31,24 @@ struct OrbitClipBeforeMargin: ViewModifier {
     }
 }
 
+/// Steven (2026-10-29: "l'image à gauche doit être un peu assombrie"): in a row whose open title is
+/// held at the margin, the bit of the title before it, left of the margin, is shaded.
+struct OrbitShadeBeforeMargin: ViewModifier {
+    let active: Bool
+    let margin: CGFloat
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .leading) {
+            if active {
+                LinearGradient(colors: [Color.black.opacity(0.7), Color.black.opacity(0.45)],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: margin)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
 final class OrbitStripRef {
     weak var controller: OrbitStripController?
 }
