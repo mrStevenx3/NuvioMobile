@@ -49,6 +49,8 @@ struct OrbitNativeHome: View {
     /// cut waits for the slide (the band's wash is up by then).
     @State private var heroCut = false
     @State private var heroCutGeneration = 0
+    /// The hero's art below its frame (the screen's last points), shown only while it rests there.
+    @State private var heroFootShown = true
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
     @State private var position: String = "hero"
     /// The page's scroll. Steven (2026-10-28, device: after a while Up / Down moved the page at once,
@@ -56,9 +58,15 @@ struct OrbitNativeHome: View {
     /// was there already and asked nothing — the system's own jump showed. `position` is ours alone
     /// and every move is asked for, on the curve.
     @State private var page = ScrollPosition(idType: String.self)
+    @State private var lastGo: TimeInterval = 0
 
     private func go(to id: String, animated: Bool = true) {
-        guard position != id else { return }
+        // Steven (2026-10-29, device: now and then a vertical move snapped, no slide): the page could
+        // be elsewhere than `position` says (the system's own scroll moved it), and the move was then
+        // skipped — the system's jump showed. Every move is asked for, on the curve; the same place
+        // twice in a row only once.
+        if position == id, ProcessInfo.processInfo.systemUptime - lastGo < 0.2 { return }
+        lastGo = ProcessInfo.processInfo.systemUptime
         position = id
         if animated && !reduceMotion {
             withAnimation(.easeInOut(duration: 0.32)) { page.scrollTo(id: id, anchor: .top) }
@@ -125,10 +133,17 @@ struct OrbitNativeHome: View {
                             // Steven (a strip of the hero under the bar once in the rows): its art runs
                             // past its frame — cut to its frame while the rows hold the focus (a mask,
                             // not a fade: Up must still reach it).
-                            .mask {
+                            // Steven (2026-10-29, device): the top waits for the slide (no black band
+                            // under the bar), the bottom is cut at once (its dark foot no longer
+                            // drawn over the first row as the page slides — the band at the bottom)
+                            // and comes back once the page rests on the hero.
+                            .mask(alignment: .top) {
+                                let H = OrbitHomeLayout.screenHeight
+                                let up: CGFloat = heroCut ? 0 : H
+                                let down: CGFloat = heroFootShown ? H : 0
                                 Rectangle()
-                                    .frame(width: OrbitHomeLayout.screenWidth,
-                                           height: heroCut ? Self.heroHeight : OrbitHomeLayout.screenHeight * 3)
+                                    .frame(width: OrbitHomeLayout.screenWidth, height: Self.heroHeight + up + down)
+                                    .offset(y: -up)
                             }
                             // Back from a title opened in a row: the hero cannot take the focus for
                             // a moment (Steven, simulator: the focus went up to it).
@@ -294,10 +309,14 @@ struct OrbitNativeHome: View {
         guard onHero != value else { return }
         onHero = value
         heroCutGeneration &+= 1
+        let generation = heroCutGeneration
         if value {
             heroCut = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
+                if generation == heroCutGeneration, onHero { heroFootShown = true }
+            }
         } else {
-            let generation = heroCutGeneration
+            heroFootShown = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 if generation == heroCutGeneration, !onHero { heroCut = true }
             }
@@ -483,7 +502,8 @@ struct OrbitNativeRow: View {
                         }
                         .buttonStyle(OrbitPlainStyle())
                         // Steven (2026-10-28): Continue Watching, held — its options again.
-                        .modifier(OrbitContinueWatchingMenu(entry: card.entry, preview: card.preview, actions: actions))
+                        .modifier(OrbitContinueWatchingMenu(entry: card.entry, preview: card.preview, actions: actions,
+                                                            onLeave: { markOpening(card) }))
                         .focused($focused, equals: card.id)
                         // The focused tile above its neighbours (Steven, Prochainement: the next
                         // tile covered the grown one's edge).
@@ -728,12 +748,20 @@ struct OrbitNativeRow: View {
         }
     }
 
-    private func open(_ card: OrbitCard) {
+    /// Leaving for a title from this card (opened, or from its hold menu): the way back comes to it.
+    private func markOpening(_ card: OrbitCard) {
         Self.reopen = (row.id, card.id)
         Self.reopenedAt = ProcessInfo.processInfo.systemUptime
+        // Continue Watching plays without a title page (the sources, the player): the way back
+        // counts it as a title opened (else the page came back on the hero).
+        if card.entry != nil { OrbitNavClock.titleOpenedAt = Self.reopenedAt }
         lockForReturn(card.id)
         trailers.stop(abort: true)
         trailers.suspended = true
+    }
+
+    private func open(_ card: OrbitCard) {
+        markOpening(card)
         if let entry = card.entry {
             actions.resume(ResumeTarget(entry: entry))
         } else {
@@ -903,6 +931,9 @@ private struct OrbitContinueWatchingMenu: ViewModifier {
     let entry: WatchProgressEntry?
     let preview: MetaPreview
     let actions: StageHomeActions
+    /// Steven (2026-10-29, device: back from a title opened from Continue Watching's menu, the page
+    /// came back on the hero): the menu's ways to a title mark the card for the way back too.
+    var onLeave: () -> Void = {}
 
     func body(content: Content) -> some View {
         if let entry {
@@ -925,8 +956,10 @@ private struct OrbitContinueWatchingMenu: ViewModifier {
     private func perform(_ action: TitleHoldMenuPolicy.CWAction, _ entry: WatchProgressEntry) {
         switch action {
         case .playManually:
+            onLeave()
             actions.resume(ResumeTarget(entry: entry, forceManual: true))
         case .goToDetails:
+            onLeave()
             actions.push(TitleRoute(preview: preview))
         case .markEpisodeWatched:
             WatchedRepository.shared.markWatched(
@@ -937,6 +970,7 @@ private struct OrbitContinueWatchingMenu: ViewModifier {
             )
             WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)
         case .startOver:
+            onLeave()
             actions.resume(ResumeTarget(entry: entry, startFromBeginning: true))
         case .remove:
             WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)

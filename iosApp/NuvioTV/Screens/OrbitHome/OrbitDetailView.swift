@@ -137,10 +137,14 @@ struct OrbitDetailView: View {
     /// grows while the page fades into the loading screen's blurred art; the loading screen then
     /// takes over with the logo in the same place, which lights up.
     @State private var launching = false
-    /// Steven (2026-10-29, device: still two logos during the glide): a view leaving takes the
-    /// transition it had BEFORE the change — the hero's title faded out while the other glided.
-    /// Set a beat before `launching`, so the title leaves at once.
-    @State private var launchArmed = false
+    /// Steven (2026-10-29, device, twice: two or three logos during the glide). No more matched
+    /// views: the hero's title is hidden at once, and ONE logo — the loading screen's own — is put
+    /// exactly over it and glides to the middle (`launchGlide` 0 → 1).
+    @State private var launchGlide: CGFloat = 0
+    /// The hero title's box on the screen (its logo sits at the box's bottom left).
+    @State private var heroTitleBox: CGRect = .zero
+    /// Where the gliding logo starts: its offset from the middle and its scale.
+    @State private var launchFrom: (offset: CGSize, scale: CGFloat)?
     /// The cinema's trailer started cold: its art held, its sound off, until its first picture.
     @State private var waitingForPicture = false
     @State private var ownTagShown = false
@@ -183,6 +187,9 @@ struct OrbitDetailView: View {
     /// Back from a page opened from a row: the card it was opened from, the only one of the rows
     /// that can take the focus for a moment.
     @State private var returningTo: OrbitDetailFocus?
+    /// The card a press ended the way back from (`ViewerInputClock`), and when.
+    @State private var pressedFrom: OrbitDetailFocus?
+    @State private var pressedAt: TimeInterval = 0
     /// Each row's scroll, kept across a push (a reference: writes never redraw the page).
     @State private var rowOffsets = OrbitRowOffsets()
     /// While one of the page's own scrolls runs (the hold below leaves it alone).
@@ -412,7 +419,8 @@ struct OrbitDetailView: View {
 
             if launching {
                 OrbitLaunchVeil(backdropURL: backdropURL)
-                    .transition(.opacity)
+                    .opacity(Double(launchGlide))
+                    .transition(.identity)
                     .zIndex(6)
                 VStack(spacing: 40) {
                     launchMark
@@ -443,7 +451,37 @@ struct OrbitDetailView: View {
         // Steven: a press while the focus still sat on the engine's card (the first one) went
         // from there (Left even left the row). During the return a press puts the card back
         // first; the next press moves from it.
+        // Steven (2026-10-29, device: back from a title of "À voir aussi", Left or Up at once skipped
+        // titles or rows): while the way back holds, the other cards and sections are disabled, so
+        // the system's move went past them. A press ends the way back the moment it begins (the
+        // input clock hears it before the focus engine moves), so the move finds every card.
+        .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
+            // (Only the page on screen: one covered by another title keeps its way back.)
+            guard visible, returningTo != nil || resuming else { return }
+            switch ViewerInputClock.shared.lastKind {
+            case .up?, .down?, .left?, .right?, .swipe?:
+                pressedFrom = focus
+                pressedAt = ProcessInfo.processInfo.systemUptime
+                returningTo = nil
+                resuming = false
+                resumeFocus = nil
+            default:
+                break
+            }
+        }
         .onMoveCommand { direction in
+            // The way back ended by this very press: the system moved, or (the cards still
+            // disabled when it looked) did not — then the press is carried out here, once.
+            if let from = pressedFrom, ProcessInfo.processInfo.systemUptime - pressedAt < 0.5 {
+                pressedFrom = nil
+                if let next = neighbour(of: from, direction) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                        if focus == from { focus = next }
+                    }
+                }
+                return
+            }
+            pressedFrom = nil
             // Steven (2026-10-28: back from a title, Left / Right scrolled the row while the focus
             // stayed on the card): during the way back the neighbours cannot take the focus — the
             // press is carried out here, onto the neighbour, and the way back ends.
@@ -582,6 +620,9 @@ struct OrbitDetailView: View {
                     }
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) {
+                    // The way back settled: every card free again (it held 1.8 s — quick presses
+                    // met disabled cards).
+                    if returningTo == back { returningTo = nil }
                     guard resuming else { return }
                     resuming = false
                     resumeFocus = nil
@@ -781,11 +822,47 @@ struct OrbitDetailView: View {
     private var launchMark: some View {
         // The loading screen's own logo (same image, same size, centred): it lands exactly where
         // the loading screen draws it.
-        OrbitLoadingView.logo(logoURL, title: title)
+        let from = launchFrom
+        let g = launchGlide
+        return OrbitLoadingView.logo(logoURL, title: title)
             .frame(width: 640, height: 260, alignment: .center)
-            .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .center)
+            // From exactly over the hero's title (its size and place) to the loading screen's.
+            .scaleEffect(from.map { $0.scale + ($0.scale.distance(to: 1)) * g } ?? 1)
+            .offset(x: (from?.offset.width ?? 0) * (1 - g), y: (from?.offset.height ?? 0) * (1 - g))
+            // Without a known shape (no logo): it fades in in the middle.
+            .opacity(from == nil ? Double(g) * 0.6 : 1 - 0.4 * Double(g))
             .transition(.identity)
-            .opacity(0.5)
+    }
+
+    /// The gliding logo's start: the hero logo's size and centre, against the loading screen's.
+    private func launchStart() -> (offset: CGSize, scale: CGFloat)? {
+        guard heroTitleBox.width > 0, let raw = logoURL, let url = URL(string: raw) else { return nil }
+        let request = ArtworkDecodeRequest(size: .points(width: 640, height: 260), fill: false,
+                                           scale: UIScreen.main.scale).normalized
+        let aspect: CGFloat
+        if let known = OrbitTitleMark.aspects[raw] {
+            aspect = known
+        } else if let image = ArtworkStore.cached(url, decode: request), image.size.height > 0 {
+            aspect = image.size.width / image.size.height
+        } else {
+            return nil
+        }
+        func fit(_ box: CGSize) -> CGSize {
+            let h = min(box.height, box.width / max(aspect, 0.01))
+            return CGSize(width: h * aspect, height: h)
+        }
+        // The hero's logo: fitted in its box (a tagged one a little lower), at the bottom left.
+        let tagged = platform?.own != nil
+        let heroMax = tagged ? CGSize(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height - 60)
+                             : Self.heroTitleSize
+        let start = fit(heroMax)
+        let startCentre = CGPoint(x: heroTitleBox.minX + start.width / 2, y: heroTitleBox.maxY - start.height / 2)
+        // The loading screen's: fitted in 640 × 260, in the middle, its hidden line under it.
+        let end = fit(CGSize(width: 640, height: 260))
+        let L = OrbitHomeLayout.self
+        let endCentre = CGPoint(x: L.screenWidth / 2, y: L.screenHeight / 2 - (40 + 31) / 2)
+        return (CGSize(width: startCentre.x - endCentre.x, height: startCentre.y - endCentre.y),
+                start.width / max(end.width, 1))
     }
 
     /// Lecture: the launch's glide, then the sources' page over it at once (it opens on the same
@@ -794,15 +871,22 @@ struct OrbitDetailView: View {
         guard !reduceMotion, section == .hero, !cinema else { present(); return }
         var still = Transaction()
         still.disablesAnimations = true
-        withTransaction(still) { launchArmed = true }
+        // At once: the hero's title hidden, the one logo over it.
+        withTransaction(still) {
+            launchFrom = launchStart()
+            launchGlide = 0
+            launching = true
+        }
         DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.5)) { launching = true }
+            withAnimation(.easeInOut(duration: 0.5)) { launchGlide = 1 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 withTransaction(still) { present() }
                 // Under the page now: the hero back as it was, for the way back.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    withTransaction(still) { launching = false }
-                    DispatchQueue.main.async { withTransaction(still) { launchArmed = false } }
+                    withTransaction(still) {
+                        launching = false
+                        launchGlide = 0
+                    }
                 }
             }
         }
@@ -824,7 +908,7 @@ struct OrbitDetailView: View {
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
             // (Steven's video: the title twice during Lecture's glide — the one leaving faded out
             // while the other moved. It goes at once; only the moving one is seen.)
-            .transition(launching || launchArmed ? .identity : .opacity)
+            .transition(.opacity)
     }
 
     /// What the sources are asked for (the film, or the series' next episode), once known.
@@ -955,7 +1039,7 @@ struct OrbitDetailView: View {
         let L = OrbitDetailLayout.self
         return VStack(alignment: .leading, spacing: 0) {
             Group {
-                if cinema || launching {
+                if cinema {
                     Color.clear
                 } else if let own = platform?.own {
                     // The platform's "original" tag right on top of the title (Steven: above the
@@ -978,6 +1062,12 @@ struct OrbitDetailView: View {
                 }
             }
             .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
+            // Lecture: hidden at once, the gliding logo over it.
+            .opacity(launching ? 0 : 1)
+            .transaction { if launching { $0.animation = nil } }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { box in
+                if !launching { heroTitleBox = box }
+            }
             // A fixed height: the age box (taller than the text) arrives with the details and
             // made the line, so the whole block, move.
             OrbitDetailMetaLine(meta: meta, preview: preview)
