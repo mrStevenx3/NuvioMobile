@@ -249,6 +249,9 @@ private struct OrbitSeasonCard: View {
                 .font(.system(size: 22, weight: focused || selected ? .bold : .medium))
                 .foregroundStyle(Color.white.opacity(focused || selected ? 1 : 0.6))
                 .lineLimit(1)
+                // (Steven, 2026-10-30: the label too close under the focused, enlarged poster — it
+                // steps down with it.)
+                .offset(y: focused ? 14 : 0)
         }
         .frame(width: size.width + 20)
         .animation(.easeOut(duration: 0.16), value: focused)
