@@ -50,10 +50,12 @@ enum OrbitTileLayout {
         switch style {
         // (Steven, 2026-10-27: the 16:9 images a little apart — the focused one nearly touched its neighbours.)
         case .landscape: return 36
-        case .cards: return 30
-        case .posters: return 22
+        // Steven (2026-10-29, Apple's TV app measured on his video: about 32 pt between two
+        // posters of a row): the poster rows a little more apart.
+        case .cards: return 34
+        case .posters: return 32
         case .ranked: return 18
-        case .sagas: return 26
+        case .sagas: return 32
         case .classic: return OrbitHomeLayout.gap
         }
     }
