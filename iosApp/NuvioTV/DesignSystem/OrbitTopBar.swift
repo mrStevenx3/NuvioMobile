@@ -454,11 +454,13 @@ struct OrbitCollectionGrid: View {
     /// (Steven: larger than the Top 20's posters under them — three across.)
     static let columns = 3
     static let spacing: CGFloat = 28
+    /// Between two platforms: Home's 16:9 gap (Steven, 2026-10-29).
+    static let tileSpacing: CGFloat = 36
     /// The tiles, under the bar (the page's title is gone).
     /// (Steven: the page balanced — the platforms a little lower, the larger Top 20 under them.)
     static let top: CGFloat = 165
     static var tileWidth: CGFloat {
-        floor((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin - CGFloat(columns - 1) * spacing) / CGFloat(columns))
+        floor((OrbitHomeLayout.screenWidth - 2 * OrbitHomeLayout.margin - CGFloat(columns - 1) * tileSpacing) / CGFloat(columns))
     }
     static var tileHeight: CGFloat { floor(tileWidth * 9 / 16) }
 
@@ -495,7 +497,7 @@ struct OrbitCollectionGrid: View {
                     // Steven (fluidity everywhere): the platforms ride the UIKit strip — the tvOS
                     // focus engine's own glide, as on Home.
                     OrbitStripView(count: entries.count, identity: entries.map(\.id).joined(separator: ","),
-                                   spacing: Self.spacing, height: Self.tileHeight + 32,
+                                   spacing: Self.tileSpacing, height: Self.tileHeight + 32,
                                    margin: OrbitHomeLayout.margin, alignment: .center,
                                    width: { _ in Self.tileWidth }, ref: platformsStrip,
                                    tile: { i, isFocused in

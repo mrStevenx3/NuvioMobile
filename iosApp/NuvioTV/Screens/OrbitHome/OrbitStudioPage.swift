@@ -102,12 +102,13 @@ struct OrbitStudioRow: Identifiable, Equatable {
     }
 
     var gap: CGFloat {
-        if case .posters = kind { return 22 }
+        // Steven (2026-10-29): the same gaps as Home (posters 32, 16:9 cards 36, sagas 32).
+        if case .posters = kind { return 32 }
         if kind == .classic { return OrbitHomeLayout.gap }
         // (Steven, 2026-10-27: the 16:9 cards a little apart, as on Home.)
         if kind == .featured { return 36 }
         if kind == .ranked { return 18 }
-        return 26
+        return 32
     }
 
     /// The focused film's info shows under the row (not for a saga's shelf: its band is the info).

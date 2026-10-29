@@ -40,7 +40,7 @@ struct OrbitStudiosPage: View {
     @MainActor private static var lostTilesAt: TimeInterval = 0
 
     static let tileSize = CGSize(width: 236, height: 133)
-    static let tileSpacing: CGFloat = 24
+    static let tileSpacing: CGFloat = 36  // Home's 16:9 gap (Steven, 2026-10-29)
     static let heroTop: CGFloat = 112
     static let logoSize = CGSize(width: 460, height: 130)
     /// The framed backdrop, top right.

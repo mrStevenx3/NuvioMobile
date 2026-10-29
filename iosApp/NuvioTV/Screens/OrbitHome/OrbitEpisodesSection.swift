@@ -95,7 +95,7 @@ struct OrbitEpisodesSection: View {
             if seasonList.count > 1 {
                 // The season shown takes the focus coming in (Steven, 2026-10-28).
                 OrbitStripView(count: seasonList.count, identity: seasonList.map { "\($0)" }.joined(separator: ","),
-                               spacing: 24, height: Self.seasonSize.height + 44, margin: OrbitDetailLayout.margin,
+                               spacing: 32, height: Self.seasonSize.height + 44, margin: OrbitDetailLayout.margin,
                                alignment: .top, lead: season.flatMap { seasonList.firstIndex(of: $0) } ?? 0,
                                entersOnLead: true, width: { _ in Self.seasonSize.width + 20 },
                                ref: seasonsRef ?? ownSeasonsRef,
@@ -122,7 +122,7 @@ struct OrbitEpisodesSection: View {
             ZStack(alignment: .topLeading) {
                 // Down from a season's poster: its first episode; else the next one to watch.
                 let leadIndex = comingFromSeason ? 0 : (nextUp.flatMap { up in list.firstIndex { $0.id == up.id } } ?? 0)
-                OrbitStripView(count: list.count, identity: "season-\(season ?? -1)|\(list.count)", spacing: 28,
+                OrbitStripView(count: list.count, identity: "season-\(season ?? -1)|\(list.count)", spacing: 36,
                                height: still.height + 12 + 30, margin: OrbitDetailLayout.margin, alignment: .top,
                                pinned: true, lead: leadIndex, width: { _ in still.width },
                                ref: episodesRef ?? ownEpisodesRef,

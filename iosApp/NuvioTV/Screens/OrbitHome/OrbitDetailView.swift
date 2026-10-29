@@ -1265,7 +1265,7 @@ struct OrbitDetailView: View {
         if !cast.isEmpty {
             VStack(alignment: .leading, spacing: 20) {
                 heading(String(localized: "Casting"))
-                OrbitStripView(count: cast.count, identity: "cast|\(cast.count)", spacing: 34, height: 250,
+                OrbitStripView(count: cast.count, identity: "cast|\(cast.count)", spacing: 32, height: 250,
                                margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 200 }, ref: castStrip,
                                tile: { i, focused in AnyView(OrbitCastCard(person: cast[i], focused: focused)) },
                                onFocus: { i in stripFocused(i.map { OrbitDetailFocus.cast($0) }) },
@@ -1288,7 +1288,7 @@ struct OrbitDetailView: View {
             let current = streamVideoId
             VStack(alignment: .leading, spacing: 20) {
                 heading((name ?? "").isEmpty ? String(localized: "La saga") : name!)
-                OrbitStripView(count: items.count, identity: "saga|\(items.map(\.id).joined())", spacing: 28, height: 292,
+                OrbitStripView(count: items.count, identity: "saga|\(items.map(\.id).joined())", spacing: 36, height: 292,
                                margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 440 }, ref: sagaStrip,
                                tile: { i, focused in
                                    AnyView(OrbitDetailLandscapeCard(item: items[i], focused: focused,
@@ -1310,7 +1310,7 @@ struct OrbitDetailView: View {
             let resolving = model.resolvingTrailerId
             VStack(alignment: .leading, spacing: 20) {
                 heading(String(localized: "Bandes-annonces et extras"))
-                OrbitStripView(count: trailers.count, identity: "trailers|\(trailers.map(\.id).joined())", spacing: 28,
+                OrbitStripView(count: trailers.count, identity: "trailers|\(trailers.map(\.id).joined())", spacing: 36,
                                height: 300, margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 400 },
                                ref: trailersStrip,
                                tile: { i, focused in
@@ -1332,7 +1332,7 @@ struct OrbitDetailView: View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 20) {
                 heading(String(localized: "À voir aussi"))
-                OrbitStripView(count: items.count, identity: "similar|\(items.map(\.id).joined())", spacing: 26,
+                OrbitStripView(count: items.count, identity: "similar|\(items.map(\.id).joined())", spacing: 32,
                                height: 300, margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 200 },
                                ref: similarStrip,
                                tile: { i, focused in AnyView(OrbitDetailPoster(item: items[i], focused: focused)) },
