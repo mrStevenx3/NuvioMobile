@@ -76,7 +76,9 @@ struct OrbitNativeHome: View {
             // Steven (2026-10-29, videos: every vertical move started with a jerk): the system's own
             // scroll starts fast, ours (ease-in-out) took over from rest — the page slowed after its
             // first frame. Ours now starts fast too and settles slowly, as the system's does.
-            withAnimation(.timingCurve(0.25, 0.8, 0.3, 1, duration: 0.4)) { page.scrollTo(id: id, anchor: .top) }
+            // (Steven's slow-motion video of Apple's TV app: its page starts at full speed on the
+            // press and slows evenly to rest in about 0.4 s — an ease-out, measured frame by frame.)
+            withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { page.scrollTo(id: id, anchor: .top) }
         } else {
             var still = Transaction()
             still.disablesAnimations = true
@@ -116,7 +118,9 @@ struct OrbitNativeHome: View {
     /// where nothing of it shows.)
     static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine - sectionGap - 2 }
     /// (Steven: 12 points taken from here went above the details, so the rows stay in place.)
-    static let sectionGap: CGFloat = 44
+    /// Steven (2026-10-29: "un petit peu d'espace entre chaque ligne comme dans l'application Apple
+    /// TV"): 44 → 72, about Apple's own gap between a row's posters and the next heading.
+    static let sectionGap: CGFloat = 72
 
     var body: some View {
         let L = OrbitHomeLayout.self
