@@ -445,8 +445,10 @@ struct OrbitStudioPage: View {
                         .frame(width: OrbitHomeLayout.screenWidth, height: Self.nativeTop)
                 }
                 .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .top)
-                .opacity(nativeOnHero ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: nativeOnHero)
+                // Steven (2026-10-30, photo: "ça ne va pas jusqu'en haut de l'écran"): no band — the
+                // rows above show up to the top, as on Disney+; the banner's art (its bits showed
+                // above the rows) goes as the rows take the focus.
+                .opacity(0)
                 .allowsHitTesting(false)
 
             // The studio's logo stays top right while the page moves (Steven).
@@ -548,6 +550,8 @@ struct OrbitStudioPage: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop)
+        .opacity(nativeOnHero ? 1 : 0)
+        .animation(.easeInOut(duration: 0.3), value: nativeOnHero)
         .focusSection()
         .defaultFocus($nativeHeroFocus, 0,
                       // (Back from a title of a row: its card takes the focus, not the banner first.)
@@ -1336,10 +1340,12 @@ private struct OrbitStudioHero: View {
                 ], startPoint: .leading, endPoint: .trailing)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
+            // (Steven, 2026-10-30, photo: "un gros brouillard en bas du hero" — the art faded from
+            // its middle; now whole down to three quarters, then a short fade into the page.)
             .mask(LinearGradient(stops: [
                 .init(color: .black, location: 0),
-                .init(color: .black, location: 0.5),
-                .init(color: .black.opacity(0.45), location: 0.78),
+                .init(color: .black, location: 0.76),
+                .init(color: .black.opacity(0.55), location: 0.9),
                 .init(color: .clear, location: 1),
             ], startPoint: .top, endPoint: .bottom))
 

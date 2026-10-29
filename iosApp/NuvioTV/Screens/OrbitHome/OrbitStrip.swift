@@ -173,8 +173,12 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
 
     func setOpenDelta(_ delta: CGFloat?) {
         guard delta != openDelta else { return }
+        let opening = openDelta == nil && delta != nil
         openDelta = delta
-        if focusedIndex == nil || delta == nil { roomLead = focusedIndex ?? lead }
+        // (Steven, 2026-10-30, photo: the first time a Disney+ row was arrived on, its open frame
+        // covered the next poster — the focus was already in the row, the room went to the title
+        // it had been on before.) Opening, the room is the focused title's.
+        if opening || focusedIndex == nil || delta == nil { roomLead = focusedIndex ?? lead }
         guard collectionView != nil else { return }
         // Opening / closing as the row is arrived on or left: at once.
         UIView.performWithoutAnimation {
