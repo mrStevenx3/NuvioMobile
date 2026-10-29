@@ -17,6 +17,27 @@ import SwiftUI
 //  - Watched episodes carry a tick; episodes not out yet are dimmed with their date.
 //  - Select plays the episode (the source picker, as from the hero).
 
+/// Steven (2026-10-29: "fais comme l'accueil"): redrawn only when what it shows changes (its own
+/// focus lives in its strips and its own state).
+extension OrbitEpisodesSection: Equatable {
+    static func == (a: OrbitEpisodesSection, b: OrbitEpisodesSection) -> Bool {
+        a.meta.id == b.meta.id && a.meta.videos.count == b.meta.videos.count
+            && a.episodeRatings == b.episodeRatings && a.watchedEpisodeKeys == b.watchedEpisodeKeys
+            && a.startSeason == b.startSeason
+    }
+}
+
+/// A section of a page drawn again only when its key changes (Home's rows' rule, for sections
+/// built inside their page).
+struct OrbitStillSection<Key: Equatable, Content: View>: View, Equatable {
+    let key: Key
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
+
+    static func == (a: OrbitStillSection, b: OrbitStillSection) -> Bool { a.key == b.key }
+}
+
 struct OrbitEpisodesSection: View {
     let meta: MetaDetails
     let episodeRatings: [String: Double]

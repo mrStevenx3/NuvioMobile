@@ -26,6 +26,11 @@ struct PlayerScreen: View {
     @State private var skipPlanner = SkipSegmentPlanner()
     @State private var skipPrompt: SkipPrompt?
     @State private var pauseCardShown = false
+    /// Steven (2026-10-29: the loading screen cut to the film at once): it goes on a soft fade to the
+    /// film's first picture — never inside the presentation's first moment (UIKit's animations are
+    /// off then, which made the fade a cut), so a stream that starts at once still fades.
+    @State private var loadingGone = false
+    @State private var appearedAt = ProcessInfo.processInfo.systemUptime
     @State private var pauseCardTask: Task<Void, Never>?
     @Environment(\.dismiss) private var dismiss
 
@@ -74,17 +79,30 @@ struct PlayerScreen: View {
 
             // (Steven's video: a see-through player showed black — tvOS keeps its own ground under
             // the cover. The player opens on the very same loading screen instead, already lit.)
-            if !session.firstFrameShown {
+            if !loadingGone {
                 OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
                                  lightsUp: !overLoadingCover)
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: session.firstFrameShown)
+        .animation(.easeInOut(duration: 0.6), value: loadingGone)
         .animation(.easeInOut(duration: 0.25), value: pauseCardShown)
         .animation(.easeInOut(duration: 0.25), value: upNext.phase)
-        .onAppear(perform: start)
-        .onChange(of: session.firstFrameShown) { _, shown in if shown { onPictureShown() } }
+        .onAppear {
+            appearedAt = ProcessInfo.processInfo.systemUptime
+            start()
+        }
+        .onChange(of: session.firstFrameShown) { _, shown in
+            if shown {
+                onPictureShown()
+                let wait = max(0, appearedAt + 0.55 - ProcessInfo.processInfo.systemUptime)
+                DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                    withAnimation(.easeInOut(duration: 0.6)) { loadingGone = true }
+                }
+            } else {
+                loadingGone = false
+            }
+        }
         .onDisappear {
             pauseCardTask?.cancel()
             session.stop()

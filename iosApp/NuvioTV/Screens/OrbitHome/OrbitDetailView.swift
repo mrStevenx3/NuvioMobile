@@ -54,7 +54,7 @@ enum OrbitDetailLayout {
     /// The hero's height: the first section's heading peeks at the bottom of the first screen.
     /// The first screen exactly (Steven: the "C" of Casting peeked under the hero).
     static let heroHeight: CGFloat = 1080
-    static let sectionGap: CGFloat = 70
+    static let sectionGap: CGFloat = 72  // Home's (Steven, 2026-10-29: "partout pareil")
     /// Where a section's top rests on screen when the focus is in it.
     /// Steven (the page bounced on Left / Right): low enough that the focused card, lifted, sits
     /// well inside the screen, so the system has no reason to move the page itself.
@@ -346,6 +346,7 @@ struct OrbitDetailView: View {
                                              },
                                              seasonsRef: seasonsStrip, episodesRef: episodesStrip,
                                              onStripFocus: { stripFocused($0) })
+                            .equatable()
                             .focusSection()
                             .disabled(returningElsewhere(.episodes))
                             .id(OrbitDetailSection.episodes)
@@ -353,10 +354,17 @@ struct OrbitDetailView: View {
                     // Steven (2026-10-28, device: back from a studio, a saga, À voir aussi, the page
                     // went up a moment, then came back): while the way back lasts, only the section
                     // left from can take the focus — the system's late landing elsewhere scrolled it.
-                    castSection.disabled(returningElsewhere(.cast))
-                    sagaSection.disabled(returningElsewhere(.saga))
-                    trailersSection.disabled(returningElsewhere(.trailers))
-                    similarSection.disabled(returningElsewhere(.similar))
+                    // Steven (2026-10-29: "fais comme l'accueil"): as Home's rows, a row is redrawn
+                    // only when what it shows changes — a move in one row (or the page's own state
+                    // changing with it) no longer redraws every row of the page.
+                    OrbitStillSection(key: castKey) { castSection }.equatable()
+                        .disabled(returningElsewhere(.cast))
+                    OrbitStillSection(key: sagaKey) { sagaSection }.equatable()
+                        .disabled(returningElsewhere(.saga))
+                    OrbitStillSection(key: trailersKey) { trailersSection }.equatable()
+                        .disabled(returningElsewhere(.trailers))
+                    OrbitStillSection(key: similarKey) { similarSection }.equatable()
+                        .disabled(returningElsewhere(.similar))
                     aboutSection.disabled(returningElsewhere(.about))
                 }
                 .scrollTargetLayout()
@@ -1272,6 +1280,21 @@ struct OrbitDetailView: View {
     }
 
     // MARK: Sections
+
+    // What each row shows (it is redrawn only when this changes).
+    private var castKey: String {
+        "cast|" + (meta?.cast ?? []).prefix(40).map { "\($0.name)|\($0.tmdbId?.value ?? 0)" }.joined(separator: ",")
+    }
+    private var sagaKey: String {
+        "saga|\(meta?.collectionName ?? "")|\(streamVideoId)|\(preview.id)|"
+            + (meta?.collectionItems ?? []).map(\.id).joined(separator: ",")
+    }
+    private var trailersKey: String {
+        "trailers|\(model.resolvingTrailerId ?? "")|" + (meta?.trailers ?? []).prefix(12).map(\.id).joined(separator: ",")
+    }
+    private var similarKey: String {
+        "similar|" + (meta?.moreLikeThis ?? []).map(\.id).joined(separator: ",")
+    }
 
     private func heading(_ text: String) -> some View {
         Text(text)

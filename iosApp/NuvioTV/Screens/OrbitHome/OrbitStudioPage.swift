@@ -381,7 +381,8 @@ struct OrbitStudioPage: View {
         let L = OrbitStudioLayout.self
         ZStack(alignment: .topLeading) {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 44) {
+                // Home's gap between rows (Steven, 2026-10-29: "partout pareil").
+                VStack(alignment: .leading, spacing: OrbitNativeHome.sectionGap) {
                     if hasHero {
                         nativeHero
                             // Back from a title of a row: the banner out of the focus's reach a moment.
