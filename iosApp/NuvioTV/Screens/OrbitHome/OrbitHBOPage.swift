@@ -324,8 +324,25 @@ struct OrbitHBOPage: View {
         return item.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) + "|" + year
     }
 
+    /// Steven (2026-10-30: Prime fluid at last, this page still jerky down): every title of every
+    /// row asked "new?" on each redraw — and each ask built again the set of all the new titles
+    /// (every name folded). Built once per change of the catalogs now, each row's answer kept.
+    @State private var freshMemo = OrbitRowsMemo<Set<String>>()
+    @State private var newsMemo = OrbitRevisionMemo<Set<String>>()
+
     private var freshIdentities: Set<String> {
-        Set(catalogs.filter(\.fresh).flatMap { $0.items.map(Self.identity) })
+        freshMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter, variant: onHBO ? "hbo" : "")) {
+            Set(catalogs.filter(\.fresh).flatMap { $0.items.map(Self.identity) })
+        }
+    }
+
+    /// A row's new titles (their ids), kept while its titles are the same.
+    private func newIDs(_ items: [MetaPreview], row: String) -> Set<String> {
+        let fresh = freshIdentities
+        let key = row + "|" + (typeFilter ?? "all") + "|\(items.count)|" + (items.first?.id ?? "") + "|" + (items.last?.id ?? "")
+        return newsMemo.get(key, revision: fresh.count) {
+            Set(items.filter { fresh.contains(Self.identity($0)) }.map(\.id))
+        }
     }
 
     private var freshRowIDs: Set<String> { Set(catalogs.filter(\.fresh).map(\.id)) }
@@ -514,7 +531,7 @@ struct OrbitHBOPage: View {
                 let row = rows[s - 1]
                 OrbitHBORowView(row: row, box: leads.box(row.id), isCurrent: s == current,
                                 focused: focused,
-                                news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : Set(row.items.filter(isNew).map(\.id)),
+                                news: freshRowIDs.contains(row.id) || row.id.hasPrefix(OrbitHBOOriginalsModel.newPrefix) ? [] : newIDs(row.items, row: row.id),
                                 metaStore: metaStore,
                                 onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
                                 onLeadChange: { refreshAfterMove() },

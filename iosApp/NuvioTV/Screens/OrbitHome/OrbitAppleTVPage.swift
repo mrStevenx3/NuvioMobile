@@ -237,8 +237,25 @@ struct OrbitAppleTVPage: View {
         return item.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) + "|" + year
     }
 
+    /// Steven (2026-10-30: Prime fluid at last, this page still jerky down): every title of every
+    /// row asked "new?" on each redraw — and each ask built again the set of all the new titles
+    /// (every name folded). Built once per change of the catalogs now, each row's answer kept.
+    @State private var freshMemo = OrbitRowsMemo<Set<String>>()
+    @State private var newsMemo = OrbitRevisionMemo<Set<String>>()
+
     private var freshIdentities: Set<String> {
-        Set(catalogs.filter(\.fresh).flatMap { $0.items.map(Self.identity) })
+        freshMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter, variant: "")) {
+            Set(catalogs.filter(\.fresh).flatMap { $0.items.map(Self.identity) })
+        }
+    }
+
+    /// A row's new titles (their ids), kept while its titles are the same.
+    private func newIDs(_ items: [MetaPreview], row: String) -> Set<String> {
+        let fresh = freshIdentities
+        let key = row + "|" + (typeFilter ?? "all") + "|\(items.count)|" + (items.first?.id ?? "") + "|" + (items.last?.id ?? "")
+        return newsMemo.get(key, revision: fresh.count) {
+            Set(items.filter { fresh.contains(Self.identity($0)) }.map(\.id))
+        }
     }
 
     private func isNew(_ item: MetaPreview) -> Bool { freshIdentities.contains(Self.identity(item)) }
@@ -257,9 +274,17 @@ struct OrbitAppleTVPage: View {
     }
 
     /// "N° 1 des séries sur Apple TV".
+    /// (Each Top 10 title's identity worked out once per change of the catalogs — it was worked out
+    /// again for every tile asking.)
+    @State private var topMemo = OrbitRowsMemo<[[String]]>()
+
     private func rankLine(_ item: MetaPreview) -> String? {
-        for top in catalogs where top.top10 {
-            if let i = top.items.prefix(10).firstIndex(where: { Self.identity($0) == Self.identity(item) }) {
+        let tops = topMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter, variant: "top")) {
+            catalogs.filter(\.top10).map { $0.items.prefix(10).map(Self.identity) }
+        }
+        let identity = Self.identity(item)
+        for top in tops {
+            if let i = top.firstIndex(of: identity) {
                 return item.type == "movie" ? String(localized: "N° \(String(i + 1)) des films sur Apple TV")
                                             : String(localized: "N° \(String(i + 1)) des séries sur Apple TV")
             }
@@ -422,7 +447,7 @@ struct OrbitAppleTVPage: View {
                 let row = rows[s - 1]
                 OrbitAppleTVRowView(row: row, box: leads.box(row.id), isCurrent: s == current,
                                     focused: focused,
-                                    newIDs: Set(row.items.filter(isNew).map(\.id)),
+                                    newIDs: newIDs(row.items, row: row.id),
                                     rankLine: { rankLine($0) },
                                     trailerURL: s == current && row.kind == .cards ? trailerURL(for: row.items.indices.contains(lead(of: row)) ? row.items[lead(of: row)] : nil) : nil,
                                     onTrailerFailure: { trailer.playbackFailed($0) },
