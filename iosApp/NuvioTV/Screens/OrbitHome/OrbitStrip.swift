@@ -276,8 +276,10 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             cell.layer.zPosition = state.isFocused ? 1 : 0
             let alignment: Alignment = self.alignment == .top ? .topLeading
                 : (self.alignment == .center ? .leading : .bottomLeading)
+            // (A reused cell must not keep the state of the title it showed before.)
             cell.show(AnyView(self.tile(index, focused)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+                .id("\(self.identity)|\(index)")))
         }
         cell.setNeedsUpdateConfiguration()
         return cell

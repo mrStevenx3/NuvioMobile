@@ -67,6 +67,10 @@ private struct OrbitRowStripTile: View {
                         focusedFromCell: focused, openFromCell: open)
             .animation(.easeInOut(duration: 0.4), value: open)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            // Steven (2026-10-29, device: the Top 10's frame showed another film, and jumped open): a
+            // reused cell kept the state of the title it showed before (its "stable" art held until
+            // the new one came). Each title its own view.
+            .id(card.id)
     }
 }
 
