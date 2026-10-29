@@ -359,6 +359,20 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         lastFocusedIndex = next
         // A press of his ends the way back's lock.
         if onlyIndex != nil, onlyIndex != next { onlyIndex = nil }
+        // Steven (2026-10-30, slow-motion video: a stutter at each step of "Nouveau sur vos
+        // plateformes"): the system's own slide sped up, then fell back to a third of its speed a
+        // tenth of a second in and crept to the end — every press. The row now slides itself, in one
+        // curve (as the rows held at their margin, smooth on his TV), the system aimed at the same place.
+        if context.previouslyFocusedIndexPath != nil, let target = revealOffset(for: next) {
+            aimedOffset = target
+            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
+                self.collectionView.contentOffset = CGPoint(x: target, y: 0)
+            } completion: { [weak self] _ in
+                if self?.aimedOffset == target { self?.aimedOffset = nil }
+            }
+        } else {
+            aimedOffset = nil
+        }
         onFocus(cards[next])
         // The Top 10: rested on, the poster widens into its frame (its trailer in it).
         if style == .ranked {
@@ -371,6 +385,28 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
             dwell = work
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.dwellTime, execute: work)
         }
+    }
+
+    /// Where the row slides to show `index` whole within the margins (nil: already shown).
+    private var aimedOffset: CGFloat?
+
+    private func revealOffset(for index: Int) -> CGFloat? {
+        guard let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return nil }
+        let margin = OrbitHomeLayout.margin
+        let width = collectionView.bounds.width
+        let current = aimedOffset ?? collectionView.contentOffset.x
+        var x = current
+        if frame.maxX > current + width - margin { x = frame.maxX - (width - margin) }
+        if frame.minX < current + margin { x = frame.minX - margin }
+        let maxX = max(0, collectionView.contentSize.width - width)
+        x = min(max(0, x), maxX)
+        return abs(x - current) < 0.5 ? nil : x
+    }
+
+    /// The system's own scroll to the focus aims where the row slides itself (no second aim).
+    func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
+                                   targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        if let aimedOffset { targetContentOffset.pointee.x = aimedOffset }
     }
 
     /// The Top 10's frame open on `index` (nil: closed), the titles after it making room.
