@@ -33,19 +33,26 @@ struct OrbitClipBeforeMargin: ViewModifier {
 
 /// Steven (2026-10-29: "l'image à gauche doit être un peu assombrie"): in a row whose open title is
 /// held at the margin, the bit of the title before it, left of the margin, is shaded.
+/// Steven (2026-10-30, photo: a dark rectangle left of the posters — the shade was a band over the
+/// row's whole height, on the lighter ground): the strip dims the titles themselves, each by how much
+/// of it lies before the margin — nothing drawn where there is no poster.
 struct OrbitShadeBeforeMargin: ViewModifier {
     let active: Bool
     let margin: CGFloat
 
     func body(content: Content) -> some View {
-        content.overlay(alignment: .leading) {
-            if active {
-                LinearGradient(colors: [Color.black.opacity(0.7), Color.black.opacity(0.45)],
-                               startPoint: .leading, endPoint: .trailing)
-                    .frame(width: margin)
-                    .allowsHitTesting(false)
-            }
-        }
+        content.environment(\.orbitShadesBeforeMargin, active)
+    }
+}
+
+private struct OrbitShadesBeforeMarginKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var orbitShadesBeforeMargin: Bool {
+        get { self[OrbitShadesBeforeMarginKey.self] }
+        set { self[OrbitShadesBeforeMarginKey.self] = newValue }
     }
 }
 
@@ -87,6 +94,7 @@ struct OrbitStripView: UIViewControllerRepresentable {
 
     @Environment(\.orbitFocusHidden) private var focusHidden
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.orbitShadesBeforeMargin) private var shadesBeforeMargin
 
     func makeUIViewController(context: Context) -> OrbitStripController {
         let controller = OrbitStripController()
@@ -110,6 +118,7 @@ struct OrbitStripView: UIViewControllerRepresentable {
         c.widthOf = width
         c.redrawKey = redrawKey
         c.setOpenDelta(openDelta)
+        c.shadesBeforeMargin = shadesBeforeMargin
         c.show(count: count, identity: identity, spacing: spacing, height: height, margin: margin,
                alignment: alignment, pinned: pinned, focusHidden: focusHidden, enabled: enabled)
     }
@@ -386,10 +395,42 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         }
     }
 
+    // MARK: Shade before the margin
+
+    /// The titles left of the margin dimmed (each by the share of it there), on the row's own moves.
+    var shadesBeforeMargin = false {
+        didSet { if oldValue != shadesBeforeMargin, isViewLoaded { shadeVisible() } }
+    }
+
+    private func shade(_ cell: UICollectionViewCell) {
+        guard shadesBeforeMargin else {
+            if cell.contentView.alpha != 1 { cell.contentView.alpha = 1 }
+            return
+        }
+        let left = cell.frame.minX - collectionView.bounds.minX
+        let before = min(1, max(0, (margin - left) / max(1, cell.frame.width)))
+        let alpha = 1 - 0.5 * before
+        if abs(cell.contentView.alpha - alpha) > 0.001 { cell.contentView.alpha = alpha }
+    }
+
+    private func shadeVisible() {
+        for cell in collectionView.visibleCells { shade(cell) }
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        shadeVisible()
+    }
+
+    func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell,
+                        forItemAt indexPath: IndexPath) {
+        shade(cell)
+    }
+
     /// The offset that puts `index` at the margin (set at once, inside an animation block).
     private func offsetToMargin(_ index: Int) {
         guard let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return }
         collectionView.contentOffset = CGPoint(x: max(0, frame.minX - margin), y: 0)
+        shadeVisible()
     }
 
     /// A pinned row: `index` at the margin.
@@ -401,9 +442,11 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         if animated {
             UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
                 self.collectionView.contentOffset = CGPoint(x: x, y: 0)
+                self.shadeVisible()
             }
         } else {
             collectionView.contentOffset = CGPoint(x: x, y: 0)
+            shadeVisible()
         }
     }
 
