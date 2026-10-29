@@ -650,11 +650,12 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        var config = UICollectionLayoutListConfiguration(appearance: .plain)
-        config.backgroundColor = .clear
-        config.showsSeparators = false
-        let layout = UICollectionViewCompositionalLayout { _, environment in
-            let section = NSCollectionLayoutSection.list(using: config, layoutEnvironment: environment)
+        // One source a line, each as tall as its card (it grows when focused).
+        let layout = UICollectionViewCompositionalLayout { _, _ in
+            let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .estimated(160))
+            let item = NSCollectionLayoutItem(layoutSize: size)
+            let group = NSCollectionLayoutGroup.vertical(layoutSize: size, subitems: [item])
+            let section = NSCollectionLayoutSection(group: group)
             section.interGroupSpacing = 18
             section.contentInsets = .init(top: 0, leading: OrbitHomeLayout.margin, bottom: 0,
                                           trailing: OrbitHomeLayout.margin)
