@@ -1509,7 +1509,9 @@ private struct OrbitDisneyOpenRow: View {
                                      onLeadChange()
                                      prefetch(around: row.item(atSlot: new))
                                  },
-                                 leftSlide: { _ in L.posterNew.width + L.gapNew }) { slot, lit in
+                                 leftSlide: { _ in L.posterNew.width + L.gapNew },
+                                 // (UIKit strip: the lead's room is the open frame's; the others measured.)
+                                 width: { slot in opens && slot == leadSlot ? L.open.width : L.posterNew.width }) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
                 let isLead = opens && slot == leadSlot

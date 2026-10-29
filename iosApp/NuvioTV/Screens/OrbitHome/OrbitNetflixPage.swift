@@ -873,6 +873,12 @@ private struct OrbitNetflixRowView: View {
                                  leftSlide: { slot in
                                      L.posterWidth + L.gap
                                          + (row.top10 ? OrbitNetflixRank.width(row.item(atSlot: slot) + 1) : 0)
+                                 },
+                                 // (UIKit strip: each slot's room, the open title's wider.)
+                                 width: { slot in
+                                     let open = (isCurrent || aboveCurrent) && slot == leadSlot
+                                     return (row.top10 ? OrbitNetflixRank.width(row.item(atSlot: slot) + 1) : 0)
+                                         + (open ? L.openWidth : L.posterWidth)
                                  }) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]

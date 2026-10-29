@@ -868,7 +868,8 @@ private struct OrbitHBORowView: View {
             OrbitNativeTileStrip(count: row.count, spacing: L.gap, height: row.cardHeight,
                                  lastWidth: row.slot(max(0, row.count - 1)) - L.gap, box: box, alignment: .top,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
-                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                                 onLeadChange: { _ in onLeadChange() },
+                                 width: { index in row.slot(index) - L.gap }) { index, lit in
                 if row.universe {
                     OrbitHBOBrandTile(brand: OrbitHBOBrand.all[index], focused: lit)
                 } else if row.featured {

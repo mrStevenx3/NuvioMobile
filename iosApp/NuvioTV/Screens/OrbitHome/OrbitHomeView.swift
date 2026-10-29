@@ -341,10 +341,46 @@ struct OrbitRowHeading: View {
     }
 }
 
+/// One wash's colours, shared by its views (Home's backdrop drives, the band under the bar shows the
+/// same — Steven, 2026-10-29: the band kept the old colour while the page's changed).
+@MainActor
+final class OrbitWashMirror: ObservableObject {
+    static let home = OrbitWashMirror()
+    @Published var colourA: Color?
+    @Published var colourB: Color?
+    @Published var showsB = false
+}
+
+/// A wash drawn from a mirror (it computes nothing itself).
+struct OrbitMirroredWash: View {
+    @ObservedObject var mirror: OrbitWashMirror
+    var opaque = true
+
+    private func wash(_ color: Color?) -> some View {
+        RadialGradient(colors: [(color ?? .clear).opacity(color == nil ? 0 : 0.38),
+                                (color ?? .clear).opacity(color == nil ? 0 : 0.14), .clear],
+                       center: UnitPoint(x: 0.82, y: 0.08), startRadius: 0, endRadius: 1500)
+    }
+
+    var body: some View {
+        let L = OrbitHomeLayout.self
+        ZStack {
+            if opaque { L.background }
+            wash(mirror.colourA).opacity(mirror.showsB ? 0 : 1)
+            wash(mirror.colourB).opacity(mirror.showsB ? 1 : 0)
+        }
+        .compositingGroup()
+        .frame(width: L.screenWidth, height: L.screenHeight)
+        .allowsHitTesting(false)
+    }
+}
+
 struct OrbitRowsBackdrop: View {
     let url: String?
     /// The page's black under it (off where the page has its own ground).
     var opaque = true
+    /// Its colours told to a mirror too (the views that show the same wash).
+    var mirror: OrbitWashMirror? = nil
 
     /// Steven (device: the art behind the rows looked overloaded): no image any more — a soft wash
     /// of the focused title's dominant colour from the top right, fading into the page (as the
@@ -401,8 +437,16 @@ struct OrbitRowsBackdrop: View {
         still.disablesAnimations = true
         withTransaction(still) {
             if showsB { colourA = color } else { colourB = color }
+            if let mirror {
+                mirror.colourA = colourA
+                mirror.colourB = colourB
+                if showsB { mirror.colourA = color } else { mirror.colourB = color }
+            }
         }
-        withAnimation(.easeInOut(duration: 0.6)) { showsB.toggle() }
+        withAnimation(.easeInOut(duration: 0.6)) {
+            showsB.toggle()
+            mirror?.showsB = showsB
+        }
     }
 }
 

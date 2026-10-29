@@ -888,7 +888,9 @@ private struct OrbitPrimeRowView: View {
                                  keepsLeadAtMargin: row.kind == .originals,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
                                  onLeadChange: { _ in onLeadChange() },
-                                 leftSlide: row.kind == .originals ? { _ in L.poster.width + L.gap } : nil) { index, lit in
+                                 leftSlide: row.kind == .originals ? { _ in L.poster.width + L.gap } : nil,
+                                 // (UIKit strip: the open title's room; the others measured.)
+                                 width: row.kind == .originals ? { index in isCurrent && index == lead ? L.openWidth : L.poster.width } : nil) { index, lit in
                 let item = row.items[index]
                 let meta = metaStore.meta(for: item)
                 let badge = badges[item.id].flatMap { $0.isEmpty ? nil : $0 }

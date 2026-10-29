@@ -302,6 +302,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     /// is put at once where it ends and slid there from where it was (Steven: Right slid, Left
     /// jumped — the title growing before the scroll's aim, the system dropped the slide).
     var leftSlide: ((Int) -> CGFloat)? = nil
+    /// Each title's width when the page knows it (a title wider when open: Netflix's lead). Else
+    /// the tiles are measured once.
+    var width: ((Int) -> CGFloat)? = nil
     @ViewBuilder let tile: (_ index: Int, _ focused: Bool) -> Tile
 
     @FocusState private var focus: Int?
@@ -334,7 +337,61 @@ struct OrbitNativeTileStrip<Tile: View>: View {
         // have gone (`onDisappear`), the row no longer on screen.
     }
 
+    /// The UIKit strip (the way back, the page's focus requests go through it).
+    @State private var strip = OrbitStripRef()
+
+    /// Steven (2026-10-29: "applique-le de PARTOUT"): the row is a UIKit collection view the focus
+    /// engine scrolls, as Home's rows and Apple's TV app (`OrbitStripView`); the page's tiles in it.
     var body: some View {
+        OrbitStripView(count: count, spacing: spacing, height: height, margin: margin, alignment: alignment,
+                       pinned: keepsLeadAtMargin, lead: min(box.lead, max(0, count - 1)),
+                       // (Without the page's widths: every title as wide as the last — the rows' own rule.)
+                       width: width ?? { _ in lastWidth }, ref: strip,
+                       tile: { i, focused in AnyView(tile(i, focused)) },
+                       onFocus: { stripFocus($0) },
+                       onSelect: { i in
+                           box.reopen = i
+                           onSelect()
+                       })
+            .frame(height: height)
+            .onChange(of: box.focusRequest) { _, _ in
+                strip.controller?.takeFocus(on: min(box.lead, max(0, count - 1)))
+            }
+            .onChange(of: box.realign) { _, _ in
+                guard keepsLeadAtMargin else { return }
+                strip.controller?.place(min(box.lead, max(0, count - 1)), animated: false)
+            }
+            .onDisappear { disappeared = true }
+            .onAppear {
+                disappeared = false
+                // Back from a title opened here: its tile takes the focus again.
+                if let back = box.reopen {
+                    DispatchQueue.main.async { strip.controller?.restore(index: back) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) { if box.reopen == back { box.reopen = nil } }
+                } else if keepsLeadAtMargin {
+                    DispatchQueue.main.async { strip.controller?.place(min(box.lead, max(0, count - 1)), animated: false) }
+                }
+            }
+    }
+
+    private func stripFocus(_ new: Int?) {
+        guard let new else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                if strip.controller?.focusedIndex == nil, holds { holds = false; onLeave() }
+            }
+            return
+        }
+        if !holds {
+            holds = true
+            onEnter()
+        }
+        if box.lead != new {
+            withAnimation(OrbitHomeLayout.horizontal) { box.lead = new }
+            onLeadChange(new)
+        }
+    }
+
+    private var legacyBody: some View {
         ScrollViewReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(alignment: alignment, spacing: spacing) {

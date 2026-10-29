@@ -385,7 +385,7 @@ private struct OrbitNativeTopCover: View {
     @ObservedObject private var state = OrbitNativeHomeState.shared
 
     var body: some View {
-        OrbitRowsBackdrop(url: state.art)
+        OrbitMirroredWash(mirror: OrbitWashMirror.home)
             .mask(alignment: .top) {
                 LinearGradient(stops: [.init(color: .black, location: 0),
                                        .init(color: .black, location: 0.7),
@@ -404,7 +404,7 @@ private struct OrbitNativeBackdrop: View {
     @ObservedObject private var state = OrbitNativeHomeState.shared
 
     var body: some View {
-        OrbitRowsBackdrop(url: state.art)
+        OrbitRowsBackdrop(url: state.art, mirror: OrbitWashMirror.home)
             .opacity(visible ? 1 : 0)
             .animation(.easeInOut(duration: 0.35), value: visible)
             .ignoresSafeArea()
