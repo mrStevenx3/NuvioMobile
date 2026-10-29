@@ -435,6 +435,9 @@ struct OrbitStreamCard: View {
     var plain = false
     let action: () -> Void
 
+    /// Every card's height (the heading, two lines of file name, the tags).
+    static let height: CGFloat = 190
+
     var body: some View {
         if plain {
             card
@@ -469,7 +472,9 @@ struct OrbitStreamCard: View {
                         Text(file)
                             .font(.system(size: 22, weight: .medium))
                             .foregroundStyle(Color.white.opacity(0.6))
-                            .lineLimit(focused ? 3 : 1)
+                            // Steven (2026-10-29, device: cards over each other, then the app
+                            // closed): a card no longer grows when focused — every card one height.
+                            .lineLimit(2)
                             .truncationMode(.middle)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
@@ -480,7 +485,7 @@ struct OrbitStreamCard: View {
                                 .font(.system(size: 22, weight: .medium))
                                 .foregroundStyle(Color.white.opacity(0.6))
                                 .lineSpacing(3)
-                                .lineLimit(focused ? 6 : 2)
+                                .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -526,7 +531,8 @@ struct OrbitStreamCard: View {
                 .frame(width: 210, alignment: .trailing)
             }
             .padding(.horizontal, 36)
-            .padding(.vertical, 26)
+            .padding(.vertical, 22)
+            .frame(maxWidth: .infinity, minHeight: Self.height, maxHeight: Self.height)
             .background(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(Color.white.opacity(focused ? 0.2 : 0.07))
@@ -650,15 +656,19 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        // One source a line, each as tall as its card (it grows when focused).
+        // One source a line, every line one height. (Steven, 2026-10-29, device: with self-sized
+        // cells growing on focus, cards were drawn over each other while scrolling and the app
+        // closed after a while — the layout fighting the sizes.)
+        let rowHeight = OrbitStreamCard.height
+        let margin = OrbitHomeLayout.margin
         let layout = UICollectionViewCompositionalLayout { _, _ in
-            let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .estimated(160))
+            let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                              heightDimension: .absolute(rowHeight))
             let item = NSCollectionLayoutItem(layoutSize: size)
             let group = NSCollectionLayoutGroup.vertical(layoutSize: size, subitems: [item])
             let section = NSCollectionLayoutSection(group: group)
             section.interGroupSpacing = 18
-            section.contentInsets = .init(top: 0, leading: OrbitHomeLayout.margin, bottom: 0,
-                                          trailing: OrbitHomeLayout.margin)
+            section.contentInsets = .init(top: 0, leading: margin, bottom: 0, trailing: margin)
             section.contentInsetsReference = .none
             return section
         }

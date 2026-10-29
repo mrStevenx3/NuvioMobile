@@ -43,6 +43,12 @@ struct OrbitNativeHome: View {
     @State private var heroPage = 0
     /// The page is on its hero (else on a row): the wash shows, the bar locks, Menu goes up.
     @State private var onHero = true
+    /// The hero's art cut to its frame (rows focused). Steven (2026-10-29, device: Down from the
+    /// hero, a black band at the top): the cut came at once, before the page had slid — the art
+    /// above the hero's frame vanished, the band under the bar empty until its wash came. Now the
+    /// cut waits for the slide (the band's wash is up by then).
+    @State private var heroCut = false
+    @State private var heroCutGeneration = 0
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
     @State private var position: String = "hero"
     /// The page's scroll. Steven (2026-10-28, device: after a while Up / Down moved the page at once,
@@ -122,7 +128,7 @@ struct OrbitNativeHome: View {
                             .mask {
                                 Rectangle()
                                     .frame(width: OrbitHomeLayout.screenWidth,
-                                           height: onHero ? OrbitHomeLayout.screenHeight * 3 : Self.heroHeight)
+                                           height: heroCut ? Self.heroHeight : OrbitHomeLayout.screenHeight * 3)
                             }
                             // Back from a title opened in a row: the hero cannot take the focus for
                             // a moment (Steven, simulator: the focus went up to it).
@@ -287,6 +293,15 @@ struct OrbitNativeHome: View {
     private func setOnHero(_ value: Bool) {
         guard onHero != value else { return }
         onHero = value
+        heroCutGeneration &+= 1
+        if value {
+            heroCut = false
+        } else {
+            let generation = heroCutGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                if generation == heroCutGeneration, !onHero { heroCut = true }
+            }
+        }
         guard active else { return }
         OrbitBarLock.shared.set(!value)
         if isScrolledDown != !value { isScrolledDown = !value }
@@ -417,7 +432,9 @@ struct OrbitNativeRow: View {
     /// Steven (2026-10-27, to try): the Top 10 moves as Nouveaux films — its focused title open in a
     /// 16:9 frame (its trailer there), at the margin, the row sliding under it; same height.
     /// `false` puts back his Top 10 as it was (posters, the row scrolled freely).
-    static let rankedOpens = true
+    /// (Steven, 2026-10-29, device: the Top 10 opening in place slid at every title, the old frame
+    /// mixed into the new — his choice: posters and big ranks, as Netflix's Top 10.)
+    static let rankedOpens = false
     private var rankedOpen: Bool { row.style == .ranked && Self.rankedOpens }
     /// The opening rows (the frame on the new title, on the row's curve).
     private var opens: Bool { classic || rankedOpen }
@@ -1043,6 +1060,9 @@ struct OrbitNativeOpenRow: View {
             .buttonStyle(OrbitPlainStyle())
             .focused($rowFocused)
             .onMoveCommand { direction in
+                // A swipe's steps come from the catcher alone (the system's move for it would
+                // count it twice).
+                if OrbitSwipeHub.shared.swiping, OrbitSwipeHub.shared.owner == row.id { return }
                 switch direction {
                 case .left: move(-1)
                 case .right: move(1)
@@ -1246,6 +1266,11 @@ final class OrbitSwipeHub {
     static let shared = OrbitSwipeHub()
     var owner: String?
     var onStep: ((Int) -> Void)?
+    /// When the finger last travelled across the clickpad. Steven (2026-10-29, device: the Top 10
+    /// went 2 → 4 on one swipe): the system turned the same swipe into a move too — while a swipe
+    /// is under way, the open rows take their steps from the catcher alone.
+    var lastTravel: TimeInterval = 0
+    var swiping: Bool { ProcessInfo.processInfo.systemUptime - lastTravel < 0.35 }
 }
 
 /// Swipes across the remote's clickpad while `active`: one step per stretch of travel (left -1,
@@ -1259,8 +1284,12 @@ struct OrbitSwipeCatcher: UIViewRepresentable {
         var onStep: (Int) -> Void = { _ in }
         private var pan: UIPanGestureRecognizer?
         private var lastX: CGFloat = 0
-        /// Points of travel for one title (the clickpad's whole width is about 1 900).
-        private let stretch: CGFloat = 220
+        private var stepsThisSwipe = 0
+        /// Points of travel for one title (the clickpad's whole width is about 1 900). Steven
+        /// (2026-10-29, device: Nouveaux films needed two or three swipes): a shorter stretch, and a
+        /// quick flick shorter than it still counts as one title when the finger lifts.
+        private let stretch: CGFloat = 150
+        private let flick: CGFloat = 45
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
@@ -1279,15 +1308,27 @@ struct OrbitSwipeCatcher: UIViewRepresentable {
             switch pan.state {
             case .began:
                 lastX = t.x
+                stepsThisSwipe = 0
             case .changed:
                 guard active, abs(t.x) > abs(t.y) else { return }
                 let travel = t.x - lastX
+                if abs(t.x) > 20 { OrbitSwipeHub.shared.lastTravel = ProcessInfo.processInfo.systemUptime }
                 if abs(travel) >= stretch {
                     lastX = t.x
+                    stepsThisSwipe += 1
                     onStep(travel > 0 ? 1 : -1)
                 }
+            case .ended:
+                let travel = t.x - lastX
+                if active, stepsThisSwipe == 0, abs(t.x) > abs(t.y), abs(travel) >= flick {
+                    OrbitSwipeHub.shared.lastTravel = ProcessInfo.processInfo.systemUptime
+                    onStep(travel > 0 ? 1 : -1)
+                }
+                lastX = 0
+                stepsThisSwipe = 0
             default:
                 lastX = 0
+                stepsThisSwipe = 0
             }
         }
 

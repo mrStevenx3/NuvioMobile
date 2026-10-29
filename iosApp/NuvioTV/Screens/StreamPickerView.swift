@@ -76,6 +76,8 @@ struct StreamPickerView: View {
     @State private var chosenFromList: [StreamItem] = []
     @StateObject private var streamScroll = OrbitStreamScroll()
     @State private var headerHeight: CGFloat = 200
+    /// The screen's safe area above the header (the list itself is drawn from the screen's top).
+    @State private var headerSafeTop: CGFloat = 0
     @State private var focusFirstTick = 0
     @State private var listFocusAsked = false
     @State private var rejectedKeys: Set<String> = []
@@ -145,6 +147,13 @@ struct StreamPickerView: View {
             }
             .padding(.horizontal, OrbitHomeLayout.margin)
             .padding(.top, 70)
+            // Steven (2026-10-29, device: the filters over the first source): the header sits under
+            // the safe area, the list from the screen's top — the list's top room counts where the
+            // header really starts on the screen (its offset while scrolling is not counted).
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
+                let top = max(0, top)
+                if abs(top - headerSafeTop) > 0.5 { headerSafeTop = top }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .disabled(coverShown)
@@ -327,7 +336,7 @@ struct StreamPickerView: View {
         let showsInstant = all.contains { !$0.tags.instant }
         let version = "\(resolvingKey ?? "-")|\(rejectedKeys.count)|\(showsInstant)|\(filter.rawValue)"
         return OrbitStreamCollection(
-            rows: shown, version: version, topInset: 70 + headerHeight + 18, scroll: streamScroll,
+            rows: shown, version: version, topInset: headerSafeTop + 70 + headerHeight + 24, scroll: streamScroll,
             focusFirst: focusFirstTick,
             card: { row, focused in
                 AnyView(OrbitStreamCard(stream: row.stream, tags: row.tags, focused: focused,
