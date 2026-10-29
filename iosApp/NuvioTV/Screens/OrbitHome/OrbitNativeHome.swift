@@ -61,6 +61,8 @@ struct OrbitNativeHome: View {
     @State private var lastGo: TimeInterval = 0
     /// The page is shown (not under a title's page, the sources, the player).
     @State private var onScreen = false
+    /// The hero's default focus is the page's first (not on a way back to a row).
+    @State private var heroDefaultStrong = true
 
     private func go(to id: String, animated: Bool = true) {
         // Steven (2026-10-29, device: now and then a vertical move snapped, no slide): the page could
@@ -71,7 +73,10 @@ struct OrbitNativeHome: View {
         lastGo = ProcessInfo.processInfo.systemUptime
         position = id
         if animated && !reduceMotion {
-            withAnimation(.easeInOut(duration: 0.32)) { page.scrollTo(id: id, anchor: .top) }
+            // Steven (2026-10-29, videos: every vertical move started with a jerk): the system's own
+            // scroll starts fast, ours (ease-in-out) took over from rest — the page slowed after its
+            // first frame. Ours now starts fast too and settles slowly, as the system's does.
+            withAnimation(.timingCurve(0.25, 0.8, 0.3, 1, duration: 0.4)) { page.scrollTo(id: id, anchor: .top) }
         } else {
             var still = Transaction()
             still.disablesAnimations = true
@@ -159,9 +164,11 @@ struct OrbitNativeHome: View {
                             if row.style == .classic || (row.style == .ranked && OrbitNativeRow.rankedOpens) {
                                 OrbitNativeOpenRow(row: row, isCurrent: currentRow == row.id, actions: actions,
                                                    trailers: trailers, onEnter: { enter(row.id) })
+                                    .equatable()
                             } else {
                                 OrbitNativeRow(row: row.looped(), isCurrent: currentRow == row.id, actions: actions,
                                                trailers: trailers, onEnter: { enter(row.id) })
+                                    .equatable()
                             }
                         }
                             .id(row.id)
@@ -227,6 +234,7 @@ struct OrbitNativeHome: View {
             if let back = OrbitNativeRow.reopen, rows.contains(where: { $0.id == back.row }),
                ProcessInfo.processInfo.systemUptime - OrbitNativeRow.reopenedAt < 600,
                OrbitNavClock.titleOpenedAt >= OrbitNativeRow.reopenedAt - 1 {
+                heroDefaultStrong = false
                 heroLocked = true
                 returnRow = back.row
                 returnTarget = back.row
@@ -236,6 +244,7 @@ struct OrbitNativeHome: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { returnTarget = nil }
             } else {
                 OrbitNativeRow.reopen = nil
+                heroDefaultStrong = true
             }
             // Never kept beyond this return — unless the page has gone again meanwhile (Steven,
             // 2026-10-29: Continue Watching's menu closing showed Home a moment, the card was
@@ -288,7 +297,10 @@ struct OrbitNativeHome: View {
         .defaultFocus($heroFocus, heroPage,
                       // Back from a title opened in a row: the hero must not take the focus first
                       // (Steven: it went elsewhere, then came back to the title).
-                      priority: OrbitNativeRow.reopen == nil ? .userInitiated : .automatic)
+                      // (Steven, 2026-10-29: back from Continue Watching, the focus went up to the
+                      // hero unseen — the priority flipped as the remembered card was forgotten,
+                      // and the system put the focus back on its default. Set once per appearance.)
+                      priority: heroDefaultStrong ? .userInitiated : .automatic)
     }
 
     // MARK: Moves
@@ -396,6 +408,22 @@ private struct OrbitNativeBackdrop: View {
 }
 
 // MARK: - A row
+
+/// Steven (2026-10-29, videos: a frame missed at the start of every move): any change on the page
+/// (the row holding the focus, the hero's state…) redrew every row — their closures made them all
+/// "new". A row now redraws only when its titles or its being current change (its own state and
+/// the page's environment still reach it).
+extension OrbitNativeRow: Equatable {
+    static func == (a: OrbitNativeRow, b: OrbitNativeRow) -> Bool {
+        a.row == b.row && a.isCurrent == b.isCurrent
+    }
+}
+
+extension OrbitNativeOpenRow: Equatable {
+    static func == (a: OrbitNativeOpenRow, b: OrbitNativeOpenRow) -> Bool {
+        a.row == b.row && a.isCurrent == b.isCurrent
+    }
+}
 
 struct OrbitNativeRow: View {
     let row: OrbitRow
