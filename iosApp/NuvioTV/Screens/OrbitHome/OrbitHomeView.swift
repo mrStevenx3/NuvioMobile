@@ -376,10 +376,19 @@ struct OrbitRowsBackdrop: View {
             // Steven (device: still a hitch Left / Right): the wash follows the title once the
             // remote rests — a full-screen colour change animating under every step was part of it.
             // (Steven, 2026-10-29: smoother as it was — 300 ms and 0.6 s again.)
-            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            // Steven (2026-10-29, slow-motion video: a little shake as a row's slide ends): the TV
+            // missed two or three frames about 0.3 s into each slide — the wash changing colour
+            // (two full-screen washes, the headings) while the row still moved; the slide then
+            // caught up in a jump. The colour now changes once the slide has ended (about 0.5 s).
+            do { try await Task.sleep(for: .milliseconds(560)) } catch { return }
             if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
                 show(color)
-                if opaque { OrbitHomeTone.shared.color = color }
+                // The headings' bar takes the colour once the wash has crossed (not on the same
+                // frame: less to redraw at once).
+                if opaque {
+                    do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
+                    OrbitHomeTone.shared.color = color
+                }
             }
         }
         .allowsHitTesting(false)
