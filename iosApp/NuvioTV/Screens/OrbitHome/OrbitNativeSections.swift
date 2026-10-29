@@ -305,7 +305,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
         .onAppear {
             go(to: current, animated: false)
-            if !builtAll { DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { builtAll = true } }
+            if !builtAll { DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { builtAll = true }  // (after a platform's opening glide) }
             // Back to a row (from a title): the hero out of the focus's reach a moment.
             if current >= heroCount, heroCount > 0 {
                 heroLocked = true

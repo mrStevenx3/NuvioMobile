@@ -255,7 +255,8 @@ final class OrbitPlatformCurtain: ObservableObject {
     func lift(instant: Bool = false) {
         guard down else { return }
         let mine = token
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+        // (After the logo's glide to its corner: the bar coming in during it made it stutter.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
             guard let self, self.token == mine, !self.down else { return }
             self.hidesBar = false
         }

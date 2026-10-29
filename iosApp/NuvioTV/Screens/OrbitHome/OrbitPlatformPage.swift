@@ -782,12 +782,12 @@ struct OrbitPlatformIntro: View {
                 if reduceMotion { dim = 0; glow = 0 } else {
                     withTransaction(still) { dim = 0; glow = curtained ? 0.35 : 0 }
                     if !curtained { lightUp(at: 0.5) }
-                    let work = DispatchWorkItem {
-                        withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
-                        withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
-                    }
+                    // Steven (2026-10-29, video: the logo stuttered on its way to the corner): its glow
+                    // (two wide shadows, redrawn every frame as it scaled) goes before it moves, and the
+                    // page under it has a moment to draw first — the logo then glides alone, light.
+                    let work = DispatchWorkItem { glideToCorner() }
                     glide = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.05, execute: work)  // (Steven: a hitch as it left the centre — the page had just been built; a moment more for it to settle.)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.05, execute: work)
                 }
                 return
             }
@@ -865,12 +865,18 @@ struct OrbitPlatformIntro: View {
         lightUp(at: 0.3)
         // The curtain the page was pushed under goes once the logo shows on the page's own black.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { OrbitPlatformCurtain.shared.lift() }
-        let work = DispatchWorkItem {
-            withAnimation(.spring(response: 0.75, dampingFraction: 0.88)) { phase = .settled }
-            withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
-        }
+        let work = DispatchWorkItem { glideToCorner() }
         glide = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.3, execute: work)
+    }
+
+    /// The glow out first (cheap to move after), then the logo to its corner on one smooth curve.
+    private func glideToCorner() {
+        withAnimation(.easeOut(duration: 0.25)) { glow = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            guard phase == .splash else { return }
+            withAnimation(.timingCurve(0.3, 0.0, 0.2, 1.0, duration: 0.8)) { phase = .settled }
+        }
     }
 
     /// The logo switched on as a neon sign: two quick flickers, then full light with its flash,
