@@ -273,12 +273,16 @@ struct OrbitRankedTile: View {
                 .shadow(color: .black.opacity(0.7), radius: 14, y: 4)
                 .lineLimit(1)
                 .fixedSize()
+                // Steven (2026-10-29, the background lighter now): the focused rank itself lit up, as if
+                // a light fell on it.
+                .brightness(focused && !glowHidden ? 0.14 : 0)
+                .animation(.easeOut(duration: 0.25), value: focused && !glowHidden)
                 // Steven: the focused title's rank lit from behind, a soft glow in its own colour
                 // (a spotlight on the dark band).
                 .background {
                     // (Steven: stronger and a little wider once the band behind the row was gone.)
                     let lit = focused && !glowHidden
-                    RadialGradient(colors: [base.opacity(lit ? 0.78 : 0), base.opacity(lit ? 0.26 : 0), .clear],
+                    RadialGradient(colors: [base.opacity(lit ? 0.95 : 0), base.opacity(lit ? 0.4 : 0), .clear],  // (stronger: 0.78 / 0.26)
                                    center: .center, startRadius: 0, endRadius: size.height * 0.47)  // (Steven, 2026-10-29: a little smaller — was 0.62)
                         .frame(width: size.height * 1.05, height: size.height * 1.05)
                         .animation(.easeOut(duration: 0.25), value: lit)
