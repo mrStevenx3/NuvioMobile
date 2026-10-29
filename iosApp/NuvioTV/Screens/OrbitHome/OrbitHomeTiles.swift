@@ -279,8 +279,8 @@ struct OrbitRankedTile: View {
                     // (Steven: stronger and a little wider once the band behind the row was gone.)
                     let lit = focused && !glowHidden
                     RadialGradient(colors: [base.opacity(lit ? 0.78 : 0), base.opacity(lit ? 0.26 : 0), .clear],
-                                   center: .center, startRadius: 0, endRadius: size.height * 0.62)
-                        .frame(width: size.height * 1.35, height: size.height * 1.35)
+                                   center: .center, startRadius: 0, endRadius: size.height * 0.47)  // (Steven, 2026-10-29: a little smaller — was 0.62)
+                        .frame(width: size.height * 1.05, height: size.height * 1.05)
                         .animation(.easeOut(duration: 0.25), value: lit)
                         .allowsHitTesting(false)
                 }
