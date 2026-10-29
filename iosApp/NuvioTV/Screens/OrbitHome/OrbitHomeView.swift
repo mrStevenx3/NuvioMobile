@@ -381,9 +381,12 @@ struct OrbitMirroredWash: View {
     var opaque = true
 
     private func wash(_ color: Color?) -> some View {
+        // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
+        // screen in the title's colour, evenly.
         RadialGradient(colors: [(color ?? .clear).opacity(color == nil ? 0 : 0.38),
-                                (color ?? .clear).opacity(color == nil ? 0 : 0.14), .clear],
-                       center: UnitPoint(x: 0.82, y: 0.08), startRadius: 0, endRadius: 1500)
+                                (color ?? .clear).opacity(color == nil ? 0 : 0.22),
+                                (color ?? .clear).opacity(color == nil ? 0 : 0.08)],
+                       center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
     }
 
     var body: some View {
@@ -417,9 +420,12 @@ struct OrbitRowsBackdrop: View {
     @State private var showsB = false
 
     private func wash(_ color: Color?) -> some View {
+        // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
+        // screen in the title's colour, evenly.
         RadialGradient(colors: [(color ?? .clear).opacity(color == nil ? 0 : 0.38),
-                                (color ?? .clear).opacity(color == nil ? 0 : 0.14), .clear],
-                       center: UnitPoint(x: 0.82, y: 0.08), startRadius: 0, endRadius: 1500)
+                                (color ?? .clear).opacity(color == nil ? 0 : 0.22),
+                                (color ?? .clear).opacity(color == nil ? 0 : 0.08)],
+                       center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
     }
 
     var body: some View {
