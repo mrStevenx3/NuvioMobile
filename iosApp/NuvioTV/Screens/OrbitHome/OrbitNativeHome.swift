@@ -1529,7 +1529,18 @@ struct OrbitNativeOpenRow: View {
     }
 
     /// The lead's trailer, wash and the titles ahead.
+    /// Steven (2026-10-29: a small stutter at the end of each step, as the new poster came in): the
+    /// page's work for the new title (the background, its trailer, the look-ahead) waits for the
+    /// row's 0.4 s slide to end.
+    @State private var leadWork: DispatchWorkItem?
     private func leadChanged() {
+        leadWork?.cancel()
+        let work = DispatchWorkItem { leadChangedNow() }
+        leadWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
+    }
+
+    private func leadChangedNow() {
         guard count > 0 else { return }
         let card = card(lead)
         trailers.arm("\(row.id)|\(card.id)", item: card.preview)

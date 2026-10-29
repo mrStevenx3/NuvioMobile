@@ -255,7 +255,7 @@ struct OrbitRankedTile: View {
         // starts on the margin (its poster comes with it; the other ranks unchanged).
         let oneLess: CGFloat = rank == 1 ? 72 * scale : 0
         let poster: String? = meta?.localPoster ?? card.poster
-        let base = tone ?? Color(white: 0.85)
+        let base = tone ?? OrbitDominantColor.cached(poster) ?? Color(white: 0.85)
         HStack(alignment: .bottom, spacing: -34 * scale) {
             Text(String(rank))
                 .font(.system(size: size.height * 0.7, weight: .heavy, design: .rounded))
@@ -345,6 +345,9 @@ struct OrbitRankedTile: View {
 @MainActor
 enum OrbitDominantColor {
     private static var cache: [String: Color] = [:]
+
+    /// Already known (drawn at once in its colour: Steven, the rank lit white, then its colour).
+    static func cached(_ url: String?) -> Color? { url.flatMap { cache[$0] } }
 
     static func color(for url: String) async -> Color? {
         if let known = cache[url] { return known }

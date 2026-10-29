@@ -920,7 +920,9 @@ private struct OrbitPrimeRowView: View {
                                  leftSlide: row.kind == .originals ? { _ in L.poster.width + L.gap } : nil,
                                  // (UIKit strip: the open title's room; the others measured.)
                                  width: row.kind == .originals ? { _ in L.poster.width } : nil,
-                                 redrawKey: AnyHashable(row.kind == .originals ? AnyHashable(badges) : AnyHashable([AnyHashable(isCurrent), AnyHashable(badges)])),
+                                 // (Steven, 2026-10-29: Prime still jerky going down — every row the focus entered or left
+                                 // redrew all its posters; nothing in them depends on it.)
+                                 redrawKey: AnyHashable(badges),
                                  openDelta: row.kind == .originals && isCurrent ? L.openWidth - L.poster.width : nil) { slot, lit in
                 let index = at(slot)
                 let item = row.items[index]

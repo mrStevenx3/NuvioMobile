@@ -430,6 +430,10 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             .frame(height: height)
             .modifier(OrbitShadeBeforeMargin(active: keepsLeadAtMargin, margin: margin))
             .onChange(of: box.focusRequest) { _, _ in
+                // Steven (2026-10-29, Prime: "il va se positionner au premier film à gauche", not as
+                // Apple's own): the focus already came into the row where the remote sent it — the
+                // page's request (it follows the focus) no longer sends it on to the row's first title.
+                guard strip.controller?.focusedIndex == nil else { return }
                 strip.controller?.takeFocus(on: min(box.lead, max(0, count - 1)))
             }
             .onChange(of: box.realign) { _, _ in
@@ -471,7 +475,8 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             leadWork?.cancel()
             let work = DispatchWorkItem { onLeadChange(new) }
             leadWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+            // (0.45: after the 0.4 s slide — Steven: a small stutter at the end of each step.)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
         }
     }
 

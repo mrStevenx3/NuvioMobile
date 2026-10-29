@@ -787,7 +787,8 @@ struct OrbitPlatformIntro: View {
                     // page under it has a moment to draw first — the logo then glides alone, light.
                     let work = DispatchWorkItem { glideToCorner() }
                     glide = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.05, execute: work)
+                    // (Steven, 2026-10-29: a wait once lit — the glow now goes as the curtain lifts.)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + (curtained ? lift - 0.2 : lift + 0.05), execute: work)
                 }
                 return
             }
@@ -867,13 +868,13 @@ struct OrbitPlatformIntro: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { OrbitPlatformCurtain.shared.lift() }
         let work = DispatchWorkItem { glideToCorner() }
         glide = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: work)
     }
 
     /// The glow out first (cheap to move after), then the logo to its corner on one smooth curve.
     private func glideToCorner() {
-        withAnimation(.easeOut(duration: 0.25)) { glow = 0 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        withAnimation(.easeOut(duration: 0.2)) { glow = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             guard phase == .splash else { return }
             withAnimation(.timingCurve(0.3, 0.0, 0.2, 1.0, duration: 0.8)) { phase = .settled }
         }
