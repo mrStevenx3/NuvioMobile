@@ -161,7 +161,18 @@ struct OrbitAppleTVPage: View {
     }
 
     /// As in the app: the Top 10 first, then the new titles, one row of large cards, the genres (TMDB).
+    /// Steven (2026-10-30, slow-motion videos: this page jerky down, Netflix fluid): the rows were
+    /// built again on every redraw of the page (each step, each row change — every title's name
+    /// folded, every poster matched), several times per redraw; built once per change of the
+    /// catalogs now, as Netflix's.
+    @State private var rowsMemo = OrbitRowsMemo<[OrbitAppleTVRow]>()
+
     private var rows: [OrbitAppleTVRow] {
+        rowsMemo.get(OrbitRowsKey(rows: model.stripRows, filter: typeFilter,
+                                  extras: extras.movieRows + extras.seriesRows, variant: "")) { buildRows() }
+    }
+
+    private func buildRows() -> [OrbitAppleTVRow] {
         let extraRows: [OrbitPlatformExtrasModel.Extra] = switch typeFilter {
         case "movie"?: extras.movieRows
         case "series"?: extras.seriesRows

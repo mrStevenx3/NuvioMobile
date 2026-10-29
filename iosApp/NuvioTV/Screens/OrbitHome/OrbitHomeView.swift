@@ -387,6 +387,8 @@ struct OrbitMirroredWash: View {
                                 (color ?? .clear).opacity(color == nil ? 0 : 0.22),
                                 (color ?? .clear).opacity(color == nil ? 0 : 0.08)],
                        center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+            // (Drawn once into its own texture: its cross-fade only fades a picture.)
+            .drawingGroup()
     }
 
     var body: some View {
@@ -428,6 +430,8 @@ struct OrbitRowsBackdrop: View {
                                 (color ?? .clear).opacity(color == nil ? 0 : 0.22),
                                 (color ?? .clear).opacity(color == nil ? 0 : 0.08)],
                        center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+            // (Drawn once into its own texture: its cross-fade only fades a picture.)
+            .drawingGroup()
     }
 
     var body: some View {
@@ -439,7 +443,9 @@ struct OrbitRowsBackdrop: View {
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
         }
-        .compositingGroup()
+        // (Steven, 2026-10-30, slow-motion video: the TV still missed frames near the end of each
+        // step, as the colour changed — the whole screen redrawn off-screen every frame of the fade.
+        // No group pass now, and the colour waits for the slide's end, about half a second.)
         .frame(width: L.screenWidth, height: L.screenHeight)
         .task(id: url ?? "-") {
             guard let url else { return }
@@ -476,7 +482,7 @@ struct OrbitRowsBackdrop: View {
     }
 
     /// The wait once the focus rests, and the cross-fade (the headings' bar on the same curve).
-    static let wait = 250
+    static let wait = 450
     static let fade: Double = 0.45
 
     private func show(_ color: Color) {

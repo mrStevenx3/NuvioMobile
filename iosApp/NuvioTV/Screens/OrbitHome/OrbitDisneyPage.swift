@@ -282,7 +282,17 @@ struct OrbitDisneyPage: View {
     }
 
     /// Hulu: its Top 10 series (and films, when TMDB credits any to Hulu), then its rows.
+    /// (Built once per change of Hulu's rows — it was built again on every redraw of the page.)
+    @State private var huluMemo = OrbitRowsMemo<[OrbitDisneyRow]>()
+
     private var huluRows: [OrbitDisneyRow] {
+        let huluExtras = (hulu.seriesRows + hulu.movieRows).map {
+            OrbitPlatformExtrasModel.Extra(id: $0.id, title: $0.title, items: $0.items)
+        }
+        return huluMemo.get(OrbitRowsKey(rows: [], filter: nil, extras: huluExtras, variant: "hulu")) { buildHuluRows() }
+    }
+
+    private func buildHuluRows() -> [OrbitDisneyRow] {
         var out: [OrbitDisneyRow] = []
         var shown = Set<String>()
         // Steven: Hulu opens on its Nouvelles séries.
