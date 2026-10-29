@@ -275,7 +275,11 @@ struct OrbitRankedTile: View {
                 .fixedSize()
                 // Steven (2026-10-29, the background lighter now): the focused rank itself lit up, as if
                 // a light fell on it.
-                .brightness(focused && !glowHidden ? 0.14 : 0)
+                // (Steven, 2026-10-30: "on n'a pas l'effet que le chiffre s'illumine" — brighter, and the
+                // figure gives off its own light, a halo close around its shape.)
+                .brightness(focused && !glowHidden ? 0.28 : 0)
+                .shadow(color: base.opacity(focused && !glowHidden ? 0.9 : 0), radius: 10 * scale)
+                .shadow(color: Color.white.opacity(focused && !glowHidden ? 0.35 : 0), radius: 3 * scale)
                 .animation(.easeOut(duration: 0.25), value: focused && !glowHidden)
                 // Steven: the focused title's rank lit from behind, a soft glow in its own colour
                 // (a spotlight on the dark band).
