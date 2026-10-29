@@ -471,6 +471,7 @@ struct OrbitPrimePage: View {
                                   metaStore: metaStore,
                                        onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
                                        onLeadChange: { refreshAfterMove() })
+                    .equatable()
             }
         }
     }
@@ -847,6 +848,13 @@ private struct OrbitPrimeTop: View {
 }
 
 /// A row: its heading, then its titles from the focused one (at the margin).
+extension OrbitPrimeRowView: Equatable {
+    static func == (a: OrbitPrimeRowView, b: OrbitPrimeRowView) -> Bool {
+        a.row == b.row && a.box === b.box && a.isCurrent == b.isCurrent && a.focused == b.focused
+            && a.trailerURL == b.trailerURL && a.badges == b.badges
+    }
+}
+
 private struct OrbitPrimeRowView: View {
     let row: OrbitPrimeRow
     @ObservedObject var box: OrbitLeadBox
@@ -901,12 +909,9 @@ private struct OrbitPrimeRowView: View {
                     // Steven: as Netflix's — the open frame drawn by the row, fixed at the margin;
                     // the lead keeps its room (its poster at the room's right, under the frame).
                     if isCurrent && index == lead {
-                        ZStack(alignment: .trailing) {
-                            OrbitPrimePoster(item: item, meta: meta, badge: badge, open: false, focused: false,
-                                             trailerURL: nil, onTrailerFailure: { _ in }, onTrailerEnded: {})
-                        }
-                        .frame(width: L.openWidth, height: L.poster.height, alignment: .trailing)
-                        .transition(.identity)
+                        // (Steven, 2026-10-29: as Home's new films — the lead's room left empty.)
+                        Color.clear
+                            .frame(width: L.openWidth, height: L.poster.height)
                     } else {
                         OrbitPrimePoster(item: item, meta: meta, badge: badge, open: false,
                                          focused: lit, trailerURL: nil,

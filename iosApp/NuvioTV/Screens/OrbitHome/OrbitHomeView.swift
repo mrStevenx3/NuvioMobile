@@ -96,8 +96,11 @@ struct OrbitHomeSwitch: View {
                     let active = isHome && (filter == .series) == series
                     OrbitHomeView(model: model, series: series, active: active, actions: actions, pushGenre: pushGenre,
                                   isScrolledDown: active ? $isScrolledDown : .constant(false))
+                        // Steven (2026-10-29: "la transition entre films et séries est trop brute"):
+                        // the Home coming in fades in over the one leaving (which stays whole under it,
+                        // then goes) — a soft cross-dissolve with no dip to black between the two.
                         .opacity(active ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.15), value: active)
+                        .animation(active ? .easeInOut(duration: 0.45) : .linear(duration: 0.01).delay(0.46), value: active)
                         .disabled(!active)
                         .allowsHitTesting(active)
                         .zIndex(active ? 1 : 0)
@@ -218,12 +221,12 @@ struct OrbitHomeView: View {
                                 cards: Self.unique(section.items.map(OrbitCard.catalog)), sectionKey: section.key,
                                 style: style))
             catalogs += 1
-            // Steven (2026-10-28): after the first catalog (Nouveaux films), Nouveau sur vos
-            // plateformes, then the Top 10.
+            // Steven (2026-10-29): after the first catalog (Nouveaux films), the Top 10, then Nouveau
+            // sur vos plateformes.
+            if catalogs == 1, !top.isEmpty { out.append(top.removeFirst()) }
             if catalogs == 1, let i = platforms.firstIndex(where: { $0.id.hasPrefix("orbit-new") }) {
                 out.append(platforms.remove(at: i))
             }
-            if catalogs == 1, !top.isEmpty { out.append(top.removeFirst()) }
             if catalogs >= 2, !platforms.isEmpty { out.append(platforms.removeFirst()) }
         }
         return out + top + platforms

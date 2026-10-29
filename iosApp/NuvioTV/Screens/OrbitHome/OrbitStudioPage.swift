@@ -201,6 +201,24 @@ struct OrbitStudioPage: View {
     @State private var nativeHeroPage = 0
     @State private var nativeOnHero = true
     @State private var nativePosition: String? = "hero"
+    /// Steven (2026-10-29, device: "le défilement vertical est très saccadé"): Home's vertical move —
+    /// the page brought to the row on Apple's curve (full speed at the press, easing to rest in
+    /// 0.4 s), asked for every move.
+    @State private var nativeScroll = ScrollPosition(idType: String.self)
+    @State private var nativeLastGo: TimeInterval = 0
+
+    private func nativeGo(to id: String, animated: Bool = true) {
+        if nativePosition == id, ProcessInfo.processInfo.systemUptime - nativeLastGo < 0.2 { return }
+        nativeLastGo = ProcessInfo.processInfo.systemUptime
+        nativePosition = id
+        if animated && !reduceMotion {
+            withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { nativeScroll.scrollTo(id: id, anchor: .top) }
+        } else {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { nativeScroll.scrollTo(id: id, anchor: .top) }
+        }
+    }
     @State private var studioHeroLocked = false
     /// Back from a title: the row it was opened from (the only one the focus can land in a moment).
     @State private var returnRow: String?
@@ -300,7 +318,7 @@ struct OrbitStudioPage: View {
             if let back = OrbitNativeStudioRow.reopen {
                 studioHeroLocked = true
                 returnRow = back.row
-                nativePosition = back.row
+                nativeGo(to: back.row, animated: false)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { studioHeroLocked = false; returnRow = nil }
             }
             DispatchQueue.main.async {
@@ -378,6 +396,9 @@ struct OrbitStudioPage: View {
                     ForEach(rows) { row in
                         OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id, accent: brand, trailers: nativeTrailers,
                                              onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) })
+                            // (As Home's rows: a row is redrawn only when it changes — the page's
+                            // moves no longer redraw every row.)
+                            .equatable()
                             .id(row.id)
                             .disabled(returnRow != nil && returnRow != row.id)
                             .environment(\.orbitFocusHidden, returnRow != nil && returnRow != row.id)
@@ -390,7 +411,7 @@ struct OrbitStudioPage: View {
                 .padding(.bottom, OrbitHomeLayout.screenHeight)
             }
             .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(id: $nativePosition, anchor: .top)
+            .scrollPosition($nativeScroll)
             .contentMargins(.top, Self.nativeTop, for: .scrollContent)
             .scrollClipDisabled()
 
@@ -450,7 +471,7 @@ struct OrbitStudioPage: View {
             armHero(nativeHeroPage)
             nativeRow = nil
             nativeOnHero = true
-            if nativePosition != "hero" { withAnimation(.easeInOut(duration: 0.32)) { nativePosition = "hero" } }
+            nativeGo(to: "hero")
         }
         // Left / Right on the banner: the next film fades in (Steven: no slide).
         .onChange(of: nativeHeroPage) { _, page in
@@ -515,7 +536,7 @@ struct OrbitStudioPage: View {
     private func nativeEnter(_ rowID: String) {
         nativeRow = rowID
         nativeOnHero = false
-        if nativePosition != rowID { withAnimation(.easeInOut(duration: 0.32)) { nativePosition = rowID } }
+        nativeGo(to: rowID)
     }
 
     private func nativeOpen(_ item: MetaPreview) {
@@ -790,6 +811,12 @@ private struct OrbitNativeStudioHeroPage: View {
 }
 
 /// A row of the native studio page: real buttons the system slides, the focused one at the margin.
+extension OrbitNativeStudioRow: Equatable {
+    static func == (a: OrbitNativeStudioRow, b: OrbitNativeStudioRow) -> Bool {
+        a.row == b.row && a.isCurrent == b.isCurrent && a.accent == b.accent
+    }
+}
+
 private struct OrbitNativeStudioRow: View {
     let row: OrbitStudioRow
     let isCurrent: Bool
@@ -836,6 +863,29 @@ private struct OrbitNativeStudioRow: View {
     }
 
     @State private var strip = OrbitStripRef()
+    @Environment(\.orbitFocusHidden) private var rowFocusHidden
+
+    /// Steven (2026-10-29: "le défilement de Nouveaux films… exactement le même de partout"): the
+    /// new films' row of a studio as Home's — the open title's room left empty in the strip, its
+    /// frame drawn by the row at the margin, the next title fading in inside it.
+    @ViewBuilder
+    private func classicFrame(lit: Bool) -> some View {
+        if let i = shown ?? (row.items.isEmpty ? nil : 0), row.items.indices.contains(i) {
+            let item = row.items[i]
+            let key = "\(row.id)|\(item.type):\(item.id)"
+            OrbitNativeTrailerReader(host: trailers, key: key) { url in
+                OrbitLeadFrame(card: OrbitCard.catalog(item), meta: metaStore.meta(for: item), focused: lit, trailerURL: url,
+                               onTrailerFailure: { trailers.model.playbackFailed($0) },
+                               onTrailerEnded: { trailers.model.playbackFinished() })
+            }
+            .shadow(color: .black.opacity(lit ? 0.55 : 0), radius: lit ? 18 : 0, y: lit ? 10 : 0)
+            .animation(.easeOut(duration: 0.18), value: lit)
+            .id(i)
+            .transition(.opacity.animation(.easeInOut(duration: 0.22)))
+            .offset(x: OrbitStudioLayout.margin)
+            .allowsHitTesting(false)
+        }
+    }
 
     /// Each title's room in the strip.
     private func stripWidth(_ i: Int) -> CGFloat {
@@ -860,11 +910,8 @@ private struct OrbitNativeStudioRow: View {
             holds = true
             onEnter()
         }
-        if row.kind == .classic {
-            withAnimation(OrbitHomeLayout.horizontal) { shown = new }
-        } else {
-            shown = new
-        }
+        // (As Home's new films: the lead set plainly — the strip slides, the frame fades.)
+        shown = new
         if row.kind == .featured || row.kind == .classic || row.opensRanked, row.items.indices.contains(new) {
             let item = row.items[new]
             trailers.arm("\(row.id)|\(item.type):\(item.id)", item: item)
@@ -892,8 +939,10 @@ private struct OrbitNativeStudioRow: View {
                            margin: L.margin, alignment: .bottom, pinned: row.pinned, lead: shown ?? 0,
                            width: { i in stripWidth(i) }, ref: strip,
                            tile: { i, focused in
-                               AnyView(OrbitStudioStripTile(row: row, index: i, trailers: trailers, focused: focused,
-                                                            open: (row.kind == .classic || row.opensRanked) && i == (shown ?? 0)))
+                               row.kind == .classic && i == (shown ?? 0)
+                                   ? AnyView(Color.clear.frame(width: OrbitHomeLayout.frameWidth, height: size.height))
+                                   : AnyView(OrbitStudioStripTile(row: row, index: i, trailers: trailers, focused: focused,
+                                                                  open: row.opensRanked && i == (shown ?? 0)))
                            },
                            onFocus: { stripFocus($0) },
                            onSelect: { i in
@@ -902,6 +951,9 @@ private struct OrbitNativeStudioRow: View {
                                onOpen(row.items[i])
                            })
                 .frame(height: size.height)
+                .overlay(alignment: .bottomLeading) {
+                    if row.kind == .classic { classicFrame(lit: holds && !rowFocusHidden) }
+                }
 
             if row.showsInfo {
                 ZStack(alignment: .topLeading) {

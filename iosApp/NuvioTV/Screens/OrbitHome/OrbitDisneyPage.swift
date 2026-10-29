@@ -588,6 +588,7 @@ struct OrbitDisneyPage: View {
                                        trailerURL: s == current ? trailerURL(for: focusedItem) : nil,
                                        onTrailerFailure: { trailer.playbackFailed($0) },
                                        onTrailerEnded: { trailer.playbackFinished() })
+                        .equatable()
                 }
             }
         }
@@ -1469,6 +1470,13 @@ struct OrbitDisneyBrand {
 /// A row as in Disney+'s newest app: the focused title open in a 16:9 frame fixed at the margin
 /// (its art cross-fading as the focus moves, the posters sliding behind), the others as posters,
 /// one meta line under the frame. Built as Netflix's rows (Steven: the same moves).
+extension OrbitDisneyOpenRow: Equatable {
+    static func == (a: OrbitDisneyOpenRow, b: OrbitDisneyOpenRow) -> Bool {
+        a.row == b.row && a.box === b.box && a.isCurrent == b.isCurrent && a.aboveCurrent == b.aboveCurrent
+            && a.isHulu == b.isHulu && a.trailerURL == b.trailerURL
+    }
+}
+
 private struct OrbitDisneyOpenRow: View {
     let row: OrbitDisneyRow
     @ObservedObject var box: OrbitLeadBox
@@ -1521,11 +1529,10 @@ private struct OrbitDisneyOpenRow: View {
                 // (Steven's videos: a hole beside the frame, Right and Left). Both drawn at once (no
                 // fade: the poster faded in with the slide).
                 if isLead {
-                    ZStack(alignment: .trailing) {
-                        poster(item, index: index, focused: false)
-                    }
-                    .frame(width: L.open.width, height: L.open.height, alignment: .trailing)
-                    .transition(.identity)
+                    // (Steven, 2026-10-29: as Home's new films — the lead's room left empty, the frame
+                    // over it.)
+                    Color.clear
+                        .frame(width: L.open.width, height: L.open.height)
                 } else {
                     poster(item, index: index, focused: lit)
                         .transition(.identity)

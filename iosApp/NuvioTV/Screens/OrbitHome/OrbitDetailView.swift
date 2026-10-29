@@ -1015,6 +1015,11 @@ struct OrbitDetailView: View {
         waitingForPicture = false
         HeroTrailerAudioState.shared.setMuted(value: true)
         holdArt = false
+        // (Steven, 2026-10-29: one logo only — the corner's goes at once, the page's fades in in
+        // its place.)
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { cinemaHint = false }
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) {
             cinema = false
             heroTrailerOn = false
@@ -1088,9 +1093,11 @@ struct OrbitDetailView: View {
                 }
             }
             .frame(width: Self.heroTitleSize.width, height: Self.heroTitleSize.height, alignment: .bottomLeading)
-            // Lecture: hidden at once, the gliding logo over it.
-            .opacity(launching ? 0 : 1)
-            .transaction { if launching { $0.animation = nil } }
+            // Lecture: hidden at once, the gliding logo over it. The trailer too (Steven, 2026-10-29
+            // video: two logos — this one fading where it was while the other glided to the corner).
+            // Back from the trailer it fades in again (the corner one, gone by then, glides unseen).
+            .opacity(launching || cinema ? 0 : 1)
+            .transaction { if launching || cinema { $0.animation = nil } }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { box in
                 if !launching { heroTitleBox = box }
             }

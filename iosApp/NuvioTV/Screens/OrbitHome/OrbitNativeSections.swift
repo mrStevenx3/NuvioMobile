@@ -386,7 +386,10 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             onEnter()
         }
         if box.lead != new {
-            withAnimation(OrbitHomeLayout.horizontal) { box.lead = new }
+            // Steven (2026-10-29: Nouveaux films' scroll "exactement le même de partout"): the lead set
+            // plainly, as Home's new films — the strip slides on its own curve, the frame fades;
+            // nothing else of the page is animated with it.
+            box.lead = new
             onLeadChange(new)
         }
     }

@@ -65,7 +65,9 @@ private struct OrbitRowStripTile: View {
         OrbitNativeTile(card: card, meta: metaStore.meta(for: card.preview), style: style, rank: rank,
                         trailers: trailers, trailerKey: trailerKey,
                         focusedFromCell: focused, openFromCell: open)
-            .animation(.easeInOut(duration: 0.4), value: open)
+            // (Opening on the row's own curve, closing on its quicker one — the titles after it slide on
+            // the same curves.)
+            .animation(.easeInOut(duration: open ? 0.4 : 0.28), value: open)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             // Steven (2026-10-29, device: the Top 10's frame showed another film, and jumped open): a
             // reused cell kept the state of the title it showed before (its "stable" art held until
@@ -92,6 +94,13 @@ final class OrbitRowStripCell: UICollectionViewCell {
         host.view.clipsToBounds = false
         contentView.addSubview(host.view)
         self.host = host
+    }
+
+    /// The cell put at once at its new size (its tile widens or narrows on its own, from its left).
+    func settleFrame() {
+        for layer in [layer, contentView.layer, host?.view.layer].compactMap({ $0 }) {
+            layer.removeAllAnimations()
+        }
     }
 }
 
@@ -343,8 +352,12 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
     private func setOpen(_ index: Int?) {
         let old = openIndex
         openIndex = index
-        for path in [old, index].compactMap({ $0 }).map({ IndexPath(item: $0, section: 0) }) {
-            collectionView.cellForItem(at: path)?.setNeedsUpdateConfiguration()
+        let changed = [old, index].compactMap({ $0 }).map({ IndexPath(item: $0, section: 0) })
+        // The tile told first, out of the row's animation: it widens (or narrows) on its own curve.
+        for path in changed {
+            let cell = collectionView.cellForItem(at: path)
+            cell?.setNeedsUpdateConfiguration()
+            cell?.updateConfigurationIfNeeded()
         }
         UIView.animate(withDuration: index == nil ? 0.28 : 0.4, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
             self.collectionView.collectionViewLayout.invalidateLayout()
@@ -360,6 +373,13 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
                 offset.x += right - limit
                 self.collectionView.setContentOffset(offset, animated: true)
             }
+        }
+        // Steven (2026-10-29, video: the poster jumped right, then the frame came back left): the
+        // opening cell is not stretched by the row's animation (its tile was drawn at its new size
+        // and slid back) — it takes its new room at once, its tile widening from its left edge on
+        // its own; only the titles after it slide.
+        for path in changed {
+            (collectionView.cellForItem(at: path) as? OrbitRowStripCell)?.settleFrame()
         }
     }
 

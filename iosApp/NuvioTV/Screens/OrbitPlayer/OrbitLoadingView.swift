@@ -46,7 +46,17 @@ struct OrbitLoadingView: View {
     @ViewBuilder
     static func logo(_ logoUrl: String?, title: String) -> some View {
         if let logoUrl, !logoUrl.isEmpty {
-            CachedAsyncImage(string: logoUrl, contentMode: .fit, decodeSize: .points(width: 640, height: 260))
+            // (Steven, 2026-10-29: a grey rectangle behind the title the first time — the loader's
+            // shimmer while the logo was not fetched yet. Nothing while it comes; its name if it fails.)
+            CachedAsyncImage(string: logoUrl, contentMode: .fit, decodeSize: .points(width: 640, height: 260),
+                             loading: { Color.clear },
+                             failure: {
+                                 Text(title)
+                                     .font(.system(size: 64, weight: .heavy))
+                                     .foregroundStyle(Color.white)
+                                     .multilineTextAlignment(.center)
+                                     .lineLimit(3)
+                             })
                 .frame(maxWidth: 640, maxHeight: 260)
         } else {
             Text(title)
@@ -69,7 +79,8 @@ struct OrbitLoadingView: View {
             if !plain {
                 if let backdropUrl, !backdropUrl.isEmpty {
                     CachedAsyncImage(string: backdropUrl, contentMode: .fill,
-                                     decodeSize: .points(width: 960, height: 540))
+                                     decodeSize: .points(width: 960, height: 540),
+                                     loading: { Color.clear }, failure: { Color.clear })
                         .ignoresSafeArea()
                         .opacity(0.2)
                         .blur(radius: 34)

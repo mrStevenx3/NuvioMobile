@@ -384,6 +384,9 @@ struct OrbitNetflixPage: View {
                                     metaStore: metaStore,
                                     onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
                                     onLeadChange: { refreshAfterMove() })
+                                    // (As Home's rows: redrawn only when it changes — a move in one row
+                                    // no longer redraws every row of the page.)
+                                    .equatable()
             }
         }
     }
@@ -807,6 +810,13 @@ private struct OrbitNetflixBillboard: View {
 
 /// A row: its heading; the focused title open at the margin, the next ones in portrait; under the
 /// open tile, its meta line and synopsis.
+extension OrbitNetflixRowView: Equatable {
+    static func == (a: OrbitNetflixRowView, b: OrbitNetflixRowView) -> Bool {
+        a.row == b.row && a.box === b.box && a.isCurrent == b.isCurrent && a.aboveCurrent == b.aboveCurrent
+            && a.focused == b.focused && a.series == b.series && a.rank == b.rank && a.trailerURL == b.trailerURL
+    }
+}
+
 private struct OrbitNetflixRowView: View {
     let row: OrbitNetflixRow
 
