@@ -1312,6 +1312,7 @@ struct OrbitNativeOpenRow: View {
                            },
                            onSelect: { _ in if count > 0 { open(card(lead)) } })
                 .frame(height: height)
+                .modifier(OrbitClipBeforeMargin(active: true, margin: L.margin, height: height))
                 // The open frame, at the margin; the next title fades in inside it.
                 .overlay(alignment: .bottomLeading) {
                     if count > 0 {

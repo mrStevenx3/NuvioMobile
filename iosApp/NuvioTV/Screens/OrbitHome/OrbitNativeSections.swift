@@ -379,6 +379,7 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                            onSelect()
                        })
             .frame(height: height)
+            .modifier(OrbitClipBeforeMargin(active: keepsLeadAtMargin, margin: margin, height: height))
             .onChange(of: box.focusRequest) { _, _ in
                 strip.controller?.takeFocus(on: min(box.lead, max(0, count - 1)))
             }

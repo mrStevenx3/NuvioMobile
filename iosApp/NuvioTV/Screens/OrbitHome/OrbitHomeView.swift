@@ -395,6 +395,8 @@ struct OrbitMirroredWash: View {
             if opaque { L.background }
             wash(mirror.colourA).opacity(mirror.showsB ? 0 : 1)
             wash(mirror.colourB).opacity(mirror.showsB ? 1 : 0)
+            // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
+            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
         }
         .compositingGroup()
         .frame(width: L.screenWidth, height: L.screenHeight)
@@ -434,6 +436,8 @@ struct OrbitRowsBackdrop: View {
             if opaque { L.background }
             wash(colourA).opacity(showsB ? 0 : 1)
             wash(colourB).opacity(showsB ? 1 : 0)
+            // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
+            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
         }
         .compositingGroup()
         .frame(width: L.screenWidth, height: L.screenHeight)

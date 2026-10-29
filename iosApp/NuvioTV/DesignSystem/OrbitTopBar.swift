@@ -495,6 +495,10 @@ struct OrbitCollectionGrid: View {
                            center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
             .ignoresSafeArea()
             .allowsHitTesting(false)
+            // (Steven, trying it: a little darker towards the bottom, as Home's.)
+            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             // Steven (2026-10-24): no "Plateformes" title — the bar already says it, and the
             // Studios page has none.
             ScrollViewReader { proxy in

@@ -10,6 +10,27 @@ import UIKit
 
 /// The strip's controller, for its page (the way back, the page's own focus requests).
 @MainActor
+/// Steven (2026-10-29, Prime's Originals, slow-motion video): in a row whose open title is held at
+/// the margin, the title just left slid out on the left of the frame — a "ghost" going the wrong way
+/// while the next one came from the right under the frame. Nothing shows left of the margin.
+struct OrbitClipBeforeMargin: ViewModifier {
+    let active: Bool
+    let margin: CGFloat
+    let height: CGFloat
+
+    func body(content: Content) -> some View {
+        if active {
+            content.mask(alignment: .topLeading) {
+                Rectangle()
+                    .frame(width: OrbitHomeLayout.screenWidth * 2, height: height + 400)
+                    .offset(x: margin - 6, y: -200)
+            }
+        } else {
+            content
+        }
+    }
+}
+
 final class OrbitStripRef {
     weak var controller: OrbitStripController?
 }

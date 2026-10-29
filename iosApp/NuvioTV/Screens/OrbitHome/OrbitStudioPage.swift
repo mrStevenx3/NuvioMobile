@@ -1041,6 +1041,7 @@ private struct OrbitNativeStudioRow: View {
                                onOpen(row.items[i])
                            })
                 .frame(height: size.height)
+                .modifier(OrbitClipBeforeMargin(active: row.kind == .classic, margin: L.margin, height: size.height))
                 .overlay(alignment: .bottomLeading) {
                     if row.kind == .classic { classicFrame(lit: holds && !rowFocusHidden) }
                 }
