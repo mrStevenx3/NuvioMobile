@@ -77,6 +77,16 @@ private struct OrbitRowStripTile: View {
 }
 
 /// A cell holding a SwiftUI tile, out of the TV's safe area (as Discover's).
+/// The row's frame-by-frame slide (the display link holds this, not the row).
+private final class OrbitSlideTicker: NSObject {
+    weak var strip: OrbitRowStripController?
+    init(_ strip: OrbitRowStripController) { self.strip = strip }
+    @MainActor @objc func tick(_ link: CADisplayLink) {
+        guard let strip else { link.invalidate(); return }
+        strip.slideStep()
+    }
+}
+
 final class OrbitRowStripCell: UICollectionViewCell {
     private var host: UIHostingController<AnyView>?
 
@@ -365,11 +375,7 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         // curve (as the rows held at their margin, smooth on his TV), the system aimed at the same place.
         if context.previouslyFocusedIndexPath != nil, let target = revealOffset(for: next) {
             aimedOffset = target
-            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
-                self.collectionView.contentOffset = CGPoint(x: target, y: 0)
-            } completion: { [weak self] _ in
-                if self?.aimedOffset == target { self?.aimedOffset = nil }
-            }
+            slide(to: target)
         } else {
             aimedOffset = nil
         }
@@ -401,6 +407,38 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         let maxX = max(0, collectionView.contentSize.width - width)
         x = min(max(0, x), maxX)
         return abs(x - current) < 0.5 ? nil : x
+    }
+
+    /// Steven (2026-10-30: "les affiches à gauche et à droite disparaissent d'un coup sec"): slid as
+    /// one animation, the row jumped to its end at once for the collection view — the titles leaving
+    /// were taken away at the start. It now moves frame by frame on the same curve (0.4 s, easing
+    /// out): each title leaves as it crosses the screen's edge.
+    private var slideLink: CADisplayLink?
+    private var slideFrom: CGFloat = 0
+    private var slideTo: CGFloat = 0
+    private var slideStart: CFTimeInterval = 0
+    private static let slideDuration: CFTimeInterval = 0.4
+
+    private func slide(to x: CGFloat) {
+        slideFrom = collectionView.contentOffset.x
+        slideTo = x
+        slideStart = CACurrentMediaTime()
+        if slideLink == nil {
+            let link = CADisplayLink(target: OrbitSlideTicker(self), selector: #selector(OrbitSlideTicker.tick))
+            link.add(to: .main, forMode: .common)
+            slideLink = link
+        }
+    }
+
+    fileprivate func slideStep() {
+        let t = min(1, (CACurrentMediaTime() - slideStart) / Self.slideDuration)
+        let eased = 1 - pow(1 - t, 3)
+        collectionView.contentOffset = CGPoint(x: slideFrom + (slideTo - slideFrom) * CGFloat(eased), y: 0)
+        if t >= 1 {
+            slideLink?.invalidate()
+            slideLink = nil
+            if aimedOffset == slideTo { aimedOffset = nil }
+        }
     }
 
     /// The system's own scroll to the focus aims where the row slides itself (no second aim).

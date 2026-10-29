@@ -56,6 +56,16 @@ extension EnvironmentValues {
     }
 }
 
+/// A free row's frame-by-frame slide (the display link holds this, not the row).
+private final class OrbitStripSlideTicker: NSObject {
+    weak var strip: OrbitStripController?
+    init(_ strip: OrbitStripController) { self.strip = strip }
+    @MainActor @objc func tick(_ link: CADisplayLink) {
+        guard let strip else { link.invalidate(); return }
+        strip.slideStep()
+    }
+}
+
 final class OrbitStripRef {
     weak var controller: OrbitStripController?
 }
@@ -549,12 +559,64 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             return
         }
         onFocus(next)
-        if pinned { place(next, animated: true) }
+        if pinned {
+            place(next, animated: true)
+        } else if previous != nil, let target = revealOffset(for: next) {
+            // Steven (2026-10-30: Home's free rows smooth at last once they slid themselves — Apple
+            // TV's rows still stuttering across): the system's slide fell to a third of its speed a
+            // tenth of a second in; the row slides itself, frame by frame, on one curve.
+            aimedOffset = target
+            slide(to: target)
+        }
+    }
+
+    /// A free row: where it slides to show `index` whole within the margins (nil: shown already).
+    private var aimedOffset: CGFloat?
+
+    private func revealOffset(for index: Int) -> CGFloat? {
+        guard let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return nil }
+        // (Its width once focused: a tile that grows takes its room in the same move.)
+        let width = max(frame.width, measure(index, focused: !focusHidden).width)
+        let bounds = collectionView.bounds.width
+        let current = aimedOffset ?? collectionView.contentOffset.x
+        var x = current
+        if frame.minX + width > current + bounds - margin { x = frame.minX + width - (bounds - margin) }
+        if frame.minX < current + margin { x = frame.minX - margin }
+        x = min(max(0, x), max(0, collectionView.contentSize.width - bounds))
+        return abs(x - current) < 0.5 ? nil : x
+    }
+
+    private var slideLink: CADisplayLink?
+    private var slideFrom: CGFloat = 0
+    private var slideTo: CGFloat = 0
+    private var slideStart: CFTimeInterval = 0
+
+    private func slide(to x: CGFloat) {
+        slideFrom = collectionView.contentOffset.x
+        slideTo = x
+        slideStart = CACurrentMediaTime()
+        if slideLink == nil {
+            let link = CADisplayLink(target: OrbitStripSlideTicker(self), selector: #selector(OrbitStripSlideTicker.tick))
+            link.add(to: .main, forMode: .common)
+            slideLink = link
+        }
+    }
+
+    fileprivate func slideStep() {
+        let t = min(1, (CACurrentMediaTime() - slideStart) / 0.4)
+        let eased = 1 - pow(1 - t, 3)
+        collectionView.contentOffset = CGPoint(x: slideFrom + (slideTo - slideFrom) * CGFloat(eased), y: 0)
+        if t >= 1 {
+            slideLink?.invalidate()
+            slideLink = nil
+            if aimedOffset == slideTo { aimedOffset = nil }
+        }
     }
 
     /// The system's own scroll to the focus: a pinned row aims at its title at the margin.
     func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
                                    targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        if !pinned, let aimedOffset { targetContentOffset.pointee.x = aimedOffset; return }
         guard pinned, let index = focusedIndex,
               let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return }
         targetContentOffset.pointee.x = max(0, frame.minX - margin)
