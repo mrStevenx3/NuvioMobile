@@ -1251,7 +1251,100 @@ struct OrbitNativeOpenRow: View {
         return ranked ? Array(0..<count) : Array((lead - 2)...(lead + 7))
     }
 
+    /// The UIKit strip (Steven, 2026-10-29: "applique les réglages… même Nouveaux films").
+    @State private var strip = OrbitStripRef()
+    /// The strip holds the focus (the open frame drawn lit).
+    @State private var stripHasFocus = false
+    @State private var placedLoop = false
+    /// The places of the strip: the titles repeated (the row loops), the lead starting in the middle.
+    private var copies: Int { loops ? 7 : 1 }
+    private var stripPlaces: Int { count * copies }
+
     var body: some View {
+        if ranked {
+            legacyBody
+        } else {
+            stripBody
+        }
+    }
+
+    private var stripBody: some View {
+        let L = OrbitHomeLayout.self
+        let lit = stripHasFocus && !focusHidden
+        return VStack(alignment: .leading, spacing: 14) {
+            OrbitRowHeading(title: row.title, isCurrent: isCurrent)
+                .padding(.leading, L.margin + 4)
+            OrbitStripView(count: stripPlaces, identity: row.cards.map(\.id).joined(separator: ","), spacing: gap, height: height,
+                           margin: L.margin, alignment: .bottom, pinned: true, lead: lead,
+                           width: { v in v == lead ? L.frameWidth : L.posterWidth }, ref: strip,
+                           tile: { v, _ in
+                               v == lead
+                                   ? AnyView(Color.clear.frame(width: L.frameWidth, height: height))
+                                   : AnyView(OrbitPosterCard(card: card(v))
+                                       .frame(width: L.posterWidth, height: height, alignment: .bottomLeading))
+                           },
+                           onFocus: { v in
+                               guard let v else {
+                                   DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                                       if strip.controller?.focusedIndex == nil { stripHasFocus = false }
+                                   }
+                                   return
+                               }
+                               if !stripHasFocus {
+                                   stripHasFocus = true
+                                   onEnter()
+                               }
+                               if v != lead {
+                                   lead = v
+                                   leadChanged()
+                               }
+                           },
+                           onSelect: { _ in if count > 0 { open(card(lead)) } })
+                .frame(height: height)
+                // The open frame, at the margin; the next title fades in inside it.
+                .overlay(alignment: .bottomLeading) {
+                    if count > 0 {
+                        openFrame(card(lead), lit: lit)
+                            .id(lead)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.22)))
+                            .offset(x: L.margin)
+                            .allowsHitTesting(false)
+                    }
+                }
+            if row.style == .classic {
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    if isCurrent, count > 0 { details(card(lead)) }
+                }
+                .frame(width: 1200, height: OrbitNativeRow.infoHeight, alignment: .topLeading)
+                .clipped()
+                .padding(.top, 20)
+                .padding(.bottom, -8)
+                .padding(.leading, L.margin + 6)
+            }
+        }
+        .onAppear {
+            // A looping row starts in its middle copy (once).
+            if loops, !placedLoop, count > 0 {
+                placedLoop = true
+                lead = count * 3 + index(lead)
+            }
+            // Back from a title opened here: its place takes the focus back.
+            if let target = OrbitNativeRow.reopen, target.row == row.id,
+               let i = row.cards.firstIndex(where: { $0.id == target.card }) {
+                if i != index(lead) { lead = lead - index(lead) + i }
+                let place = lead
+                DispatchQueue.main.async { strip.controller?.restore(index: place) }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
+            guard note.object as? String == row.id else { return }
+            strip.controller?.takeFocus(on: lead)
+        }
+    }
+
+    @ViewBuilder
+    private var legacyBody: some View {
         let L = OrbitHomeLayout.self
         VStack(alignment: .leading, spacing: 14) {
             OrbitRowHeading(title: row.title, isCurrent: isCurrent)
@@ -1355,10 +1448,10 @@ struct OrbitNativeOpenRow: View {
 
     /// The open title's frame (its trailer in it).
     @ViewBuilder
-    private func openFrame(_ card: OrbitCard) -> some View {
+    private func openFrame(_ card: OrbitCard, lit litOverride: Bool? = nil) -> some View {
         let meta = metaStore.meta(for: card.preview)
         let key = "\(row.id)|\(card.id)"
-        let lit = rowFocused && !focusHidden
+        let lit = litOverride ?? (rowFocused && !focusHidden)
         if ranked {
             OrbitRankedOpenFrame(card: card, meta: meta, focused: lit, trailers: trailers, trailerKey: key,
                                  size: OrbitNativeRankedOpenTile.frame(scale: 1))

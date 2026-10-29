@@ -186,6 +186,11 @@ struct OrbitPlatformTrendingRow: View {
     var accent: Color? = nil
     @ObservedObject private var metaStore = OrbitMetaStore.shared
     @FocusState private var focused: String?
+    /// The row's UIKit strip, and a title opened from it.
+    @State private var strip = OrbitStripRef()
+    @State private var pushed: TitleRoute?
+    /// The focused title's id in the rows ("row/title"), as `focused` was.
+    @State private var stripFocused: String?
     /// When the focus last left the rows (the platforms keep their own landing when coming back up).
     @MainActor static var lostAt: TimeInterval = 0
     /// Steven (device: back from a title opened in these rows, the focus went to the platform's
@@ -244,6 +249,7 @@ struct OrbitPlatformTrendingRow: View {
             }
         }
         .onAppear { restoreFocus() }
+        .navigationDestination(item: $pushed) { route in DetailView(preview: route.preview) }
         .onChange(of: focused) { old, id in
             guard let id else {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
@@ -274,12 +280,35 @@ struct OrbitPlatformTrendingRow: View {
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard Self.restore == target, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
-                if focused != target { focused = target }
+                if stripFocused != target, let index = model.top.firstIndex(where: { target.hasSuffix("/\($0.id)") }) {
+                    if delay == 0 { strip.controller?.restore(index: index) }
+                }
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
             if Self.restore == target { Self.restore = nil }
         }
+    }
+
+    /// The focus moved in the strip (as `focused` used to change).
+    private func stripFocus(key: String, items: [MetaPreview], index: Int?) {
+        let old = stripFocused
+        guard let index, items.indices.contains(index) else {
+            stripFocused = nil
+            Self.lostAt = ProcessInfo.processInfo.systemUptime
+            model.resetSpotlight()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                if strip.controller?.focusedIndex == nil { onRowFocus(nil) }
+            }
+            return
+        }
+        let id = "\(key)/\(items[index].id)"
+        stripFocused = id
+        Self.lastFocused = id
+        if id == Self.restore { Self.restore = nil }
+        if old == nil { onRowFocus(key) }
+        let item = items[index]
+        model.spotlight = item.banner ?? metaStore.meta(for: item)?.backdrop ?? model.spotlight
     }
 
     private func items(_ rowKey: String) -> [MetaPreview] {
@@ -295,38 +324,46 @@ struct OrbitPlatformTrendingRow: View {
         VStack(alignment: .leading, spacing: 10) {
             // Steven: Home's headings here too, the bar in the platform's colour.
             OrbitRowHeading(title: heading, isCurrent: true, accent: accent, size: 32)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: kind == .ranked ? 18 : Self.spacing) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        let lit = focused == "\(key)/\(item.id)"
-                        NavigationLink(value: TitleRoute(preview: item)) {
-                            switch kind {
-                            case .ranked:
-                                OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
-                                                meta: metaStore.meta(for: item), rank: index + 1, focused: lit,
-                                                // Steven: smaller here (it was cut at the top of the
-                                                // screen once the page scrolled): the series' posters' height.
-                                                showsBadge: false, scale: Self.posterHeight / OrbitTileLayout.rankedPoster.height)
-                            case .landscape:
-                                OrbitLandscapeTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
-                                                   meta: metaStore.meta(for: item), focused: lit, showsBadge: false)
-                                    .scaleEffect(Self.landscapeScale, anchor: .topLeading)
-                                    .frame(width: OrbitTileLayout.landscape.width * Self.landscapeScale,
-                                           height: OrbitTileLayout.landscape.height * Self.landscapeScale,
-                                           alignment: .topLeading)
-                            case .posters:
-                                OrbitTrendingPoster(item: item, focused: lit)
-                            }
-                        }
-                        .buttonStyle(OrbitPlatformTileStyle())
-                        .focused($focused, equals: "\(key)/\(item.id)")
-                    }
-                }
-                .padding(.vertical, 20)
-                .padding(.trailing, OrbitHomeLayout.margin)
-            }
-            .scrollClipDisabled()
-            .padding(.vertical, -20)
+            // Steven (2026-10-29: "applique-le de PARTOUT"): a UIKit strip the focus engine scrolls.
+            let rankScale = Self.posterHeight / OrbitTileLayout.rankedPoster.height
+            let height: CGFloat = kind == .landscape ? OrbitTileLayout.landscape.height * Self.landscapeScale : Self.posterHeight
+            OrbitStripView(count: items.count, identity: key + items.map(\.id).joined(), spacing: kind == .ranked ? 18 : Self.spacing,
+                           height: height, margin: 0, alignment: .bottom,
+                           width: { index in
+                               switch kind {
+                               case .ranked: return OrbitRankedTile.closedWidth(index + 1, scale: rankScale)
+                               case .landscape: return OrbitTileLayout.landscape.width * Self.landscapeScale
+                               case .posters: return Self.posterWidth
+                               }
+                           },
+                           ref: strip,
+                           tile: { index, lit in
+                               let item = items[index]
+                               switch kind {
+                               case .ranked:
+                                   return AnyView(OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                                                  meta: metaStore.meta(for: item), rank: index + 1, focused: lit,
+                                                                  showsBadge: false, scale: rankScale))
+                               case .landscape:
+                                   return AnyView(OrbitLandscapeTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                                                     meta: metaStore.meta(for: item), focused: lit, showsBadge: false)
+                                       .scaleEffect(Self.landscapeScale, anchor: .topLeading)
+                                       .frame(width: OrbitTileLayout.landscape.width * Self.landscapeScale,
+                                              height: OrbitTileLayout.landscape.height * Self.landscapeScale,
+                                              alignment: .topLeading))
+                               case .posters:
+                                   return AnyView(OrbitTrendingPoster(item: item, focused: lit))
+                               }
+                           },
+                           onFocus: { index in stripFocus(key: key, items: items, index: index) },
+                           onSelect: { index in
+                               let id = "\(key)/\(items[index].id)"
+                               Self.lastFocused = id
+                               Self.restore = id
+                               Self.restoreUntil = ProcessInfo.processInfo.systemUptime + 4
+                               pushed = TitleRoute(preview: items[index])
+                           })
+                .frame(height: height)
         }
         // The row's line on the page: its heading this far under the screen's top once scrolled to.
         .overlay(alignment: .top) {

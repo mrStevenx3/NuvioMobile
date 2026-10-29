@@ -1857,6 +1857,7 @@ private struct OrbitDisneyBrandsHub: View {
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
     @FocusState private var browseFocused: Bool
     @FocusState private var filmFocused: Int?
+    @State private var filmStrip = OrbitStripRef()
     /// The band's title opened (the focus back on it on the way back).
     @State private var reopenFilm: Int?
     /// The brand it was opened from (the system's landing on the first pill on the way back
@@ -1930,41 +1931,33 @@ private struct OrbitDisneyBrandsHub: View {
                     .frame(width: 720)
                     // Steven: the band's titles scroll (Right from TOUT PARCOURIR), each opens its page.
                     ZStack(alignment: .leading) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 32) {
-                                ForEach(Array(titles.prefix(20).enumerated()), id: \.offset) { i, item in
-                                    Button {
-                                        reopenFilm = i
-                                        reopenBrand = box.lead
-                                        onOpen(item)
-                                    } label: {
-                                        OrbitImage(url: item.poster, fallback: nil, mode: .fill, size: CGSize(width: 295, height: 440))
-                                            .frame(width: 295, height: 440)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                            .overlay {
-                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                    .strokeBorder(Color.white.opacity(filmFocused == i ? 1 : 0), lineWidth: 4)
-                                            }
-                                            .scaleEffect(filmFocused == i ? 1.06 : 1)
-                                            .shadow(color: .black.opacity(filmFocused == i ? 0.5 : 0), radius: 16, y: 8)
-                                            .animation(.easeOut(duration: 0.18), value: filmFocused == i)
-                                    }
-                                    .buttonStyle(OrbitPlainStyle())
-                                    .focused($filmFocused, equals: i)
-                                    // Back from it, its poster alone can take the focus (Steven: a
-                                    // beat on TOUT PARCOURIR first).
-                                    .disabled(reopenFilm.map { $0 != i } ?? !isCurrent)
-                                }
-                            }
-                            .padding(.vertical, 30)
-                        }
-                        .contentMargins(.leading, 24, for: .scrollContent)
-                        .contentMargins(.trailing, L.margin, for: .scrollContent)
-                        .scrollClipDisabled()
+                        // Steven (2026-10-29: "applique-le de PARTOUT"): a UIKit strip the focus
+                        // engine scrolls.
+                        let shelf = Array(titles.prefix(20))
+                        OrbitStripView(count: shelf.count, identity: brand.name + "|\(shelf.count)", spacing: 32, height: 440,
+                                       margin: 24, alignment: .center, width: { _ in 295 }, ref: filmStrip,
+                                       tile: { i, lit in
+                                           AnyView(OrbitImage(url: shelf[i].poster, fallback: nil, mode: .fill, size: CGSize(width: 295, height: 440))
+                                               .frame(width: 295, height: 440)
+                                               .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                               .overlay {
+                                                   RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                       .strokeBorder(Color.white.opacity(lit ? 1 : 0), lineWidth: 4)
+                                               }
+                                               .scaleEffect(lit ? 1.06 : 1)
+                                               .shadow(color: .black.opacity(lit ? 0.5 : 0), radius: 16, y: 8)
+                                               .animation(.easeOut(duration: 0.18), value: lit))
+                                       },
+                                       onSelect: { i in
+                                           reopenFilm = i
+                                           reopenBrand = box.lead
+                                           onOpen(shelf[i])
+                                       })
+                            .frame(height: 440)
+                            .disabled(!isCurrent && reopenFilm == nil)
                         // (Steven: scrolled, the titles ran over the brand's logo and TOUT PARCOURIR:
                         // cut at the column's edge, free above and below for the focused one.)
                         .mask(Rectangle().padding(.vertical, -40))
-                        .padding(.vertical, -30)
                         .id(brand.name + "|\(titles.count)")
                         .transition(.opacity)
                     }
@@ -1992,9 +1985,9 @@ private struct OrbitDisneyBrandsHub: View {
                         box.lead = brandBack
                         films.focus(title: brands[brandBack].name)
                     }
-                    if filmFocused != back { filmFocused = back }
                 }
                 restore()
+                DispatchQueue.main.async { filmStrip.controller?.restore(index: back) }
                 for delay in [0.0, 0.1, 0.3, 0.6, 0.9] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                         guard reopenFilm == back, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
