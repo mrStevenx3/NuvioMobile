@@ -189,6 +189,14 @@ struct OrbitDetailView: View {
     /// Back from a page opened from a row: the card it was opened from, the only one of the rows
     /// that can take the focus for a moment.
     @State private var returningTo: OrbitDetailFocus?
+    /// Steven (2026-10-29: "applique-le de PARTOUT"): the rows (casting, saga, trailers, À voir
+    /// aussi) are UIKit strips the focus engine scrolls, as Home's and Apple's TV app.
+    @State private var castStrip = OrbitStripRef()
+    @State private var sagaStrip = OrbitStripRef()
+    @State private var trailersStrip = OrbitStripRef()
+    @State private var similarStrip = OrbitStripRef()
+    @State private var pushTitle: TitleRoute?
+    @State private var pushPerson: PersonRoute?
     /// The card a press ended the way back from (`ViewerInputClock`), and when.
     @State private var pressedFrom: OrbitDetailFocus?
     @State private var pressedAt: TimeInterval = 0
@@ -529,7 +537,10 @@ struct OrbitDetailView: View {
                     }
                 } else if !ViewerInputClock.shared.hasInput(since: resumeStart + 0.3) {
                     // The system's landing (the row's first card, Lire): the card put back at once.
-                    DispatchQueue.main.async { if resuming { focus = back } }
+                    DispatchQueue.main.async {
+                        guard resuming else { return }
+                        if Self.inStrip(back) { restoreStrip(back) } else { focus = back }
+                    }
                 } else {
                     // His own move: the focus is his.
                     resuming = false
@@ -613,7 +624,9 @@ struct OrbitDetailView: View {
                             return
                         }
                         OrbitTrace.log("detail ask \(delay) focus=\(String(describing: focus)) -> \(back)")
-                        if focus != back { focus = back }
+                        if Self.inStrip(back) {
+                            if delay == 0 { restoreStrip(back) }
+                        } else if focus != back { focus = back }
                         anchorTick &+= 1
                     }
                 }
@@ -708,6 +721,13 @@ struct OrbitDetailView: View {
         }
         .navigationDestination(item: $postPlayRoute) { route in
             DetailView(preview: route.preview)
+        }
+        // The rows' titles and actors (their strips are UIKit: no NavigationLink in them).
+        .navigationDestination(item: $pushTitle) { route in
+            DetailView(preview: route.preview)
+        }
+        .navigationDestination(item: $pushPerson) { route in
+            PersonDetailView(personId: route.id, personName: route.name)
         }
     }
 
@@ -1235,38 +1255,21 @@ struct OrbitDetailView: View {
 
     @ViewBuilder
     private var castSection: some View {
-        let cast = meta?.cast ?? []
+        let cast = Array((meta?.cast ?? []).prefix(40))
         if !cast.isEmpty {
             VStack(alignment: .leading, spacing: 20) {
                 heading(String(localized: "Casting"))
-                ScrollView(.horizontal, showsIndicators: false) {
-                    // Every card built (a lazy row had none where the viewer came back from —
-                    // Steven: back from an actor the focus fell on the first one). A cast is short.
-                    HStack(alignment: .top, spacing: 34) {
-                        ForEach(Array(cast.prefix(40).enumerated()), id: \.offset) { index, person in
-                            if let id = person.tmdbId?.value {
-                                NavigationLink(value: PersonRoute(id: id, name: person.name)) {
-                                    OrbitCastCard(person: person, focused: focus == .cast(index) && (returningTo == nil || returningTo == .cast(index)))
-                                }
-                                .buttonStyle(OrbitPlainStyle())
-                                .focused($focus, equals: .cast(index))
-                                // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
-                                .disabled(returningTo != nil && returningTo != .cast(index))
-                            } else {
-                                OrbitCastCard(person: person, focused: false)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, OrbitDetailLayout.margin)
-                    .padding(.vertical, 16)
-                }
-                .scrollClipDisabled()
-                .modifier(OrbitRowMemory(key: "cast", store: rowOffsets, resetGeneration: rowResets["cast", default: 0]))
+                OrbitStripView(count: cast.count, identity: "cast|\(cast.count)", spacing: 34, height: 250,
+                               margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 200 }, ref: castStrip,
+                               tile: { i, focused in AnyView(OrbitCastCard(person: cast[i], focused: focused)) },
+                               onFocus: { i in stripFocused(i.map { OrbitDetailFocus.cast($0) }) },
+                               onSelect: { i in
+                                   guard let id = cast[i].tmdbId?.value else { return }
+                                   pushPerson = PersonRoute(id: id, name: cast[i].name)
+                               })
+                    .frame(height: 250)
             }
             .focusSection()
-            // Back from an actor the system's own landing is his card, not the row's first (the
-            // trace: it went to the first, 7 ms after his).
-            .defaultFocus($focus, returningTo, priority: .userInitiated)
             .id(OrbitDetailSection.cast)
         }
     }
@@ -1276,26 +1279,18 @@ struct OrbitDetailView: View {
         let items = meta?.collectionItems ?? []
         if !items.isEmpty {
             let name: String? = meta?.collectionName
+            let current = streamVideoId
             VStack(alignment: .leading, spacing: 20) {
                 heading((name ?? "").isEmpty ? String(localized: "La saga") : name!)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 28) {
-                        ForEach(items, id: \.id) { item in
-                            NavigationLink(value: TitleRoute(preview: item)) {
-                                OrbitDetailLandscapeCard(item: item, focused: focus == .saga(item.id),
-                                                         current: item.id == streamVideoId || item.id == preview.id)
-                            }
-                            .buttonStyle(OrbitPlainStyle())
-                            .focused($focus, equals: .saga(item.id))
-                            // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
-                            .disabled(returningTo != nil && returningTo != .saga(item.id))
-                        }
-                    }
-                    .padding(.horizontal, OrbitDetailLayout.margin)
-                    .padding(.vertical, 20)
-                }
-                .scrollClipDisabled()
-                .modifier(OrbitRowMemory(key: "saga", store: rowOffsets, resetGeneration: rowResets["saga", default: 0]))
+                OrbitStripView(count: items.count, identity: "saga|\(items.map(\.id).joined())", spacing: 28, height: 292,
+                               margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 440 }, ref: sagaStrip,
+                               tile: { i, focused in
+                                   AnyView(OrbitDetailLandscapeCard(item: items[i], focused: focused,
+                                                                    current: items[i].id == current || items[i].id == preview.id))
+                               },
+                               onFocus: { i in stripFocused(i.map { OrbitDetailFocus.saga(items[$0].id) }) },
+                               onSelect: { i in pushTitle = TitleRoute(preview: items[i]) })
+                    .frame(height: 292)
             }
             .focusSection()
             .id(OrbitDetailSection.saga)
@@ -1306,25 +1301,19 @@ struct OrbitDetailView: View {
     private var trailersSection: some View {
         let trailers = Array((meta?.trailers ?? []).prefix(12))
         if !trailers.isEmpty {
+            let resolving = model.resolvingTrailerId
             VStack(alignment: .leading, spacing: 20) {
                 heading(String(localized: "Bandes-annonces et extras"))
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 28) {
-                        ForEach(trailers, id: \.id) { trailer in
-                            Button { model.playTrailer(trailer) } label: {
-                                OrbitTrailerCard(trailer: trailer, focused: focus == .trailerClip(trailer.id),
-                                                 resolving: model.resolvingTrailerId == trailer.id)
-                            }
-                            .buttonStyle(OrbitPlainStyle())
-                            .focused($focus, equals: .trailerClip(trailer.id))
-                            // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
-                            .disabled(returningTo != nil && returningTo != .trailerClip(trailer.id))
-                        }
-                    }
-                    .padding(.horizontal, OrbitDetailLayout.margin)
-                    .padding(.vertical, 20)
-                }
-                .scrollClipDisabled()
+                OrbitStripView(count: trailers.count, identity: "trailers|\(trailers.map(\.id).joined())", spacing: 28,
+                               height: 300, margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 400 },
+                               ref: trailersStrip,
+                               tile: { i, focused in
+                                   AnyView(OrbitTrailerCard(trailer: trailers[i], focused: focused,
+                                                            resolving: resolving == trailers[i].id))
+                               },
+                               onFocus: { i in stripFocused(i.map { OrbitDetailFocus.trailerClip(trailers[$0].id) }) },
+                               onSelect: { i in model.playTrailer(trailers[i]) })
+                    .frame(height: 300)
             }
             .focusSection()
             .id(OrbitDetailSection.trailers)
@@ -1337,41 +1326,78 @@ struct OrbitDetailView: View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 20) {
                 heading(String(localized: "À voir aussi"))
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 26) {
-                        ForEach(items, id: \.id) { item in
-                            NavigationLink(value: TitleRoute(preview: item)) {
-                                OrbitDetailPoster(item: item, focused: focus == .similar(item.id) && (returningTo == nil || returningTo == .similar(item.id)))
-                            }
-                            .buttonStyle(OrbitPlainStyle())
-                            .focused($focus, equals: .similar(item.id))
-                            // (The way back: only the card left from can take the focus — Steven: it went left a moment.)
-                            .disabled(returningTo != nil && returningTo != .similar(item.id))
-                            .onAppear { OrbitMetaStore.shared.request([item]) }
-                            // Its art fetched once it is focused (Steven: the page opened from it
-                            // waited for its image).
-                            .onChange(of: focus == .similar(item.id)) { _, on in
-                                guard on else { return }
-                                let banner: String? = item.banner
-                                let raw = banner ?? OrbitMetaStore.shared.metas[OrbitMetaStore.key(item)]?.backdrop
-                                if let raw, let url = URL(string: raw) {
-                                    Task(priority: .utility) {
-                                        _ = try? await ArtworkStore.fetch(url, decode: ArtworkDecodeRequest(
-                                            size: .points(width: 1280, height: 720), fill: true, scale: UIScreen.main.scale))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, OrbitDetailLayout.margin)
-                    .padding(.vertical, 20)
-                }
-                .scrollClipDisabled()
-                .modifier(OrbitRowMemory(key: "similar", store: rowOffsets, resetGeneration: rowResets["similar", default: 0]))
+                OrbitStripView(count: items.count, identity: "similar|\(items.map(\.id).joined())", spacing: 26,
+                               height: 300, margin: OrbitDetailLayout.margin, alignment: .top, width: { _ in 200 },
+                               ref: similarStrip,
+                               tile: { i, focused in AnyView(OrbitDetailPoster(item: items[i], focused: focused)) },
+                               onFocus: { i in
+                                   guard let i else { stripFocused(nil); return }
+                                   let item = items[i]
+                                   OrbitMetaStore.shared.request(Array(items[i..<min(items.count, i + 6)]))
+                                   // Its art fetched once it is focused (Steven: the page opened from
+                                   // it waited for its image).
+                                   let banner: String? = item.banner
+                                   let raw = banner ?? OrbitMetaStore.shared.metas[OrbitMetaStore.key(item)]?.backdrop
+                                   if let raw, let url = URL(string: raw) {
+                                       Task(priority: .utility) {
+                                           _ = try? await ArtworkStore.fetch(url, decode: ArtworkDecodeRequest(
+                                               size: .points(width: 1280, height: 720), fill: true, scale: UIScreen.main.scale))
+                                       }
+                                   }
+                                   stripFocused(.similar(item.id))
+                               },
+                               onSelect: { i in pushTitle = TitleRoute(preview: items[i]) })
+                    .frame(height: 300)
             }
             .focusSection()
-            .defaultFocus($focus, returningTo, priority: .userInitiated)
             .id(OrbitDetailSection.similar)
+        }
+    }
+
+    /// A focus inside one of the strips (nil: it left it) — as the page's own focus changes.
+    private func stripFocused(_ new: OrbitDetailFocus?) {
+        guard let new else { return }
+        if resuming, let back = resumeFocus {
+            if new == back {
+                lastFocus = new
+                enter(new.section)
+            } else if !ViewerInputClock.shared.hasInput(since: resumeStart + 0.3) {
+                // The system's landing elsewhere: the card put back.
+                restoreStrip(back)
+            } else {
+                resuming = false
+                resumeFocus = nil
+                returningTo = nil
+                lastFocus = new
+                enter(new.section)
+            }
+            return
+        }
+        lastFocus = new
+        enter(new.section)
+    }
+
+    /// The focus kept in a strip (not the page's own focus).
+    static func inStrip(_ f: OrbitDetailFocus) -> Bool {
+        switch f {
+        case .cast, .saga, .trailerClip, .similar: return true
+        default: return false
+        }
+    }
+
+    /// Back to the card left from, in its strip.
+    private func restoreStrip(_ f: OrbitDetailFocus) {
+        switch f {
+        case .cast(let i):
+            castStrip.controller?.restore(index: i)
+        case .saga(let id):
+            if let i = (meta?.collectionItems ?? []).firstIndex(where: { $0.id == id }) { sagaStrip.controller?.restore(index: i) }
+        case .trailerClip(let id):
+            if let i = (meta?.trailers ?? []).firstIndex(where: { $0.id == id }) { trailersStrip.controller?.restore(index: i) }
+        case .similar(let id):
+            if let i = (meta?.moreLikeThis ?? []).firstIndex(where: { $0.id == id }) { similarStrip.controller?.restore(index: i) }
+        default:
+            break
         }
     }
 
