@@ -163,6 +163,14 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             focusedSizes = [:]
             widths = newWidths
             collectionView.reloadData()
+            // A pinned row shows its lead at the margin from the start (a looping row: its middle copy).
+            if pinned, focusedIndex == nil {
+                let lead = self.lead
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.focusedIndex == nil, lead >= 0, lead < self.count else { return }
+                    self.place(lead, animated: false)
+                }
+            }
         } else {
             if relayout { closedSizes = [:]; focusedSizes = [:]; collectionView.collectionViewLayout.invalidateLayout() }
             if newWidths != widths {
@@ -194,7 +202,18 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             redrawVisible()
         }
         lastShowFocus = focusedIndex
+        // A pinned row the focus is not in: its lead kept at the margin (it changes before the row is
+        // ever entered — a looping row moved to its middle copy).
+        if pinned, focusedIndex == nil, lead != placedLead, lead >= 0, lead < count {
+            placedLead = lead
+            let target = lead
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.focusedIndex == nil, self.lead == target else { return }
+                self.place(target, animated: false)
+            }
+        }
     }
+    private var placedLead: Int?
 
     private func redrawVisible() {
         for path in collectionView.indexPathsForVisibleItems {
@@ -344,6 +363,10 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         // (Not when the page itself asked for a title: the way back, its own requests.)
         if entersOnLead, preferredIndex == nil, previous == nil, next != lead, lead >= 0, lead < count {
             preferredIndex = lead
+            // Steven (2026-10-29: the first Down from the hero sent the focus back up to the bar): the
+            // lead far off screen (a looping row never placed yet) could not take it — the row is put
+            // on its lead first, its cell there to take the focus.
+            if pinned { place(lead, animated: false) }
             DispatchQueue.main.async { [weak self] in
                 self?.requestFocus()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self?.preferredIndex = nil }
