@@ -347,7 +347,8 @@ struct OrbitNetflixPage: View {
             topLine: L.restTop, current: current,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
-                refreshAfterMove()
+                // (The page's work once the slide is over — see `nativeEnter`.)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == s { refreshAfterMove() } }
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             onFocusChange: { has in
@@ -396,7 +397,11 @@ struct OrbitNetflixPage: View {
         nativeFocusStamp = ProcessInfo.processInfo.systemUptime
         if !nativeHasFocus { nativeHasFocus = true }
         if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
-        refreshAfterMove()
+        // Steven (2026-10-29, video measured frame by frame: the page stopped a frame ~0.15 s into each
+        // move down, then jumped): the page's work for the new row (trailer, look-ahead) redrew it in
+        // the middle of the slide — it comes once the slide is over.
+        let target = s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == target { refreshAfterMove() } }
     }
 
     /// A section let the focus go: the page lost it unless another section took it just after.
@@ -886,11 +891,13 @@ private struct OrbitNetflixRowView: View {
                                  },
                                  // (UIKit strip: each slot's room, the open title's wider.)
                                  width: { slot in
-                                     let open = (isCurrent || aboveCurrent) && slot == leadSlot
-                                     return (row.top10 ? OrbitNetflixRank.width(row.item(atSlot: slot) + 1) : 0)
-                                         + (open ? L.openWidth : L.posterWidth)
+                                     (row.top10 ? OrbitNetflixRank.width(row.item(atSlot: slot) + 1) : 0) + L.posterWidth
                                  },
-                                 redrawKey: AnyHashable([isCurrent, aboveCurrent])) { slot, lit in
+                                 // (Being current changes the open title's tile alone: the strip redraws
+                                 // that one itself.)
+                                 redrawKey: AnyHashable(row.top10),
+                                 // (The open title's room moved by the strip with the focus itself.)
+                                 openDelta: isCurrent || aboveCurrent ? L.openWidth - L.posterWidth : nil) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
                 // Steven (video): leaving down, the row's open title closed as it went — its poster
@@ -926,8 +933,9 @@ private struct OrbitNetflixRowView: View {
                                           badges: badges(rank: rank, fresh: row.fresh, news: OrbitTitleNews.of(item, meta)),
                                           trailerURL: isCurrent ? trailerURL : nil,
                                           onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
-                        .offset(x: row.top10 ? (openX ?? (L.margin + OrbitNetflixRank.width(lead + 1))) : L.margin)
-                        .animation(OrbitHomeLayout.horizontal, value: openX)
+                        // (Steven, 2026-10-29, the Top 10: the frame went left and right — its place was read
+                        // off a tile the UIKit strip now holds. Every title reaches the margin: there.)
+                        .offset(x: L.margin + (row.top10 ? OrbitNetflixRank.width(lead + 1) : 0))
                 }
             }
             // Steven (device: the text ran over the posters while the page moved): the details of

@@ -1291,7 +1291,7 @@ struct OrbitNativeOpenRow: View {
                 .padding(.leading, L.margin + 4)
             OrbitStripView(count: stripPlaces, identity: row.cards.map(\.id).joined(separator: ","), spacing: gap, height: height,
                            margin: L.margin, alignment: .bottom, pinned: true, lead: lead,
-                           width: { v in v == lead ? L.frameWidth : L.posterWidth }, ref: strip,
+                           width: { _ in L.posterWidth }, openDelta: L.frameWidth - L.posterWidth, ref: strip,
                            tile: { v, _ in
                                v == lead
                                    ? AnyView(Color.clear.frame(width: L.frameWidth, height: height))

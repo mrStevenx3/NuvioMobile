@@ -552,7 +552,8 @@ struct OrbitDisneyPage: View {
             topLine: OrbitDisneyLayout.restTopNew, current: current, hidesAbove: false,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
-                refreshAfterMove()
+                // (The page's work once the slide is over — see `nativeEnter`.)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == s { refreshAfterMove() } }
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             onFocusChange: { has in
@@ -617,7 +618,11 @@ struct OrbitDisneyPage: View {
         nativeFocusStamp = ProcessInfo.processInfo.systemUptime
         if !nativeHasFocus { nativeHasFocus = true }
         if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
-        refreshAfterMove()
+        // Steven (2026-10-29, video measured frame by frame: the page stopped a frame ~0.15 s into each
+        // move down, then jumped): the page's work for the new row (trailer, look-ahead) redrew it in
+        // the middle of the slide — it comes once the slide is over.
+        let target = s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == target { refreshAfterMove() } }
     }
 
     /// A section let the focus go: the page lost it unless another section took it just after.
@@ -1501,7 +1506,8 @@ private struct OrbitDisneyOpenRow: View {
         let lead = row.item(atSlot: leadSlot)
         // (Newest app: the row above shows at the screen's top, closed.)
         let opens = isCurrent
-        let frameX = row.top10 ? top10FrameX(lead: lead) : L.margin
+        // (Every title reaches the margin in the UIKit strip: the frame there, the Top 10's too.)
+        let frameX = L.margin
         VStack(alignment: .leading, spacing: 0) {
             Text(row.title)
                 .font(.system(size: 26, weight: .medium))
@@ -1519,8 +1525,9 @@ private struct OrbitDisneyOpenRow: View {
                                  },
                                  leftSlide: { _ in L.posterNew.width + L.gapNew },
                                  // (UIKit strip: the lead's room is the open frame's; the others measured.)
-                                 width: { slot in opens && slot == leadSlot ? L.open.width : L.posterNew.width },
-                                 redrawKey: AnyHashable([opens, isHulu])) { slot, lit in
+                                 width: { _ in L.posterNew.width },
+                                 redrawKey: AnyHashable(isHulu),
+                                 openDelta: opens ? L.open.width - L.posterNew.width : nil) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
                 let isLead = opens && slot == leadSlot

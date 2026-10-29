@@ -450,7 +450,8 @@ struct OrbitPrimePage: View {
             topLine: OrbitPrimeLayout.rowLine, current: current, hidesAbove: true,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
-                refreshAfterMove()
+                // (The page's work once the slide is over — see `nativeEnter`.)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == s { refreshAfterMove() } }
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             onFocusChange: { has in
@@ -486,7 +487,11 @@ struct OrbitPrimePage: View {
         nativeFocusStamp = ProcessInfo.processInfo.systemUptime
         if !nativeHasFocus { nativeHasFocus = true }
         if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
-        refreshAfterMove()
+        // Steven (2026-10-29, video measured frame by frame: the page stopped a frame ~0.15 s into each
+        // move down, then jumped): the page's work for the new row (trailer, look-ahead) redrew it in
+        // the middle of the slide — it comes once the slide is over.
+        let target = s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == target { refreshAfterMove() } }
     }
 
     /// A section let the focus go: the page lost it unless another section took it just after.
@@ -903,8 +908,9 @@ private struct OrbitPrimeRowView: View {
                                  onLeadChange: { _ in onLeadChange() },
                                  leftSlide: row.kind == .originals ? { _ in L.poster.width + L.gap } : nil,
                                  // (UIKit strip: the open title's room; the others measured.)
-                                 width: row.kind == .originals ? { index in isCurrent && index == lead ? L.openWidth : L.poster.width } : nil,
-                                 redrawKey: AnyHashable([AnyHashable(isCurrent), AnyHashable(badges)])) { index, lit in
+                                 width: row.kind == .originals ? { _ in L.poster.width } : nil,
+                                 redrawKey: AnyHashable(row.kind == .originals ? AnyHashable(badges) : AnyHashable([AnyHashable(isCurrent), AnyHashable(badges)])),
+                                 openDelta: row.kind == .originals && isCurrent ? L.openWidth - L.poster.width : nil) { index, lit in
                 let item = row.items[index]
                 let meta = metaStore.meta(for: item)
                 let badge = badges[item.id].flatMap { $0.isEmpty ? nil : $0 }

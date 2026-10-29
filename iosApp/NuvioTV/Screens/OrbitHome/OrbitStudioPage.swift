@@ -975,7 +975,7 @@ private struct OrbitNativeStudioRow: View {
                     + OrbitNativeRankedOpenTile.frame(scale: OrbitStudioRow.rankedScale).width
             }
             return OrbitRankedTile.closedWidth(v + 1, scale: OrbitStudioRow.rankedScale)
-        case .classic: return v == leadPlace ? OrbitHomeLayout.frameWidth : size.width
+        case .classic: return size.width  // (its open room: `openDelta`, moved by the strip with the focus)
         default: return size.width
         }
     }
@@ -1034,7 +1034,8 @@ private struct OrbitNativeStudioRow: View {
             // scrolls, as Home's rows and Apple's TV app (`OrbitStripView`).
             OrbitStripView(count: places, identity: row.id + (loops ? "|loop" : ""), spacing: row.gap, height: size.height,
                            margin: L.margin, alignment: .bottom, pinned: row.pinned, lead: leadPlace,
-                           width: { v in stripWidth(v) }, ref: strip,
+                           width: { v in stripWidth(v) },
+                           openDelta: row.kind == .classic ? OrbitHomeLayout.frameWidth - size.width : nil, ref: strip,
                            tile: { v, focused in
                                row.kind == .classic && v == leadPlace
                                    ? AnyView(Color.clear.frame(width: OrbitHomeLayout.frameWidth, height: size.height))

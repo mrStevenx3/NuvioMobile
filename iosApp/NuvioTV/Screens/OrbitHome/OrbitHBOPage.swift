@@ -485,7 +485,8 @@ struct OrbitHBOPage: View {
             topLine: nativeLine(rows), current: current, hidesAbove: false,
             onFocus: { s in
                 withAnimation(.easeInOut(duration: 0.3)) { current = s }
-                refreshAfterMove()
+                // (The page's work once the slide is over — see `nativeEnter`.)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == s { refreshAfterMove() } }
             },
             onMove: { move($0) }, onSelect: select, onExit: exitAction(),
             onFocusChange: { has in
@@ -535,7 +536,11 @@ struct OrbitHBOPage: View {
         nativeFocusStamp = ProcessInfo.processInfo.systemUptime
         if !nativeHasFocus { nativeHasFocus = true }
         if current != s { withAnimation(.easeInOut(duration: 0.3)) { current = s } }
-        refreshAfterMove()
+        // Steven (2026-10-29, video measured frame by frame: the page stopped a frame ~0.15 s into each
+        // move down, then jumped): the page's work for the new row (trailer, look-ahead) redrew it in
+        // the middle of the slide — it comes once the slide is over.
+        let target = s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if current == target { refreshAfterMove() } }
     }
 
     /// A section let the focus go: the page lost it unless another section took it just after.

@@ -55,6 +55,12 @@ struct OrbitStripView: UIViewControllerRepresentable {
     /// changes (nil: at every update, as before). Steven (2026-10-29, platforms jerky up and down):
     /// each move redrew every tile on screen of the rows it touched; Home's rows redraw only on change.
     var redrawKey: AnyHashable? = nil
+    /// A pinned row whose focused title opens wider (Netflix's, Home's new films): the extra room,
+    /// added by the strip itself to the title it holds at the margin — on the very move of the focus.
+    /// `width` then gives the closed widths. Steven (2026-10-29, Netflix's Top 10: a ghost going left
+    /// and right): the room grew one beat after the focus moved, the row aimed at the old layout first,
+    /// then at the new one — two slides.
+    var openDelta: CGFloat? = nil
     let ref: OrbitStripRef
     let tile: (Int, Bool) -> AnyView
     var onFocus: (Int?) -> Void = { _ in }
@@ -85,6 +91,7 @@ struct OrbitStripView: UIViewControllerRepresentable {
         c.entersOnLead = entersOnLead ?? pinned
         c.widthOf = width
         c.redrawKey = redrawKey
+        c.setOpenDelta(openDelta)
         c.show(count: count, identity: identity, spacing: spacing, height: height, margin: margin,
                alignment: alignment, pinned: pinned, focusHidden: focusHidden, enabled: enabled)
     }
@@ -123,6 +130,25 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     private let entryGuide = UIFocusGuide()
     var redrawKey: AnyHashable?
     private var drawnKey: AnyHashable?
+    /// The open title's extra room (nil: no title opens) and the place it is given to.
+    private var openDelta: CGFloat?
+    private var roomLead = 0
+
+    func setOpenDelta(_ delta: CGFloat?) {
+        guard delta != openDelta else { return }
+        openDelta = delta
+        if focusedIndex == nil || delta == nil { roomLead = focusedIndex ?? lead }
+        guard collectionView != nil else { return }
+        // Opening / closing as the row is arrived on or left: at once.
+        UIView.performWithoutAnimation {
+            collectionView?.collectionViewLayout.invalidateLayout()
+            collectionView?.layoutIfNeeded()
+            if pinned, delta != nil { offsetToMargin(roomLead) }
+        }
+        // Only the open title's own tile changes (its room shown or its poster back): the others are
+        // not redrawn as the row is arrived on or left (Steven: the page stopped a frame each move).
+        collectionView.cellForItem(at: IndexPath(item: roomLead, section: 0))?.setNeedsUpdateConfiguration()
+    }
     private var lastFocusedIndex: Int?
     private var onlyIndex: Int?
     private var onlyUntil: TimeInterval = 0
@@ -259,6 +285,13 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             }
             if keyChanged || widthsChanged { redrawVisible() }
         }
+        if focusedIndex == nil, openDelta != nil, roomLead != lead, lead >= 0, lead < count {
+            roomLead = lead
+            UIView.performWithoutAnimation {
+                collectionView.collectionViewLayout.invalidateLayout()
+                collectionView.layoutIfNeeded()
+            }
+        }
         lastShowFocus = focusedIndex
         entryGuide.isEnabled = entersOnLead && focusedIndex == nil && enabled
         // A pinned row the focus is not in: its lead kept at the margin (it changes before the row is
@@ -300,7 +333,9 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
 
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout,
                         sizeForItemAt indexPath: IndexPath) -> CGSize {
-        measure(indexPath.item, focused: indexPath.item == focusedIndex && !focusHidden)
+        var size = measure(indexPath.item, focused: indexPath.item == focusedIndex && !focusHidden)
+        if let openDelta, indexPath.item == roomLead { size.width += openDelta }
+        return size
     }
 
     // MARK: The page's requests
@@ -441,6 +476,17 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             return
         }
         lastFocusedIndex = next
+        if pinned, openDelta != nil {
+            // The room goes with the focus, in the same move as the row's slide (one layout, one aim).
+            roomLead = next
+            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
+                self.collectionView.collectionViewLayout.invalidateLayout()
+                self.collectionView.layoutIfNeeded()
+                self.offsetToMargin(next)
+            }
+            onFocus(next)
+            return
+        }
         onFocus(next)
         if pinned { place(next, animated: true) }
     }
