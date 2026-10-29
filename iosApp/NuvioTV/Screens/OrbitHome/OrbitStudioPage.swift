@@ -834,6 +834,47 @@ private struct OrbitNativeStudioRow: View {
         // the lock wait for the page to have gone (`onDisappear`).
     }
 
+    @State private var strip = OrbitStripRef()
+
+    /// Each title's room in the strip.
+    private func stripWidth(_ i: Int) -> CGFloat {
+        let size = row.cardSize
+        switch row.kind {
+        case .saga: return i == 0 ? OrbitStudioRow.sagaPanelWidth : size.width
+        case .ranked: return OrbitRankedTile.closedWidth(i + 1, scale: OrbitStudioRow.rankedScale)
+        case .classic: return i == (shown ?? 0) ? OrbitHomeLayout.frameWidth : size.width
+        default: return size.width
+        }
+    }
+
+    /// The focus moved in the strip (nil: it left the row).
+    private func stripFocus(_ new: Int?) {
+        guard let new else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                if strip.controller?.focusedIndex == nil, holds { holds = false }
+            }
+            return
+        }
+        if !holds {
+            holds = true
+            onEnter()
+        }
+        if row.kind == .classic {
+            withAnimation(OrbitHomeLayout.horizontal) { shown = new }
+        } else {
+            shown = new
+        }
+        if row.kind == .featured || row.kind == .classic || row.opensRanked, row.items.indices.contains(new) {
+            let item = row.items[new]
+            trailers.arm("\(row.id)|\(item.type):\(item.id)", item: item)
+        } else {
+            trailers.stop()
+        }
+        guard row.items.indices.contains(new) else { return }
+        let ahead = row.items[new..<min(row.items.count, new + 6)]
+        OrbitMetaStore.shared.request(Array(ahead))
+    }
+
     var body: some View {
         let L = OrbitStudioLayout.self
         let size = row.cardSize
@@ -844,59 +885,22 @@ private struct OrbitNativeStudioRow: View {
                 OrbitRowHeading(title: row.title, isCurrent: isCurrent, accent: accent)
                     .padding(.leading, L.margin + 4)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .bottom, spacing: row.gap) {
-                    // By place, not id: a saga's panel carries its first film's id.
-                    ForEach(row.items.indices, id: \.self) { index in
-                        let item = row.items[index]
-                        Button {
-                            Self.reopen = (row.id, index)
-                            lockForReturn(index)
-                            onOpen(item)
-                        } label: {
-                            OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
-                                                  trailers: trailers,
-                                                  open: (row.kind == .classic || row.opensRanked) && index == (shown ?? 0))
-
-                        }
-                        .buttonStyle(OrbitPlainStyle())
-                        .focused($focused, equals: index)
-                        // The focused tile above its neighbours (it grows over them).
-                        .zIndex(focused == index ? 1 : 0)
-                        .disabled(restoreLock && Self.reopen?.row == row.id && Self.reopen?.index != index)
-                        .transformEnvironment(\.orbitFocusHidden) {
-                            $0 = $0 || ((restoreLock || restoringSince > 0) && Self.reopen?.row == row.id && Self.reopen?.index != index)
-                        }
-                        .onAppear { OrbitMetaStore.shared.request([item]) }
-                    }
-                }
-                .scrollTargetLayout()
-                .padding(.vertical, 34)
-                .offset(x: slideX)
-                // The frame opening on the new title and closing on the old one, on the row's curve.
-                .animation(row.kind == .classic ? OrbitHomeLayout.horizontal : nil, value: shown)
-            }
-            // A row with its title's details under it is pinned: placed by its anchor alone (the
-            // alignment snapped it back — Steven, simulator: the title stopped second).
-            .scrollTargetBehavior(OrbitRowScrollBehavior(aligned: !row.pinned))
-            // Only a pinned row is driven by its anchor. An unpinned one is not bound at all: the
-            // binding kept the first title the system wrote back (one half off screen) and brought it
-            // in on the way back from a title — the row moved by one (Steven, simulator).
-            .scrollPosition($scroll)
-            // Where the row is scrolled, kept (not while it comes back from a title): the way back
-            // puts it exactly there again (Steven, simulator: the return moved it right).
-            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, x in
-                if restoringSince == 0, !disappeared, !restoreLock { Self.offsets[row.id] = x }
-            }
-            .contentMargins(.leading, L.margin, for: .scrollContent)
-            // A saga's shelf keeps its logo panel in view (Steven's video: the panel left, an empty band
-            // behind a few posters) — the system scrolls it only as far as needed.
-            .contentMargins(.trailing, row.pinned ? max(L.margin, OrbitHomeLayout.screenWidth - L.margin - lastWidth) : L.margin,
-                            for: .scrollContent)
-            .scrollClipDisabled()
-            .padding(.vertical, -34)
-            .frame(height: size.height)
-            .coordinateSpace(.named("rankedStudioRow"))
+            // Steven (2026-10-29: "applique-le de PARTOUT"): a UIKit strip the focus engine
+            // scrolls, as Home's rows and Apple's TV app (`OrbitStripView`).
+            OrbitStripView(count: row.items.count, identity: row.id, spacing: row.gap, height: size.height,
+                           margin: L.margin, alignment: .bottom, pinned: row.pinned, lead: shown ?? 0,
+                           width: { i in stripWidth(i) }, ref: strip,
+                           tile: { i, focused in
+                               AnyView(OrbitStudioStripTile(row: row, index: i, trailers: trailers, focused: focused,
+                                                            open: (row.kind == .classic || row.opensRanked) && i == (shown ?? 0)))
+                           },
+                           onFocus: { stripFocus($0) },
+                           onSelect: { i in
+                               guard row.items.indices.contains(i) else { return }
+                               Self.reopen = (row.id, i)
+                               onOpen(row.items[i])
+                           })
+                .frame(height: size.height)
 
             if row.showsInfo {
                 ZStack(alignment: .topLeading) {
@@ -1002,13 +1006,7 @@ private struct OrbitNativeStudioRow: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.index
         disappeared = false
-        for delay in [0.0, 0.15, 0.35, 0.6, 0.9] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                guard Self.reopen?.index == target.index, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
-                if focused != target.index { focused = target.index }
-                settle(on: target.index)
-            }
-        }
+        DispatchQueue.main.async { strip.controller?.restore(index: target.index) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             if Self.reopen?.index == target.index { Self.reopen = nil }
         }
@@ -1041,6 +1039,25 @@ private struct OrbitNativeStudioRow: View {
 }
 
 /// One tile of a native studio row, focused as its button is.
+/// A studio row's tile in its UIKit strip (the meta observed here, per cell).
+private struct OrbitStudioStripTile: View {
+    let row: OrbitStudioRow
+    let index: Int
+    let trailers: OrbitNativeTrailerHost
+    let focused: Bool
+    let open: Bool
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
+
+    var body: some View {
+        if row.items.indices.contains(index) {
+            let item = row.items[index]
+            OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
+                                  trailers: trailers, open: open, focusedFromCell: focused)
+                .animation(OrbitHomeLayout.horizontal, value: open)
+        }
+    }
+}
+
 private struct OrbitNativeStudioTile: View {
     let row: OrbitStudioRow
     let item: MetaPreview
@@ -1049,11 +1066,13 @@ private struct OrbitNativeStudioTile: View {
     let trailers: OrbitNativeTrailerHost
     /// The new films' row: this title is the open one.
     var open = false
+    /// In a UIKit strip the cell says whether it is focused.
+    var focusedFromCell: Bool? = nil
     @Environment(\.isFocused) private var systemFocused
     /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
     /// focus seen going left, then coming back).
     @Environment(\.orbitFocusHidden) private var focusHidden
-    private var isFocused: Bool { systemFocused && !focusHidden }
+    private var isFocused: Bool { (focusedFromCell ?? systemFocused) && !focusHidden }
 
     var body: some View {
         let size = row.cardSize
