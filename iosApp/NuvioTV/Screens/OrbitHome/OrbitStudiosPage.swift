@@ -31,6 +31,9 @@ struct OrbitStudiosPage: View {
     @State private var forward = true
     /// The tile a studio was opened from, while the page comes back.
     @State private var restoreTarget: String?
+    @State private var tilesStrip = OrbitStripRef()
+    /// The strip holds the focus (its tiles' focus, as `focused` was).
+    @State private var tilesHaveFocus = false
 
     @MainActor private static var lastFocused: String?
     @MainActor private static var leftWithFocus = false
@@ -102,43 +105,28 @@ struct OrbitStudiosPage: View {
                     // Steven (device: from DC to Lucasfilm and on, the row jumped — the system's own
                     // scroll): the row glides on one curve, the focused studio kept at the centre
                     // once past the first ones, at every move alike.
-                    ScrollViewReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Self.tileSpacing) {
-                            ForEach(folders, id: \.id) { folder in
-                                // Steven: the studio's opening before its page — black first, the page
-                                // pushed under it (its own opening takes over the black).
-                                Button {
-                                    let route = OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)
-                                    if let pushStudio {
-                                        let look = OrbitPlatformLook(title: folder.title, logoUrl: route.logo,
-                                                                     brand: tint(folder), studio: true)
-                                        OrbitPlatformCurtain.shared.drop(look: look) { pushStudio(route) }
-                                    }
-                                } label: {
-                                    OrbitStudioTile(folder: folder,
-                                                    focused: lit == folder.id,
-                                                    selected: lit == nil && folder.id == selectedId,
-                                                    tint: tint(folder))
-                                }
-                                .buttonStyle(OrbitPlatformTileStyle())
-                                .focused($focused, equals: folder.id)
-                                // Back from a studio, only its tile can take the focus for a moment
-                                // (Steven, simulator: it went to Walt Disney first, then came back).
-                                .disabled(restoreTarget != nil && restoreTarget != folder.id)
-                                .id(folder.id)
-                            }
-                        }
-                        .padding(.vertical, 30)
-                        .padding(.horizontal, L.margin)
-                    }
-                    .onChange(of: focused) { _, id in
-                        guard let id, folders.contains(where: { $0.id == id }) else { return }
-                        withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
-                    }
-                    }
-                    .scrollClipDisabled()
-                    .padding(.vertical, -30)
+                    // Steven (2026-10-29: "applique-le de PARTOUT"): a UIKit strip the focus engine
+                    // scrolls, as Apple's TV app.
+                    OrbitStripView(count: folders.count, identity: folders.map(\.id).joined(separator: ","),
+                                   spacing: Self.tileSpacing, height: Self.tileSize.height, margin: L.margin,
+                                   alignment: .center, width: { _ in Self.tileSize.width }, ref: tilesStrip,
+                                   tile: { i, lit in
+                                       let folder = folders[i]
+                                       return AnyView(OrbitStudioTile(folder: folder, focused: lit,
+                                                                      selected: !tilesHaveFocus && folder.id == selectedId,
+                                                                      tint: tint(folder)))
+                                   },
+                                   onFocus: { i in tileFocus(i.map { folders[$0].id }) },
+                                   onSelect: { i in
+                                       let folder = folders[i]
+                                       let route = OrbitStudioRoute.folder(collectionId: collection.id, folder: folder)
+                                       if let pushStudio {
+                                           let look = OrbitPlatformLook(title: folder.title, logoUrl: route.logo,
+                                                                        brand: tint(folder), studio: true)
+                                           OrbitPlatformCurtain.shared.drop(look: look) { pushStudio(route) }
+                                       }
+                                   })
+                    .frame(height: Self.tileSize.height)
                     .padding(.top, 40)
                     .focusSection()
 
@@ -195,7 +183,7 @@ struct OrbitStudiosPage: View {
         }
         .onDisappear {
             let now = ProcessInfo.processInfo.systemUptime
-            Self.leftWithFocus = focused != nil || now - Self.lostTilesAt < 1.0
+            Self.leftWithFocus = tilesHaveFocus || focused != nil || now - Self.lostTilesAt < 1.0
         }
     }
 
@@ -232,12 +220,28 @@ struct OrbitStudiosPage: View {
     /// Back from a studio: the tile it was opened from (asked a few times: the engine's own
     /// restoration lands late), until the viewer presses anything.
     private func restore(_ id: String) {
-        let start = ProcessInfo.processInfo.systemUptime
-        for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                guard !ViewerInputClock.shared.hasInput(since: start), focused != id else { return }
-                focused = id
-            }
+        guard let index = folders.firstIndex(where: { $0.id == id }) else { return }
+        DispatchQueue.main.async { tilesStrip.controller?.restore(index: index) }
+    }
+
+    /// The focus moved in the studios' strip (as `focused` used to change).
+    private func tileFocus(_ id: String?) {
+        guard let id else {
+            tilesHaveFocus = false
+            Self.lostTilesAt = ProcessInfo.processInfo.systemUptime
+            withAnimation(.easeInOut(duration: 0.3)) { lit = nil }
+            return
+        }
+        tilesHaveFocus = true
+        withAnimation(.easeOut(duration: 0.2)) { lit = id }
+        Self.lastFocused = id
+        if let from = folders.firstIndex(where: { $0.id == shownId }),
+           let to = folders.firstIndex(where: { $0.id == id }), from != to {
+            forward = to > from
+        }
+        shownId = id
+        if let folder = folders.first(where: { $0.id == id }) {
+            films.focus(title: folder.title)
         }
     }
 
