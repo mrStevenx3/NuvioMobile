@@ -125,6 +125,25 @@ struct OrbitDetailView: View {
     @State private var section: OrbitDetailSection = .hero
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
     @State private var pagePosition: OrbitDetailSection? = .hero
+    /// Steven (2026-10-29, device: "un peu de tremblement à la verticale… par rapport à l'accueil
+    /// qui est nickel"): Home's vertical move — every move asked for, on Apple's curve (full speed
+    /// at the press, easing to rest in 0.4 s), alongside the system's; no scroll binding the
+    /// system rewrites at each step of its own move.
+    @State private var detailScroll = ScrollPosition(idType: OrbitDetailSection.self)
+    @State private var lastGo: TimeInterval = 0
+
+    private func go(to target: OrbitDetailSection, animated: Bool = true) {
+        if pagePosition == target, ProcessInfo.processInfo.systemUptime - lastGo < 0.2 { return }
+        lastGo = ProcessInfo.processInfo.systemUptime
+        pagePosition = target
+        if animated && !reduceMotion {
+            withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { detailScroll.scrollTo(id: target, anchor: .top) }
+        } else {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { detailScroll.scrollTo(id: target, anchor: .top) }
+        }
+    }
     /// Bumped on every focus move inside a section (the page is held at its place again).
     @State private var anchorTick = 0
     /// The page is on screen (not under a pushed page).
@@ -352,7 +371,7 @@ struct OrbitDetailView: View {
             // Right, the undoing of the system's nudges) and the mask over the whole page (redrawn
             // off screen on every frame of a move) are gone.
             .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(id: $pagePosition, anchor: .top)
+            .scrollPosition($detailScroll)
             .contentMargins(.top, L.pageTop, for: .scrollContent)
             .scrollClipDisabled()
             // Steven (the season row bounced): on a season poster the page does not scroll on its
@@ -364,9 +383,7 @@ struct OrbitDetailView: View {
             // the page scrolled again to its section — two moves. Only Menu back to the top moves the
             // page itself now; Up / Down are the system's one move, aligned on the sections.
             .onChange(of: section) { _, target in
-                if target == .hero, pagePosition != .hero {
-                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.36)) { pagePosition = .hero }
-                }
+                if target == .hero { go(to: .hero) }
             }
             }
 
@@ -534,11 +551,7 @@ struct OrbitDetailView: View {
                     enter(new.section)
                     // The page where it was (the system's landing on the row above had scrolled it
                     // up — Steven: the poster rose).
-                    if pagePosition != back.section {
-                        var still = Transaction()
-                        still.disablesAnimations = true
-                        withTransaction(still) { pagePosition = back.section }
-                    }
+                    if pagePosition != back.section { go(to: back.section, animated: false) }
                 } else if !ViewerInputClock.shared.hasInput(since: resumeStart + 0.3) {
                     // The system's landing (the row's first card, Lire): the card put back at once.
                     DispatchQueue.main.async {
@@ -831,6 +844,7 @@ struct OrbitDetailView: View {
         // Moves inside the hero are left alone (re-pinning it bounced the buttons).
         guard target != section else { return }
         section = target
+        go(to: target)
         if target == .hero { armHeroTrailer() } else { stopHeroTrailer() }
     }
 
