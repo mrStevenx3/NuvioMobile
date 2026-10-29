@@ -1,6 +1,8 @@
+import AVKit
 import OrbitEngine
 import SharedCore
 import SwiftUI
+import UIKit
 
 /// Every playback in Orbit (Steven's fork, 2026-10-25): Apple's player fed by AetherEngine
 /// (`OrbitPlayerSession`, `OrbitPlayerViewController`), with Orbit's loading cover, pause card,
@@ -34,6 +36,15 @@ struct PlayerScreen: View {
     /// When the reveal of the film began (nil: the loading screen still whole).
     @State private var revealStart: Date?
     static let revealTime: Double = 0.9
+
+    /// The TV is changing its picture mode (match frame rate / dynamic range).
+    @MainActor static func displaySwitching() -> Bool {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let scene = scene as? UIWindowScene else { continue }
+            for window in scene.windows where window.avDisplayManager.isDisplayModeSwitchInProgress { return true }
+        }
+        return false
+    }
     @State private var appearedAt = ProcessInfo.processInfo.systemUptime
     @State private var pauseCardTask: Task<Void, Never>?
     @Environment(\.dismiss) private var dismiss
@@ -116,11 +127,24 @@ struct PlayerScreen: View {
         .onChange(of: session.firstFrameShown) { _, shown in
             if shown {
                 onPictureShown()
-                let wait = max(0, appearedAt + 0.55 - ProcessInfo.processInfo.systemUptime)
-                DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                // Steven (2026-10-29: "aucun effet"; his video: the screen black for two seconds at the
+                // film's first picture): the TV was switching its picture mode (frame rate, HDR) right
+                // then — the reveal played on a blank screen. It waits for the switch to be over.
+                let wait = max(0.35, appearedAt + 0.55 - ProcessInfo.processInfo.systemUptime)
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(wait))
+                    let since = ProcessInfo.processInfo.systemUptime
+                    while Self.displaySwitching(), ProcessInfo.processInfo.systemUptime - since < 6 {
+                        try? await Task.sleep(for: .milliseconds(100))
+                    }
+                    if ProcessInfo.processInfo.systemUptime - since > 0.05 {
+                        // (The picture back after a switch: a moment for the TV to show it.)
+                        try? await Task.sleep(for: .milliseconds(350))
+                    }
                     loadingGone = true
                     revealStart = Date()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.revealTime + 0.05) { loadingRemoved = true }
+                    try? await Task.sleep(for: .seconds(Self.revealTime + 0.05))
+                    loadingRemoved = true
                 }
             } else {
                 loadingGone = false

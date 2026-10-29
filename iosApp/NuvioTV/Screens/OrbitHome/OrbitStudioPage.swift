@@ -432,9 +432,17 @@ struct OrbitStudioPage: View {
             .contentMargins(.top, Self.nativeTop, for: .scrollContent)
             .scrollClipDisabled()
 
-            // Off the banner, the band under the top is the page's dark.
-            LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
-                .frame(width: OrbitHomeLayout.screenWidth, height: 140)
+            // Off the banner, the band under the top is the page's own ground (as Home's: Steven,
+            // 2026-10-29 — "toujours très d'ombre en haut"), the rows sliding away under it.
+            OrbitStudioBackground(brand: brand)
+                .mask(alignment: .top) {
+                    LinearGradient(stops: [.init(color: .black, location: 0),
+                                           .init(color: .black, location: 0.6),
+                                           .init(color: .black.opacity(0), location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(width: OrbitHomeLayout.screenWidth, height: 150)
+                }
+                .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .top)
                 .opacity(nativeOnHero ? 0 : 1)
                 .animation(.easeInOut(duration: 0.25), value: nativeOnHero)
                 .allowsHitTesting(false)
@@ -1041,7 +1049,6 @@ private struct OrbitNativeStudioRow: View {
                                onOpen(row.items[i])
                            })
                 .frame(height: size.height)
-                .modifier(OrbitClipBeforeMargin(active: row.kind == .classic, margin: L.margin, height: size.height))
                 .overlay(alignment: .bottomLeading) {
                     if row.kind == .classic { classicFrame(lit: holds && !rowFocusHidden) }
                 }

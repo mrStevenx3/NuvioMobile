@@ -185,6 +185,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
     }
     @State private var heroLocked = false
+    @State private var builtAll = false
     /// The section last asked to take the focus (read live by the retries below).
     @State private var wanted: Int?
 
@@ -206,7 +207,12 @@ struct OrbitNativeSections<SectionContent: View>: View {
                     } else if rowsFocusable && s >= heroCount {
                         // Every row built once, as Home's (Steven, 2026-10-29: the vertical moves
                         // shook — a row coming within reach was built during the page's slide).
-                        content(s, false)
+                        Group {
+                            // Every row built once settled in (as Home's: none built during a slide);
+                            // at the opening, only those near the focus (Steven: the platform's opening
+                            // hitched while every row was built under it).
+                            if builtAll || abs(s - current) <= 3 { content(s, false) } else { Color.clear }
+                        }
                         .frame(width: W, height: height(s), alignment: .topLeading)
                         // Back from a title, only the row it was opened from can take the focus a
                         // moment (Steven's video, Disney+: it landed in the row above, then came back).
@@ -263,9 +269,11 @@ struct OrbitNativeSections<SectionContent: View>: View {
         .mask {
             if hidesAbove, current >= heroCount {
                 VStack(spacing: 0) {
-                    Color.clear.frame(height: max(0, lineOf(current) - 56))
+                    // (Steven, 2026-10-29, Prime: bits of the row above showed through the soft edge —
+                    // the edge closer to the line, shorter.)
+                    Color.clear.frame(height: max(0, lineOf(current) - 28))
                     LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                        .frame(height: 44)
+                        .frame(height: 22)
                     Color.black
                 }
                 .frame(width: W, height: OrbitHomeLayout.screenHeight, alignment: .top)
@@ -294,6 +302,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
         .onAppear {
             go(to: current, animated: false)
+            if !builtAll { DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { builtAll = true } }
             // Back to a row (from a title): the hero out of the focus's reach a moment.
             if current >= heroCount, heroCount > 0 {
                 heroLocked = true
@@ -413,7 +422,6 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                            onSelect()
                        })
             .frame(height: height)
-            .modifier(OrbitClipBeforeMargin(active: keepsLeadAtMargin, margin: margin, height: height))
             .onChange(of: box.focusRequest) { _, _ in
                 strip.controller?.takeFocus(on: min(box.lead, max(0, count - 1)))
             }
