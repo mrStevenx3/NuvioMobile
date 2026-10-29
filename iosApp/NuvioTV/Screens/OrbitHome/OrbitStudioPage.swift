@@ -1269,9 +1269,11 @@ private struct OrbitStudioBackground: View {
     var body: some View {
         ZStack {
             OrbitHomeLayout.background
-            RadialGradient(colors: [brand.opacity(0.42), brand.opacity(0.12), .clear],
-                           center: UnitPoint(x: 0.12, y: 0.0), startRadius: 0, endRadius: 1400)
-            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
+            // Steven (2026-10-29: "le même dégradé que l'accueil"): Home's shape — the studio's colour
+            // from the top's middle across the whole screen, darker towards the bottom.
+            RadialGradient(colors: [brand.opacity(0.42), brand.opacity(0.24), brand.opacity(0.08)],
+                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         .ignoresSafeArea()

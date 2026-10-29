@@ -877,7 +877,8 @@ private struct OrbitAppleTVRowView: View {
                                  height: row.cardHeight, lastWidth: row.kind == .cards ? L.card.width : L.poster.width,
                                  box: box, alignment: .top, keepsLeadAtMargin: false,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
-                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                                 onLeadChange: { _ in onLeadChange() },
+                                 redrawKey: AnyHashable([AnyHashable(trailerURL), AnyHashable(newIDs)])) { index, lit in
                 let item = row.items[index]
                 Group {
                     switch row.kind {

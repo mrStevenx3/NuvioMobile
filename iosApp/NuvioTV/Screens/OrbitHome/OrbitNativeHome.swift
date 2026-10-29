@@ -135,7 +135,7 @@ struct OrbitNativeHome: View {
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack(alignment: .topLeading) {
-            OrbitNativeBackdrop(visible: !onHero)
+            OrbitNativeBackdrop(visible: !onHero, active: active)
             // The clickpad's swipes, for the open row holding the focus (`OrbitSwipeHub`).
             OrbitSwipeCatcher(active: true) { step in OrbitSwipeHub.shared.onStep?(step) }
                 .frame(width: 0, height: 0)
@@ -412,10 +412,14 @@ private struct OrbitNativeTopCover: View {
 /// The colour wash behind the rows (its own view: a new colour redraws only it).
 private struct OrbitNativeBackdrop: View {
     let visible: Bool
+    /// Steven (2026-10-29, video: the band under the bar another colour than the page): Films' and
+    /// Séries' Homes both stay built, and both told the band their colours — two washes swapping it
+    /// in turn. Only the Home on screen tells it.
+    var active = true
     @ObservedObject private var state = OrbitNativeHomeState.shared
 
     var body: some View {
-        OrbitRowsBackdrop(url: state.art, mirror: OrbitWashMirror.home)
+        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
             .opacity(visible ? 1 : 0)
             .animation(.easeInOut(duration: 0.35), value: visible)
             .ignoresSafeArea()

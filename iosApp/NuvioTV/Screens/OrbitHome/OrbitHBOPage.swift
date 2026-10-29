@@ -869,7 +869,8 @@ private struct OrbitHBORowView: View {
                                  lastWidth: row.slot(max(0, row.count - 1)) - L.gap, box: box, alignment: .top,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
                                  onLeadChange: { _ in onLeadChange() },
-                                 width: { index in row.slot(index) - L.gap }) { index, lit in
+                                 width: { index in row.slot(index) - L.gap },
+                                 redrawKey: AnyHashable([AnyHashable(trailerURL), AnyHashable(news)])) { index, lit in
                 if row.universe {
                     OrbitHBOBrandTile(brand: OrbitHBOBrand.all[index], focused: lit)
                 } else if row.featured {

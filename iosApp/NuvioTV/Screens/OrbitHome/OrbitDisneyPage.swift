@@ -1519,7 +1519,8 @@ private struct OrbitDisneyOpenRow: View {
                                  },
                                  leftSlide: { _ in L.posterNew.width + L.gapNew },
                                  // (UIKit strip: the lead's room is the open frame's; the others measured.)
-                                 width: { slot in opens && slot == leadSlot ? L.open.width : L.posterNew.width }) { slot, lit in
+                                 width: { slot in opens && slot == leadSlot ? L.open.width : L.posterNew.width },
+                                 redrawKey: AnyHashable([opens, isHulu])) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
                 let isLead = opens && slot == leadSlot
@@ -1533,6 +1534,7 @@ private struct OrbitDisneyOpenRow: View {
                     // over it.)
                     Color.clear
                         .frame(width: L.open.width, height: L.open.height)
+                        .transition(.identity)
                 } else {
                     poster(item, index: index, focused: lit)
                         .transition(.identity)

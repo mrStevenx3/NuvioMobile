@@ -889,7 +889,8 @@ private struct OrbitNetflixRowView: View {
                                      let open = (isCurrent || aboveCurrent) && slot == leadSlot
                                      return (row.top10 ? OrbitNetflixRank.width(row.item(atSlot: slot) + 1) : 0)
                                          + (open ? L.openWidth : L.posterWidth)
-                                 }) { slot, lit in
+                                 },
+                                 redrawKey: AnyHashable([isCurrent, aboveCurrent])) { slot, lit in
                 let index = row.item(atSlot: slot)
                 let item = row.items[index]
                 // Steven (video): leaving down, the row's open title closed as it went — its poster

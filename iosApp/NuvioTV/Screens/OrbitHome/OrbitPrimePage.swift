@@ -903,7 +903,8 @@ private struct OrbitPrimeRowView: View {
                                  onLeadChange: { _ in onLeadChange() },
                                  leftSlide: row.kind == .originals ? { _ in L.poster.width + L.gap } : nil,
                                  // (UIKit strip: the open title's room; the others measured.)
-                                 width: row.kind == .originals ? { index in isCurrent && index == lead ? L.openWidth : L.poster.width } : nil) { index, lit in
+                                 width: row.kind == .originals ? { index in isCurrent && index == lead ? L.openWidth : L.poster.width } : nil,
+                                 redrawKey: AnyHashable([AnyHashable(isCurrent), AnyHashable(badges)])) { index, lit in
                 let item = row.items[index]
                 let meta = metaStore.meta(for: item)
                 let badge = badges[item.id].flatMap { $0.isEmpty ? nil : $0 }
@@ -917,6 +918,9 @@ private struct OrbitPrimeRowView: View {
                         // (Steven, 2026-10-29: as Home's new films — the lead's room left empty.)
                         Color.clear
                             .frame(width: L.openWidth, height: L.poster.height)
+                            // (No fade between the poster and the room: Steven's video, the next poster
+                            // faded out in place, a ghost, as the row slid.)
+                            .transition(.identity)
                     } else {
                         OrbitPrimePoster(item: item, meta: meta, badge: badge, open: false,
                                          focused: lit, trailerURL: nil,

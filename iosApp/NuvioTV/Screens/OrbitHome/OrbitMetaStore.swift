@@ -50,6 +50,8 @@ final class OrbitMetaStore: ObservableObject {
     static let shared = OrbitMetaStore()
 
     @Published private(set) var metas: [String: OrbitMeta] = [:]
+    /// Bumped each time titles' details arrive (rows redraw their tiles only then — see `OrbitStripView`).
+    private(set) var revision = 0
     private var inFlight = Set<String>()
     /// TMDB has no such title (or no id to look it up by): never asked again this session.
     private var failed = Set<String>()
@@ -138,6 +140,7 @@ final class OrbitMetaStore: ObservableObject {
 
     private func flushNow() {
         guard !pending.isEmpty else { return }
+        revision &+= 1
         metas.merge(pending) { _, new in new }
         pending.removeAll()
         scheduleSave()

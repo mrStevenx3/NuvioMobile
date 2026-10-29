@@ -396,7 +396,7 @@ struct OrbitMirroredWash: View {
             wash(mirror.colourA).opacity(mirror.showsB ? 0 : 1)
             wash(mirror.colourB).opacity(mirror.showsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
-            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
+            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
         }
         .compositingGroup()
         .frame(width: L.screenWidth, height: L.screenHeight)
@@ -437,7 +437,7 @@ struct OrbitRowsBackdrop: View {
             wash(colourA).opacity(showsB ? 0 : 1)
             wash(colourB).opacity(showsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
-            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: UnitPoint(x: 0.5, y: 0.45), endPoint: .bottom)
+            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
         }
         .compositingGroup()
         .frame(width: L.screenWidth, height: L.screenHeight)
@@ -455,12 +455,24 @@ struct OrbitRowsBackdrop: View {
             do { try await Task.sleep(for: .milliseconds(Self.wait)) } catch { return }
             if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
                 show(color)
-                if opaque {
+                // (Only the Home on screen: the hidden one's colour no longer reaches the headings.)
+                if opaque, mirror != nil {
                     withAnimation(.easeInOut(duration: Self.fade)) { OrbitHomeTone.shared.color = color }
                 }
             }
         }
         .allowsHitTesting(false)
+        // Becoming the page shown: the band takes this wash's colours at once.
+        .onChange(of: mirror.map(ObjectIdentifier.init), initial: true) { _, id in
+            guard id != nil, let mirror else { return }
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) {
+                mirror.colourA = colourA
+                mirror.colourB = colourB
+                mirror.showsB = showsB
+            }
+        }
     }
 
     /// The wait once the focus rests, and the cross-fade (the headings' bar on the same curve).

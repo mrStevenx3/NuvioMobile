@@ -713,7 +713,8 @@ private struct OrbitParamountRowView: View {
             OrbitNativeTileStrip(count: row.items.count, spacing: L.gap, height: row.cardHeight,
                                  lastWidth: row.slot - L.gap, box: box, alignment: .top,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
-                                 onLeadChange: { _ in onLeadChange() }) { index, lit in
+                                 onLeadChange: { _ in onLeadChange() },
+                                 redrawKey: AnyHashable(news)) { index, lit in
                 let item = row.items[index]
                 if row.top10 {
                     OrbitParamountTop10Image(item: item, meta: metaStore.meta(for: item), focused: lit)

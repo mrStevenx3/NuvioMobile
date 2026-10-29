@@ -358,6 +358,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     /// Each title's width when the page knows it (a title wider when open: Netflix's lead). Else
     /// the tiles are measured once.
     var width: ((Int) -> CGFloat)? = nil
+    /// What the page's tiles depend on besides the row's lead and the titles' details (nil: the
+    /// tiles redrawn at every update).
+    var redrawKey: AnyHashable? = nil
     @ViewBuilder let tile: (_ index: Int, _ focused: Bool) -> Tile
 
     @FocusState private var focus: Int?
@@ -400,7 +403,9 @@ struct OrbitNativeTileStrip<Tile: View>: View {
         OrbitStripView(count: count, spacing: spacing, height: height, margin: margin, alignment: alignment,
                        pinned: keepsLeadAtMargin, lead: min(box.lead, max(0, count - 1)),
                        // (Without the page's widths: every title as wide as the last — the rows' own rule.)
-                       width: width ?? { _ in lastWidth }, ref: strip,
+                       width: width ?? { _ in lastWidth },
+                       redrawKey: redrawKey.map { AnyHashable([AnyHashable(box.lead), AnyHashable(OrbitMetaStore.shared.revision), $0]) },
+                       ref: strip,
                        tile: { i, focused in AnyView(tile(i, focused)) },
                        onFocus: { stripFocus($0) },
                        onSelect: { i in

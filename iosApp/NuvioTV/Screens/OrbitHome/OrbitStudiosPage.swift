@@ -78,11 +78,11 @@ struct OrbitStudiosPage: View {
             let ground = (folders.first { $0.id == groundId } ?? shown).map(tint) ?? OrbitPlatformBrand.color(title: "")
             ZStack {
                 OrbitHomeLayout.background
-                LinearGradient(stops: [
-                    .init(color: ground.opacity(0.8), location: 0),
-                    .init(color: ground.opacity(0.42), location: 0.5),
-                    .init(color: ground.opacity(0.15), location: 1),
-                ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                // Steven (2026-10-29: "le même dégradé que l'accueil"): the studio's colour from the
+                // top's middle across the whole screen, darker towards the bottom.
+                RadialGradient(colors: [ground.opacity(0.6), ground.opacity(0.34), ground.opacity(0.12)],
+                               center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+                LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: groundId)

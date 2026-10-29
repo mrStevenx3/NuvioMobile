@@ -51,6 +51,10 @@ struct OrbitStripView: UIViewControllerRepresentable {
     /// Each tile's width when the page knows it (a tile wider when open, from the page's own state:
     /// Netflix's lead). Else the tiles are measured.
     var width: ((Int) -> CGFloat)? = nil
+    /// What the tiles show, when the page knows it: the visible tiles are redrawn only when it
+    /// changes (nil: at every update, as before). Steven (2026-10-29, platforms jerky up and down):
+    /// each move redrew every tile on screen of the rows it touched; Home's rows redraw only on change.
+    var redrawKey: AnyHashable? = nil
     let ref: OrbitStripRef
     let tile: (Int, Bool) -> AnyView
     var onFocus: (Int?) -> Void = { _ in }
@@ -80,6 +84,7 @@ struct OrbitStripView: UIViewControllerRepresentable {
         c.lead = lead
         c.entersOnLead = entersOnLead ?? pinned
         c.widthOf = width
+        c.redrawKey = redrawKey
         c.show(count: count, identity: identity, spacing: spacing, height: height, margin: margin,
                alignment: alignment, pinned: pinned, focusHidden: focusHidden, enabled: enabled)
     }
@@ -115,6 +120,9 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     private var movedWithinAt: TimeInterval = 0
     /// The focus the row had at its last update (nil: it was not in the row).
     private var lastShowFocus: Int?
+    private let entryGuide = UIFocusGuide()
+    var redrawKey: AnyHashable?
+    private var drawnKey: AnyHashable?
     private var lastFocusedIndex: Int?
     private var onlyIndex: Int?
     private var onlyUntil: TimeInterval = 0
@@ -146,6 +154,18 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         collectionView.dataSource = self
         collectionView.delegate = self
         view.addSubview(collectionView)
+        // Steven (2026-10-29: season → episode → up → down again went to the row under the episodes):
+        // coming into a row entered on its lead, the focus is caught over the whole row and handed
+        // to its lead — wherever it comes from, even far from the lead.
+        entryGuide.preferredFocusEnvironments = [collectionView]
+        view.addLayoutGuide(entryGuide)
+        NSLayoutConstraint.activate([
+            entryGuide.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            entryGuide.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            entryGuide.topAnchor.constraint(equalTo: view.topAnchor),
+            entryGuide.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        entryGuide.isEnabled = false
         NotificationCenter.default.addObserver(forName: ViewerInputClock.didRecord, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.onlyIndex != nil else { return }
@@ -174,8 +194,11 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             layout.sectionInset = UIEdgeInsets(top: 0, left: margin, bottom: 0,
                                                right: pinned ? max(margin, OrbitHomeLayout.screenWidth - margin - 300) : margin)
         }
+        let stateChanged = focusHidden != self.focusHidden || enabled != self.enabled
         self.focusHidden = focusHidden
         self.enabled = enabled
+        let keyChanged = redrawKey == nil || redrawKey != drawnKey || stateChanged
+        drawnKey = redrawKey
         let newWidths: [CGFloat] = widthOf.map { w in (0..<count).map { w($0) } } ?? []
         if count != self.count || identity != self.identity {
             self.count = count
@@ -194,7 +217,8 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             }
         } else {
             if relayout { closedSizes = [:]; focusedSizes = [:]; collectionView.collectionViewLayout.invalidateLayout() }
-            if newWidths != widths {
+            let widthsChanged = newWidths != widths
+            if widthsChanged {
                 let old = widths
                 widths = newWidths
                 // Moving inside the row (or a title rested on opening): the room changes on the row's
@@ -233,9 +257,10 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
                     }
                 }
             }
-            redrawVisible()
+            if keyChanged || widthsChanged { redrawVisible() }
         }
         lastShowFocus = focusedIndex
+        entryGuide.isEnabled = entersOnLead && focusedIndex == nil && enabled
         // A pinned row the focus is not in: its lead kept at the margin (it changes before the row is
         // ever entered — a looping row moved to its middle copy).
         if pinned, focusedIndex == nil, lead != placedLead, lead >= 0, lead < count {
@@ -374,7 +399,8 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     }
 
     func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
-        guard let index = preferredIndex, index >= 0, index < count else { return nil }
+        let target = preferredIndex ?? (entersOnLead && focusedIndex == nil ? lead : nil)
+        guard let index = target, index >= 0, index < count else { return nil }
         return IndexPath(item: index, section: 0)
     }
 
@@ -385,6 +411,7 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         OrbitMetaStore.shared.holdPublishing(for: 0.5)
         let next = context.nextFocusedIndexPath?.item
         focusedIndex = next
+        entryGuide.isEnabled = entersOnLead && next == nil
         if previous != nil, next != nil { movedWithinAt = ProcessInfo.processInfo.systemUptime }
         // A tile wider when focused: the row makes room on the focus's own move.
         let grows = [previous, next].compactMap { $0 }.contains { measure($0, focused: true).width != measure($0, focused: false).width }
