@@ -347,7 +347,11 @@ struct OrbitPrimePage: View {
 
             // (Native: the top follows the current row's own lead box — a press in a row redraws it.)
             OrbitLeadReader(box: leads.box(rowIndex(of: current).flatMap { rows.indices.contains($0) ? rows[$0].id : nil } ?? "-")) { _ in
-            if let shown = shownItem {
+            if let focusedTop = shownItem {
+                // Steven (2026-10-29, slow-motion video: Prime jerky across and down): the screen-wide
+                // art changed under every step of a slide — it follows once the remote rests (Home's
+                // colour does the same); the hero's own Left / Right change it at once.
+                OrbitAfterRest(key: "\(focusedTop.type):\(focusedTop.id)", value: focusedTop, delay: current == 0 ? 0 : 0.28) { shown in
                 OrbitPrimeTop(item: shown, meta: metaStore.meta(for: shown), line: rankLine(shown),
                               onArrival: onArrival, buttonsLit: pageFocused && current == 0 && !heroOnInfo,
                               infoLit: pageFocused && current == 0 && heroOnInfo,
@@ -358,6 +362,7 @@ struct OrbitPrimePage: View {
                                   trailer.playbackFinished()
                                   advanceHero()
                               })
+                }
                     // On the Amazon Original row, its large posters take the screen (the trailer
                     // plays in the opened one).
                     // (Native: the Amazon Original row sits on the rows' line — the top stays, its

@@ -80,6 +80,35 @@ final class OrbitLeadStore {
     }
 }
 
+/// Shows `value` once it has stayed the same `delay` seconds (a new key while it waits restarts the
+/// wait); at once when `delay` is 0.
+struct OrbitAfterRest<Value, Content: View>: View {
+    let key: String
+    let value: Value
+    let delay: Double
+    @ViewBuilder let content: (Value) -> Content
+
+    @State private var shown: Value?
+    @State private var shownKey: String?
+    @State private var work: DispatchWorkItem?
+
+    var body: some View {
+        content(shownKey == nil ? value : (shown ?? value))
+            .onChange(of: key, initial: true) { _, new in
+                work?.cancel()
+                let latest = value
+                if delay <= 0 || shownKey == nil {
+                    shown = latest
+                    shownKey = new
+                    return
+                }
+                let item = DispatchWorkItem { shown = latest; shownKey = new }
+                work = item
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+            }
+    }
+}
+
 /// Redraws its content when its box's lead changes (and only it).
 struct OrbitLeadReader<Content: View>: View {
     @ObservedObject var box: OrbitLeadBox

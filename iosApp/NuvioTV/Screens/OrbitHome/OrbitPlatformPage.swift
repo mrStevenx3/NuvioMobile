@@ -187,7 +187,11 @@ struct OrbitPlatformPage: View {
         ZStack(alignment: .topLeading) {
             // (Native: the stage follows the current row's own lead box — a press redraws only it.)
             OrbitLeadReader(box: leads.box(rows.indices.contains(index) ? rows[index].id : "-")) { _ in
-            let item = focusedItem(rows)
+            let focused = focusedItem(rows)
+            // (Steven, 2026-10-29: the full-screen art follows once the remote rests, not under every
+            // step of a slide.)
+            OrbitAfterRest(key: focused.map { "\($0.type):\($0.id)" } ?? "-", value: focused, delay: 0.28) { item in
+            ZStack(alignment: .topLeading) {
             // The focused title, full screen.
             OrbitPlatformStage(item: item, meta: item.flatMap { metaStore.meta(for: $0) }, brand: brand,
                                trailerURL: trailerURL(for: item, rows: rows),
@@ -198,6 +202,8 @@ struct OrbitPlatformPage: View {
             if let item {
                 OrbitPlatformInfo(item: item, meta: metaStore.meta(for: item))
                     .offset(x: OrbitPlatformLayout.margin, y: OrbitPlatformLayout.infoTop)
+            }
+            }
             }
 
             }

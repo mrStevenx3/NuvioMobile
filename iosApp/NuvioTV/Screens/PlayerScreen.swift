@@ -30,6 +30,7 @@ struct PlayerScreen: View {
     /// film's first picture — never inside the presentation's first moment (UIKit's animations are
     /// off then, which made the fade a cut), so a stream that starts at once still fades.
     @State private var loadingGone = false
+    @State private var loadingRemoved = false
     @State private var appearedAt = ProcessInfo.processInfo.systemUptime
     @State private var pauseCardTask: Task<Void, Never>?
     @Environment(\.dismiss) private var dismiss
@@ -79,16 +80,17 @@ struct PlayerScreen: View {
 
             // (Steven's video: a see-through player showed black — tvOS keeps its own ground under
             // the cover. The player opens on the very same loading screen instead, already lit.)
-            if !loadingGone {
+            if !loadingRemoved {
                 OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
                                  lightsUp: !overLoadingCover)
-                    // Steven (2026-10-29: "le titre qui s'agrandit ou s'éclate"): the film starts — the
-                    // loading screen bursts open towards the viewer, the logo growing as it fades.
-                    .transition(.asymmetric(insertion: .opacity,
-                                            removal: .opacity.combined(with: .scale(scale: 1.35))))
+                    // Steven (2026-10-29: "le titre qui s'agrandit ou s'éclate"; his video: still a cut):
+                    // the film starts — the loading screen bursts open towards the viewer, growing as it
+                    // fades (driven on the view itself, not a removal the presentation could swallow).
+                    .scaleEffect(loadingGone ? 1.3 : 1)
+                    .opacity(loadingGone ? 0 : 1)
+                    .allowsHitTesting(false)
             }
         }
-        .animation(.easeIn(duration: 0.55), value: loadingGone)
         .animation(.easeInOut(duration: 0.25), value: pauseCardShown)
         .animation(.easeInOut(duration: 0.25), value: upNext.phase)
         .onAppear {
@@ -100,10 +102,12 @@ struct PlayerScreen: View {
                 onPictureShown()
                 let wait = max(0, appearedAt + 0.55 - ProcessInfo.processInfo.systemUptime)
                 DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                    withAnimation(.easeIn(duration: 0.55)) { loadingGone = true }
+                    withAnimation(.easeOut(duration: 0.7)) { loadingGone = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { loadingRemoved = true }
                 }
             } else {
                 loadingGone = false
+                loadingRemoved = false
             }
         }
         .onDisappear {
