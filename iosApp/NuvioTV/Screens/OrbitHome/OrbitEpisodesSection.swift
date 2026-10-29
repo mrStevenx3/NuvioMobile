@@ -25,6 +25,15 @@ struct OrbitEpisodesSection: View {
     let startSeason: Int?
     let focus: FocusState<OrbitDetailFocus?>.Binding
     let onPlay: (MetaVideo) -> Void
+    /// Steven (2026-10-29: "applique-le de PARTOUT"): the seasons and the episodes are UIKit strips
+    /// the focus engine scrolls; the page restores its focus through them and hears it from them.
+    var seasonsRef: OrbitStripRef? = nil
+    var episodesRef: OrbitStripRef? = nil
+    var onStripFocus: (OrbitDetailFocus?) -> Void = { _ in }
+    @State private var ownSeasonsRef = OrbitStripRef()
+    @State private var ownEpisodesRef = OrbitStripRef()
+    /// The focus in the strips (the page's own focus no longer sees it).
+    @State private var stripFocus: OrbitDetailFocus?
 
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
     @State private var shownSeason: Int?
@@ -71,88 +80,72 @@ struct OrbitEpisodesSection: View {
         let list = episodes(of: season)
         let nextUp = list.first(where: { !isWatched($0) && OrbitEpisodeFormat.isOut($0) }) ?? list.first
         let focusedEpisode: MetaVideo? = {
-            if case .episode(let id)? = focus.wrappedValue { return list.first { $0.id == id } }
+            if case .episode(let id)? = stripFocus { return list.first { $0.id == id } }
             return nil
         }()
         let shown = focusedEpisode ?? nextUp
+        let seasonList = seasons
+        let still = Self.stillSize
         VStack(alignment: .leading, spacing: 20) {
             Text(String(localized: "Épisodes"))
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(Color.white)
                 .padding(.leading, OrbitDetailLayout.margin)
 
-            if seasons.count > 1 {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 24) {
-                        ForEach(seasons, id: \.self) { s in
-                            Button { shownSeason = s } label: {
-                                OrbitSeasonCard(label: OrbitEpisodeFormat.seasonLabel(s),
-                                                poster: posterURL(season: s),
-                                                focused: focus.wrappedValue == .season(s),
-                                                selected: s == season)
-                            }
-                            .buttonStyle(OrbitPlainStyle())
-                            .focused(focus, equals: .season(s))
-                        }
-                    }
-                    .padding(.horizontal, OrbitDetailLayout.margin)
-                    .padding(.vertical, 16)
-                }
-                .scrollClipDisabled()
-                .focusSection()
-                // Steven (2026-10-28: Up from an episode lit the far-left season a moment, then
-                // his): the season shown takes the focus coming in, from the start.
-                .defaultFocus(focus, season.map { OrbitDetailFocus.season($0) }, priority: .userInitiated)
+            if seasonList.count > 1 {
+                // The season shown takes the focus coming in (Steven, 2026-10-28).
+                OrbitStripView(count: seasonList.count, identity: seasonList.map { "\($0)" }.joined(separator: ","),
+                               spacing: 24, height: Self.seasonSize.height + 44, margin: OrbitDetailLayout.margin,
+                               alignment: .top, lead: season.flatMap { seasonList.firstIndex(of: $0) } ?? 0,
+                               entersOnLead: true, width: { _ in Self.seasonSize.width + 20 },
+                               ref: seasonsRef ?? ownSeasonsRef,
+                               tile: { i, focused in
+                                   let s = seasonList[i]
+                                   return AnyView(OrbitSeasonCard(label: OrbitEpisodeFormat.seasonLabel(s),
+                                                                  poster: posterURL(season: s),
+                                                                  focused: focused, selected: s == season))
+                               },
+                               onFocus: { i in
+                                   guard let i else { return }
+                                   let s = seasonList[i]
+                                   comingFromSeason = true
+                                   stripFocus = .season(s)
+                                   if s != shownSeason { shownSeason = s }
+                                   onStripFocus(.season(s))
+                               },
+                               onSelect: { i in shownSeason = seasonList[i] })
+                    .frame(height: Self.seasonSize.height + 44)
+                    .focusSection()
             }
 
-            // A ZStack: the old season's row and the new one overlap while they cross-fade.
+            // A ZStack: the old season's row and the new one cross-fade.
             ZStack(alignment: .topLeading) {
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 28) {
-                        ForEach(list, id: \.id) { episode in
-                            Button { onPlay(episode) } label: {
-                                OrbitEpisodeCard(episode: episode,
-                                                 fallbackArt: meta.background ?? meta.poster,
-                                                 watched: isWatched(episode),
-                                                 focused: focus.wrappedValue == .episode(episode.id))
-                            }
-                            .buttonStyle(OrbitPlainStyle())
-                            .focused(focus, equals: .episode(episode.id))
-                            .id(episode.id)
-                        }
-                    }
-                    .scrollTargetLayout()
-                    .padding(.vertical, 18)
-                }
-                .scrollTargetBehavior(.viewAligned)
-                .scrollPosition(id: $episodeAnchor, anchor: .leading)
-                .contentMargins(.leading, OrbitDetailLayout.margin, for: .scrollContent)
-                // Room after the last episode: it comes to the margin too.
-                .contentMargins(.trailing, OrbitHomeLayout.screenWidth - OrbitDetailLayout.margin - Self.stillSize.width,
-                                for: .scrollContent)
-                .scrollClipDisabled()
-                .id("season-\(season ?? -1)")
-                .transition(.opacity)
-                .onAppear {
-                    // Chosen from its poster, a season shows from its first episode (Steven); else
-                    // from the next one to watch.
-                    let onSeason: Bool = { if case .season? = focus.wrappedValue { return true }; return false }()
-                    if let target = onSeason ? list.first : nextUp {
-                        DispatchQueue.main.async { proxy.scrollTo(target.id, anchor: .leading) }
-                    }
-                }
-            }
+                // Down from a season's poster: its first episode; else the next one to watch.
+                let leadIndex = comingFromSeason ? 0 : (nextUp.flatMap { up in list.firstIndex { $0.id == up.id } } ?? 0)
+                OrbitStripView(count: list.count, identity: "season-\(season ?? -1)|\(list.count)", spacing: 28,
+                               height: still.height + 12 + 30, margin: OrbitDetailLayout.margin, alignment: .top,
+                               pinned: true, lead: leadIndex, width: { _ in still.width },
+                               ref: episodesRef ?? ownEpisodesRef,
+                               tile: { i, focused in
+                                   AnyView(OrbitEpisodeCard(episode: list[i], fallbackArt: meta.background ?? meta.poster,
+                                                            watched: isWatched(list[i]), focused: focused))
+                               },
+                               onFocus: { i in
+                                   guard let i else { return }
+                                   comingFromSeason = false
+                                   stripFocus = .episode(list[i].id)
+                                   onStripFocus(.episode(list[i].id))
+                               },
+                               onSelect: { i in onPlay(list[i]) })
+                    .frame(height: still.height + 12 + 30)
+                    .id("season-\(season ?? -1)")
+                    .transition(.opacity)
             }
             .frame(height: Self.episodeRowHeight, alignment: .topLeading)
             .focusSection()
-            // Steven (2026-10-28): Down from a season's poster always lands on its first episode.
-            .defaultFocus(focus, comingFromSeason ? list.first.map { OrbitDetailFocus.episode($0.id) } : nil,
-                          priority: .userInitiated)
             .animation(.easeInOut(duration: 0.25), value: season)
 
-            // Fixed and overlapping: the old episode's text fades out under the new one, in place
-            // (it hung over the cast row and pushed the page while both took room).
+            // Fixed and overlapping: the old episode's text fades out under the new one, in place.
             ZStack(alignment: .topLeading) {
                 OrbitEpisodeDetails(episode: shown,
                                     rating: shown.flatMap { rating(for: $0) },
@@ -161,40 +154,25 @@ struct OrbitEpisodesSection: View {
             }
             .frame(width: Self.detailsWidth, height: 110, alignment: .topLeading)
             .clipped()
-            // Under the focused episode — always at the margin now (Steven: the text bounced while it
-            // followed the card through the row's slide).
             .padding(.leading, OrbitDetailLayout.margin)
         }
-        // Steven: entering from above (the hero) lands on the season being shown — the season
-        // row is no longer skipped (the engine took the poster under Lire, or the episodes).
-        .onChange(of: focus.wrappedValue) { old, new in
-            if case .season(let s)? = new {
-                comingFromSeason = true
-                // Its episodes from the first, ready for Down.
-                if let first = episodes(of: s).first?.id, episodeAnchor != first {
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { episodeAnchor = first }
-                }
-            } else if new != nil { comingFromSeason = false }
-            // Down from a season's poster: its first episode (whatever the engine took).
-            if case .season? = old, case .episode(let id)? = new, let first = list.first, id != first.id {
-                DispatchQueue.main.async { focus.wrappedValue = .episode(first.id) }
-                return
-            }
-            if case .episode(let id)? = new {
-                if episodeAnchor != id { withAnimation(.easeOut(duration: 0.26)) { episodeAnchor = id } }
-            }
-            guard case .season(let s)? = new else { return }
-            // Up from the episodes too: back on the season they belong to (the engine took the
-            // poster above the focused episode).
-            let fromEpisodes: Bool = { if case .episode? = old { return true }; return false }()
-            if old == nil || old?.section == .hero || fromEpisodes, let season, s != season {
-                DispatchQueue.main.async { focus.wrappedValue = .season(season) }
-                return
-            }
-            if s != shownSeason { shownSeason = s }
-        }
+    }
+
+    /// Where an episode sits in its season's row (the page's way back).
+    static func place(of id: String, in meta: MetaDetails) -> (season: Int?, index: Int)? {
+        guard let episode = meta.videos.first(where: { $0.id == id }) else { return nil }
+        let season = episode.season?.value
+        let list = meta.videos.filter { $0.season?.value == season }
+            .sorted { ($0.episode?.value ?? 0) < ($1.episode?.value ?? 0) }
+        guard let index = list.firstIndex(where: { $0.id == id }) else { return nil }
+        return (season, index)
+    }
+
+    /// Where a season sits in the seasons' row.
+    static func place(ofSeason s: Int, in meta: MetaDetails) -> Int? {
+        let all = Set(meta.videos.compactMap { $0.season?.value })
+        let seasons = all.filter { $0 > 0 }.sorted() + (all.contains(0) ? [0] : [])
+        return seasons.firstIndex(of: s)
     }
 
     private func posterURL(season: Int) -> String? {

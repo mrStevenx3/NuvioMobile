@@ -25,6 +25,8 @@ struct OrbitStripView: UIViewControllerRepresentable {
     var pinned = false
     /// Where the focus lands when the row is entered (pinned rows: their lead).
     var lead: Int = 0
+    /// Entering the row lands on `lead` (pinned rows always; others when asked: a series' seasons).
+    var entersOnLead: Bool? = nil
     /// Each tile's width when the page knows it (a tile wider when open, from the page's own state:
     /// Netflix's lead). Else the tiles are measured.
     var width: ((Int) -> CGFloat)? = nil
@@ -55,6 +57,7 @@ struct OrbitStripView: UIViewControllerRepresentable {
         c.onSelect = onSelect
         c.menu = menu
         c.lead = lead
+        c.entersOnLead = entersOnLead ?? pinned
         c.widthOf = width
         c.show(count: count, identity: identity, spacing: spacing, height: height, margin: margin,
                alignment: alignment, pinned: pinned, focusHidden: focusHidden, enabled: enabled)
@@ -68,6 +71,7 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     var onSelect: (Int) -> Void = { _ in }
     var menu: ((Int) -> UIMenu?)?
     var lead = 0
+    var entersOnLead = false
     var widthOf: ((Int) -> CGFloat)?
     /// The page's widths last laid out.
     private var widths: [CGFloat] = []
@@ -317,7 +321,8 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         }
         if onlyIndex != nil, onlyIndex != next { onlyIndex = nil }
         // A pinned row entered from outside lands on its lead (at the margin).
-        if pinned, previous == nil, next != lead, lead >= 0, lead < count {
+        // (Not when the page itself asked for a title: the way back, its own requests.)
+        if entersOnLead, preferredIndex == nil, previous == nil, next != lead, lead >= 0, lead < count {
             preferredIndex = lead
             DispatchQueue.main.async { [weak self] in
                 self?.requestFocus()

@@ -195,6 +195,8 @@ struct OrbitDetailView: View {
     @State private var sagaStrip = OrbitStripRef()
     @State private var trailersStrip = OrbitStripRef()
     @State private var similarStrip = OrbitStripRef()
+    @State private var seasonsStrip = OrbitStripRef()
+    @State private var episodesStrip = OrbitStripRef()
     @State private var pushTitle: TitleRoute?
     @State private var pushPerson: PersonRoute?
     /// The card a press ended the way back from (`ViewerInputClock`), and when.
@@ -322,7 +324,9 @@ struct OrbitDetailView: View {
                                              focus: $focus,
                                              onPlay: { episode in
                                                  seriesPlay = OrbitSeriesPlayRoute(meta: meta, episode: episode)
-                                             })
+                                             },
+                                             seasonsRef: seasonsStrip, episodesRef: episodesStrip,
+                                             onStripFocus: { stripFocused($0) })
                             .focusSection()
                             .disabled(returningElsewhere(.episodes))
                             .id(OrbitDetailSection.episodes)
@@ -801,6 +805,8 @@ struct OrbitDetailView: View {
 
     private var onSeasonPoster: Bool {
         if case .season? = focus { return true }
+        // (The seasons are a UIKit strip: its focus is the page's last one.)
+        if focus == nil, section == .episodes, case .season? = lastFocus { return true }
         return false
     }
 
@@ -1380,7 +1386,7 @@ struct OrbitDetailView: View {
     /// The focus kept in a strip (not the page's own focus).
     static func inStrip(_ f: OrbitDetailFocus) -> Bool {
         switch f {
-        case .cast, .saga, .trailerClip, .similar: return true
+        case .cast, .saga, .trailerClip, .similar, .season, .episode: return true
         default: return false
         }
     }
@@ -1396,6 +1402,10 @@ struct OrbitDetailView: View {
             if let i = (meta?.trailers ?? []).firstIndex(where: { $0.id == id }) { trailersStrip.controller?.restore(index: i) }
         case .similar(let id):
             if let i = (meta?.moreLikeThis ?? []).firstIndex(where: { $0.id == id }) { similarStrip.controller?.restore(index: i) }
+        case .season(let s):
+            if let meta, let i = OrbitEpisodesSection.place(ofSeason: s, in: meta) { seasonsStrip.controller?.restore(index: i) }
+        case .episode(let id):
+            if let meta, let place = OrbitEpisodesSection.place(of: id, in: meta) { episodesStrip.controller?.restore(index: place.index) }
         default:
             break
         }
