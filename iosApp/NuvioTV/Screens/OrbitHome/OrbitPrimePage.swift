@@ -970,6 +970,8 @@ private struct OrbitPrimeRowView: View {
                     .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
                     .offset(x: L.margin)
                     .allowsHitTesting(false)
+                    // (Leaving the row, the frame goes at once with its room — no fade over the posters.)
+                    .transition(.identity)
                 }
             }
         }

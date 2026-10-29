@@ -1560,7 +1560,9 @@ private struct OrbitDisneyOpenRow: View {
                                          trailerURL: isCurrent ? trailerURL : nil,
                                          onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                         .offset(x: frameX)
-                        .animation(OrbitDisneyLayout.horizontal, value: openX)
+                        // Steven (2026-10-29, video: going up, the row left kept its frame fading over
+                        // its posters as the page moved): it goes at once with its room.
+                        .transition(.identity)
                 }
             }
             if row.items.indices.contains(lead) {
