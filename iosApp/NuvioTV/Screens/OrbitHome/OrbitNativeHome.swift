@@ -878,6 +878,41 @@ private struct OrbitNativeTile: View {
     /// focus seen going left, then coming back).
     @Environment(\.orbitFocusHidden) private var focusHidden
     private var isFocused: Bool { systemFocused && !focusHidden }
+    /// Steven (2026-10-29): the Top 10's poster, rested on, widens into a 16:9 frame with its
+    /// trailer, over its own rank (hidden behind it); the row does not move. Any move: a poster again.
+    @State private var landscape = false
+    /// The tile's left edge on the screen (the frame stays inside the screen).
+    @State private var tileX: CGFloat = 0
+    static let dwellTime: Duration = .milliseconds(1500)
+
+    private func dwell() async {
+        guard isFocused else {
+            if landscape { withAnimation(.easeOut(duration: 0.18)) { landscape = false } }
+            return
+        }
+        do { try await Task.sleep(for: Self.dwellTime) } catch { return }
+        guard isFocused, !Task.isCancelled else { return }
+        trailers.arm(trailerKey, item: card.preview)
+        withAnimation(.easeInOut(duration: 0.32)) { landscape = true }
+    }
+
+    /// The 16:9 frame of the poster's height, centred on the tile (its rank and poster), kept on
+    /// the screen.
+    @ViewBuilder
+    private var rankedFocusFrame: some View {
+        if landscape, isFocused {
+            let size = OrbitNativeRankedOpenTile.frame(scale: 1)
+            let tile = OrbitRankedTile.closedWidth(rank)
+            let W = OrbitHomeLayout.screenWidth
+            let edge: CGFloat = 40
+            let centred = (tile - size.width) / 2
+            let dx = min(max(centred, edge - tileX), W - edge - size.width - tileX)
+            OrbitRankedOpenFrame(card: card, meta: meta, focused: true, trailers: trailers,
+                                 trailerKey: trailerKey, size: size)
+                .offset(x: dx)
+                .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .bottom)))
+        }
+    }
 
     var body: some View {
         Group {
@@ -893,6 +928,11 @@ private struct OrbitNativeTile: View {
                 }
             case .ranked:
                 OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused)
+                    .overlay(alignment: .bottomLeading) { rankedFocusFrame }
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minX } action: { x in
+                        if !landscape { tileX = x }
+                    }
+                    .task(id: isFocused) { await dwell() }
             case .posters:
                 OrbitSmallPoster(card: card, meta: meta, focused: isFocused)
             case .sagas:
