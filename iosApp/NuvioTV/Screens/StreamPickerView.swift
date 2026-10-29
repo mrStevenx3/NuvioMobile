@@ -648,9 +648,10 @@ struct StreamPickerView: View {
     /// once over the loading screen — it opens on the same loading screen itself, no fade through
     /// black between the two.
     private func present(_ ctx: PlaybackContext) {
-        var still = Transaction()
-        still.disablesAnimations = true
-        withTransaction(still) { selected = ctx }
+        // Steven (2026-10-29, device: the loading screen darkened a moment as the film came up):
+        // the system still faded the player's cover in through black — UIKit's own presentation
+        // animation, which the SwiftUI transaction does not reach.
+        OrbitInstantPresent.run { selected = ctx }
     }
 
     private var playerBinding: Binding<PlaybackContext?> {
@@ -883,5 +884,18 @@ private struct OrbitStreamHeaderLayer<Content: View>: View {
         content()
             .offset(y: -scroll.y)
             .opacity(scroll.y > 500 ? 0 : 1)
+    }
+}
+
+/// A cover put up at once: SwiftUI's transaction without animation, and UIKit's own presentation
+/// animation off for the moment it takes (it faded through black otherwise).
+@MainActor
+enum OrbitInstantPresent {
+    static func run(_ change: () -> Void) {
+        UIView.setAnimationsEnabled(false)
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still, change)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { UIView.setAnimationsEnabled(true) }
     }
 }

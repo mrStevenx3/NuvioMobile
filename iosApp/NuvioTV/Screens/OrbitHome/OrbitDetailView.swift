@@ -880,7 +880,7 @@ struct OrbitDetailView: View {
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.5)) { launchGlide = 1 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withTransaction(still) { present() }
+                OrbitInstantPresent.run { present() }
                 // Under the page now: the hero back as it was, for the way back.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     withTransaction(still) {
