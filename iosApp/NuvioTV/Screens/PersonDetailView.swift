@@ -34,6 +34,23 @@ struct PersonDetailView: View {
     @State private var tvStrip = OrbitStripRef()
     @State private var pushTitle: TitleRoute?
     @State private var lastCredit: (key: String, index: Int)?
+    /// Steven (2026-10-29: "partout pareil"): Home's vertical move — the page brought to the block
+    /// the focus enters on Apple's curve (full speed at the press, easing to rest in 0.4 s).
+    @State private var pageScroll = ScrollPosition(idType: String.self)
+    @State private var pagePlace = "top"
+
+    private func go(to place: String) {
+        guard place != pagePlace else { return }
+        pagePlace = place
+        let anchor: UnitPoint = place == "top" ? .top : .center
+        if UIAccessibility.isReduceMotionEnabled {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { pageScroll.scrollTo(id: place, anchor: anchor) }
+        } else {
+            withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { pageScroll.scrollTo(id: place, anchor: anchor) }
+        }
+    }
 
     private var bioTruncated: Bool {
         PersonBioTeaser.isTruncated(fullHeight: bioFullHeight, shownHeight: bioShownHeight)
@@ -52,6 +69,7 @@ struct PersonDetailView: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     topBlock
+                        .id("top")
 
                     // Each row is its own focus region, so vertical D-pad moves land on the row's
                     // nearest poster instead of geometrically skipping past it (same reason as
@@ -80,6 +98,8 @@ struct PersonDetailView: View {
                 // rows) for `prefersDefaultFocus` on the top block to win.
                 .focusScope(topFocusNamespace)
             }
+            .scrollPosition($pageScroll)
+            .onChange(of: topFocused) { _, focused in if focused { go(to: "top") } }
         }
         .onAppear {
             tabBarVisibility.pushImmersive()
@@ -272,10 +292,15 @@ struct PersonDetailView: View {
                                spacing: 32, height: 340, margin: 0, alignment: .center, width: { _ in 200 },
                                ref: ref,
                                tile: { i, focused in AnyView(OrbitDetailPoster(item: items[i], focused: focused)) },
-                               onFocus: { i in if let i { lastCredit = (key, i) } },
+                               onFocus: { i in
+                                   guard let i else { return }
+                                   lastCredit = (key, i)
+                                   go(to: key)
+                               },
                                onSelect: { i in pushTitle = TitleRoute(preview: items[i]) })
                     .frame(height: 340)
             }
+            .id(key)
         }
     }
 

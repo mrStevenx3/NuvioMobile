@@ -46,7 +46,7 @@ struct OrbitEpisodesSection: View {
 
     static let stillSize = CGSize(width: 384, height: 216)
     /// Steven (2026-10-24): larger season posters.
-    static let seasonSize = CGSize(width: 180, height: 270)
+    static let seasonSize = CGSize(width: 210, height: 315)  // Steven (2026-10-29): a little larger (was 180 × 270)
     /// The episode row's height (card, title, the row's padding): fixed, so a season change —
     /// the old row fading out while the new one fades in — never stacks two rows (the page
     /// bounced).

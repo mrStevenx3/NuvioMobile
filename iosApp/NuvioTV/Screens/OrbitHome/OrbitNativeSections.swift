@@ -132,6 +132,24 @@ struct OrbitNativeSections<SectionContent: View>: View {
 
     /// The section the page is aligned on.
     @State private var position: Int?
+    /// Steven (2026-10-29: "partout pareil"): Home's vertical move on every platform page — every
+    /// move asked for on Apple's curve (full speed at the press, easing to rest in 0.4 s), no scroll
+    /// binding the system rewrites at each step of its own move.
+    @State private var scroll = ScrollPosition(idType: Int.self)
+    @State private var lastGo: TimeInterval = 0
+
+    private func go(to s: Int, animated: Bool = true) {
+        if position == s, ProcessInfo.processInfo.systemUptime - lastGo < 0.2 { return }
+        lastGo = ProcessInfo.processInfo.systemUptime
+        position = s
+        if animated && !UIAccessibility.isReduceMotionEnabled {
+            withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { scroll.scrollTo(id: s, anchor: .top) }
+        } else {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { scroll.scrollTo(id: s, anchor: .top) }
+        }
+    }
     @State private var heroLocked = false
     /// The section last asked to take the focus (read live by the retries below).
     @State private var wanted: Int?
@@ -196,7 +214,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
             .padding(.bottom, OrbitHomeLayout.screenHeight)
         }
         .scrollTargetBehavior(.viewAligned)
-        .scrollPosition(id: $position, anchor: .top)
+        .scrollPosition($scroll)
         .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
             if let tracker, abs(tracker.y - y) > 0.5 { tracker.y = y }
         }
@@ -236,11 +254,11 @@ struct OrbitNativeSections<SectionContent: View>: View {
         // The section changed (the focus moved, Menu back to the top, a filter reset): the page
         // slides to it, and a section the focus is not in yet takes it.
         .onChange(of: current) { _, c in
-            if position != c { withAnimation(.easeInOut(duration: 0.32)) { position = c } }
+            go(to: c)
             take(c)
         }
         .onAppear {
-            position = current
+            go(to: current, animated: false)
             // Back to a row (from a title): the hero out of the focus's reach a moment.
             if current >= heroCount, heroCount > 0 {
                 heroLocked = true
