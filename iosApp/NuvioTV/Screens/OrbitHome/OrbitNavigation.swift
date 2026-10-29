@@ -209,6 +209,12 @@ final class OrbitPlatformCurtain: ObservableObject {
     @Published private(set) var look: OrbitPlatformLook?
     /// The logo shown (it grows in as the screen darkens).
     @Published private(set) var logoIn = false
+    /// Steven (2026-10-29: "en même temps qu'il s'éclaire il faudrait qu'il s'agrandisse"): the logo
+    /// grows as it lights up, to its full size as the neon settles.
+    @Published private(set) var grown = false
+    /// When the page is pushed under the curtain: once the logo has grown and lit (Steven: a little
+    /// hitch in the opening — the page was built while the logo was still moving).
+    static let pushAt: Double = 0.95
     /// The logo's neon, played on the curtain itself (Steven: it sat dark too long — it switches
     /// on right at the press; the page under it takes over lit).
     @Published private(set) var dim: Double = 1
@@ -225,16 +231,17 @@ final class OrbitPlatformCurtain: ObservableObject {
         let mine = token
         var still = Transaction()
         still.disablesAnimations = true
-        withTransaction(still) { self.look = look; logoIn = false; dim = 1; glow = 0 }
+        withTransaction(still) { self.look = look; logoIn = false; grown = false; dim = 1; glow = 0 }
         withAnimation(.easeOut(duration: 0.25)) { down = true }
         withAnimation(.easeOut(duration: 0.3)) { logoIn = true }
+        withAnimation(.easeOut(duration: Self.pushAt - 0.05)) { grown = true }
         if look != nil {
             OrbitNeon.play(at: 0.2) { [weak self] d, g, animation in
                 guard let self, self.token == mine, self.down else { return }
                 withAnimation(animation) { self.dim = d; self.glow = g }
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { then() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (look == nil ? 0.25 : Self.pushAt)) { then() }
         // Never left over the app (a page with no opening).
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
             if self?.token == mine { self?.lift() }
@@ -247,7 +254,7 @@ final class OrbitPlatformCurtain: ObservableObject {
         if instant {
             var still = Transaction()
             still.disablesAnimations = true
-            withTransaction(still) { down = false; logoIn = false }
+            withTransaction(still) { down = false; logoIn = false; grown = false }
         } else {
             withAnimation(.easeOut(duration: 0.25)) { down = false }
         }
@@ -265,16 +272,20 @@ struct OrbitPlatformCurtainView: View {
                 RadialGradient(colors: [look.brand.opacity(0.45), .clear], center: .center, startRadius: 0, endRadius: 900)
                 if look.studio {
                     OrbitStudioIntroLogo(name: look.title, logoUrl: look.logoUrl, corner: false)
+                        // (Steven: the last studio's logo showed mixed with this one — a new view for
+                        // each opening, never the last one's image.)
+                        .id("\(look.title)|\(look.logoUrl ?? "")")
                         .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height)
                         .modifier(OrbitLightUp(dim: curtain.dim, glow: curtain.glow, tint: look.brand))
-                        .scaleEffect(OrbitStudioIntro.splashScale * (curtain.logoIn ? 1 : 0.92))
+                        .scaleEffect(OrbitStudioIntro.splashScale * (curtain.grown ? 1 : 0.78))
                         .opacity(curtain.logoIn ? 1 : 0)
                         .position(x: W / 2, y: H / 2)
                 } else {
                     OrbitPlatformIntroLogo(look: look)
+                        .id("\(look.title)|\(look.logoUrl ?? "")")
                         .frame(width: OrbitPlatformIntro.logoSize.width, height: OrbitPlatformIntro.logoSize.height)
                         .modifier(OrbitLightUp(dim: curtain.dim, glow: curtain.glow, tint: look.brand))
-                        .scaleEffect(OrbitPlatformIntro.splashScale * (curtain.logoIn ? 1 : 0.85))
+                        .scaleEffect(OrbitPlatformIntro.splashScale * (curtain.grown ? 1 : 0.78))
                         .opacity(curtain.logoIn ? 1 : 0)
                         .position(x: W / 2, y: H / 2)
                 }

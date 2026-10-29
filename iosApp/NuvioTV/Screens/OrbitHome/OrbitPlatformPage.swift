@@ -694,7 +694,7 @@ struct OrbitPlatformIntro: View {
     private enum Phase { case hidden, splash, settled }
 
     static let logoSize = CGSize(width: 520, height: 200)
-    static let splashScale: CGFloat = 1.4
+    static let splashScale: CGFloat = 1.7  // Steven (2026-10-29): larger on his large screen (was 1.4)
     static let cornerScale: CGFloat = 0.36
     /// The corner: level with the bar's centre line, at the right margin.
     static let cornerCentreY: CGFloat = 59
@@ -764,7 +764,7 @@ struct OrbitPlatformIntro: View {
                 let curtained = OrbitPlatformCurtain.shared.look != nil
                 // The curtain plays the neon; the page waits under it, lit as it ends, and shows
                 // once it is over (pushed ~0.25 s after the press).
-                let lift = max(0.5, OrbitPlatformCurtain.litAfter - 0.25)
+                let lift = max(0.3, OrbitPlatformCurtain.litAfter - (curtained ? OrbitPlatformCurtain.pushAt : 0.25))
                 DispatchQueue.main.asyncAfter(deadline: .now() + lift) { OrbitPlatformCurtain.shared.lift(instant: curtained) }
                 if reduceMotion { dim = 0; glow = 0 } else {
                     withTransaction(still) { dim = 0; glow = curtained ? 0.35 : 0 }

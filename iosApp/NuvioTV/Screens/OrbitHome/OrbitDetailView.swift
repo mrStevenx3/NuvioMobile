@@ -21,7 +21,7 @@ import SwiftUI
 //    it leaves the page.
 
 /// Every focusable place on the page, so the page knows which section holds the focus.
-enum OrbitDetailFocus: Hashable {
+nonisolated enum OrbitDetailFocus: Hashable, Sendable {
     case play, restart, trailer, watched, library, synopsis
     case cast(Int)
     case saga(String)
@@ -131,11 +131,27 @@ struct OrbitDetailView: View {
     /// system rewrites at each step of its own move.
     @State private var detailScroll = ScrollPosition(idType: OrbitDetailSection.self)
     @State private var lastGo: TimeInterval = 0
+    @State private var systemScrollOff = false
+    /// The page's sections, in order (those it shows).
+    private var sectionOrder: [OrbitDetailSection] {
+        var out: [OrbitDetailSection] = [.hero]
+        if isSeries, meta != nil { out.append(.episodes) }
+        if !(meta?.cast ?? []).isEmpty { out.append(.cast) }
+        if !(meta?.collectionItems ?? []).isEmpty { out.append(.saga) }
+        if !(meta?.trailers ?? []).isEmpty { out.append(.trailers) }
+        if !(meta?.moreLikeThis ?? []).isEmpty { out.append(.similar) }
+        out.append(.about)
+        return out
+    }
 
     private func go(to target: OrbitDetailSection, animated: Bool = true) {
         if pagePosition == target, ProcessInfo.processInfo.systemUptime - lastGo < 0.2 { return }
         lastGo = ProcessInfo.processInfo.systemUptime
         pagePosition = target
+        // (As Home: one mover — past the first section under the hero the system's own scroll is
+        // off, no nudge after the page rests; nothing redrawn mid-move by details arriving.)
+        systemScrollOff = (sectionOrder.firstIndex(of: target) ?? 0) >= 2
+        OrbitMetaStore.shared.holdPublishing(for: 0.6)
         if animated && !reduceMotion {
             withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { detailScroll.scrollTo(id: target, anchor: .top) }
         } else {
@@ -345,7 +361,8 @@ struct OrbitDetailView: View {
                                                  seriesPlay = OrbitSeriesPlayRoute(meta: meta, episode: episode)
                                              },
                                              seasonsRef: seasonsStrip, episodesRef: episodesStrip,
-                                             onStripFocus: { stripFocused($0) })
+                                             onStripFocus: { stripFocused($0) },
+                                             returning: returningTo)
                             .equatable()
                             .focusSection()
                             .disabled(returningElsewhere(.episodes))
@@ -385,7 +402,7 @@ struct OrbitDetailView: View {
             // Steven (the season row bounced): on a season poster the page does not scroll on its
             // own — the system nudged it a few points at each season change and the hold pulled it
             // back. The page's own moves (`anchor`, scrollTo) still place it.
-            .scrollDisabled(onSeasonPoster)
+            .scrollDisabled(onSeasonPoster || systemScrollOff)
             .ignoresSafeArea()
             // Steven ("le problème de coupure" on Up / Down): the system scrolled to the focus, then
             // the page scrolled again to its section — two moves. Only Menu back to the top moves the

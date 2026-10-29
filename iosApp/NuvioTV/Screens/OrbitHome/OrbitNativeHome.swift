@@ -59,6 +59,8 @@ struct OrbitNativeHome: View {
     /// and every move is asked for, on the curve.
     @State private var page = ScrollPosition(idType: String.self)
     @State private var lastGo: TimeInterval = 0
+    /// The system's own vertical scroll off (the page moves it alone, see `go`).
+    @State private var systemScrollOff = false
     /// The page is shown (not under a title's page, the sources, the player).
     @State private var onScreen = false
     /// The hero's default focus is the page's first (not on a way back to a row).
@@ -72,6 +74,14 @@ struct OrbitNativeHome: View {
         if position == id, ProcessInfo.processInfo.systemUptime - lastGo < 0.2 { return }
         lastGo = ProcessInfo.processInfo.systemUptime
         position = id
+        // Steven (2026-10-29, video IMG_9181, measured frame by frame): two movers — the system's
+        // focus scroll started a move, ours took it over a few frames later (the page stalled two
+        // frames), and after an Up the system nudged the page again ~0.3 s after it had come to rest
+        // (the shake at the end). On the rows past the first, the page is ours alone: the system's
+        // own scroll is off (the rows above and below stay within reach of the focus).
+        systemScrollOff = id != "hero" && (rows.firstIndex { $0.id == id } ?? 0) >= 1
+        // Nothing redrawn mid-move by the titles' details arriving (published once the page rests).
+        OrbitMetaStore.shared.holdPublishing(for: 0.6)
         if animated && !reduceMotion {
             // Steven (2026-10-29, videos: every vertical move started with a jerk): the system's own
             // scroll starts fast, ours (ease-in-out) took over from rest — the page slowed after its
@@ -190,6 +200,7 @@ struct OrbitNativeHome: View {
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition($page)
+            .scrollDisabled(systemScrollOff)
             // (Tried, 2026-10-28: the system's own scroll off — jerkier on the device, and Down from the
             // hero took two presses. Back to the page's scroll alongside the system's.)
             .contentMargins(.top, Self.topLine, for: .scrollContent)

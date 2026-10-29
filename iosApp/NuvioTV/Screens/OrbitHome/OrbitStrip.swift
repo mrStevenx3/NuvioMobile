@@ -88,6 +88,12 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     private var enabled = true
 
     private(set) var focusedIndex: Int?
+    /// When the focus last moved from one title of the row to another (only such a move slides a
+    /// room open: arriving on the row or leaving it, the rooms are at once what they will be —
+    /// Steven's video, Disney+: a room growing under a frame already open while the page moved).
+    private var movedWithinAt: TimeInterval = 0
+    /// The focus the row had at its last update (nil: it was not in the row).
+    private var lastShowFocus: Int?
     private var lastFocusedIndex: Int?
     private var onlyIndex: Int?
     private var onlyUntil: TimeInterval = 0
@@ -160,23 +166,34 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         } else {
             if relayout { closedSizes = [:]; focusedSizes = [:]; collectionView.collectionViewLayout.invalidateLayout() }
             if newWidths != widths {
+                let old = widths
                 widths = newWidths
-                // Moving inside the row: the room changes on the row's own curve; arriving, at once.
-                if focusedIndex != nil {
+                // Moving inside the row (or a title rested on opening): the room changes on the row's
+                // own curve; arriving on the row or leaving it, at once.
+                if focusedIndex != nil, lastShowFocus != nil {
                     UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
                         self.collectionView.collectionViewLayout.invalidateLayout()
                         self.collectionView.layoutIfNeeded()
                         if self.pinned, let f = self.focusedIndex { self.offsetToMargin(f) }
                     }
+                    // A tile changing size is not stretched by the row's animation (Steven: the Top 10's
+                    // poster jumped right, then came back left): it takes its room at once, its own
+                    // view widening from its left; only the titles after it slide.
+                    // (A row held at its margin moves its rooms with it: left to the animation.)
+                    for i in newWidths.indices where !pinned && (!old.indices.contains(i) || old[i] != newWidths[i]) {
+                        (collectionView.cellForItem(at: IndexPath(item: i, section: 0)) as? OrbitRowStripCell)?.settleFrame()
+                    }
                 } else {
                     UIView.performWithoutAnimation {
                         self.collectionView.collectionViewLayout.invalidateLayout()
                         self.collectionView.layoutIfNeeded()
+                        if self.pinned, let f = self.focusedIndex { self.offsetToMargin(f) }
                     }
                 }
             }
             redrawVisible()
         }
+        lastShowFocus = focusedIndex
     }
 
     private func redrawVisible() {
@@ -305,8 +322,11 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                         with coordinator: UIFocusAnimationCoordinator) {
         let previous = context.previouslyFocusedIndexPath?.item
+        // (The row slides: the titles' details arriving wait for it to rest — no redraw mid-slide.)
+        OrbitMetaStore.shared.holdPublishing(for: 0.5)
         let next = context.nextFocusedIndexPath?.item
         focusedIndex = next
+        if previous != nil, next != nil { movedWithinAt = ProcessInfo.processInfo.systemUptime }
         // A tile wider when focused: the row makes room on the focus's own move.
         let grows = [previous, next].compactMap { $0 }.contains { measure($0, focused: true).width != measure($0, focused: false).width }
         if grows {

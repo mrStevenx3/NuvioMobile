@@ -325,6 +325,8 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
                         with coordinator: UIFocusAnimationCoordinator) {
         let next = context.nextFocusedIndexPath?.item
         focusedIndex = next
+        // (The row slides: the titles' details arriving wait for it to rest — no redraw mid-slide.)
+        OrbitMetaStore.shared.holdPublishing(for: 0.5)
         dwell?.cancel()
         if let open = openIndex, open != next { setOpen(nil) }
         guard let next, cards.indices.contains(next) else {

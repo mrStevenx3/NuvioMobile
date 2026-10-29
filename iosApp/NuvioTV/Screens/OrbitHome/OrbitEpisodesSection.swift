@@ -23,7 +23,7 @@ extension OrbitEpisodesSection: Equatable {
     static func == (a: OrbitEpisodesSection, b: OrbitEpisodesSection) -> Bool {
         a.meta.id == b.meta.id && a.meta.videos.count == b.meta.videos.count
             && a.episodeRatings == b.episodeRatings && a.watchedEpisodeKeys == b.watchedEpisodeKeys
-            && a.startSeason == b.startSeason
+            && a.startSeason == b.startSeason && a.returning == b.returning
     }
 }
 
@@ -51,6 +51,9 @@ struct OrbitEpisodesSection: View {
     var seasonsRef: OrbitStripRef? = nil
     var episodesRef: OrbitStripRef? = nil
     var onStripFocus: (OrbitDetailFocus?) -> Void = { _ in }
+    /// Back from a page or the player: the card the focus is going back to. Steven (2026-10-29: the
+    /// focus landed a second on the row above or below first) — the other row cannot take it meanwhile.
+    var returning: OrbitDetailFocus? = nil
     @State private var ownSeasonsRef = OrbitStripRef()
     @State private var ownEpisodesRef = OrbitStripRef()
     /// The focus in the strips (the page's own focus no longer sees it).
@@ -65,13 +68,16 @@ struct OrbitEpisodesSection: View {
     @State private var comingFromSeason = false
     static let detailsWidth: CGFloat = 1300
 
-    static let stillSize = CGSize(width: 384, height: 216)
-    /// Steven (2026-10-24): larger season posters.
-    static let seasonSize = CGSize(width: 210, height: 315)  // Steven (2026-10-29): a little larger (was 180 × 270)
-    /// The episode row's height (card, title, the row's padding): fixed, so a season change —
-    /// the old row fading out while the new one fades in — never stacks two rows (the page
-    /// bounced).
-    static var episodeRowHeight: CGFloat { stillSize.height + 12 + 30 + 2 * 18 }
+    /// Steven (2026-10-29): the episodes a little larger with the larger seasons (was 384 × 216).
+    static let stillSize = CGSize(width: 416, height: 234)
+    /// Steven (2026-10-24, 2026-10-29 twice): larger season posters (180 × 270, then 210 × 315).
+    static let seasonSize = CGSize(width: 240, height: 360)
+    /// The episode row's height (card, title, a little room): fixed, so a season change — the old
+    /// row fading out while the new one fades in — never stacks two rows (the page bounced).
+    /// Steven (2026-10-29): the episodes closer to their synopsis (the room under them was 36).
+    static var episodeRowHeight: CGFloat { stillSize.height + 12 + 30 + 10 }
+    /// Steven (2026-10-29): the episodes further from the seasons above them (they sit lower).
+    static let seasonsToEpisodes: CGFloat = 44
 
     private var seasons: [Int] {
         let all = Set(meta.videos.compactMap { $0.season?.value })
@@ -136,7 +142,9 @@ struct OrbitEpisodesSection: View {
                                },
                                onSelect: { i in shownSeason = seasonList[i] })
                     .frame(height: Self.seasonSize.height + 44)
+                    .disabled(returningToEpisode)
                     .focusSection()
+                    .padding(.bottom, Self.seasonsToEpisodes - 20)
             }
 
             // A ZStack: the old season's row and the new one cross-fade.
@@ -159,6 +167,7 @@ struct OrbitEpisodesSection: View {
                                },
                                onSelect: { i in onPlay(list[i]) })
                     .frame(height: still.height + 12 + 30)
+                    .disabled(returningToSeason)
                     .id("season-\(season ?? -1)")
                     .transition(.opacity)
             }
@@ -177,6 +186,15 @@ struct OrbitEpisodesSection: View {
             .clipped()
             .padding(.leading, OrbitDetailLayout.margin)
         }
+    }
+
+    private var returningToEpisode: Bool {
+        if case .episode? = returning { return true }
+        return false
+    }
+    private var returningToSeason: Bool {
+        if case .season? = returning { return true }
+        return false
     }
 
     /// Where an episode sits in its season's row (the page's way back).

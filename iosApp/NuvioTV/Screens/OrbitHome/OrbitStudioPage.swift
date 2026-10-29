@@ -206,11 +206,16 @@ struct OrbitStudioPage: View {
     /// 0.4 s), asked for every move.
     @State private var nativeScroll = ScrollPosition(idType: String.self)
     @State private var nativeLastGo: TimeInterval = 0
+    @State private var nativeSystemScrollOff = false
 
     private func nativeGo(to id: String, animated: Bool = true) {
         if nativePosition == id, ProcessInfo.processInfo.systemUptime - nativeLastGo < 0.2 { return }
         nativeLastGo = ProcessInfo.processInfo.systemUptime
         nativePosition = id
+        // (As Home: one mover — past the first row the system's own scroll is off, no nudge after
+        // the page rests; nothing redrawn mid-move by details arriving.)
+        nativeSystemScrollOff = id != "hero" && id != "header" && (rows.firstIndex { $0.id == id } ?? 0) >= 1
+        OrbitMetaStore.shared.holdPublishing(for: 0.6)
         if animated && !reduceMotion {
             withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { nativeScroll.scrollTo(id: id, anchor: .top) }
         } else {
@@ -262,18 +267,9 @@ struct OrbitStudioPage: View {
         return row.items[lead(of: row)]
     }
 
-    /// The title focused in the rows (Home's wash and the headings' bar follow it).
-    @State private var rowItem: MetaPreview?
-    /// Its colour, on Home's timing (the headings' bar).
-    @State private var rowTone: Color?
-
-    private func toneFollow(_ item: MetaPreview?) async {
-        guard let item else { return }
-        do { try await Task.sleep(for: .milliseconds(OrbitRowsBackdrop.wait)) } catch { return }
-        let raw = metaStore.meta(for: item)?.backdrop ?? item.banner ?? item.poster
-        guard let raw, let color = await OrbitDominantColor.color(for: raw), !Task.isCancelled else { return }
-        withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { rowTone = color }
-    }
+    /// The title focused in the rows (Home's wash and the headings' bar follow it) — held apart, so
+    /// a new title redraws only the wash.
+    @State private var rowSpot = OrbitStudioSpot()
 
     private var brand: Color {
         tint ?? OrbitPlatformBrand.color(title: model.name)
@@ -306,12 +302,8 @@ struct OrbitStudioPage: View {
             // Steven (2026-10-29: "intérieur studio comme accueil"): in the rows, the focused title's
             // colour washes the page as on Home (same wash, same 250 ms rest and 0.45 s fade); the
             // banner keeps the studio's own colour.
-            OrbitFocusBackdrop(item: nativeRow == nil ? nil : rowItem)
-                .opacity(nativeRow == nil ? 0 : 1)
-                .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: nativeRow == nil)
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-                .task(id: rowItem.map { "\($0.type):\($0.id)" } ?? "-") { await toneFollow(rowItem) }
+            // (Its own view: a new title redraws only it — never the rows, at the end of a slide.)
+            OrbitStudioWash(spot: rowSpot, inRows: nativeRow != nil)
 
                             nativeContent
             
@@ -418,9 +410,9 @@ struct OrbitStudioPage: View {
                     }
                     ForEach(rows) { row in
                         OrbitNativeStudioRow(row: row, isCurrent: nativeRow == row.id,
-                                             accent: nativeRow == nil ? brand : (rowTone ?? brand), trailers: nativeTrailers,
+                                             accent: brand, trailers: nativeTrailers,
                                              onEnter: { nativeEnter(row.id) }, onOpen: { nativeOpen($0) },
-                                             onItem: { rowItem = $0 })
+                                             onItem: { rowSpot.item = $0 })
                             // (As Home's rows: a row is redrawn only when it changes — the page's
                             // moves no longer redraw every row.)
                             .equatable()
@@ -437,6 +429,7 @@ struct OrbitStudioPage: View {
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition($nativeScroll)
+            .scrollDisabled(nativeSystemScrollOff)
             .contentMargins(.top, Self.nativeTop, for: .scrollContent)
             .scrollClipDisabled()
 
@@ -687,7 +680,7 @@ struct OrbitStudioIntro: View {
     /// (Steven: in the TV's corner, at the same place as the platforms' logos.)
     static let cornerTop: CGFloat = OrbitPlatformIntro.cornerInset
     static let cornerTrailing: CGFloat = OrbitPlatformIntro.cornerInset
-    static let splashScale: CGFloat = 2.4
+    static let splashScale: CGFloat = 2.9  // Steven (2026-10-29): larger on his large screen (was 2.4)
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
@@ -737,7 +730,7 @@ struct OrbitStudioIntro: View {
                     var still = Transaction()
                     still.disablesAnimations = true
                     withTransaction(still) { phase = .splash; dim = 0; glow = 0.35 }
-                    let lift = max(0.5, OrbitPlatformCurtain.litAfter - 0.25)
+                    let lift = max(0.3, OrbitPlatformCurtain.litAfter - OrbitPlatformCurtain.pushAt)
                     DispatchQueue.main.asyncAfter(deadline: .now() + lift) { OrbitPlatformCurtain.shared.lift(instant: true) }
                     play(fromSplash: true, after: lift)
                     return
@@ -836,6 +829,41 @@ private struct OrbitNativeStudioHeroPage: View {
 }
 
 /// A row of the native studio page: real buttons the system slides, the focused one at the margin.
+/// The title focused in a studio's rows.
+@MainActor
+final class OrbitStudioSpot: ObservableObject {
+    @Published var item: MetaPreview?
+}
+
+/// A studio's wash: Home's (the focused title's colour, its rest and fade) while the rows hold the
+/// focus; the headings' bar follows it (`OrbitHomeTone.studio`). On the banner, the studio's own.
+private struct OrbitStudioWash: View {
+    @ObservedObject var spot: OrbitStudioSpot
+    let inRows: Bool
+    @ObservedObject private var metaStore = OrbitMetaStore.shared
+
+    var body: some View {
+        OrbitFocusBackdrop(item: inRows ? spot.item : nil)
+            .opacity(inRows ? 1 : 0)
+            .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: inRows)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .task(id: (inRows ? spot.item.map { "\($0.type):\($0.id)" } : nil) ?? "-") { await follow() }
+            .onChange(of: inRows) { _, rows in
+                if !rows { withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { OrbitHomeTone.studio.color = nil } }
+            }
+            .onDisappear { OrbitHomeTone.studio.color = nil }
+    }
+
+    private func follow() async {
+        guard inRows, let item = spot.item else { return }
+        do { try await Task.sleep(for: .milliseconds(OrbitRowsBackdrop.wait)) } catch { return }
+        let raw = metaStore.meta(for: item)?.backdrop ?? item.banner ?? item.poster
+        guard let raw, let color = await OrbitDominantColor.color(for: raw), !Task.isCancelled else { return }
+        withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { OrbitHomeTone.studio.color = color }
+    }
+}
+
 extension OrbitNativeStudioRow: Equatable {
     static func == (a: OrbitNativeStudioRow, b: OrbitNativeStudioRow) -> Bool {
         a.row == b.row && a.isCurrent == b.isCurrent && a.accent == b.accent
@@ -914,20 +942,42 @@ private struct OrbitNativeStudioRow: View {
         }
     }
 
+    // Steven (2026-10-29: "dans le studio t'as pas mis le défilement infini"): the new films loop as
+    // Home's — the titles repeated in the strip, the lead starting in the middle copy.
+    private var loops: Bool { row.kind == .classic && row.items.count >= 3 }
+    private var places: Int { row.items.count * (loops ? 7 : 1) }
+    /// The lead's place in the strip (a looping row: past the end, its title taken round).
+    @State private var place: Int?
+    private func itemIndex(_ v: Int) -> Int {
+        let n = row.items.count
+        return n == 0 ? 0 : ((v % n) + n) % n
+    }
+    private var leadPlace: Int { place ?? ((loops ? row.items.count * 3 : 0) + (shown ?? 0)) }
+    /// The Top 10 as Home's: the poster rested on (1.5 s) widens into its 16:9 frame with its trailer.
+    @State private var rankedOpen: Int?
+    @State private var dwell: DispatchWorkItem?
+
     /// Each title's room in the strip.
-    private func stripWidth(_ i: Int) -> CGFloat {
+    private func stripWidth(_ v: Int) -> CGFloat {
         let size = row.cardSize
         switch row.kind {
-        case .saga: return i == 0 ? OrbitStudioRow.sagaPanelWidth : size.width
-        case .ranked: return OrbitRankedTile.closedWidth(i + 1, scale: OrbitStudioRow.rankedScale)
-        case .classic: return i == (shown ?? 0) ? OrbitHomeLayout.frameWidth : size.width
+        case .saga: return v == 0 ? OrbitStudioRow.sagaPanelWidth : size.width
+        case .ranked:
+            if v == rankedOpen {
+                return OrbitRankedTile.rankRoom(v + 1, scale: OrbitStudioRow.rankedScale)
+                    + OrbitNativeRankedOpenTile.frame(scale: OrbitStudioRow.rankedScale).width
+            }
+            return OrbitRankedTile.closedWidth(v + 1, scale: OrbitStudioRow.rankedScale)
+        case .classic: return v == leadPlace ? OrbitHomeLayout.frameWidth : size.width
         default: return size.width
         }
     }
 
     /// The focus moved in the strip (nil: it left the row).
-    private func stripFocus(_ new: Int?) {
-        guard let new else {
+    private func stripFocus(_ newPlace: Int?) {
+        dwell?.cancel()
+        if rankedOpen != nil { rankedOpen = nil }
+        guard let newPlace else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                 if strip.controller?.focusedIndex == nil, holds { holds = false }
             }
@@ -937,8 +987,20 @@ private struct OrbitNativeStudioRow: View {
             holds = true
             onEnter()
         }
+        let new = itemIndex(newPlace)
         // (As Home's new films: the lead set plainly — the strip slides, the frame fades.)
+        if loops { place = newPlace }
         shown = new
+        if row.kind == .ranked, row.items.indices.contains(new) {
+            let item = row.items[new]
+            let work = DispatchWorkItem {
+                guard shown == new, holds else { return }
+                trailers.arm("\(row.id)|\(item.type):\(item.id)", item: item)
+                rankedOpen = newPlace
+            }
+            dwell = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        }
         if row.items.indices.contains(new) { onItem(row.items[new]) }
         if row.kind == .featured || row.kind == .classic || row.opensRanked, row.items.indices.contains(new) {
             let item = row.items[new]
@@ -958,22 +1020,24 @@ private struct OrbitNativeStudioRow: View {
         let lastWidth = row.kind == .ranked ? size.width + OrbitTileLayout.rankWidth * OrbitStudioRow.rankedScale : size.width
         VStack(alignment: .leading, spacing: 14) {
             if !saga {
-                OrbitRowHeading(title: row.title, isCurrent: isCurrent, accent: accent)
+                OrbitRowHeading(title: row.title, isCurrent: isCurrent, accent: accent,
+                                tone: OrbitHomeTone.studio, prefersTone: true)
                     .padding(.leading, L.margin + 4)
             }
             // Steven (2026-10-29: "applique-le de PARTOUT"): a UIKit strip the focus engine
             // scrolls, as Home's rows and Apple's TV app (`OrbitStripView`).
-            OrbitStripView(count: row.items.count, identity: row.id, spacing: row.gap, height: size.height,
-                           margin: L.margin, alignment: .bottom, pinned: row.pinned, lead: shown ?? 0,
-                           width: { i in stripWidth(i) }, ref: strip,
-                           tile: { i, focused in
-                               row.kind == .classic && i == (shown ?? 0)
+            OrbitStripView(count: places, identity: row.id + (loops ? "|loop" : ""), spacing: row.gap, height: size.height,
+                           margin: L.margin, alignment: .bottom, pinned: row.pinned, lead: leadPlace,
+                           width: { v in stripWidth(v) }, ref: strip,
+                           tile: { v, focused in
+                               row.kind == .classic && v == leadPlace
                                    ? AnyView(Color.clear.frame(width: OrbitHomeLayout.frameWidth, height: size.height))
-                                   : AnyView(OrbitStudioStripTile(row: row, index: i, trailers: trailers, focused: focused,
-                                                                  open: row.opensRanked && i == (shown ?? 0)))
+                                   : AnyView(OrbitStudioStripTile(row: row, index: itemIndex(v), trailers: trailers, focused: focused,
+                                                                  open: row.kind == .ranked && v == rankedOpen && focused))
                            },
                            onFocus: { stripFocus($0) },
-                           onSelect: { i in
+                           onSelect: { v in
+                               let i = itemIndex(v)
                                guard row.items.indices.contains(i) else { return }
                                Self.reopen = (row.id, i)
                                onOpen(row.items[i])
@@ -1087,7 +1151,9 @@ private struct OrbitNativeStudioRow: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restoringSince = 0; restoreLock = false }
         shown = target.index
         disappeared = false
-        DispatchQueue.main.async { strip.controller?.restore(index: target.index) }
+        let back = (loops ? row.items.count * 3 : 0) + target.index
+        if loops { place = back }
+        DispatchQueue.main.async { strip.controller?.restore(index: back) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             if Self.reopen?.index == target.index { Self.reopen = nil }
         }
@@ -1114,7 +1180,9 @@ private struct OrbitNativeStudioRow: View {
                     .frame(width: 1100, alignment: .topLeading)
             }
             .id(item.id)
-            .transition(.opacity.animation(.easeInOut(duration: 0.18)))
+            // (As Home's new films: the synopsis fades in with the title in the frame; the old one
+            // goes at once.)
+            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.05)), removal: .identity))
         }
     }
 }
@@ -1134,7 +1202,7 @@ private struct OrbitStudioStripTile: View {
             let item = row.items[index]
             OrbitNativeStudioTile(row: row, item: item, index: index, meta: metaStore.meta(for: item),
                                   trailers: trailers, open: open, focusedFromCell: focused)
-                .animation(OrbitHomeLayout.horizontal, value: open)
+                .animation(.easeInOut(duration: open ? 0.4 : 0.28), value: open)
         }
     }
 }
@@ -1179,9 +1247,11 @@ private struct OrbitNativeStudioTile: View {
                                           trailerKey: "\(row.id)|\(item.type):\(item.id)", open: open,
                                           scale: OrbitStudioRow.rankedScale, showsBadge: false)
             case .ranked:
-                OrbitRankedTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
-                                meta: meta, rank: index + 1, focused: isFocused, showsBadge: false,
-                                scale: OrbitStudioRow.rankedScale)
+                // (Home's Top 10 tile: rested on, it widens into its frame with the trailer.)
+                OrbitNativeTile(card: OrbitCard(id: item.id, preview: item, poster: item.poster, landscape: item.banner),
+                                meta: meta, style: .ranked, rank: index + 1, trailers: trailers,
+                                trailerKey: "\(row.id)|\(item.type):\(item.id)",
+                                focusedFromCell: isFocused, openFromCell: open)
             case .classic:
                 OrbitNativeClassicTile(card: OrbitCard.catalog(item), meta: meta, trailers: trailers,
                                        trailerKey: "\(row.id)|\(item.type):\(item.id)", open: open)

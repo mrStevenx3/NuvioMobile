@@ -110,13 +110,9 @@ struct OrbitLoadingView: View {
                 glow = 0.3
                 return
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                withAnimation(.easeOut(duration: 0.7)) { lit = true }
-                withAnimation(.easeOut(duration: 0.45)) { glow = 0.85 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.easeInOut(duration: 1.2)) { glow = 0.3 }
-                }
-            }
+            // (Steven, 2026-10-29: no glow coming and going — lit at once, a quiet halo.)
+            lit = true
+            glow = 0.3
         }
         .task(id: backdropUrl ?? "-") {
             guard let backdropUrl, !backdropUrl.isEmpty else { return }
@@ -124,8 +120,13 @@ struct OrbitLoadingView: View {
         }
     }
 
-    /// 0.5 → 1 → 0.5, the same phase for every instance (wall clock).
-    static func breath(at date: Date) -> Double {
+    /// Steven (2026-10-29: "la lueur qui s'éclaircit et s'assombrit n'apporte rien", the film comes
+    /// quickly): the logo stays lit, steady — the film's start is marked by the logo bursting open
+    /// instead (`PlayerScreen`). (Kept as a function: Lecture's glide ends on it.)
+    static func breath(at date: Date) -> Double { 1 }
+
+    /// The old breath: 0.5 → 1 → 0.5, the same phase for every instance (wall clock).
+    static func oldBreath(at date: Date) -> Double {
         let t = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
         return 0.75 - 0.25 * cos(t * 2 * .pi)
     }

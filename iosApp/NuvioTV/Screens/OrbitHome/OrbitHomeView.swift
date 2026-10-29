@@ -85,7 +85,11 @@ struct OrbitHomeSwitch: View {
             if filter == .services || filter == .studios {
                 OrbitSpacesPage(model: model, studios: filter == .studios, cover: cover)
                     .id(filter)
-                    .transition(.opacity)
+                    // (Steven, 2026-10-29: Séries → Plateformes came with no fade.) Over Home: coming in
+                    // it fades in over it (Home goes once it is in); leaving, it fades out over Home,
+                    // already whole under it — no dip to black either way.
+                    .zIndex(2)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.35)))
                     .onAppear { OrbitBarLock.shared.set(false) }
             }
             // Steven (simulator: Films ↔ Séries took up to a second — the page was built again at
@@ -99,18 +103,30 @@ struct OrbitHomeSwitch: View {
                         // Steven (2026-10-29: "la transition entre films et séries est trop brute"):
                         // the Home coming in fades in over the one leaving (which stays whole under it,
                         // then goes) — a soft cross-dissolve with no dip to black between the two.
+                        // (Steven, 2026-10-29: a lag between the two — quicker, 0.3 s. Towards Plateformes
+                        // or Studios, Home stays whole under their page fading in, then goes; back from
+                        // them, it is there at once under their page fading out.)
                         .opacity(active ? 1 : 0)
-                        .animation(active ? .easeInOut(duration: 0.45) : .linear(duration: 0.01).delay(0.46), value: active)
+                        .animation(active ? (cameFromSpaces ? nil : .easeInOut(duration: 0.3))
+                                   : .linear(duration: 0.01).delay(isHome ? 0.31 : 0.36),
+                                   value: active)
                         .disabled(!active)
                         .allowsHitTesting(active)
                         .zIndex(active ? 1 : 0)
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: isHome)
-        .onAppear { markVisited() }
-        .onChange(of: filter) { _, _ in markVisited() }
+        .onAppear { shownFilter = filter; markVisited() }
+        .onChange(of: filter) { _, new in
+            shownFilter = new
+            markVisited()
+        }
     }
+
+    /// The filter shown before this update (read while the switch is drawn: coming from Plateformes /
+    /// Studios, Home is at once under the page fading out).
+    @State private var shownFilter: HomeContentFilter?
+    private var cameFromSpaces: Bool { shownFilter == .services || shownFilter == .studios }
 
     /// The Homes built so far (films, series).
     @State private var visited: Set<Bool> = []
@@ -311,6 +327,8 @@ struct OrbitHomeView: View {
 @MainActor
 final class OrbitHomeTone: ObservableObject {
     static let shared = OrbitHomeTone()
+    /// A studio's page: the focused title's colour in its rows (Home's own stays Home's).
+    static let studio = OrbitHomeTone()
     @Published var color: Color?
 }
 
@@ -322,10 +340,13 @@ struct OrbitRowHeading: View {
     /// The bar's colour where the page has its own (a platform's, a studio's); else Home's wash.
     var accent: Color? = nil
     var size: CGFloat = 34
-    @ObservedObject private var tone = OrbitHomeTone.shared
+    @ObservedObject var tone: OrbitHomeTone = OrbitHomeTone.shared
+    /// The tone first, the accent when there is none (a studio: its title's colour in the rows,
+    /// its own on the banner).
+    var prefersTone = false
 
     var body: some View {
-        let colour = accent ?? tone.color
+        let colour = prefersTone ? (tone.color ?? accent) : (accent ?? tone.color)
         HStack(spacing: size * 0.4) {
             Capsule()
                 .fill(colour ?? Color.white.opacity(0.8))

@@ -82,10 +82,13 @@ struct PlayerScreen: View {
             if !loadingGone {
                 OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
                                  lightsUp: !overLoadingCover)
-                    .transition(.opacity)
+                    // Steven (2026-10-29: "le titre qui s'agrandit ou s'éclate"): the film starts — the
+                    // loading screen bursts open towards the viewer, the logo growing as it fades.
+                    .transition(.asymmetric(insertion: .opacity,
+                                            removal: .opacity.combined(with: .scale(scale: 1.35))))
             }
         }
-        .animation(.easeInOut(duration: 0.6), value: loadingGone)
+        .animation(.easeIn(duration: 0.55), value: loadingGone)
         .animation(.easeInOut(duration: 0.25), value: pauseCardShown)
         .animation(.easeInOut(duration: 0.25), value: upNext.phase)
         .onAppear {
@@ -97,7 +100,7 @@ struct PlayerScreen: View {
                 onPictureShown()
                 let wait = max(0, appearedAt + 0.55 - ProcessInfo.processInfo.systemUptime)
                 DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                    withAnimation(.easeInOut(duration: 0.6)) { loadingGone = true }
+                    withAnimation(.easeIn(duration: 0.55)) { loadingGone = true }
                 }
             } else {
                 loadingGone = false

@@ -217,7 +217,8 @@ struct OrbitTopBar: View {
             autoSelectGeneration &+= 1
             if let item, item.homeFilter != nil, placedLaunchFocus, !isSelected(item) {
                 let generation = autoSelectGeneration
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                // (Steven, 2026-10-29: a lag between Films and Séries — a shorter rest.)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
                     guard generation == autoSelectGeneration, focused == item, !isSelected(item) else { return }
                     select(item)
                 }
@@ -480,14 +481,16 @@ struct OrbitCollectionGrid: View {
             OrbitHomeLayout.background.ignoresSafeArea()
             // (Steven, device: no title art behind the platforms — only their colour, the halo.)
             // The halo: the focused platform's colour, soft, from the top left.
-            if let haloColor {
-                RadialGradient(colors: [haloColor.opacity(0.55), haloColor.opacity(0.18), .clear],
-                               center: UnitPoint(x: 0.22, y: 0.18), startRadius: 0, endRadius: 1250)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-                    .id(haloColor.description)
-                    .allowsHitTesting(false)
-            }
+            // Steven (2026-10-29: black for a moment before the colour, the left too dark): one halo
+            // whose colour changes in place (no fade out and in through black).
+            let halo = haloColor ?? .clear
+            // (Steven: the left was too dark — the halo now from the top's middle, even across the
+            // screen's width.)
+            let on: Double = haloColor == nil ? 0 : 1
+            RadialGradient(colors: [halo.opacity(0.55 * on), halo.opacity(0.30 * on), halo.opacity(0.10 * on)],
+                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
             // Steven (2026-10-24): no "Plateformes" title — the bar already says it, and the
             // Studios page has none.
             ScrollViewReader { proxy in

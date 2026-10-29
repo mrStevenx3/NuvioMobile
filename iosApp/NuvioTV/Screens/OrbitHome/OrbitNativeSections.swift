@@ -137,11 +137,16 @@ struct OrbitNativeSections<SectionContent: View>: View {
     /// binding the system rewrites at each step of its own move.
     @State private var scroll = ScrollPosition(idType: Int.self)
     @State private var lastGo: TimeInterval = 0
+    @State private var systemScrollOff = false
 
     private func go(to s: Int, animated: Bool = true) {
         if position == s, ProcessInfo.processInfo.systemUptime - lastGo < 0.2 { return }
         lastGo = ProcessInfo.processInfo.systemUptime
         position = s
+        // (As Home: one mover — past the first row the system's own scroll is off, no nudge after
+        // the page rests; nothing redrawn mid-move by details arriving.)
+        systemScrollOff = s >= heroCount + 1
+        OrbitMetaStore.shared.holdPublishing(for: 0.6)
         if animated && !UIAccessibility.isReduceMotionEnabled {
             withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { scroll.scrollTo(id: s, anchor: .top) }
         } else {
@@ -170,9 +175,9 @@ struct OrbitNativeSections<SectionContent: View>: View {
                             .focusSection()
                             .disabled(heroLocked)
                     } else if rowsFocusable && s >= heroCount {
-                        Group {
-                            if abs(s - current) <= 3 { content(s, false) } else { Color.clear }
-                        }
+                        // Every row built once, as Home's (Steven, 2026-10-29: the vertical moves
+                        // shook — a row coming within reach was built during the page's slide).
+                        content(s, false)
                         .frame(width: W, height: height(s), alignment: .topLeading)
                         // Back from a title, only the row it was opened from can take the focus a
                         // moment (Steven's video, Disney+: it landed in the row above, then came back).
@@ -215,6 +220,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollPosition($scroll)
+        .scrollDisabled(systemScrollOff)
         .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
             if let tracker, abs(tracker.y - y) > 0.5 { tracker.y = y }
         }
