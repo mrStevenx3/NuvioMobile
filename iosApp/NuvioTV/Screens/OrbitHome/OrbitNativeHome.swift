@@ -593,7 +593,19 @@ struct OrbitNativeRow: View {
                                                   onLeave: { markOpening(card) })
             }
         }
-        return UIMenu(title: "", children: items)
+        // Steven (2026-10-29): the whole row emptied at once — asked twice (a sub-menu to confirm).
+        let everything = Dictionary(row.cards.compactMap { $0.entry }.map { ("\($0.parentMetaId)|\($0.videoId)", $0) },
+                                    uniquingKeysWith: { a, _ in a })
+        let clearAll = UIMenu(title: String(localized: "Tout retirer de Continuer à regarder"),
+                              image: UIImage(systemName: "trash.slash"), options: .destructive, children: [
+            UIAction(title: String(localized: "Oui, tout retirer (\(everything.count))"), image: UIImage(systemName: "trash"),
+                     attributes: .destructive) { _ in
+                for entry in everything.values {
+                    WatchProgressRepository.shared.clearProgress(videoId: entry.videoId, parentMetaId: entry.parentMetaId)
+                }
+            }
+        ])
+        return UIMenu(title: "", children: items + [clearAll])
     }
 
     @ViewBuilder

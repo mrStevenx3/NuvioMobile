@@ -190,8 +190,23 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         }
         var redraw = false
         if new.map(\.id) != cards.map(\.id) {
+            let removed = Set(cards.map(\.id)).subtracting(new.map(\.id))
             cards = new
             openIndex = nil
+            // Steven (2026-10-29: a title taken out of Continue Watching left an empty, see-through
+            // place beside it): the row rebuilt whole and put back on its start, a card focused there.
+            if !removed.isEmpty {
+                placedLoop = false
+                UIView.performWithoutAnimation {
+                    collectionView.reloadData()
+                    collectionView.layoutIfNeeded()
+                }
+                placeLoopIfNeeded()
+                if focusedIndex != nil {
+                    DispatchQueue.main.async { [weak self] in self?.takeFocusOnStart() }
+                }
+                return
+            }
             collectionView.reloadData()
             placeLoopIfNeeded()
         } else if new != cards {
@@ -232,6 +247,14 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
     /// The page sends the focus here (Up / Down it could not reach, a way back cut short).
     func takeFocus() {
         preferredIndex = lastFocusedIndex ?? cards.indices.first
+        requestFocus()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.preferredIndex = nil }
+    }
+
+    /// After a title left the row: the focus on its start (the card at the margin).
+    private func takeFocusOnStart() {
+        let start = loopStart.flatMap { id in cards.firstIndex { $0.id == id } } ?? cards.indices.first
+        preferredIndex = start
         requestFocus()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.preferredIndex = nil }
     }
