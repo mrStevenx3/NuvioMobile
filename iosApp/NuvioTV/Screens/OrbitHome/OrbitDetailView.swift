@@ -45,7 +45,7 @@ enum OrbitDetailFocus: Hashable {
     }
 }
 
-enum OrbitDetailSection: Hashable {
+nonisolated enum OrbitDetailSection: Hashable, Sendable {
     case hero, episodes, cast, saga, trailers, similar, about
 }
 

@@ -355,9 +355,8 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         let changed = [old, index].compactMap({ $0 }).map({ IndexPath(item: $0, section: 0) })
         // The tile told first, out of the row's animation: it widens (or narrows) on its own curve.
         for path in changed {
-            let cell = collectionView.cellForItem(at: path)
-            cell?.setNeedsUpdateConfiguration()
-            cell?.updateConfigurationIfNeeded()
+            guard let cell = collectionView.cellForItem(at: path) else { continue }
+            configure(cell, index: path.item, focused: cell.isFocused)
         }
         UIView.animate(withDuration: index == nil ? 0.28 : 0.4, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
             self.collectionView.collectionViewLayout.invalidateLayout()
