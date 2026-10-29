@@ -932,7 +932,7 @@ private struct OrbitPrimeRowView: View {
                         // The next title fades in over the last one (Netflix's own frame).
                         OrbitPrimePoster(item: item, meta: metaStore.meta(for: item),
                                          badge: badges[item.id].flatMap { $0.isEmpty ? nil : $0 }, open: true,
-                                         focused: focused, trailerURL: trailerURL,
+                                         focused: isCurrent, trailerURL: trailerURL,  // (Steven: no frame around the focus — the row holds it in its strip, the section never does.)
                                          onTrailerFailure: onTrailerFailure, onTrailerEnded: onTrailerEnded)
                             .id("\(item.type):\(item.id)")
                             .zIndex(1)

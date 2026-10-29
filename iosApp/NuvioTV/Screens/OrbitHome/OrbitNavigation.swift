@@ -212,6 +212,9 @@ final class OrbitPlatformCurtain: ObservableObject {
     /// Steven (2026-10-29: "en même temps qu'il s'éclaire il faudrait qu'il s'agrandisse"): the logo
     /// grows as it lights up, to its full size as the neon settles.
     @Published private(set) var grown = false
+    /// Steven (2026-10-29: Home's bar showed a second during the opening): the bar stays hidden from
+    /// the press until a moment after the curtain has gone (the page under it hides it by then).
+    @Published private(set) var hidesBar = false
     /// When the page is pushed under the curtain: once the logo has grown and lit (Steven: a little
     /// hitch in the opening — the page was built while the logo was still moving).
     static let pushAt: Double = 0.95
@@ -231,7 +234,7 @@ final class OrbitPlatformCurtain: ObservableObject {
         let mine = token
         var still = Transaction()
         still.disablesAnimations = true
-        withTransaction(still) { self.look = look; logoIn = false; grown = false; dim = 1; glow = 0 }
+        withTransaction(still) { self.look = look; logoIn = false; grown = false; dim = 1; glow = 0; hidesBar = true }
         withAnimation(.easeOut(duration: 0.25)) { down = true }
         withAnimation(.easeOut(duration: 0.3)) { logoIn = true }
         withAnimation(.easeOut(duration: Self.pushAt - 0.05)) { grown = true }
@@ -251,6 +254,11 @@ final class OrbitPlatformCurtain: ObservableObject {
     /// `instant`: the page under it shows the same thing — it simply goes.
     func lift(instant: Bool = false) {
         guard down else { return }
+        let mine = token
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self, self.token == mine, !self.down else { return }
+            self.hidesBar = false
+        }
         if instant {
             var still = Transaction()
             still.disablesAnimations = true

@@ -136,6 +136,7 @@ struct OrbitTopBar: View {
 
     @ObservedObject private var homeFilter = HomeContentFilterModel.shared
     @ObservedObject private var barLock = OrbitBarLock.shared
+    @ObservedObject private var curtain = OrbitPlatformCurtain.shared
     @FocusState private var focused: OrbitBarItem?
     @State private var immersive = false
     /// Pass 4: the launch focus (the engine's pick, the top-left Search glyph) is moved once onto
@@ -185,6 +186,9 @@ struct OrbitTopBar: View {
             }
         }
         .opacity(immersive ? 0 : 1)
+        // (Hidden at once under a platform's or a studio's opening, until its page has taken over.)
+        .opacity(curtain.hidesBar ? 0 : 1)
+        .transaction(value: curtain.hidesBar) { $0.animation = nil }
         .allowsHitTesting(!immersive)
         .disabled(immersive)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: immersive)

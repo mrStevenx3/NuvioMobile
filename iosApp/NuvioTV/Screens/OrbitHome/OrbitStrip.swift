@@ -183,6 +183,19 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
                         self.collectionView.collectionViewLayout.invalidateLayout()
                         self.collectionView.layoutIfNeeded()
                         if self.pinned, let f = self.focusedIndex { self.offsetToMargin(f) }
+                    } completion: { _ in
+                        // Steven (2026-10-29, a studio's Top 10: the trailer's frame at the screen's
+                        // edge stayed cut): a title grown open is brought wholly on screen, as Home's.
+                        guard !self.pinned, let f = self.focusedIndex,
+                              let frame = self.collectionView.layoutAttributesForItem(at: IndexPath(item: f, section: 0))?.frame
+                        else { return }
+                        let right = frame.maxX - self.collectionView.contentOffset.x
+                        let limit = self.collectionView.bounds.width - OrbitHomeLayout.margin
+                        if right > limit {
+                            var offset = self.collectionView.contentOffset
+                            offset.x += right - limit
+                            self.collectionView.setContentOffset(offset, animated: true)
+                        }
                     }
                     // A tile changing size is not stretched by the row's animation (Steven: the Top 10's
                     // poster jumped right, then came back left): it takes its room at once, its own
@@ -330,6 +343,12 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
         guard enabled else { return false }
         if let only = onlyIndex, ProcessInfo.processInfo.systemUptime < onlyUntil { return indexPath.item == only }
+        // Steven (2026-10-29: from a season to the episodes, the focus landed a second on the episode
+        // under it, then went to the first): a row entered on its lead lets only its lead take the
+        // focus coming in — the system lands there directly, nothing to send it on afterwards.
+        if entersOnLead, focusedIndex == nil, preferredIndex == nil, lead >= 0, lead < count {
+            return indexPath.item == lead
+        }
         return true
     }
 

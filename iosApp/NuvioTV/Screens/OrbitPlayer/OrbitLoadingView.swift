@@ -89,8 +89,8 @@ struct OrbitLoadingView: View {
                     let now = timeline.date
                     VStack(spacing: 40) {
                         mark
-                            .brightness(lit || !lightsUp ? 0 : -0.45)
-                            .shadow(color: (tone ?? .white).opacity(lightsUp ? glow : 0.3), radius: 44)
+                            // (Steven, 2026-10-29: still a glow — the halo behind the logo, white then the
+                            // film's colour once read, changed under his eyes. No halo: the logo alone.)
                             .opacity(Self.breath(at: now))
                         Text("Encore un instant…")
                             .font(.system(size: 26, weight: .medium))

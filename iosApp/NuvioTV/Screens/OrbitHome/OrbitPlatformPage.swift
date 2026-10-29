@@ -774,7 +774,7 @@ struct OrbitPlatformIntro: View {
                         withAnimation(.easeOut(duration: 0.6)) { glow = 0 }
                     }
                     glide = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.2, execute: work)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + lift + 0.4, execute: work)  // (Steven: a hitch as it left the centre — the page had just been built; a moment more for it to settle.)
                 }
                 return
             }

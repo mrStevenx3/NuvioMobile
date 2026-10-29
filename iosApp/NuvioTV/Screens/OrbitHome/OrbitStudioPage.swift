@@ -302,8 +302,7 @@ struct OrbitStudioPage: View {
             // Steven (2026-10-29: "intérieur studio comme accueil"): in the rows, the focused title's
             // colour washes the page as on Home (same wash, same 250 ms rest and 0.45 s fade); the
             // banner keeps the studio's own colour.
-            // (Its own view: a new title redraws only it — never the rows, at the end of a slide.)
-            OrbitStudioWash(spot: rowSpot, inRows: nativeRow != nil)
+            // (Steven, 2026-10-29, after trying it: a studio keeps its own colour — no title wash.)
 
                             nativeContent
             
@@ -781,12 +780,12 @@ struct OrbitStudioIntro: View {
             }
         }
         // 1.5 s: it glides to its place, the page fades in under it.
-        at(fromSplash ? after + 0.2 : 1.5) {
+        at(fromSplash ? after + 0.4 : 1.5) {  // (Steven: a hitch as it left the centre — a moment more for the page to settle.)
             withAnimation(.spring(response: 0.8, dampingFraction: 0.9)) { phase = .corner }
             withAnimation(.easeInOut(duration: 0.8)) { veil = 0; glow = 0 }
         }
         // 2.4 s: the page's own logo takes over (same place, same size).
-        at(fromSplash ? after + 1.1 : 2.4) { onDone() }
+        at(fromSplash ? after + 1.3 : 2.4) { onDone() }
     }
 }
 
@@ -1020,8 +1019,7 @@ private struct OrbitNativeStudioRow: View {
         let lastWidth = row.kind == .ranked ? size.width + OrbitTileLayout.rankWidth * OrbitStudioRow.rankedScale : size.width
         VStack(alignment: .leading, spacing: 14) {
             if !saga {
-                OrbitRowHeading(title: row.title, isCurrent: isCurrent, accent: accent,
-                                tone: OrbitHomeTone.studio, prefersTone: true)
+                OrbitRowHeading(title: row.title, isCurrent: isCurrent, accent: accent)
                     .padding(.leading, L.margin + 4)
             }
             // Steven (2026-10-29: "applique-le de PARTOUT"): a UIKit strip the focus engine
