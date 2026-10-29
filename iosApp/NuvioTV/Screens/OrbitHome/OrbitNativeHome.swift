@@ -506,7 +506,83 @@ struct OrbitNativeRow: View {
     /// cleaner without, and scroll as Apple's app does.)
     private var showsDetails: Bool { row.style == .classic }
 
+    /// The row's UIKit strip (the way back, the page's focus requests go through it).
+    @State private var strip = OrbitRowStripRef()
+
+    /// Steven (2026-10-29: "fais exactement comme l'application Apple TV"): the row is a UIKit
+    /// collection view scrolled by the focus engine, as Apple's own rows (`OrbitRowStrip`).
     var body: some View {
+        let L = OrbitHomeLayout.self
+        VStack(alignment: .leading, spacing: 14) {
+            OrbitRowHeading(title: row.title, isCurrent: isCurrent)
+                .padding(.leading, L.margin + 4)
+            OrbitRowStrip(rowID: row.id, cards: row.cards, style: style, loopStart: row.loopStart,
+                          trailers: trailers, ref: strip,
+                          onSelect: { open($0) },
+                          onFocus: { focusChanged($0) },
+                          menu: { holdMenu($0) })
+                .frame(height: OrbitTileLayout.size(style).height)
+        }
+        .focusSection()
+        .onAppear {
+            disappeared = false
+            // Back from a title opened here: its card takes the focus back.
+            if let back = Self.reopen, back.row == row.id {
+                let appeared = ProcessInfo.processInfo.systemUptime
+                restoringSince = appeared
+                DispatchQueue.main.async { strip.controller?.restore(cardID: back.card) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+                    if restoringSince == appeared { restoringSince = 0 }
+                    if !disappeared, Self.reopen?.card == back.card { Self.reopen = nil }
+                }
+            }
+        }
+        .onDisappear { disappeared = true }
+        .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
+            guard note.object as? String == row.id else { return }
+            strip.controller?.takeFocus()
+        }
+    }
+
+    /// The focus moved in the strip (nil: it left the row).
+    private func focusChanged(_ card: OrbitCard?) {
+        guard let card else {
+            // Gone for good, or only passing between two titles?
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                if strip.controller?.focusedIndex == nil, holds { holds = false }
+            }
+            return
+        }
+        if !holds {
+            holds = true
+            onEnter()
+        }
+        shown = card.id
+        trailers.stop()
+        OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
+        if let index = row.cards.firstIndex(where: { $0.id == card.id }) {
+            let ahead = row.cards[index..<min(row.cards.count, index + 6)].map(\.preview)
+            OrbitMetaStore.shared.request(Array(ahead))
+        }
+    }
+
+    /// Continue Watching, held: its options (the old Home's menu).
+    private func holdMenu(_ card: OrbitCard) -> UIMenu? {
+        guard let entry = card.entry else { return nil }
+        let isEpisode = TitleHoldMenuPolicy.isEpisode(season: entry.seasonNumber?.intValue,
+                                                      episode: entry.episodeNumber?.intValue)
+        let items: [UIMenuElement] = TitleHoldMenuPolicy.continueWatchingActions(isEpisode: isEpisode).map { action in
+            UIAction(title: action.title, image: UIImage(systemName: action.systemImage),
+                     attributes: action.isDestructive ? .destructive : []) { _ in
+                OrbitContinueWatchingMenu.perform(action, entry, preview: card.preview, actions: actions,
+                                                  onLeave: { markOpening(card) })
+            }
+        }
+        return UIMenu(title: "", children: items)
+    }
+
+    @ViewBuilder
+    private var legacyBody: some View {
         let L = OrbitHomeLayout.self
         let T = OrbitTileLayout.self
         let style = style
@@ -919,18 +995,21 @@ struct OrbitRankedOpenFrame: View {
 }
 
 /// One tile, drawn focused as its button is (only the tiles whose focus changed redraw).
-private struct OrbitNativeTile: View {
+struct OrbitNativeTile: View {
     let card: OrbitCard
     let meta: OrbitMeta?
     let style: OrbitRowStyle
     let rank: Int
     let trailers: OrbitNativeTrailerHost
     let trailerKey: String
+    /// In a UIKit row (`OrbitRowStrip`) the cell says whether it is focused, and opens the Top 10.
+    var focusedFromCell: Bool? = nil
+    var openFromCell: Bool? = nil
     @Environment(\.isFocused) private var systemFocused
     /// Back from a title, a tile the system lands on a moment is not drawn focused (Steven: the
     /// focus seen going left, then coming back).
     @Environment(\.orbitFocusHidden) private var focusHidden
-    private var isFocused: Bool { systemFocused && !focusHidden }
+    private var isFocused: Bool { (focusedFromCell ?? systemFocused) && !focusHidden }
     /// Steven (2026-10-29): the Top 10's poster, rested on, widens into a 16:9 frame with its
     /// trailer, over its own rank (hidden behind it); the row does not move. Any move: a poster again.
     @State private var landscape = false
@@ -963,7 +1042,7 @@ private struct OrbitNativeTile: View {
                 // Steven (2026-10-29, device: the frame drawn over the neighbours "ça va pas du
                 // tout"): the poster itself widens into the 16:9 frame in its own place, its rank
                 // staying on its left (a little behind it), the titles after it making room.
-                let open = landscape && isFocused
+                let open = (openFromCell ?? landscape) && isFocused
                 let frame = OrbitNativeRankedOpenTile.frame(scale: 1)
                 OrbitRankedTile(card: card, meta: meta, rank: rank, focused: isFocused,
                                 openWidth: open ? frame.width : nil,
@@ -972,7 +1051,7 @@ private struct OrbitNativeTile: View {
                                                                  trailers: trailers, trailerKey: trailerKey, size: frame))
                                 } : nil,
                                 opens: true)
-                    .task(id: isFocused) { await dwell() }
+                    .task(id: isFocused) { if openFromCell == nil { await dwell() } }
             case .posters:
                 OrbitSmallPoster(card: card, meta: meta, focused: isFocused)
             case .sagas:
@@ -1032,7 +1111,7 @@ struct OrbitRowScrollBehavior: ScrollTargetBehavior {
 
 /// Continue Watching, held (the old Home's menu): choose the source, the title's page, the episode
 /// marked watched, from the start, out of the row.
-private struct OrbitContinueWatchingMenu: ViewModifier {
+struct OrbitContinueWatchingMenu: ViewModifier {
     let entry: WatchProgressEntry?
     let preview: MetaPreview
     let actions: StageHomeActions
@@ -1059,6 +1138,11 @@ private struct OrbitContinueWatchingMenu: ViewModifier {
     }
 
     private func perform(_ action: TitleHoldMenuPolicy.CWAction, _ entry: WatchProgressEntry) {
+        Self.perform(action, entry, preview: preview, actions: actions, onLeave: onLeave)
+    }
+
+    static func perform(_ action: TitleHoldMenuPolicy.CWAction, _ entry: WatchProgressEntry, preview: MetaPreview,
+                        actions: StageHomeActions, onLeave: @escaping () -> Void) {
         // Steven (2026-10-29, device: the card's lifted image stayed over the title's page a moment):
         // the page opens once the menu has closed.
         let later: (@escaping () -> Void) -> Void = { go in
