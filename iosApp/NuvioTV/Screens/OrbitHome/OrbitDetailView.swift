@@ -2082,7 +2082,7 @@ private struct OrbitDetailLandscapeCard: View {
     }
 }
 
-private struct OrbitDetailPoster: View {
+struct OrbitDetailPoster: View {
     let item: MetaPreview
     let focused: Bool
 

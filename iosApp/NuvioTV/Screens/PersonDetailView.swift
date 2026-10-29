@@ -28,6 +28,12 @@ struct PersonDetailView: View {
     @State private var bioShownHeight: CGFloat = 0
     @State private var bioFullHeight: CGFloat = 0
     @State private var showsFullBio = false
+    /// The credit strips, the title pushed from one, and the credit focused last (the way back
+    /// lands on it again).
+    @State private var moviesStrip = OrbitStripRef()
+    @State private var tvStrip = OrbitStripRef()
+    @State private var pushTitle: TitleRoute?
+    @State private var lastCredit: (key: String, index: Int)?
 
     private var bioTruncated: Bool {
         PersonBioTeaser.isTruncated(fullHeight: bioFullHeight, shownHeight: bioShownHeight)
@@ -50,9 +56,11 @@ struct PersonDetailView: View {
                     // Each row is its own focus region, so vertical D-pad moves land on the row's
                     // nearest poster instead of geometrically skipping past it (same reason as
                     // DetailView's EpisodesSection).
-                    creditsRow(title: String(localized: "Movies"), items: model.person?.movieCredits ?? [])
+                    creditsRow(title: String(localized: "Movies"), items: model.person?.movieCredits ?? [],
+                               key: "movies", ref: moviesStrip)
                         .focusSection()
-                    creditsRow(title: String(localized: "TV Shows"), items: model.person?.tvCredits ?? [])
+                    creditsRow(title: String(localized: "TV Shows"), items: model.person?.tvCredits ?? [],
+                               key: "tv", ref: tvStrip)
                         .focusSection()
 
                     if model.isLoading {
@@ -76,6 +84,12 @@ struct PersonDetailView: View {
         .onAppear {
             tabBarVisibility.pushImmersive()
             model.start()
+            if let last = lastCredit {
+                (last.key == "movies" ? moviesStrip : tvStrip).controller?.restore(index: last.index)
+            }
+        }
+        .navigationDestination(item: $pushTitle) { route in
+            DetailView(preview: route.preview)
         }
         .onDisappear { tabBarVisibility.popImmersive() }
         // BUG-179: the full biography, in the same sheet the Cinematic Detail page uses for a long
@@ -245,32 +259,22 @@ struct PersonDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
     }
 
+    /// Steven (Orbit): the credits ride the same UIKit strip as every other row (the tvOS focus
+    /// engine's own glide). Its titles are pushed from here (no NavigationLink in a UIKit cell).
     @ViewBuilder
-    private func creditsRow(title: String, items: [MetaPreview]) -> some View {
+    private func creditsRow(title: String, items: [MetaPreview], key: String, ref: OrbitStripRef) -> some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 Text(title)
                     .font(Theme.Font.sectionTitle)
                     .foregroundStyle(Theme.Palette.textPrimary)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: Theme.Spacing.lg) {
-                        ForEach(items, id: \.id) { item in
-                            NavigationLink(value: TitleRoute(preview: item)) {
-                                PosterCard(
-                                    title: item.name,
-                                    imageURL: item.poster,
-                                    fallbackImageURL: item.rawPosterUrl,
-                                    width: Theme.Size.miniPosterWidth,
-                                    height: Theme.Size.miniPosterHeight
-                                )
-                            }
-                            .cardFocusButtonStyle()
-                            .posterButtonShape()
-                        }
-                    }
-                    .padding(.vertical, Theme.Spacing.md)
-                }
-                .scrollClipDisabled()
+                OrbitStripView(count: items.count, identity: key + "|" + items.map(\.id).joined(separator: ","),
+                               spacing: 32, height: 340, margin: 0, alignment: .center, width: { _ in 200 },
+                               ref: ref,
+                               tile: { i, focused in AnyView(OrbitDetailPoster(item: items[i], focused: focused)) },
+                               onFocus: { i in if let i { lastCredit = (key, i) } },
+                               onSelect: { i in pushTitle = TitleRoute(preview: items[i]) })
+                    .frame(height: 340)
             }
         }
     }

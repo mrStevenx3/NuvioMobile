@@ -411,7 +411,9 @@ struct OrbitCollectionGrid: View {
         var id: String { "\(collection.id)/\(folder.id)" }
     }
 
-    @FocusState private var focused: String?
+    /// The focused platform (the strip's own focus, reported back).
+    @State private var focused: String?
+    @State private var platformsStrip = OrbitStripRef()
     @State private var restoreTarget: String?
     /// Device pass (Steven): back from a folder, focus returns to the tile it was opened from
     /// (it reset to the first one). Static, so it survives the grid being rebuilt on the pop.
@@ -490,39 +492,36 @@ struct OrbitCollectionGrid: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: Self.spacing) {
                     Color.clear.frame(height: 0).id("grid-top")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Self.spacing) {
-                            ForEach(entries) { entry in
-                                // Steven: the platform's opening before its page — black first, the
-                                // page pushed under it (see `OrbitPlatformCurtain`).
-                                Button {
-                                    let route = FolderRoute(collectionId: entry.collection.id, folder: entry.folder)
-                                    if let pushFolder {
-                                        OrbitPlatformCurtain.shared.drop(look: OrbitPlatformLook.of(route)) { pushFolder(route) }
-                                    }
-                                } label: {
-                                    OrbitPlatformTile(folder: entry.folder,
-                                                      collectionBackdropUrl: entry.collection.backdropImageUrl,
-                                                      focused: focused == entry.id,
-                                                      // Steven: the platform whose Top 20 shows stays
-                                                      // marked when the focus is down in it.
-                                                      selected: inRows && selectedId == entry.id,
-                                                      tint: haloColor,
-                                                      size: CGSize(width: Self.tileWidth, height: Self.tileHeight))
-                                }
-                                .buttonStyle(OrbitPlatformTileStyle())
-                                .focused($focused, equals: entry.id)
-                                // Back from a platform, only its tile can take the focus a moment
-                                // (Steven, simulator: it went to another platform first).
-                                .disabled(restoreTarget != nil && restoreTarget != entry.id)
-                                .id(entry.id)
-                            }
-                        }
-                        .padding(.vertical, 16)
-                        .padding(.trailing, OrbitHomeLayout.margin)
-                    }
-                    .scrollClipDisabled()
-                    .padding(.vertical, -16)
+                    // Steven (fluidity everywhere): the platforms ride the UIKit strip — the tvOS
+                    // focus engine's own glide, as on Home.
+                    OrbitStripView(count: entries.count, identity: entries.map(\.id).joined(separator: ","),
+                                   spacing: Self.spacing, height: Self.tileHeight + 32,
+                                   margin: OrbitHomeLayout.margin, alignment: .center,
+                                   width: { _ in Self.tileWidth }, ref: platformsStrip,
+                                   tile: { i, isFocused in
+                                       let entry = entries[i]
+                                       return AnyView(OrbitPlatformTile(folder: entry.folder,
+                                                          collectionBackdropUrl: entry.collection.backdropImageUrl,
+                                                          focused: isFocused,
+                                                          // Steven: the platform whose Top 20 shows stays
+                                                          // marked when the focus is down in it.
+                                                          selected: inRows && selectedId == entry.id,
+                                                          tint: haloColor,
+                                                          size: CGSize(width: Self.tileWidth, height: Self.tileHeight)))
+                                   },
+                                   onFocus: { i in focused = i.map { entries[$0].id } },
+                                   onSelect: { i in
+                                       // Steven: the platform's opening before its page — black first, the
+                                       // page pushed under it (see `OrbitPlatformCurtain`).
+                                       let entry = entries[i]
+                                       let route = FolderRoute(collectionId: entry.collection.id, folder: entry.folder)
+                                       if let pushFolder {
+                                           OrbitPlatformCurtain.shared.drop(look: OrbitPlatformLook.of(route)) { pushFolder(route) }
+                                       }
+                                   })
+                        .frame(height: Self.tileHeight + 32)
+                        .padding(.horizontal, -OrbitHomeLayout.margin)
+                        .padding(.vertical, -16)
                     .focusSection()
                     // Steven (on trial): what is popular on the focused platform.
                     // Steven (device: the page scrolled on its own, the Top 10 cut at the top): it
@@ -550,8 +549,6 @@ struct OrbitCollectionGrid: View {
         }
         .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.45), value: haloColor?.description)
-        // The engine's own entry into the grid after the pop picks the tile too.
-        .defaultFocus($focused, restoreTarget, priority: .userInitiated)
         .onChange(of: focused) { old, id in
             guard let id, let entry = entries.first(where: { $0.id == id }) else {
                 Self.lostAt = ProcessInfo.processInfo.systemUptime
@@ -641,11 +638,9 @@ struct OrbitCollectionGrid: View {
             // Pass 3 (Steven's video: still the first tile): the engine's own restoration lands
             // late, after the first asks. Ask again over the first second and a half, until the
             // viewer presses anything.
-            for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    guard !ViewerInputClock.shared.hasInput(since: appeared), focused != last else { return }
-                    focused = last
-                }
+            // The strip asks again itself until the viewer presses anything.
+            if let index = entries.firstIndex(where: { $0.id == last }) {
+                DispatchQueue.main.async { platformsStrip.controller?.restore(index: index) }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                 restoreTarget = nil
