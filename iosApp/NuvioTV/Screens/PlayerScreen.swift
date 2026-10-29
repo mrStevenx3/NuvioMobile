@@ -31,6 +31,9 @@ struct PlayerScreen: View {
     /// off then, which made the fade a cut), so a stream that starts at once still fades.
     @State private var loadingGone = false
     @State private var loadingRemoved = false
+    /// When the reveal of the film began (nil: the loading screen still whole).
+    @State private var revealStart: Date?
+    static let revealTime: Double = 0.9
     @State private var appearedAt = ProcessInfo.processInfo.systemUptime
     @State private var pauseCardTask: Task<Void, Never>?
     @Environment(\.dismiss) private var dismiss
@@ -81,14 +84,27 @@ struct PlayerScreen: View {
             // (Steven's video: a see-through player showed black — tvOS keeps its own ground under
             // the cover. The player opens on the very same loading screen instead, already lit.)
             if !loadingRemoved {
-                OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
-                                 lightsUp: !overLoadingCover)
-                    // Steven (2026-10-29: "le titre qui s'agrandit ou s'éclate"; his video: still a cut):
-                    // the film starts — the loading screen bursts open towards the viewer, growing as it
-                    // fades (driven on the view itself, not a removal the presentation could swallow).
-                    .scaleEffect(loadingGone ? 1.3 : 1)
-                    .opacity(loadingGone ? 0 : 1)
-                    .allowsHitTesting(false)
+                // Steven (2026-10-29: "comme si le titre dévoilait l'ouverture du film… à toi de me
+                // surprendre"; his videos: every animated exit came out as a cut): the film opens out of
+                // its title — the logo rushes towards the viewer while a hole opens from its centre and
+                // widens to the screen's edges, the film showing through it. Drawn frame by frame from
+                // the clock (a timeline), so no presentation or transaction can turn it into a cut.
+                TimelineView(.animation(minimumInterval: nil, paused: revealStart == nil)) { timeline in
+                    let p = revealStart.map { min(1, max(0, timeline.date.timeIntervalSince($0) / Self.revealTime)) } ?? 0
+                    let e = p * p * (3 - 2 * p)            // smooth start and end
+                    let hole = e * 2600                    // past the corners of a 1920 × 1080 screen
+                    OrbitLoadingView(title: context.title, logoUrl: context.logo, backdropUrl: context.background,
+                                     lightsUp: !overLoadingCover)
+                        .scaleEffect(1 + 0.9 * e * e)      // the title comes at the viewer
+                        .mask {
+                            Rectangle()
+                                .overlay(Circle().frame(width: hole, height: hole).blendMode(.destinationOut))
+                                .compositingGroup()
+                                .ignoresSafeArea()
+                        }
+                        .opacity(1 - max(0, (p - 0.7) / 0.3))
+                }
+                .allowsHitTesting(false)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: pauseCardShown)
@@ -102,12 +118,14 @@ struct PlayerScreen: View {
                 onPictureShown()
                 let wait = max(0, appearedAt + 0.55 - ProcessInfo.processInfo.systemUptime)
                 DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                    withAnimation(.easeOut(duration: 0.7)) { loadingGone = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { loadingRemoved = true }
+                    loadingGone = true
+                    revealStart = Date()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.revealTime + 0.05) { loadingRemoved = true }
                 }
             } else {
                 loadingGone = false
                 loadingRemoved = false
+                revealStart = nil
             }
         }
         .onDisappear {
