@@ -33,6 +33,31 @@ struct OrbitLoadingView: View {
         Task { _ = try? await ArtworkStore.fetch(url, decode: request) }
     }
 
+    /// The logo fetched ahead at the loading screen's own size (Lecture's glide draws this very image).
+    @MainActor static func prefetchLogo(_ raw: String?) {
+        guard let raw, !raw.isEmpty, let url = URL(string: raw) else { return }
+        let request = ArtworkDecodeRequest(size: .points(width: 640, height: 260), fill: false,
+                                           scale: UIScreen.main.scale).normalized
+        guard ArtworkStore.cached(url, decode: request) == nil else { return }
+        Task { _ = try? await ArtworkStore.fetch(url, decode: request) }
+    }
+
+    /// The logo as the loading screen draws it (Lecture's glide ends on exactly this).
+    @ViewBuilder
+    static func logo(_ logoUrl: String?, title: String) -> some View {
+        if let logoUrl, !logoUrl.isEmpty {
+            CachedAsyncImage(string: logoUrl, contentMode: .fit, decodeSize: .points(width: 640, height: 260))
+                .frame(maxWidth: 640, maxHeight: 260)
+        } else {
+            Text(title)
+                .font(.system(size: 64, weight: .heavy))
+                .foregroundStyle(Color.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .frame(maxWidth: 1200)
+        }
+    }
+
     /// A message after this long.
     static let slowAfter: TimeInterval = 8
     /// One breath, in seconds.
@@ -94,18 +119,5 @@ struct OrbitLoadingView: View {
         return 0.75 - 0.25 * cos(t * 2 * .pi)
     }
 
-    @ViewBuilder
-    private var mark: some View {
-        if let logoUrl, !logoUrl.isEmpty {
-            CachedAsyncImage(string: logoUrl, contentMode: .fit, decodeSize: .points(width: 640, height: 260))
-                .frame(maxWidth: 640, maxHeight: 260)
-        } else {
-            Text(title)
-                .font(.system(size: 64, weight: .heavy))
-                .foregroundStyle(Color.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-                .frame(maxWidth: 1200)
-        }
-    }
+    private var mark: some View { Self.logo(logoUrl, title: title) }
 }

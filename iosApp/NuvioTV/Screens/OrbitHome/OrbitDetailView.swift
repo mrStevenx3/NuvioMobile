@@ -137,6 +137,10 @@ struct OrbitDetailView: View {
     /// grows while the page fades into the loading screen's blurred art; the loading screen then
     /// takes over with the logo in the same place, which lights up.
     @State private var launching = false
+    /// Steven (2026-10-29, device: still two logos during the glide): a view leaving takes the
+    /// transition it had BEFORE the change — the hero's title faded out while the other glided.
+    /// Set a beat before `launching`, so the title leaves at once.
+    @State private var launchArmed = false
     /// The cinema's trailer started cold: its art held, its sound off, until its first picture.
     @State private var waitingForPicture = false
     @State private var ownTagShown = false
@@ -541,6 +545,7 @@ struct OrbitDetailView: View {
         .onAppear {
             OrbitMetaStore.shared.request([preview])
             OrbitLoadingView.prefetch(backdropURL)
+            OrbitLoadingView.prefetchLogo(logoURL)
             OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
             OrbitNavClock.titlesShown += 1
             OrbitTitleGate.shared.opened()
@@ -601,6 +606,7 @@ struct OrbitDetailView: View {
             if keptBackdrop == nil, let v { keptBackdrop = v }
             OrbitLoadingView.prefetch(backdropURL)
         }
+        .onChange(of: logoURL) { _, url in OrbitLoadingView.prefetchLogo(url) }
         // Steven (device): the house hides while the trailer plays full screen.
         .onChange(of: cinema) { _, on in OrbitHomeButtonHost.shared.hidden = on }
         .onDisappear {
@@ -773,8 +779,9 @@ struct OrbitDetailView: View {
     /// The title in the middle of the screen, at the loading screen's size, a little dimmed (the
     /// loading screen lights it up again).
     private var launchMark: some View {
-        OrbitTitleMark(name: title, logo: logoURL, maxSize: CGSize(width: 640, height: 260), textSize: 64,
-                       moreLogos: Array(logoCandidates.dropFirst()), hugsLogo: false)
+        // The loading screen's own logo (same image, same size, centred): it lands exactly where
+        // the loading screen draws it.
+        OrbitLoadingView.logo(logoURL, title: title)
             .frame(width: 640, height: 260, alignment: .center)
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .center)
             .transition(.identity)
@@ -785,14 +792,18 @@ struct OrbitDetailView: View {
     /// screen). Without motion, straight to the page.
     private func launch(_ present: @escaping () -> Void) {
         guard !reduceMotion, section == .hero, !cinema else { present(); return }
-        withAnimation(.easeInOut(duration: 0.5)) { launching = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            var still = Transaction()
-            still.disablesAnimations = true
-            withTransaction(still) { present() }
-            // Under the page now: the hero back as it was, for the way back.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                withTransaction(still) { launching = false }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { launchArmed = true }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.5)) { launching = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withTransaction(still) { present() }
+                // Under the page now: the hero back as it was, for the way back.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    withTransaction(still) { launching = false }
+                    DispatchQueue.main.async { withTransaction(still) { launchArmed = false } }
+                }
             }
         }
     }
@@ -813,7 +824,7 @@ struct OrbitDetailView: View {
             .matchedGeometryEffect(id: "orbit-detail-title", in: titleSpace, anchor: .bottomLeading)
             // (Steven's video: the title twice during Lecture's glide — the one leaving faded out
             // while the other moved. It goes at once; only the moving one is seen.)
-            .transition(launching ? .identity : .opacity)
+            .transition(launching || launchArmed ? .identity : .opacity)
     }
 
     /// What the sources are asked for (the film, or the series' next episode), once known.
