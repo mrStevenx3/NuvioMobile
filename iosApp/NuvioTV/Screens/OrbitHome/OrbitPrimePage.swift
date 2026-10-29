@@ -95,6 +95,20 @@ func orbitPrimeIsOwn(_ item: MetaPreview) -> Bool {
 
 /// Steven: the "prime" mark only on Amazon's own productions (TMDB's producers) — the add-on's
 /// "Amazon Original et exclusivités" also holds titles it only carries.
+/// Values worked out once per key until the titles' details change (the store's revision).
+final class OrbitRevisionMemo<Value> {
+    private var revision = -1
+    private var values: [String: Value] = [:]
+
+    func get(_ key: String, revision: Int, _ make: () -> Value) -> Value {
+        if revision != self.revision { values = [:]; self.revision = revision }
+        if let known = values[key] { return known }
+        let made = make()
+        values[key] = made
+        return made
+    }
+}
+
 @MainActor
 func orbitPrimeIsMade(_ item: MetaPreview) -> Bool {
     OrbitPlatformBadgeKind.original(OrbitMetaStore.shared.meta(for: item)) == .prime
@@ -262,7 +276,22 @@ struct OrbitPrimePage: View {
         Set(catalogs.filter(\.fresh).flatMap { $0.items.map(Self.identity) })
     }
 
+    /// (Kept until the titles' details change: worked out on every redraw before, for every title
+    /// of every row.)
+    @State private var badgeMemo = OrbitRevisionMemo<[String: String]>()
+    @State private var heroMemo = OrbitRevisionMemo<[MetaPreview]>()
+
+    private func badges(of row: OrbitPrimeRow) -> [String: String] {
+        badgeMemo.get(row.id, revision: metaStore.revision) {
+            Dictionary(row.items.map { ($0.id, badge($0) ?? "") }, uniquingKeysWith: { a, _ in a })
+        }
+    }
+
     private var heroItems: [MetaPreview] {
+        heroMemo.get((typeFilter ?? "all") + catalogs.map { "|\($0.id):\($0.items.count)" }.joined(), revision: metaStore.revision) { buildHeroItems() }
+    }
+
+    private func buildHeroItems() -> [MetaPreview] {
         let fresh = catalogs.filter(\.fresh).map(\.items)
         let items = fresh.count >= 2 ? Self.alternate(fresh[0], fresh[1]) : (fresh.first ?? catalogs.first?.items ?? [])
         // Steven (as on Disney+): a title without its logo (its name written instead) left out of
@@ -487,8 +516,7 @@ struct OrbitPrimePage: View {
                                   trailerURL: s == current && row.kind == .originals ? trailerURL(for: leadItem) : nil,
                                   onTrailerFailure: { trailer.playbackFailed($0) },
                                   onTrailerEnded: { trailer.playbackFinished() },
-                                  badges: Dictionary(row.items.map { ($0.id, badge($0) ?? "") },
-                                                     uniquingKeysWith: { a, _ in a }),
+                                  badges: badges(of: row),
                                   metaStore: metaStore,
                                        onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
                                        onLeadChange: { refreshAfterMove() })
