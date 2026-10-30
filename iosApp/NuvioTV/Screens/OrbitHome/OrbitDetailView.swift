@@ -1588,7 +1588,8 @@ private struct OrbitDetailBackground: View {
             // A little darkened and desaturated, so a bright art (Pixar) melts into the shade
             // instead of smearing its colours.
             // (Steven, 2026-10-30: the blur at the bottom too strong — lighter, lower, softer.)
-            OrbitPreBlurred(url: url, radius: 40)
+            // (Steven, 2026-10-30: the blur very slightly softer — same height.)
+            OrbitPreBlurred(url: url, radius: 34)
                 .saturation(0.75)
                 .overlay(Color.black.opacity(0.3))
                 .mask(LinearGradient(stops: [
