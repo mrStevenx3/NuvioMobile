@@ -97,6 +97,13 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    /// Steven (2026-10-30, video: Search came in on the last title's colour, fading out): the
+    /// colour goes with the page, so a return opens on the dark ground.
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if spotlight.item != nil { spotlight.item = nil }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear

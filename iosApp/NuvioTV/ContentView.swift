@@ -509,6 +509,10 @@ struct MainTabView: View {
                 settingsLastCategory = category
             }
         }
+        // Steven (2026-10-30, video: a washed, lighter frame as Search came in or left): the system's
+        // cross-fade between tabs let its light ground show through both half-faded pages — Orbit's
+        // own dark ground under them.
+        .background(OrbitHomeLayout.background.ignoresSafeArea())
         .onChange(of: selectedTab) { _, tab in
             OrbitShownTab.index = tab
             tabBarVisibility.setHomeTabSelected(tab == 0)

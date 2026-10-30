@@ -164,10 +164,15 @@ private final class OrbitSearchHostController: UIViewController {
     private func hideFullScreenFrost(in root: UIView) {
         let screen = view.bounds.size
         for sub in root.subviews {
-            if let frost = sub as? UIVisualEffectView,
-               frost.bounds.width >= screen.width * 0.9, frost.bounds.height >= screen.height * 0.5 {
+            let large = sub.bounds.width >= screen.width * 0.9 && sub.bounds.height >= screen.height * 0.5
+            if large, let frost = sub as? UIVisualEffectView {
                 if !frost.isHidden { frost.isHidden = true }
                 continue
+            }
+            // (Its own grey ground, too: a full-screen plain colour under the field and the keyboard.)
+            if large, let ground = sub.backgroundColor, ground != .clear,
+               !(sub is UICollectionView), sub !== view {
+                sub.backgroundColor = .clear
             }
             hideFullScreenFrost(in: sub)
         }
