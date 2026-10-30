@@ -1,4 +1,5 @@
 import Combine
+import CoreImage
 import SharedCore
 import SwiftUI
 import UIKit
@@ -1727,6 +1728,13 @@ private struct OrbitDetailBackground: View {
                     .opacity(dimmed ? 1 : 0)
                     .allowsHitTesting(false)
             }
+            // Steven (2026-10-30, Apple TV's Nocturne page: "un flou épais"): over it, the film's own
+            // picture reduced to its colour fields — no shape left, as Apple's.
+            OrbitThickBlur(url: url)
+                .saturation(1.2)
+                .overlay(Color.black.opacity(0.24))
+                .opacity(dimmed ? 1 : 0)
+                .allowsHitTesting(false)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2502,5 +2510,58 @@ struct OrbitUnderColour: ViewModifier {
         content
             .opacity(hidden ? 0 : 1)
             .animation(hidden ? .linear(duration: 0.01).delay(0.47) : nil, value: hidden)
+    }
+}
+
+
+/// A picture blurred thick (Apple TV's title page): shrunk to a few dozen pixels — only its colour
+/// fields and where they are — softened, then drawn at the screen's size, smooth. No shape survives;
+/// cheap to draw (one small image).
+struct OrbitThickBlur: View {
+    let url: String?
+    @State private var image: UIImage?
+    @State private var shown: String?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fill)
+                    .id(shown ?? "-")
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+        .clipped()
+        .animation(.easeInOut(duration: 0.35), value: shown)
+        .task(id: url ?? "-") {
+            guard let url, let address = URL(string: url) else { return }
+            guard let small = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(48), fill: true, scale: 1)),
+                  let cg = small.cgImage else { return }
+            let soft = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+                OrbitThickBlur.thick(cg)
+            }.value
+            guard !Task.isCancelled, let soft else { return }
+            image = soft
+            shown = url
+        }
+        .accessibilityHidden(true)
+    }
+
+    /// The picture at 40 px wide, softened (its edges held), as a small image.
+    nonisolated static func thick(_ cg: CGImage) -> UIImage? {
+        let input = CIImage(cgImage: cg)
+        let scale = 40 / max(input.extent.width, 1)
+        let small = input.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let extent = small.extent.integral
+        guard let blur = CIFilter(name: "CIGaussianBlur") else { return nil }
+        blur.setValue(small.clampedToExtent(), forKey: kCIInputImageKey)
+        blur.setValue(2.2, forKey: kCIInputRadiusKey)
+        guard let out = blur.outputImage?.cropped(to: extent),
+              let rendered = CIContext(options: [.useSoftwareRenderer: false]).createCGImage(out, from: extent)
+        else { return nil }
+        return UIImage(cgImage: rendered)
     }
 }
