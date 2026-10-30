@@ -112,7 +112,12 @@ struct OrbitStudiosPage: View {
                     // scrolls, as Apple's TV app.
                     OrbitStripView(count: folders.count, identity: folders.map(\.id).joined(separator: ","),
                                    spacing: Self.tileSpacing, height: Self.tileSize.height, margin: L.margin,
-                                   alignment: .center, width: { _ in Self.tileSize.width }, ref: tilesStrip,
+                                   alignment: .center, width: { _ in Self.tileSize.width },
+                                   // (Its tiles redrawn only when what they show changes — every press
+                                   // redrew them all, the page being drawn again for it.)
+                                   redrawKey: AnyHashable([AnyHashable(tilesHaveFocus ? "" : (selectedId ?? "")),
+                                                           AnyHashable(tints.count)]),
+                                   ref: tilesStrip,
                                    tile: { i, lit in
                                        let folder = folders[i]
                                        return AnyView(OrbitStudioTile(folder: folder, focused: lit,
@@ -456,13 +461,18 @@ private struct OrbitStudioTile: View {
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        // Steven (2026-10-30: the studios' row jerky when pressed quickly or swiped): every tile's
+        // logo shadow and soft tile shadow were worked out again at every frame of a slide (as on
+        // HBO Max and Apple TV). The tile is drawn once into a picture (its logo's shadow in it), and
+        // only the focused or chosen tile casts a shadow.
+        .drawingGroup()
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.5 : 0.12)),
                               lineWidth: focused ? 4 : (selected ? 3 : 1.5))
         }
         .scaleEffect(focused ? 1.1 : (selected ? 1.05 : 1))
-        .shadow(color: .black.opacity(0.3 + 0.3 * lift), radius: 10 + 16 * lift, y: 6 + 8 * lift)
+        .shadow(color: .black.opacity(lift > 0 ? 0.3 + 0.3 * lift : 0), radius: lift > 0 ? 10 + 16 * lift : 0, y: lift > 0 ? 6 + 8 * lift : 0)
         .zIndex(focused || selected ? 1 : 0)
         .accessibilityLabel(folder.title)
     }

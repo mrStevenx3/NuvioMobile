@@ -1588,13 +1588,14 @@ private struct OrbitDetailBackground: View {
             // A little darkened and desaturated, so a bright art (Pixar) melts into the shade
             // instead of smearing its colours.
             // (Steven, 2026-10-30: the blur at the bottom too strong — lighter, lower, softer.)
-            OrbitPreBlurred(url: url, radius: 24)
-                .saturation(0.85)
-                .overlay(Color.black.opacity(0.2))
+            // (Steven, after trying it: a little more blur again, starting higher as before.)
+            OrbitPreBlurred(url: url, radius: 34)
+                .saturation(0.8)
+                .overlay(Color.black.opacity(0.25))
                 .mask(LinearGradient(stops: [
-                    .init(color: .clear, location: 0.76),
-                    .init(color: .black.opacity(0.5), location: 0.9),
-                    .init(color: .black.opacity(0.8), location: 1),
+                    .init(color: .clear, location: 0.68),
+                    .init(color: .black.opacity(0.7), location: 0.85),
+                    .init(color: .black, location: 0.97),
                 ], startPoint: .top, endPoint: .bottom))
                 .opacity(cinema || dimmed ? 0 : 1)
                 .allowsHitTesting(false)
