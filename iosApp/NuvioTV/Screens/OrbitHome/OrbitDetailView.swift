@@ -1588,13 +1588,12 @@ private struct OrbitDetailBackground: View {
             // A little darkened and desaturated, so a bright art (Pixar) melts into the shade
             // instead of smearing its colours.
             // (Steven, 2026-10-30: the blur at the bottom too strong — lighter, lower, softer.)
-            // (Steven, after trying it: a little more blur again, starting higher as before.)
-            OrbitPreBlurred(url: url, radius: 34)
-                .saturation(0.8)
-                .overlay(Color.black.opacity(0.25))
+            OrbitPreBlurred(url: url, radius: 40)
+                .saturation(0.75)
+                .overlay(Color.black.opacity(0.3))
                 .mask(LinearGradient(stops: [
-                    .init(color: .clear, location: 0.68),
-                    .init(color: .black.opacity(0.7), location: 0.85),
+                    .init(color: .clear, location: 0.7),
+                    .init(color: .black.opacity(0.7), location: 0.86),
                     .init(color: .black, location: 0.97),
                 ], startPoint: .top, endPoint: .bottom))
                 .opacity(cinema || dimmed ? 0 : 1)
@@ -1622,15 +1621,15 @@ private struct OrbitDetailBackground: View {
                 .allowsHitTesting(false)
             // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
             Group {
-                // (Steven, 2026-10-30: lighter on the left and at the bottom, as the studios' banner.)
+                // (Steven, 2026-10-30: lighter was busy on a crowded art — back to the shades as they were.)
                 LinearGradient(stops: [
-                    .init(color: .black.opacity(0.55), location: 0),
-                    .init(color: .black.opacity(0.22), location: 0.4),
-                    .init(color: .clear, location: 0.62),
+                    .init(color: .black.opacity(0.78), location: 0),
+                    .init(color: .black.opacity(0.35), location: 0.45),
+                    .init(color: .clear, location: 0.7),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
-                    .init(color: .clear, location: 0.45),
-                    .init(color: .black.opacity(0.5), location: 1),
+                    .init(color: .clear, location: 0.35),
+                    .init(color: .black.opacity(0.75), location: 1),
                 ], startPoint: .top, endPoint: .bottom)
             }
             // Cinema: only a light bottom shade stays (for the title and the hint).
