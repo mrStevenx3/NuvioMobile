@@ -1805,7 +1805,9 @@ private struct OrbitDetailBackground: View {
             // Steven (2026-10-30, Apple TV's Slow Horses frame by frame): the picture does not move —
             // it stays in place and melts into its blur as the page goes up (and back the same way).
             .opacity(dimmed ? 0 : 1)
-            .animation(.easeInOut(duration: 0.45), value: dimmed)
+            // (Apple's, slow motion: the blur starts a beat into the page's move and is whole by its
+            // end; back up, the picture comes back over the whole move.)
+            .animation(dimmed ? .easeInOut(duration: 0.4).delay(0.08) : .easeInOut(duration: 0.45), value: dimmed)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2582,7 +2584,9 @@ struct OrbitDetailHeaderTitle: View {
             .fixedSize()
             .frame(width: 560, height: 120, alignment: .center)
             .opacity(shown ? 1 : 0)
-            .animation(shown ? .easeOut(duration: 0.4).delay(0.08) : .easeIn(duration: 0.15), value: shown)
+            // (Apple's, slow motion: it shows from about halfway up the rise, and on the way back down it is
+            // gone by about halfway.)
+            .animation(shown ? .easeOut(duration: 0.3).delay(0.15) : .easeIn(duration: 0.25), value: shown)
     }
 }
 
