@@ -1319,6 +1319,7 @@ private struct OrbitStudioHero: View {
     let trailerURL: String?
     let onTrailerFailure: (TrailerFailureReport) -> Void
     let onTrailerEnded: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let L = OrbitStudioLayout.self
@@ -1333,8 +1334,18 @@ private struct OrbitStudioHero: View {
             ZStack(alignment: .topLeading) {
                 // Steven (2026-10-30, as Netflix's hero): the art drifts very slowly (a slow push in
                 // and across), on the screen's own animator; still while a trailer plays.
-                OrbitSlowDrift(active: trailerURL == nil, key: item.map { "\($0.type):\($0.id)" } ?? "-") {
-                    OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+                // (Steven, 2026-10-30: still not moving — "la même correction que Netflix": as the
+                // Netflix billboard's, the art drawn a little larger, gliding from side to side,
+                // always on (a trailer simply covers it).)
+                let travel = size.width * 0.05
+                OrbitSlowDrift(active: !reduceMotion, key: item.map { "\($0.type):\($0.id)" } ?? "-",
+                               from: CATransform3DMakeTranslation(travel, 0, 0),
+                               to: CATransform3DMakeTranslation(-travel, 0, 0),
+                               duration: 16, timing: .easeInEaseOut) {
+                    OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil,
+                                   size: CGSize(width: size.width * 1.1, height: size.height * 1.1))
+                        .frame(width: size.width * 1.1, height: size.height * 1.1)
+                        .frame(width: size.width, height: size.height)
                 }
                 .frame(width: size.width, height: size.height)
                 .clipped()

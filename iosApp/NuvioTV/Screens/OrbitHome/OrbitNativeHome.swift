@@ -164,7 +164,11 @@ struct OrbitNativeHome: View {
                             .mask(alignment: .top) {
                                 let H = OrbitHomeLayout.screenHeight
                                 let up: CGFloat = heroCut ? 0 : H
-                                let down: CGFloat = heroFootShown ? H : 0
+                                // Steven (2026-10-30, video: a dark band under the hero's art as the
+                                // page slid to it or from it): its foot was cut during the slide (the
+                                // page's dark ground showing under it). The art now fades with the
+                                // slide (its own fade), foot and all — never cut.
+                                let down: CGFloat = H
                                 Rectangle()
                                     .frame(width: OrbitHomeLayout.screenWidth, height: Self.heroHeight + up + down)
                                     .offset(y: -up)

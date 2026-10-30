@@ -431,7 +431,11 @@ private struct OrbitSearchBackdrop: View {
 
     var body: some View {
         // (Home's own wash and timing — no curve of its own on top.)
+        // Steven (2026-10-30, photo: Search opened on the colour of a title seen before): no title
+        // focused, no colour — the page's own dark ground.
         OrbitFocusBackdrop(item: spotlight.item)
+            .opacity(spotlight.item == nil ? 0 : 1)
+            .animation(.easeInOut(duration: 0.35), value: spotlight.item == nil)
             .ignoresSafeArea()
     }
 }

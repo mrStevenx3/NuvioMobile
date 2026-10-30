@@ -90,7 +90,8 @@ struct OrbitStudiosPage: View {
                 // avec un dégradé flou"): under the banner, its own picture, blurred, fills the page —
                 // the banner's bottom melts into its own colours (Apple TV style). A little darker
                 // and calmer, for the tiles; the studio's colour stays only until it has come.
-                OrbitPreBlurred(url: bannerURL(shown), radius: 60)
+                // (Steven, 2026-10-30: less blurred.)
+                OrbitPreBlurred(url: bannerURL(shown), radius: 34)
                     .saturation(0.85)
                     .overlay(Color.black.opacity(0.32))
                     .overlay(LinearGradient(colors: [.clear, .black.opacity(0.3)],
@@ -390,8 +391,9 @@ private struct OrbitStudioFrame: View {
         .frame(width: size.width, height: size.height)
         .clipped()
         // Its bottom melts into the page's colour (the tiles come just under it).
+        // (Steven, 2026-10-30: the blur starting lower.)
         .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                     .init(color: .black, location: 0.72),
+                                     .init(color: .black, location: 0.84),
                                      .init(color: .clear, location: 1)],
                              startPoint: .top, endPoint: .bottom))
         // (Steven, 2026-10-26: the image in a plain fade — no glide, no zoom.)

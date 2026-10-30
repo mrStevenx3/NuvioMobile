@@ -124,6 +124,8 @@ struct OrbitDetailView: View {
 
     @FocusState private var focus: OrbitDetailFocus?
     @State private var section: OrbitDetailSection = .hero
+    /// The poster's colour (the band under the bar off the hero, as Home's).
+    @State private var topTone: Color?
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
     @State private var pagePosition: OrbitDetailSection? = .hero
     /// Steven (2026-10-29, device: "un peu de tremblement à la verticale… par rapport à l'accueil
@@ -420,8 +422,29 @@ struct OrbitDetailView: View {
 
             // Under the sections, the page fades out at the top (Steven: the trailers' captions
             // showed by the house) — a shade over it, not a mask.
-            LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+            // Steven (2026-10-30: "ombre permanente en haut — fais comme l'accueil"): the band is the
+            // page's own ground and colour, as Home's (not a dark shade): what goes under it melts
+            // into the page (the hero's "Réalisé par" line no longer shows there).
+            ZStack(alignment: .top) {
+                if let topTone {
+                    OrbitToneBackdrop(tone: topTone)
+                        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+                        .frame(width: OrbitHomeLayout.screenWidth, height: L.pageTop + 20, alignment: .top)
+                        .clipped()
+                        .mask(LinearGradient(stops: [.init(color: .black, location: 0),
+                                                     .init(color: .black, location: 0.7),
+                                                     .init(color: .clear, location: 1)],
+                                             startPoint: .top, endPoint: .bottom))
+                } else {
+                    LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                }
+            }
                 .frame(width: OrbitHomeLayout.screenWidth, height: L.pageTop + 20)
+                .task(id: posterURL ?? backdropURL ?? "-") {
+                    guard let raw = posterURL ?? backdropURL else { return }
+                    if let known = OrbitDominantColor.cached(raw) { topTone = known; return }
+                    topTone = await OrbitDominantColor.color(for: raw)
+                }
                 .opacity(section == .hero || cinema ? 0 : 1)
                 .animation(.easeInOut(duration: 0.25), value: section == .hero)
                 .allowsHitTesting(false)
@@ -1184,7 +1207,6 @@ struct OrbitDetailView: View {
                             .lineSpacing(4)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                            .modifier(OrbitHeroTextShade())
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisShownHeight = $0 }
                             // The whole text at the same width, unseen: shorter than two lines, the
                             // arrow has nothing more to open.
@@ -1246,8 +1268,7 @@ struct OrbitDetailView: View {
         .font(.system(size: 23, weight: .medium))
         .lineLimit(1)
         .multilineTextAlignment(.trailing)
-        // (Steven, 2026-10-30: the same soft shadow as the synopsis.)
-        .modifier(OrbitHeroTextShade())
+        // (Steven, 2026-10-30: no shadow on the synopsis nor the cast here — "pas fan".)
     }
 
     @ViewBuilder

@@ -135,7 +135,9 @@ private final class OrbitSearchHostController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .clear
+        // Steven (2026-10-30: a light flash as Search came in): the screen's own dark ground under
+        // the system's search screen from the first frame.
+        view.backgroundColor = UIColor(OrbitHomeLayout.background)
         let menu = UITapGestureRecognizer(target: self, action: #selector(menuPressed))
         menu.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
         view.addGestureRecognizer(menu)
