@@ -239,13 +239,16 @@ private struct OrbitSeasonCard: View {
             ZStack {
                 Color(white: 0.12)
                 OrbitImage(url: poster, size: size)
+                // The seasons not shown a little dimmed (the one shown stands out): a dark veil on
+                // the picture, not the card made see-through (a see-through card is drawn apart at
+                // every frame of a slide).
+                Color.black.opacity(focused || selected ? 0 : 0.35)
             }
             .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.55 : 0)), lineWidth: focused ? 4 : 3))
             .scaleEffect(focused ? 1.05 : 1)
-            .opacity(focused || selected ? 1 : 0.65)
             .modifier(OrbitCardShadow(focused: focused, lit: 0.5, radius: 14, y: 8))
             Text(label)
                 .font(.system(size: 22, weight: focused || selected ? .bold : .medium))

@@ -1798,14 +1798,10 @@ private struct OrbitDetailBackground: View {
                 // instead of smearing its colours.
                 // (Steven, 2026-10-30: the blur at the bottom too strong — lighter, lower, softer.)
                 // (Steven, 2026-10-30: the blur very slightly softer — same height.)
-                OrbitPreBlurred(url: url, radius: 34)
-                    .saturation(0.75)
-                    .overlay(Color.black.opacity(0.3))
-                    .mask(LinearGradient(stops: [
-                        .init(color: .clear, location: 0.7),
-                        .init(color: .black.opacity(0.7), location: 0.86),
-                        .init(color: .black, location: 0.97),
-                    ], startPoint: .top, endPoint: .bottom))
+                // (Steven, 2026-10-31, slow motion: a hitch as the page comes back up to the hero —
+                // this blur was masked, darkened and desaturated on the screen, a full-screen pass
+                // at every frame of the picture's return. All baked into one plain picture now.)
+                OrbitHeroFootBlur(url: url)
                     .opacity(cinema ? 0 : art)
                     .allowsHitTesting(false)
                 if let trailerURL {
@@ -2956,6 +2952,90 @@ struct OrbitCardShadow: ViewModifier {
             content
         } else {
             content.shadow(color: .black.opacity(focused ? lit : 0.2), radius: radius, y: y)
+        }
+    }
+}
+
+
+/// The hero picture's foot melting into a blur (Apple TV style): the picture blurred (radius 34 at the
+/// screen's size), less saturated (×0.75), darkened (a 30 % veil), and see-through above 70 % of its
+/// height — all made once into one picture, so the screen only draws a plain image.
+struct OrbitHeroFootBlur: View {
+    let url: String?
+    @State private var image: UIImage?
+    @State private var shown: String?
+
+    nonisolated(unsafe) static let made: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 30
+        return cache
+    }()
+    nonisolated(unsafe) private static let context = CIContext(options: [.useSoftwareRenderer: false])
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .id(shown ?? "-")
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+        .clipped()
+        .animation(.easeInOut(duration: 0.35), value: shown)
+        .task(id: url ?? "-") {
+            guard let url else { image = nil; shown = nil; return }
+            if let ready = Self.made.object(forKey: url as NSString) {
+                image = ready
+                shown = url
+                return
+            }
+            guard let blurred = await OrbitPreBlurred.prepare(url, radius: 34), let cg = blurred.cgImage else { return }
+            let foot = await Task.detached(priority: .userInitiated) { () -> UIImage? in Self.finish(cg) }.value
+            guard let foot else { return }
+            Self.made.setObject(foot, forKey: url as NSString)
+            guard !Task.isCancelled else { return }
+            image = foot
+            shown = url
+        }
+        .accessibilityHidden(true)
+    }
+
+    nonisolated private static func finish(_ cg: CGImage) -> UIImage? {
+        var out = CIImage(cgImage: cg)
+        if let colour = CIFilter(name: "CIColorControls") {
+            colour.setValue(out, forKey: kCIInputImageKey)
+            colour.setValue(0.75, forKey: kCIInputSaturationKey)
+            if let o = colour.outputImage { out = o }
+        }
+        if let veil = CIFilter(name: "CIColorMatrix") {
+            veil.setValue(out, forKey: kCIInputImageKey)
+            veil.setValue(CIVector(x: 0.7, y: 0, z: 0, w: 0), forKey: "inputRVector")
+            veil.setValue(CIVector(x: 0, y: 0.7, z: 0, w: 0), forKey: "inputGVector")
+            veil.setValue(CIVector(x: 0, y: 0, z: 0.7, w: 0), forKey: "inputBVector")
+            if let o = veil.outputImage { out = o }
+        }
+        let extent = CGRect(x: 0, y: 0, width: cg.width, height: cg.height)
+        guard let tinted = context.createCGImage(out.cropped(to: extent), from: extent) else { return nil }
+        // See-through at the top, the blur only at the foot (the mask the screen used to apply).
+        let size = CGSize(width: cg.width, height: cg.height)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { ctx in
+            let c = ctx.cgContext
+            UIImage(cgImage: tinted).draw(in: CGRect(origin: .zero, size: size))
+            c.setBlendMode(.destinationIn)
+            let space = CGColorSpaceCreateDeviceGray()
+            let colours = [CGColor(gray: 0, alpha: 0), CGColor(gray: 0, alpha: 0),
+                           CGColor(gray: 0, alpha: 0.7), CGColor(gray: 0, alpha: 1), CGColor(gray: 0, alpha: 1)] as CFArray
+            let stops: [CGFloat] = [0, 0.7, 0.86, 0.97, 1]
+            if let gradient = CGGradient(colorsSpace: space, colors: colours, locations: stops) {
+                c.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+            }
         }
     }
 }
