@@ -65,7 +65,7 @@ enum OrbitDetailLayout {
     static let episodesRest: CGFloat = 100
     /// The line the system aligns a focused section's top on (the page's top margin).
     // (Steven, 2026-10-30: the cast too close under the title at the top — the sections a little lower.)
-    static let pageTop: CGFloat = 215
+    static let pageTop: CGFloat = 170
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
@@ -359,7 +359,7 @@ struct OrbitDetailView: View {
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
-                        .modifier(OrbitAboveFade(above: isAbove(.hero)))
+                        .modifier(OrbitAboveFade(above: isAbove(.hero), slow: true))
                         .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
                     // Steven (2026-10-30: a series without seasons — a large empty gap): no episodes
@@ -448,14 +448,7 @@ struct OrbitDetailView: View {
                 if target == .hero { go(to: .hero) }
                 // Steven (2026-10-30, Apple TV's own: "les éléments du bas arrivent un peu après"): on
                 // the first step down, what comes under the first section arrives a beat later.
-                if old == .hero, target == firstSection, !reduceMotion {
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { entering = true }
-                    DispatchQueue.main.async {
-                        withAnimation(OrbitDetailEntrance.curve) { entering = false }
-                    }
-                }
+                // (Steven, 2026-10-30, option A: the delayed rows taken off — Apple's page moves as one.)
             }
             }
 
@@ -1678,6 +1671,12 @@ private struct OrbitDetailBackground: View {
     /// Under the sections, the film's colour covering the whole screen.
     private var hiddenUnderColour: Bool { dimmed && sectionTone != nil && !cinema }
 
+    /// How far the page goes up on the first step down (the first section, from under the hero to the
+    /// page's top): the hero's picture goes up as far.
+    static var pageLift: CGFloat {
+        OrbitDetailLayout.heroHeight - OrbitDetailLayout.pageTop + OrbitDetailLayout.sectionGap
+    }
+
     /// The poster's colour, known (at once when it was seen before).
     private var sectionTone: Color? {
         tone ?? OrbitDominantColor.cached(toneURL)
@@ -1687,96 +1686,100 @@ private struct OrbitDetailBackground: View {
         let size = CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         ZStack {
             OrbitHomeLayout.background
-            // Fluidity: the dimmed art is a pre-blurred copy cross-faded in (an animated live blur of
-            // the whole screen made the move to the sections stutter).
-            ZStack {
-                if let quickURL, quickURL != url {
-                    // (Steven's video: drawn at 1280 × 720 points, it sat small in the middle of
-                    // the screen — the whole screen, as the art it stands in for.)
-                    OrbitImage(url: quickURL, mode: .fill, size: size)
-                }
-                OrbitSwapImage(url: url, fallback: nil, size: size)
-            }
-            // (Hidden under the film's colour: not pushed in for nothing.)
-            .scaleEffect(cinema ? 1.05 : 1)
-            // Steven (2026-10-30, slow-motion video measured: a frame missed about every fifth all
-            // along a move in the sections): the picture and its shades were still drawn under the
-            // film's colour at every frame — off once the colour covers them, back at once.
-            .modifier(OrbitUnderColour(hidden: hiddenUnderColour))
-            // Steven: the bottom of the art melts into a blur (Apple TV style), under the
-            // synopsis and the credits. On the still art only (a live blur over the trailer costs
-            // the Apple TV too much): the trailer covers it as it fades in, and it is back when
-            // the art returns. Gone in cinema and under the sections.
-            // A little darkened and desaturated, so a bright art (Pixar) melts into the shade
-            // instead of smearing its colours.
-            // (Steven, 2026-10-30: the blur at the bottom too strong — lighter, lower, softer.)
-            // (Steven, 2026-10-30: the blur very slightly softer — same height.)
-            OrbitPreBlurred(url: url, radius: 34)
-                .saturation(0.75)
-                .overlay(Color.black.opacity(0.3))
-                .mask(LinearGradient(stops: [
-                    .init(color: .clear, location: 0.7),
-                    .init(color: .black.opacity(0.7), location: 0.86),
-                    .init(color: .black, location: 0.97),
-                ], startPoint: .top, endPoint: .bottom))
-                .opacity(cinema || dimmed ? 0 : 1)
-                .allowsHitTesting(false)
-            if let trailerURL {
-                TrailerHeroPlayer(urlString: trailerURL,
-                                  onFailure: { _ in onTrailerFailure() },
-                                  zoomKey: zoomKey,
-                                  loops: false,
-                                  onPlaybackEnded: onTrailerEnded,
-                                  cornerRadius: 0,
-                                  uncropped: cinema,
-                                  onFirstFrame: onTrailerFirstFrame)
-                    .frame(width: size.width, height: size.height)
-                    .transition(.opacity)
-            }
-            // The art held over a trailer just started. Steven (a ghost frame of the trailer, then
-            // the page, then the trailer): always there, already loaded — it no longer appears a
-            // moment after the trailer's first frame.
-            OrbitSwapImage(url: url, fallback: nil, size: size)
-                .scaleEffect(cinema ? 1.05 : 1)
-                // (Not tied to the trailer's arrival: that came in the same animated change, so the art
-                // faded in with the trailer and its first frames showed through.)
-                .opacity(holdArt ? 1 : 0)
-                .allowsHitTesting(false)
-            // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
-            Group {
-                // (Steven, 2026-10-30: lighter was busy on a crowded art — back to the shades as they were.)
-                // (Steven, 2026-10-30: a little less on the side — the synopsis now carries its own
-                // soft shadow.)
-                // (Steven, 2026-10-30: the same side shade as the Home and studio heroes, for one look.)
-                LinearGradient(stops: [
-                    .init(color: OrbitHomeLayout.background.opacity(0.6), location: 0),
-                    .init(color: OrbitHomeLayout.background.opacity(0.3), location: 0.38),
-                    .init(color: .clear, location: 0.64),
-                ], startPoint: .leading, endPoint: .trailing)
-                LinearGradient(stops: [
-                    .init(color: .clear, location: 0.35),
-                    .init(color: .black.opacity(0.75), location: 1),
-                ], startPoint: .top, endPoint: .bottom)
-            }
-            // Cinema: only a light bottom shade stays (for the title and the hint).
-            .opacity(cinema ? 0.35 : 1)
-            .modifier(OrbitUnderColour(hidden: hiddenUnderColour))
-            // (Steven, 2026-10-30: the blurred picture, Apple's, "raté" — the film's colour again.)
+            // The sections' ground, always under the hero's picture (the picture covers it on the hero):
+            // the film's colour, then its picture blurred thick (Apple's).
             // Under the sections, until the film's colour is known: dark enough for white text.
-            tint.opacity(dimmed && sectionTone == nil ? 0.74 : 0)
-            // The film's colour (Home's wash), melting into the page's colour.
+            tint.opacity(sectionTone == nil ? 0.74 : 0)
             if let deep = sectionTone {
                 OrbitToneBackdrop(tone: deep)
-                    .opacity(dimmed ? 1 : 0)
                     .allowsHitTesting(false)
             }
-            // Steven (2026-10-30, Apple TV's Nocturne page: "un flou épais"): over it, the film's own
-            // picture reduced to its colour fields — no shape left, as Apple's.
+            // Steven (2026-10-30, Apple TV's Nocturne page: "un flou épais"): the film's own picture
+            // reduced to its colour fields — no shape left, as Apple's.
             OrbitThickBlur(url: url)
                 .saturation(1.2)
                 .overlay(Color.black.opacity(0.24))
-                .opacity(dimmed ? 1 : 0)
                 .allowsHitTesting(false)
+
+            // The hero's picture. Steven (2026-10-30, option A, Apple TV's own first step down): it goes
+            // up with the page — blurring and fading as it goes — uncovering the sections' ground; it
+            // comes back down the same way.
+            ZStack {
+                ZStack {
+                    if let quickURL, quickURL != url {
+                        // (Steven's video: drawn at 1280 × 720 points, it sat small in the middle of
+                        // the screen — the whole screen, as the art it stands in for.)
+                        OrbitImage(url: quickURL, mode: .fill, size: size)
+                    }
+                    OrbitSwapImage(url: url, fallback: nil, size: size)
+                    // Blurring as it goes up (a pre-blurred copy cross-faded in: no live blur).
+                    OrbitPreBlurred(url: url, radius: 44)
+                        .opacity(dimmed ? 1 : 0)
+                }
+                .scaleEffect(cinema ? 1.05 : 1)
+                // Steven: the bottom of the art melts into a blur (Apple TV style), under the
+                // synopsis and the credits. On the still art only (a live blur over the trailer costs
+                // the Apple TV too much): the trailer covers it as it fades in, and it is back when
+                // the art returns. Gone in cinema.
+                // A little darkened and desaturated, so a bright art (Pixar) melts into the shade
+                // instead of smearing its colours.
+                // (Steven, 2026-10-30: the blur at the bottom too strong — lighter, lower, softer.)
+                // (Steven, 2026-10-30: the blur very slightly softer — same height.)
+                OrbitPreBlurred(url: url, radius: 34)
+                    .saturation(0.75)
+                    .overlay(Color.black.opacity(0.3))
+                    .mask(LinearGradient(stops: [
+                        .init(color: .clear, location: 0.7),
+                        .init(color: .black.opacity(0.7), location: 0.86),
+                        .init(color: .black, location: 0.97),
+                    ], startPoint: .top, endPoint: .bottom))
+                    .opacity(cinema ? 0 : 1)
+                    .allowsHitTesting(false)
+                if let trailerURL {
+                    TrailerHeroPlayer(urlString: trailerURL,
+                                      onFailure: { _ in onTrailerFailure() },
+                                      zoomKey: zoomKey,
+                                      loops: false,
+                                      onPlaybackEnded: onTrailerEnded,
+                                      cornerRadius: 0,
+                                      uncropped: cinema,
+                                      onFirstFrame: onTrailerFirstFrame)
+                        .frame(width: size.width, height: size.height)
+                        .transition(.opacity)
+                }
+                // The art held over a trailer just started. Steven (a ghost frame of the trailer, then
+                // the page, then the trailer): always there, already loaded — it no longer appears a
+                // moment after the trailer's first frame.
+                OrbitSwapImage(url: url, fallback: nil, size: size)
+                    .scaleEffect(cinema ? 1.05 : 1)
+                    // (Not tied to the trailer's arrival: that came in the same animated change, so the art
+                    // faded in with the trailer and its first frames showed through.)
+                    .opacity(holdArt ? 1 : 0)
+                    .allowsHitTesting(false)
+                // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
+                Group {
+                    // (Steven, 2026-10-30: the same side shade as the Home and studio heroes, for one look.)
+                    LinearGradient(stops: [
+                        .init(color: OrbitHomeLayout.background.opacity(0.6), location: 0),
+                        .init(color: OrbitHomeLayout.background.opacity(0.3), location: 0.38),
+                        .init(color: .clear, location: 0.64),
+                    ], startPoint: .leading, endPoint: .trailing)
+                    LinearGradient(stops: [
+                        .init(color: .clear, location: 0.35),
+                        .init(color: .black.opacity(0.75), location: 1),
+                    ], startPoint: .top, endPoint: .bottom)
+                }
+                // Cinema: only a light bottom shade stays (for the title and the hint).
+                .opacity(cinema ? 0.35 : 1)
+            }
+            .frame(width: size.width, height: size.height)
+            // Up with the page, on the page's own move (its first section comes from under the hero to
+            // the top), back down with it.
+            .offset(y: dimmed ? -Self.pageLift : 0)
+            .animation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.5), value: dimmed)
+            // Fading as it goes (late going up, early coming back); off once gone (nothing drawn).
+            .opacity(dimmed ? 0 : 1)
+            .animation(dimmed ? .easeIn(duration: 0.45) : .easeOut(duration: 0.35), value: dimmed)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2495,6 +2498,8 @@ struct OrbitToneBackdrop: View {
 /// current one), so only the section in view shows under the top.
 struct OrbitAboveFade: ViewModifier {
     let above: Bool
+    /// The hero's lines: seen going up with the page, gone as they reach the top.
+    var slow = false
     func body(content: Content) -> some View {
         content
             // (Steven, 2026-10-30: Up no longer went back — a section at 0 is out of the focus's
@@ -2502,7 +2507,7 @@ struct OrbitAboveFade: ViewModifier {
             // (Steven, 2026-10-30: at 2 % it still showed as a ghost — 1.2 %, just above what the
             // system still counts as there.)
             .opacity(above ? 0.012 : 1)
-            .animation(.easeOut(duration: 0.18), value: above)
+            .animation(slow ? (above ? .easeIn(duration: 0.4) : .easeOut(duration: 0.3)) : .easeOut(duration: 0.18), value: above)
     }
 }
 
@@ -2513,40 +2518,15 @@ struct OrbitDetailHeaderTitle: View {
     let name: String
     let logo: String?
     let shown: Bool
-    @State private var dim: Double = 1
-    @State private var glow: Double = 0
-    @State private var steps: [DispatchWorkItem] = []
 
     var body: some View {
-        // (Steven: not centred — the mark drawn at the left of its box; it hugs its logo now, centred.)
-        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 640, height: 150), textSize: 64, hugsLogo: true)
+        // Steven (2026-10-30, option A, Apple TV's own): small, centred, it fades in once the hero's
+        // logo has gone up out of the screen (never two titles at once), no glow.
+        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 340, height: 80), textSize: 40, hugsLogo: true)
             .fixedSize()
-            .frame(width: 640, height: 150, alignment: .center)
-            .modifier(OrbitLightUp(dim: dim, glow: glow, tint: Color.white.opacity(0.7)))
-            // Steven (2026-10-30, Apple TV's first step down: "exactement la même animation"): it rises
-            // into place a beat after the page, as the rows below it.
-            .offset(y: shown ? 0 : 50)
+            .frame(width: 340, height: 80, alignment: .center)
             .opacity(shown ? 1 : 0)
-            .animation(shown ? OrbitDetailEntrance.curve : .easeIn(duration: 0.15), value: shown)
-            .onChange(of: shown, initial: true) { _, on in
-                steps.forEach { $0.cancel() }
-                steps = []
-                var still = Transaction()
-                still.disablesAnimations = true
-                withTransaction(still) { dim = 1; glow = 0 }
-                guard on else { return }
-                // Orbit's light-up: rising to bright, its peak, a soft glow left on it.
-                let plan: [(Double, Double, Double, Animation)] = [
-                    (0.15, 0, 0.8, .easeIn(duration: 0.45)),
-                    (0.60, 0, 1.2, .easeOut(duration: 0.18)),
-                    (0.80, 0, 0.3, .easeInOut(duration: 0.5)),
-                ]
-                for (at, d, g, a) in plan {
-                    let w = DispatchWorkItem { withAnimation(a) { dim = d; glow = g } }
-                    steps.append(w)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + at, execute: w)
-                }
-            }
+            .animation(shown ? .easeOut(duration: 0.35).delay(0.35) : .easeIn(duration: 0.12), value: shown)
     }
 }
 
