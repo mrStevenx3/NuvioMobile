@@ -93,10 +93,9 @@ struct OrbitStudiosPage: View {
                              lift: OrbitStudioFrame.lift(title: shown?.title ?? ""))
                 .overlay(alignment: .bottomLeading) {
                     hero(shown)
-                        .padding(.leading, 36)
+                        .padding(.leading, L.margin + 36)
                         .padding(.bottom, 26)
                 }
-                .offset(x: L.margin, y: Self.heroTop)
 
             // Everything on one screen (no page scroll: it slid the studio's name under the bar).
             VStack(alignment: .leading, spacing: 0) {
@@ -204,8 +203,8 @@ struct OrbitStudiosPage: View {
 
     /// Every studio's backdrop fetched as the page opens (a change is instant), then its colour.
     private func prefetchBackdrops() {
-        let request = ArtworkDecodeRequest(size: .points(width: Self.frameSize.width,
-                                                         height: Self.frameSize.width * 9 / 16),
+        let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.screenWidth,
+                                                         height: OrbitHomeLayout.screenWidth * 9 / 16),
                                            fill: true, scale: displayScale)
         let jobs: [(id: String, raw: String, url: URL)] = folders.compactMap { folder in
             guard let raw = Self.backdropURL(folder), let url = URL(string: raw) else { return nil }
@@ -340,9 +339,15 @@ private struct OrbitStudioFrame: View {
     @State private var zoom: CGFloat = 1
     @State private var shift: CGFloat = 0
 
+    /// Steven (2026-10-30: "un bandeau large"): the frame becomes a banner across the whole width,
+    /// from the screen's top down to where the frame ended; no corners, its bottom melting into the
+    /// studio's colour, a light shade under the bar.
+    static var bannerSize: CGSize {
+        CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitStudiosPage.heroTop + OrbitStudiosPage.frameSize.height)
+    }
+
     var body: some View {
-        let size = OrbitStudiosPage.frameSize
-        let radius: CGFloat = 22
+        let size = Self.bannerSize
         ZStack {
             Color(white: 0.1)
             // The image drawn whole at the frame's width (16:9), the frame showing its middle band,
@@ -357,16 +362,20 @@ private struct OrbitStudioFrame: View {
                 .scaleEffect(zoom)
                 .offset(x: shift)
             // The name reads at the bottom left; the rest of the image stays clean.
-            RadialGradient(colors: [.black.opacity(0.62), .black.opacity(0.25), .clear],
-                           center: .bottomLeading, startRadius: 0, endRadius: 820)
+            RadialGradient(colors: [.black.opacity(0.55), .black.opacity(0.2), .clear],
+                           center: .bottomLeading, startRadius: 0, endRadius: 900)
+            // Under the bar: a light shade, as on Home's hero.
+            LinearGradient(stops: [.init(color: .black.opacity(0.4), location: 0),
+                                   .init(color: .clear, location: 0.2)],
+                           startPoint: .top, endPoint: .bottom)
         }
         .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1.5)
-        }
-        .shadow(color: .black.opacity(0.5), radius: 30, y: 16)
+        .clipped()
+        // Its bottom melts into the page's colour (the tiles come just under it).
+        .mask(LinearGradient(stops: [.init(color: .black, location: 0),
+                                     .init(color: .black, location: 0.72),
+                                     .init(color: .clear, location: 1)],
+                             startPoint: .top, endPoint: .bottom))
         // (Steven, 2026-10-26: the image in a plain fade — no glide, no zoom.)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
