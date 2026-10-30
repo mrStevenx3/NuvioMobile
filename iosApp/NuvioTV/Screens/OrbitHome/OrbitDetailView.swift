@@ -1689,17 +1689,23 @@ private struct OrbitDetailBackground: View {
             // The sections' ground, always under the hero's picture (the picture covers it on the hero):
             // the film's colour, then its picture blurred thick (Apple's).
             // Under the sections, until the film's colour is known: dark enough for white text.
-            tint.opacity(sectionTone == nil ? 0.74 : 0)
-            if let deep = sectionTone {
-                OrbitToneBackdrop(tone: deep)
+            ZStack {
+                tint.opacity(sectionTone == nil ? 0.74 : 0)
+                if let deep = sectionTone {
+                    OrbitToneBackdrop(tone: deep)
+                        .allowsHitTesting(false)
+                }
+                // Steven (2026-10-30, Apple TV's Nocturne page: "un flou épais"): the film's own picture
+                // reduced to its colour fields — no shape left, as Apple's.
+                OrbitThickBlur(url: url)
+                    .saturation(1.2)
+                    .overlay(Color.black.opacity(0.24))
                     .allowsHitTesting(false)
             }
-            // Steven (2026-10-30, Apple TV's Nocturne page: "un flou épais"): the film's own picture
-            // reduced to its colour fields — no shape left, as Apple's.
-            OrbitThickBlur(url: url)
-                .saturation(1.2)
-                .overlay(Color.black.opacity(0.24))
-                .allowsHitTesting(false)
+            // (On the hero, not drawn under its picture: there at once on the way down, gone once
+            // the picture is back on the way up.)
+            .opacity(dimmed ? 1 : 0)
+            .animation(dimmed ? nil : .linear(duration: 0.01).delay(0.5), value: dimmed)
 
             // The hero's picture. Steven (2026-10-30, option A, Apple TV's own first step down): it goes
             // up with the page — blurring and fading as it goes — uncovering the sections' ground; it
