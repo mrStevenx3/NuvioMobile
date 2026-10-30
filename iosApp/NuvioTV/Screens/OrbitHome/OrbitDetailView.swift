@@ -1021,7 +1021,7 @@ struct OrbitDetailView: View {
         }
         // The light-up begins near the glide's end (the loading screen goes on from it).
         // (Steven, 2026-10-30: "trop sombre au début pendant longtemps" — no longer waits for the end.)
-        OrbitLoadingView.lightStartedAt = Date().addingTimeInterval(0.3)
+        OrbitLoadingView.lightStartedAt = Date().addingTimeInterval(0.45)
         launchLightStart = OrbitLoadingView.lightStartedAt
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.5)) { launchGlide = 1 }
@@ -1293,6 +1293,10 @@ struct OrbitDetailView: View {
             // the page): else the whole block rose once they came in.
             credits
                 .frame(maxWidth: .infinity, minHeight: 62, maxHeight: 62, alignment: .bottomTrailing)
+                // (Steven, 2026-10-30: the cast left at the top right on the first step down was in
+                // the way — gone as the page goes down, back with the hero.)
+                .opacity(section == .hero ? 1 : 0)
+                .animation(.easeOut(duration: section == .hero ? 0.3 : 0.18), value: section == .hero)
                 .padding(.top, 74)
         }
         .padding(.horizontal, L.margin)

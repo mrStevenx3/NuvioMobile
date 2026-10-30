@@ -229,8 +229,12 @@ struct OrbitStudiosPage: View {
         Task(priority: .utility) {
             for raw in raws {
                 guard let url = URL(string: raw) else { continue }
-                if ArtworkStore.cached(url, decode: request) == nil {
-                    _ = try? await ArtworkStore.fetch(url, decode: request)
+                // (Steven, 2026-10-30: still slow, two fades — the banner draws TMDB's original
+                // image, which was not fetched ahead: the smaller copy showed, then the original
+                // came over it from the network. The original itself fetched ahead now.)
+                let best = ArtworkURLUpgrade.upgraded(url, role: .backdrop) ?? url
+                if ArtworkStore.cached(best, decode: request) == nil {
+                    _ = try? await ArtworkStore.fetch(best, decode: request)
                 }
                 await OrbitPreBlurred.prepare(raw, radius: 24)
             }
@@ -801,12 +805,14 @@ private struct OrbitStudiosBackdrop: View {
             ZStack(alignment: .top) {
                 // The same image blurred, at the very place of the sharp one (its centre on the
                 // banner's), stretched down from the seam to reach the screen's bottom.
+                // (Steven, 2026-10-30: a bar at the bottom — drawn a little larger again, and
+                // stretched enough to reach the screen's foot.)
                 OrbitPreBlurred(url: url, radius: 24)
+                    .scaleEffect(1.1)
                     .offset(y: band / 2 - H / 2)
                     .frame(width: W, height: H)
-                    .scaleEffect(x: 1, y: 1.4, anchor: UnitPoint(x: 0.5, y: seam / H))
-                    .saturation(0.9)
-                    .overlay(Color.black.opacity(0.2))
+                    .scaleEffect(x: 1, y: 1.55, anchor: UnitPoint(x: 0.5, y: seam / H))
+                    .overlay(Color.black.opacity(0.22))
                 OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
                     .frame(width: full.width, height: full.height)
                     .frame(width: full.width, height: band)

@@ -160,9 +160,11 @@ struct OrbitLoadingView: View {
     /// When the logo began to light up (the sources' page); the player's screen goes on from it.
     nonisolated(unsafe) static var lightStartedAt: Date?
     /// (Steven, 2026-10-30: "il arrive trop sombre au début pendant longtemps" — less dark, lit sooner.)
-    static let lightDuration: Double = 0.8
-    /// The dimmed copy's darkening (was −0.45).
-    static let dimLevel: Double = -0.25
+    /// (Then "trop illuminé au début, on ne le voit pas s'éclairer": between the two — dim enough to
+    /// be seen lighting up, the light even over its time instead of all at its start.)
+    static let lightDuration: Double = 0.9
+    /// The dimmed copy's darkening (was −0.45, then −0.25).
+    static let dimLevel: Double = -0.38
 
     /// No light-up begun lately (none yet, or one from an earlier opening).
     static func lightIsStale(at date: Date, start: Date? = OrbitLoadingView.lightStartedAt) -> Bool {
@@ -237,7 +239,7 @@ struct OrbitDimFade<Content: View>: UIViewRepresentable {
         fade.fromValue = 1
         fade.toValue = 0
         fade.duration = duration
-        fade.timingFunction = CAMediaTimingFunction(controlPoints: 0.33, 1, 0.68, 1)  // (ease-out cubic)
+        fade.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         fade.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - elapsed
         fade.fillMode = .backwards
         layer.add(fade, forKey: "light")
@@ -317,7 +319,7 @@ struct OrbitHaloRise<Content: View>: UIViewRepresentable {
         let anim = CAKeyframeAnimation(keyPath: "opacity")
         anim.values = [0, Self.peak, Self.settled]
         anim.keyTimes = [0, NSNumber(value: rise / total), 1]
-        anim.timingFunctions = [CAMediaTimingFunction(controlPoints: 0.33, 1, 0.68, 1),
+        anim.timingFunctions = [CAMediaTimingFunction(name: .easeInEaseOut),
                                 CAMediaTimingFunction(name: .easeInEaseOut)]
         anim.duration = total
         anim.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - elapsed
