@@ -1613,14 +1613,15 @@ private struct OrbitDetailBackground: View {
                 .allowsHitTesting(false)
             // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
             Group {
+                // (Steven, 2026-10-30: lighter on the left and at the bottom, as the studios' banner.)
                 LinearGradient(stops: [
-                    .init(color: .black.opacity(0.78), location: 0),
-                    .init(color: .black.opacity(0.35), location: 0.45),
-                    .init(color: .clear, location: 0.7),
+                    .init(color: .black.opacity(0.55), location: 0),
+                    .init(color: .black.opacity(0.22), location: 0.4),
+                    .init(color: .clear, location: 0.62),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
-                    .init(color: .clear, location: 0.35),
-                    .init(color: .black.opacity(0.75), location: 1),
+                    .init(color: .clear, location: 0.45),
+                    .init(color: .black.opacity(0.5), location: 1),
                 ], startPoint: .top, endPoint: .bottom)
             }
             // Cinema: only a light bottom shade stays (for the title and the hint).

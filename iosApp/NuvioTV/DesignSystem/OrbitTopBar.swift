@@ -203,6 +203,9 @@ struct OrbitTopBar: View {
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
         }
+        // (The remote's presses heard from launch on — the launch's own focus placement stands
+        // back as soon as the viewer moves: before, nothing listened on Home's first screen.)
+        .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
         .onReceive(NotificationCenter.default.publisher(for: .orbitBarFocusRequest)) { _ in
             OrbitBarLock.shared.set(false)
             DispatchQueue.main.async { focused = currentItem }
@@ -216,6 +219,14 @@ struct OrbitTopBar: View {
             }
         }
         .onChange(of: focused) { _, item in
+            // Steven (2026-10-30: just after launch, Right to Séries went to Séries, then back to
+            // Films): the launch's placement took the first focus that was not Films for the system's
+            // own landing and sent it back — even when the remote had put it there. A focus the
+            // viewer moved himself is his: the launch's placement is over.
+            if !placedLaunchFocus, item != nil,
+               ViewerInputClock.shared.hasInput(since: ProcessInfo.processInfo.systemUptime - 0.6) {
+                placedLaunchFocus = true
+            }
             // Steven (2026-10-23): Films, Séries, Plateformes and Studios open on focus, like the
             // Apple TV's own tab bar — after a short rest, so passing over one opens nothing.
             autoSelectGeneration &+= 1
