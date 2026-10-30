@@ -994,19 +994,25 @@ private struct OrbitHBOGlassText: View {
         let glass = Color(red: 0.03, green: 0.035, blue: 0.09)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         let glyph = Text(text).font(font).kerning(tight)
+        // (Steven, 2026-10-30: "oublie l'effet de verre, exactement comme l'image" — Max's own: the
+        // outline alone, the inside open onto the page, no shadow.)
+        let _ = glass
         ZStack {
-            ForEach(offsets.indices, id: \.self) { i in
-                glyph.foregroundStyle(rim).offset(offsets[i])
+            ZStack {
+                ForEach(offsets.indices, id: \.self) { i in
+                    glyph.foregroundStyle(rim).offset(offsets[i])
+                }
+                // The inside cut out: the page (and a poster under a figure) shows through.
+                glyph.foregroundStyle(Color.black).blendMode(.destinationOut)
             }
+            .compositingGroup()
             // Steven (device: the rank arrived offset, then filled): both fills drawn, the lit one
             // faded in on the move's own curve (a style swap cannot animate; it jumped afterwards).
-            glyph.foregroundStyle(glass)
             glyph.foregroundStyle(lit).opacity(filled ? 1 : 0)
         }
         // (Steven, 2026-10-30: lag from the Top 10 on — each rank was 18 lines of text at full size,
-        // grouped and shadowed again at every frame of a move.) Drawn once into one picture, its
-        // shadow in it; the move only carries the picture.
-        .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+        // grouped again at every frame of a move.) Drawn once into one picture; the move only
+        // carries the picture.
         .padding(12)
         .drawingGroup()
         .padding(-12)

@@ -742,7 +742,10 @@ struct OrbitPlatformIntro: View {
             // Black tinted with the platform's colour.
             ZStack {
                 Color.black
-                RadialGradient(colors: [brand.opacity(0.45), .clear], center: .center, startRadius: 0, endRadius: 900)
+                // Steven (2026-10-30: Netflix's N, the only logo in colour, did not stand out on its own
+                // red): for a logo in colour, the ground stays almost black — the N lights up red on
+                // black, as in Netflix's own opening; its red glow around it.
+                RadialGradient(colors: [brand.opacity(assetInColour ? 0.12 : 0.45), .clear], center: .center, startRadius: 0, endRadius: 900)
             }
             .frame(width: W, height: H)
             .opacity(phase == .settled ? 0 : 1)

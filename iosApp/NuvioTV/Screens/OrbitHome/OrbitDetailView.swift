@@ -355,6 +355,7 @@ struct OrbitDetailView: View {
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
+                        .modifier(OrbitAboveFade(above: isAbove(.hero)))
                         .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
                     // Steven (2026-10-30: a series without seasons — a large empty gap): no episodes
@@ -373,6 +374,7 @@ struct OrbitDetailView: View {
                                              returning: returningTo)
                             .equatable()
                             .focusSection()
+                            .modifier(OrbitAboveFade(above: isAbove(.episodes)))
                             .disabled(returningElsewhere(.episodes))
                             .id(OrbitDetailSection.episodes)
                     }
@@ -387,18 +389,22 @@ struct OrbitDetailView: View {
                     // gap around it counted twice. A section with nothing to show is left out.
                     if !(meta?.cast ?? []).isEmpty {
                         OrbitStillSection(key: castKey) { castSection }.equatable()
+                            .modifier(OrbitAboveFade(above: isAbove(.cast)))
                             .disabled(returningElsewhere(.cast))
                     }
                     if !(meta?.collectionItems ?? []).isEmpty {
                         OrbitStillSection(key: sagaKey) { sagaSection }.equatable()
+                            .modifier(OrbitAboveFade(above: isAbove(.saga)))
                             .disabled(returningElsewhere(.saga))
                     }
                     if !(meta?.trailers ?? []).isEmpty {
                         OrbitStillSection(key: trailersKey) { trailersSection }.equatable()
+                            .modifier(OrbitAboveFade(above: isAbove(.trailers)))
                             .disabled(returningElsewhere(.trailers))
                     }
                     if !(meta?.moreLikeThis ?? []).isEmpty {
                         OrbitStillSection(key: similarKey) { similarSection }.equatable()
+                            .modifier(OrbitAboveFade(above: isAbove(.similar)))
                             .disabled(returningElsewhere(.similar))
                     }
                     if hasAbout {
@@ -466,6 +472,15 @@ struct OrbitDetailView: View {
                 // up (the page under it still all colour at that moment).
                 .animation(section == .hero || cinema ? nil : .linear(duration: 0.01).delay(0.46),
                            value: section == .hero || cinema)
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
+
+            // Steven (2026-10-30, Apple TV's own title page as the model, "ou autre chose qui colle à
+            // l'ADN d'Orbit"): off the hero, the title comes back small at the top's middle — lit
+            // up as Orbit's logos are (a little dim, then its light), with a slight settle.
+            OrbitDetailHeaderTitle(name: title, logo: logoURL, shown: section != .hero && !cinema)
+                .frame(maxWidth: .infinity, alignment: .top)
+                .padding(.top, 34)
                 .allowsHitTesting(false)
                 .ignoresSafeArea()
 
@@ -1547,6 +1562,22 @@ struct OrbitDetailView: View {
         .prefix(6).map { $0 }
     }
 
+    /// A section above the one shown (faded out, as the studio page's rows above the current one).
+    private func isAbove(_ s: OrbitDetailSection) -> Bool {
+        func rank(_ s: OrbitDetailSection) -> Int {
+            switch s {
+            case .hero: return 0
+            case .episodes: return 1
+            case .cast: return 2
+            case .saga: return 3
+            case .trailers: return 4
+            case .similar: return 5
+            case .about: return 6
+            }
+        }
+        return rank(s) < rank(section)
+    }
+
     private var hasAbout: Bool {
         guard let meta else { return false }
         return !OrbitAboutRows.make(meta: meta, isSeries: isSeries).isEmpty || !companies.isEmpty
@@ -1624,6 +1655,9 @@ private struct OrbitDetailBackground: View {
     let onTrailerEnded: () -> Void
     var onTrailerFirstFrame: (() -> Void)? = nil
 
+    /// Under the sections, the film's colour covering the whole screen.
+    private var hiddenUnderColour: Bool { dimmed && sectionTone != nil && !cinema }
+
     /// The poster's colour, known (at once when it was seen before).
     private var sectionTone: Color? {
         tone ?? OrbitDominantColor.cached(toneURL)
@@ -1648,6 +1682,10 @@ private struct OrbitDetailBackground: View {
             }
             // (Hidden under the film's colour: not pushed in for nothing.)
             .scaleEffect(dimmed && sectionTone == nil ? 1.06 : (cinema ? 1.05 : 1))
+            // Steven (2026-10-30, slow-motion video measured: a frame missed about every fifth all
+            // along a move in the sections): the picture and its shades were still drawn under the
+            // film's colour at every frame — off once the colour covers them, back at once.
+            .modifier(OrbitUnderColour(hidden: hiddenUnderColour))
             // Steven: the bottom of the art melts into a blur (Apple TV style), under the
             // synopsis and the credits. On the still art only (a live blur over the trailer costs
             // the Apple TV too much): the trailer covers it as it fades in, and it is back when
@@ -1705,6 +1743,7 @@ private struct OrbitDetailBackground: View {
             }
             // Cinema: only a light bottom shade stays (for the title and the hint).
             .opacity(cinema ? 0.35 : 1)
+            .modifier(OrbitUnderColour(hidden: hiddenUnderColour))
             // Under the sections: dark enough for white text on any art.
             tint.opacity(dimmed && sectionTone == nil ? 0.74 : 0)
             // The film's colour, deep enough for white text, melting into the page's colour.
@@ -2423,5 +2462,45 @@ struct OrbitToneBackdrop: View {
         }
         // (Drawn once into its own texture: its fade only fades a picture.)
         .drawingGroup()
+    }
+}
+
+
+/// A section of a title page above the one shown: faded out quickly (the studio page's rows above the
+/// current one), so only the section in view shows under the top.
+struct OrbitAboveFade: ViewModifier {
+    let above: Bool
+    func body(content: Content) -> some View {
+        content
+            .opacity(above ? 0 : 1)
+            .animation(.easeOut(duration: 0.18), value: above)
+    }
+}
+
+/// The title, small, at the top's middle of a title page off its hero: it comes in a little dim and
+/// settles lit (Orbit's light-up), and goes at once on the way back up.
+struct OrbitDetailHeaderTitle: View {
+    let name: String
+    let logo: String?
+    let shown: Bool
+
+    var body: some View {
+        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 380, height: 84), textSize: 40)
+            .frame(width: 380, height: 84, alignment: .center)
+            .brightness(shown ? 0 : -0.35)
+            .scaleEffect(shown ? 1 : 0.94)
+            .opacity(shown ? 1 : 0)
+            .animation(shown ? .easeOut(duration: 0.5).delay(0.12) : .easeIn(duration: 0.12), value: shown)
+    }
+}
+
+
+/// Hidden once the film's colour has covered it (after its fade), shown again at once.
+struct OrbitUnderColour: ViewModifier {
+    let hidden: Bool
+    func body(content: Content) -> some View {
+        content
+            .opacity(hidden ? 0 : 1)
+            .animation(hidden ? .linear(duration: 0.01).delay(0.47) : nil, value: hidden)
     }
 }

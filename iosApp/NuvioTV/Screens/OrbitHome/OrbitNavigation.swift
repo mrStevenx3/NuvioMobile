@@ -278,7 +278,9 @@ struct OrbitPlatformCurtainView: View {
         ZStack {
             Color.black
             if let look = curtain.look {
-                RadialGradient(colors: [look.brand.opacity(0.45), .clear], center: .center, startRadius: 0, endRadius: 900)
+                // (Netflix's N, in colour: on an almost black ground, as the page's own opening.)
+                RadialGradient(colors: [look.brand.opacity(look.assetInColour ? 0.12 : 0.45), .clear],
+                               center: .center, startRadius: 0, endRadius: 900)
                 if look.studio {
                     OrbitStudioIntroLogo(name: look.title, logoUrl: look.logoUrl, corner: false)
                         // (Steven: the last studio's logo showed mixed with this one — a new view for

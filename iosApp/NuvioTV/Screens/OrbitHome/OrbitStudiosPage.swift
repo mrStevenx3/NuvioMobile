@@ -86,16 +86,14 @@ struct OrbitStudiosPage: View {
                                center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
                 // (Steven, 2026-10-30, DC Studios: a dark band too strong at the bottom — lighter, lower.)
                 LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
-                // Steven (2026-10-30: "en bas ce soit la couleur de l'affiche et pas d'un studio,
-                // avec un dégradé flou"): under the banner, its own picture, blurred, fills the page —
-                // the banner's bottom melts into its own colours (Apple TV style). A little darker
-                // and calmer, for the tiles; the studio's colour stays only until it has come.
-                // (Steven, 2026-10-30: less blurred.)
-                OrbitPreBlurred(url: bannerURL(shown), radius: 34)
-                    .saturation(0.85)
-                    .overlay(Color.black.opacity(0.32))
-                    .overlay(LinearGradient(colors: [.clear, .black.opacity(0.3)],
-                                            startPoint: UnitPoint(x: 0.5, y: 0.55), endPoint: .bottom))
+                // Steven (2026-10-30: "en bas ce soit la couleur de l'affiche et pas d'un studio, avec
+                // un dégradé flou"; then "le flou d'en bas ne défile pas avec l'image", "pas naturel"):
+                // the banner and its blurred continuation are one picture now — the same image, at the
+                // same place, sharp above and blurred below, gliding together.
+                OrbitStudiosBackdrop(url: bannerURL(shown), lift: OrbitStudioFrame.lift(title: shown?.title ?? ""))
+                // (Darker towards the bottom, for the tiles.)
+                LinearGradient(colors: [.clear, .black.opacity(0.32)],
+                               startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: groundId)
@@ -369,32 +367,9 @@ private struct OrbitStudioFrame: View {
     var body: some View {
         let size = Self.bannerSize
         ZStack {
-            Color(white: 0.1)
-            // The image drawn whole at the frame's width (16:9), the frame showing its middle band,
-            // lowered by `lift`.
-            let full = CGSize(width: size.width, height: size.width * 9 / 16)
-            let spare = max(0, full.height - size.height) / 2
-            // Steven (device: Lucasfilm and Illumination switched differently): Lucasfilm's lift
-            // belongs to its image — it no longer jumps the whole frame (the old image with it).
-            // Steven (2026-10-30: "je ne vois toujours pas le défilement" — this banner was the one
-            // meant): the image glides slowly from side to side, exactly as Netflix's billboard (drawn
-            // a little larger, 16 s each way), on the Apple TV's own animator.
-            let travel = size.width * 0.05
-            // (Steven, 2026-10-30: the image went back to the middle before the next studio's — one
-            // glide for the page, the next image coming in on it where it is.)
-            OrbitSlowDrift(active: !reduceMotion, key: "studios-banner",
-                           from: CATransform3DMakeTranslation(travel, 0, 0),
-                           to: CATransform3DMakeTranslation(-travel, 0, 0),
-                           duration: 16, timing: .easeInEaseOut) {
-                OrbitSwapImage(url: url, fallback: nil, size: CGSize(width: full.width * 1.1, height: full.height * 1.1),
-                               shiftY: spare * lift * 1.1)
-                    .frame(width: full.width * 1.1, height: full.height * 1.1)
-                    .frame(width: size.width, height: size.height)
-            }
-                .frame(width: size.width, height: size.height)
-                .clipped()
-                .scaleEffect(zoom)
-                .offset(x: shift)
+            // (The image itself is the page's ground now — `OrbitStudiosBackdrop`, sharp and blurred
+            // as one; the frame keeps its shades.)
+            Color.clear
             // The name reads at the bottom left; the rest of the image stays clean.
             RadialGradient(colors: [.black.opacity(0.55), .black.opacity(0.2), .clear],
                            center: .bottomLeading, startRadius: 0, endRadius: 900)
@@ -779,5 +754,55 @@ private struct OrbitStudioFilmPoster: View {
         .shadow(color: .black.opacity(focused ? 0.55 : 0.25), radius: 16, y: 8)
         .animation(.easeOut(duration: 0.14), value: focused)
         .accessibilityLabel(item.name)
+    }
+}
+
+
+/// The Studios page's picture: the studio's image across the banner, sharp, melting at its foot into
+/// the same image blurred, down to the screen's bottom — one picture, gliding slowly from side to side
+/// as Netflix's billboard (the next studio's image coming in on it where it is).
+private struct OrbitStudiosBackdrop: View {
+    let url: String?
+    var lift: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
+        let band = OrbitStudioFrame.bannerSize.height
+        let full = CGSize(width: W * 1.1, height: W * 9 / 16 * 1.1)
+        let spare = max(0, W * 9 / 16 - band) / 2
+        let travel = W * 0.05
+        // Where the sharp image melts into the blurred one.
+        let seam = band * 0.96
+        OrbitSlowDrift(active: !reduceMotion, key: "studios-banner",
+                       from: CATransform3DMakeTranslation(travel, 0, 0),
+                       to: CATransform3DMakeTranslation(-travel, 0, 0),
+                       duration: 16, timing: .easeInEaseOut) {
+            ZStack(alignment: .top) {
+                // The same image blurred, at the very place of the sharp one (its centre on the
+                // banner's), stretched down from the seam to reach the screen's bottom.
+                OrbitPreBlurred(url: url, radius: 24)
+                    .scaleEffect(1.1)
+                    .offset(y: band / 2 - H / 2)
+                    .frame(width: W, height: H)
+                    .scaleEffect(x: 1, y: 1.4, anchor: UnitPoint(x: 0.5, y: seam / H))
+                    .saturation(0.9)
+                    .overlay(Color.black.opacity(0.2))
+                OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift * 1.1)
+                    .frame(width: full.width, height: full.height)
+                    .frame(width: full.width, height: band)
+                    .clipped()
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0),
+                                                 .init(color: .black, location: 0.88),
+                                                 .init(color: .clear, location: 1)],
+                                         startPoint: .top, endPoint: .bottom))
+                    .frame(width: W, height: band)
+            }
+            .frame(width: W, height: H, alignment: .top)
+        }
+        .frame(width: W, height: H)
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
