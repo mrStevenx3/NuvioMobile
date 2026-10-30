@@ -188,7 +188,11 @@ struct OrbitDetailView: View {
     /// exactly over it and glides to the middle (`launchGlide` 0 → 1).
     @State private var launchGlide: CGFloat = 0
     /// The hero title's box on the screen (its logo sits at the box's bottom left).
-    @State private var heroTitleBox: CGRect = .zero
+    /// Where the hero's title, the synopsis and its arrow sit on screen — kept in a box the page does
+    /// not watch. Steven (2026-10-30, every move on the title page measured at about 45 images a
+    /// second): these were the page's own state, written at every frame of a scroll (their place on
+    /// screen moves with it) — the whole page was worked out again at every frame of every move.
+    @State private var places = OrbitDetailPlaces()
     /// Where the gliding logo starts: its offset from the middle and its scale.
     @State private var launchFrom: (offset: CGSize, scale: CGFloat)?
     /// The loading screen's logo opacity when it takes over (its breath, read off the clock).
@@ -206,9 +210,6 @@ struct OrbitDetailView: View {
     @State private var postPlayRoute: TitleRoute?
     @State private var showSynopsis = false
     /// Where the synopsis sits on screen (its panel opens out of it, and folds back into it).
-    @State private var synopsisBox: CGRect = .zero
-    /// The synopsis' arrow on screen: the full synopsis comes out of it as a bubble.
-    @State private var synopsisArrowBox: CGRect = .zero
     /// The synopsis on the buttons' line, as shown (two lines at most) and in full.
     @State private var synopsisShownHeight: CGFloat = 0
     @State private var synopsisFullHeight: CGFloat = 0
@@ -544,7 +545,7 @@ struct OrbitDetailView: View {
             }
 
             if showSynopsis, let overview {
-                OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview, from: synopsisArrowBox) {
+                OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview, from: places.synopsisArrow) {
                     // (It has folded back into the synopsis by now.)
                     showSynopsis = false
                     DispatchQueue.main.async { focus = .synopsis }
@@ -964,6 +965,7 @@ struct OrbitDetailView: View {
 
     /// The gliding logo's start: the hero logo's size and centre, against the loading screen's.
     private func launchStart() -> (offset: CGSize, scale: CGFloat)? {
+        let heroTitleBox = places.heroTitle
         guard heroTitleBox.width > 0, let raw = logoURL, let url = URL(string: raw) else { return nil }
         let request = ArtworkDecodeRequest(size: .points(width: 640, height: 260), fill: false,
                                            scale: UIScreen.main.scale).normalized
@@ -1205,7 +1207,7 @@ struct OrbitDetailView: View {
             .opacity(launching || cinema ? 0 : 1)
             .transaction { if launching || cinema { $0.animation = nil } }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { box in
-                if !launching { heroTitleBox = box }
+                if !launching, section == .hero { places.heroTitle = box }
             }
             // A fixed height: the age box (taller than the text) arrives with the details and
             // made the line, so the whole block, move.
@@ -1251,14 +1253,13 @@ struct OrbitDetailView: View {
                             .frame(maxWidth: .infinity, alignment: synopsisFits ? .trailing : .leading)
                             // Steven: a touch lower, level with the buttons.
                             .offset(y: 8)
-                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { synopsisBox = $0 }
                         if !synopsisFits {
                             OrbitSynopsisArrow(focused: focus == .synopsis) {
                                 // (The panel opens itself, out of the arrow.)
                                 showSynopsis = true
                             }
                             .focused($focus, equals: .synopsis)
-                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { synopsisArrowBox = $0 }
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { places.synopsisArrow = $0 }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -2740,4 +2741,12 @@ struct OrbitFirstSectionTitle: ViewModifier {
             }
         }
     }
+}
+
+
+/// Places on screen the title page reads when it needs them (a launch, the synopsis' bubble), written
+/// as they move without redrawing the page (a reference, not the page's state).
+final class OrbitDetailPlaces {
+    var heroTitle: CGRect = .zero
+    var synopsisArrow: CGRect = .zero
 }
