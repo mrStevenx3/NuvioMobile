@@ -95,6 +95,11 @@ func orbitPrimeIsOwn(_ item: MetaPreview) -> Bool {
 
 /// Steven: the "prime" mark only on Amazon's own productions (TMDB's producers) — the add-on's
 /// "Amazon Original et exclusivités" also holds titles it only carries.
+/// A page's rows already warmed (a box: noting them redraws nothing).
+final class OrbitWarmedRows {
+    var ids = Set<String>()
+}
+
 /// Values worked out once per key until the titles' details change (the store's revision).
 final class OrbitRevisionMemo<Value> {
     private var revision = -1
@@ -649,9 +654,20 @@ struct OrbitPrimePage: View {
         refreshAfterMove()
     }
 
+    /// The rows whose first titles' details were already asked ahead.
+    @State private var warmed = OrbitWarmedRows()
+
     private func refreshAfterMove() {
         let rows = rows
         motion.stamp()
+        // Steven (2026-10-30: Prime's tiles slow to show the first time — each waits for its title's
+        // details, its art without text): as the page opens, the first titles of every row are asked
+        // at once, behind the ones on screen (asked just after, so first).
+        let cold = rows.filter { !warmed.ids.contains($0.id) }
+        if !cold.isEmpty {
+            OrbitMetaStore.shared.request(cold.flatMap { Array($0.items.prefix(8)) })
+            warmed.ids.formUnion(cold.map(\.id))
+        }
         var metaItems: [MetaPreview] = heroItems + heroCandidates
         let r = rowIndex(of: current) ?? 0
         for i in r...max(r, min(rows.count - 1, r + 2)) where rows.indices.contains(i) {
