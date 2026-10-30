@@ -19,7 +19,7 @@ final class OrbitStudioBanners: ObservableObject {
         if t.contains("lucas") || t.contains("starwars") { return 11 }  // Star Wars : Un nouvel espoir
         if t.contains("illumination") { return 211672 }   // Les Minions
         if t.contains("universal") { return 329 }          // Jurassic Park
-        if t.contains("warner") { return 438631 }          // Dune
+        if t.contains("warner") { return 671 }             // Harry Potter à l'école des sorciers (Steven)
         if t.contains("pathe") { return 1084736 }          // Le Comte de Monte-Cristo (2024)
         if t.contains("blum") { return 419430 }            // Get Out
         if t.contains("disney") { return 38757 }           // Raiponce
