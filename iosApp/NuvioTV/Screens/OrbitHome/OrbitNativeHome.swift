@@ -1361,12 +1361,19 @@ struct OrbitNativeOpenRow: View {
                                    }
                                    return
                                }
+                               // Steven (2026-10-30: at the app's opening, down from the hero, the page's
+                               // colour stayed black until a move in the row): entering the row on its
+                               // lead changed nothing, so nothing told the page this title's colour.
+                               var entered = false
                                if !stripHasFocus {
                                    stripHasFocus = true
                                    onEnter()
+                                   entered = true
                                }
                                if v != lead {
                                    lead = v
+                                   leadChanged()
+                               } else if entered {
                                    leadChanged()
                                }
                            },
