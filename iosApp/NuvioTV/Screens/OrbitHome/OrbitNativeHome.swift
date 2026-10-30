@@ -410,12 +410,7 @@ private struct OrbitNativeTopCover: View {
     @ObservedObject private var state = OrbitNativeHomeState.shared
 
     var body: some View {
-        ZStack {
-            OrbitMirroredWash(mirror: OrbitWashMirror.home)
-            // (The same thick blur as the page under it, so the band is the page itself.)
-            OrbitThickBlur(url: state.art, settle: OrbitHomeThickBlur.settle)
-                .modifier(OrbitHomeThickBlur())
-        }
+        OrbitMirroredWash(mirror: OrbitWashMirror.home)
             .mask(alignment: .top) {
                 LinearGradient(stops: [.init(color: .black, location: 0),
                                        .init(color: .black, location: 0.7),
@@ -438,13 +433,8 @@ private struct OrbitNativeBackdrop: View {
     @ObservedObject private var state = OrbitNativeHomeState.shared
 
     var body: some View {
-        ZStack {
-            OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
-            // Steven (2026-10-30, trying the title page's thick blur on Home): the focused title's
-            // picture reduced to its colour fields, over the wash, once the row rests.
-            OrbitThickBlur(url: state.art, settle: OrbitHomeThickBlur.settle)
-                .modifier(OrbitHomeThickBlur())
-        }
+        // (Steven, 2026-10-30: the thick blur tried on Home — back to the wash.)
+        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
             .opacity(visible ? 1 : 0)
             .animation(.easeInOut(duration: 0.35), value: visible)
             .ignoresSafeArea()
@@ -1110,7 +1100,7 @@ struct OrbitNativeTile: View {
                 OrbitSmallPoster(card: card, meta: meta, focused: isFocused, size: OrbitTileLayout.sagaPoster)
             }
         }
-        .modifier(OrbitPosterDepth(focused: isFocused))
+        // (Steven, 2026-10-30: the depth effect tried — taken off.)
         .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
