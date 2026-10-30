@@ -971,9 +971,10 @@ private struct OrbitHBOGlassText: View {
     var bright = false
 
     var body: some View {
-        // (HBO Max's lettering: rounded, wide strokes.)
-        let font = Font.system(size: size, weight: .medium, design: .rounded)
-        let w = max(1.5, size * (bright ? 0.026 : 0.02))
+        // (Steven, after trying it: the rounded letters too round, the rims too thick — the plain
+        // lettering again, a finer rim.)
+        let font = Font.system(size: size, weight: .medium)
+        let w = max(1.2, size * (bright ? 0.018 : 0.014))
         // (Steven: the 1 and the 0 of 10 touching.)
         let tight: CGFloat = text == "10" ? -size * 0.09 : 0
         let offsets: [CGSize] = (0..<16).map { i in
@@ -989,8 +990,8 @@ private struct OrbitHBOGlassText: View {
                                          .init(color: Color(white: 0.68), location: 1)],
                                  startPoint: .top, endPoint: .bottom)
         let glass = LinearGradient(stops: [.init(color: Color(red: 0.05, green: 0.055, blue: 0.07), location: 0),
-                                           .init(color: Color(red: 0.11, green: 0.12, blue: 0.14), location: 0.55),
-                                           .init(color: Color(red: 0.27, green: 0.28, blue: 0.31), location: 1)],
+                                           .init(color: Color(red: 0.09, green: 0.10, blue: 0.12), location: 0.55),
+                                           .init(color: Color(red: 0.19, green: 0.20, blue: 0.23), location: 1)],
                                    startPoint: .top, endPoint: .bottom)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         let glyph = Text(text).font(font).kerning(tight)
@@ -1004,7 +1005,7 @@ private struct OrbitHBOGlassText: View {
             // The glint: the glyph less itself moved down a little — a fine light band just inside
             // its upper edges.
             ZStack {
-                glyph.foregroundStyle(Color.white.opacity(0.32))
+                glyph.foregroundStyle(Color.white.opacity(0.22))
                 glyph.foregroundStyle(Color.black).offset(y: w * 1.8).blendMode(.destinationOut)
             }
             .compositingGroup()
