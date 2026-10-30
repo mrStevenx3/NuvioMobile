@@ -168,8 +168,16 @@ struct OrbitSettingsView: View {
         }
         .frame(width: 470, alignment: .leading)
         .focusSection()
-        .onChange(of: focusedSection) { _, section in
-            if let section, section != selected { selected = section }
+        .onChange(of: focusedSection) { old, section in
+            guard let section else { return }
+            // Steven (2026-10-31: right, then left — the cursor did not come back to its section):
+            // coming into the list from elsewhere (the settings on the right, the bar), the engine
+            // took the nearest section; it goes back to the one being read.
+            if old == nil, section != selected {
+                DispatchQueue.main.async { focusedSection = selected }
+                return
+            }
+            if section != selected { selected = section }
         }
         // Menu on the list: up to the Orbit bar.
         .onExitCommand { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
