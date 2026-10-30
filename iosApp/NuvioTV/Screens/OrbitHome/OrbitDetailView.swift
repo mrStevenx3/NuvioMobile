@@ -203,6 +203,8 @@ struct OrbitDetailView: View {
     @State private var postPlayPending: MetaPreview?
     @State private var postPlayRoute: TitleRoute?
     @State private var showSynopsis = false
+    /// Where the synopsis sits on screen (its panel opens out of it, and folds back into it).
+    @State private var synopsisBox: CGRect = .zero
     /// The synopsis on the buttons' line, as shown (two lines at most) and in full.
     @State private var synopsisShownHeight: CGFloat = 0
     @State private var synopsisFullHeight: CGFloat = 0
@@ -531,11 +533,12 @@ struct OrbitDetailView: View {
             }
 
             if showSynopsis, let overview {
-                OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview) {
-                    withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = false }
+                OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview, from: synopsisBox) {
+                    // (It has folded back into the synopsis by now.)
+                    showSynopsis = false
                     DispatchQueue.main.async { focus = .synopsis }
                 }
-                .transition(.opacity)
+                .transition(.identity)
                 .zIndex(10)
             }
         }
@@ -1237,9 +1240,11 @@ struct OrbitDetailView: View {
                             .frame(maxWidth: .infinity, alignment: synopsisFits ? .trailing : .leading)
                             // Steven: a touch lower, level with the buttons.
                             .offset(y: 8)
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { synopsisBox = $0 }
                         if !synopsisFits {
                             OrbitSynopsisArrow(focused: focus == .synopsis) {
-                                withAnimation(.easeInOut(duration: 0.25)) { showSynopsis = true }
+                                // (The panel opens itself, out of the synopsis.)
+                                showSynopsis = true
                             }
                             .focused($focus, equals: .synopsis)
                         }
@@ -2193,16 +2198,28 @@ private struct OrbitSynopsisPanel: View {
     let title: String
     let logoURL: String?
     let text: String
+    /// The synopsis on screen: the panel opens out of it and folds back into it (Steven, 2026-10-30:
+    /// it appeared in the middle of the screen, "pas naturel").
+    var from: CGRect = .zero
     let onClose: () -> Void
 
     @FocusState private var focused: Bool
+    @State private var open = false
+    @State private var closing = false
+    static let width: CGFloat = 1240
 
     var body: some View {
+        let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
+        // From the synopsis' place and width to the middle, full size.
+        let known = from.width > 1
+        let start = known ? max(0.2, from.width / Self.width) : 0.9
+        let offset = known ? CGSize(width: from.midX - W / 2, height: from.midY - H / 2) : .zero
         ZStack {
-            Color.black.opacity(0.7).ignoresSafeArea()
-            Button(action: onClose) {
+            Color.black.opacity(open ? 0.7 : 0).ignoresSafeArea()
+            Button(action: close) {
                 VStack(alignment: .leading, spacing: 30) {
                     OrbitTitleMark(name: title, logo: logoURL, maxSize: CGSize(width: 500, height: 160), textSize: 54)
+                        .opacity(open ? 1 : 0)
                     ScrollView(.vertical, showsIndicators: false) {
                         Text(text)
                             .font(.system(size: 30, weight: .medium))
@@ -2213,16 +2230,30 @@ private struct OrbitSynopsisPanel: View {
                     .frame(maxHeight: 520)
                 }
                 .padding(60)
-                .frame(width: 1240, alignment: .leading)
+                .frame(width: Self.width, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(.ultraThinMaterial))
                 .overlay(RoundedRectangle(cornerRadius: 34, style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
                 .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(OrbitGlass.tint))
+                .scaleEffect(open ? 1 : start)
+                .offset(open ? .zero : offset)
+                .opacity(open ? 1 : 0)
             }
             .buttonStyle(OrbitPlainStyle())
             .focused($focused)
-            .onExitCommand(perform: onClose)
+            .onExitCommand(perform: close)
         }
-        .onAppear { DispatchQueue.main.async { focused = true } }
+        .onAppear {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.88)) { open = true }
+            DispatchQueue.main.async { focused = true }
+        }
+    }
+
+    /// Folded back into the synopsis, then gone.
+    private func close() {
+        guard !closing else { return }
+        closing = true
+        withAnimation(.easeIn(duration: 0.28)) { open = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { onClose() }
     }
 }
 
