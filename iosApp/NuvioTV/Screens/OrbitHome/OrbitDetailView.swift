@@ -1629,10 +1629,11 @@ private struct OrbitDetailBackground: View {
                 // (Steven, 2026-10-30: lighter was busy on a crowded art — back to the shades as they were.)
                 // (Steven, 2026-10-30: a little less on the side — the synopsis now carries its own
                 // soft shadow.)
+                // (Steven, 2026-10-30: the same side shade as the Home and studio heroes, for one look.)
                 LinearGradient(stops: [
-                    .init(color: .black.opacity(0.62), location: 0),
-                    .init(color: .black.opacity(0.26), location: 0.45),
-                    .init(color: .clear, location: 0.68),
+                    .init(color: OrbitHomeLayout.background.opacity(0.6), location: 0),
+                    .init(color: OrbitHomeLayout.background.opacity(0.3), location: 0.38),
+                    .init(color: .clear, location: 0.64),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
                     .init(color: .clear, location: 0.35),
