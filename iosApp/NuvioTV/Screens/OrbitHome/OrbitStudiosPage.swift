@@ -380,7 +380,9 @@ private struct OrbitStudioFrame: View {
             // meant): the image glides slowly from side to side, exactly as Netflix's billboard (drawn
             // a little larger, 16 s each way), on the Apple TV's own animator.
             let travel = size.width * 0.05
-            OrbitSlowDrift(active: !reduceMotion, key: url ?? "-",
+            // (Steven, 2026-10-30: the image went back to the middle before the next studio's — one
+            // glide for the page, the next image coming in on it where it is.)
+            OrbitSlowDrift(active: !reduceMotion, key: "studios-banner",
                            from: CATransform3DMakeTranslation(travel, 0, 0),
                            to: CATransform3DMakeTranslation(-travel, 0, 0),
                            duration: 16, timing: .easeInEaseOut) {

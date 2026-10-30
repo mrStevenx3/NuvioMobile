@@ -873,11 +873,12 @@ struct OrbitPlatformIntro: View {
 
     /// The glow out first (cheap to move after), then the logo to its corner on one smooth curve.
     private func glideToCorner() {
-        withAnimation(.easeOut(duration: 0.2)) { glow = 0 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            guard phase == .splash else { return }
-            withAnimation(.timingCurve(0.3, 0.0, 0.2, 1.0, duration: 0.8)) { phase = .settled }
-        }
+        // Steven (2026-10-30: "il s'illumine, se désillumine, le logo bloque, puis va à son
+        // emplacement — pas un effet continu"): the glow went out, then a pause, then the glide. Now one
+        // gesture: it leaves at once, its glow fading as it goes.
+        guard phase == .splash else { return }
+        withAnimation(.easeOut(duration: 0.4)) { glow = 0 }
+        withAnimation(.timingCurve(0.3, 0.0, 0.2, 1.0, duration: 0.8)) { phase = .settled }
     }
 
     /// The logo switched on as a neon sign: two quick flickers, then full light with its flash,

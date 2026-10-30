@@ -989,9 +989,8 @@ private struct OrbitHBOGlassText: View {
         // Steven (2026-10-30, Max's own Top 10 photo: "reprends plutôt ce style-là"): a fine
         // blue-violet outline, lighter at the top, around letters as dark as the page — no chrome,
         // no glint.
-        let rim = LinearGradient(colors: [Color(red: 0.66, green: 0.64, blue: 1.0),
-                                          Color(red: 0.36, green: 0.38, blue: 0.9)],
-                                 startPoint: .top, endPoint: .bottom)
+        // (Steven, 2026-10-30: the whole outline blue-violet — one colour, top to bottom.)
+        let rim = Color(red: 0.42, green: 0.42, blue: 0.96)
         let glass = Color(red: 0.03, green: 0.035, blue: 0.09)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         let glyph = Text(text).font(font).kerning(tight)
