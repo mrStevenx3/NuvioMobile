@@ -126,7 +126,10 @@ struct OrbitNativeHome: View {
     /// (Steven: then Down no longer left the hero — the lazy column never built a first row wholly
     /// off screen, so the focus had nowhere to go. Its top edge stays on the screen's last points,
     /// where nothing of it shows.)
-    static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine - sectionGap - 2 }
+    /// Steven (2026-10-30, as the Apple TV app): the first row peeks in at the bottom of the hero —
+    /// its heading and the top of its titles — so it is plain there is more below.
+    static let firstRowPeek: CGFloat = 150
+    static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine - sectionGap - firstRowPeek }
     /// (Steven: 12 points taken from here went above the details, so the rows stay in place.)
     /// Steven (2026-10-29: "un petit peu d'espace entre chaque ligne comme dans l'application Apple
     /// TV"): 44 → 72, about Apple's own gap between a row's posters and the next heading.
