@@ -454,7 +454,7 @@ private struct OrbitNativeBackdrop: View {
 
     var body: some View {
         // (Steven, 2026-10-30: the thick blur tried on Home — back to the wash.)
-        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
+        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil, rest: 0)
             .opacity(visible ? 1 : 0)
             .animation(.easeInOut(duration: 0.35), value: visible)
             .ignoresSafeArea()
@@ -1372,9 +1372,10 @@ struct OrbitNativeOpenRow: View {
                                }
                                if v != lead {
                                    lead = v
-                                   leadChanged()
+                                   // (Entering from above: no slide to wait for — its colour at once.)
+                                   if entered { leadChangedNow() } else { leadChanged() }
                                } else if entered {
-                                   leadChanged()
+                                   leadChangedNow()
                                }
                            },
                            onSelect: { _ in if count > 0 { open(card(lead)) } })
@@ -1405,6 +1406,14 @@ struct OrbitNativeOpenRow: View {
         .onAppear {
             // A looping row starts in its middle copy (once).
             placeInLoop()
+            // (Its lead's colour worked out ahead: entering the row shows it at once — Steven: Home
+            // black a moment down from the hero.)
+            if count > 0 {
+                let card = card(lead)
+                if let raw = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop {
+                    Task { _ = await OrbitDominantColor.color(for: raw) }
+                }
+            }
             // Back from a title opened here: its place takes the focus back.
             if let target = OrbitNativeRow.reopen, target.row == row.id,
                let i = row.cards.firstIndex(where: { $0.id == target.card }) {
@@ -1497,7 +1506,7 @@ struct OrbitNativeOpenRow: View {
         .onChange(of: rowFocused) { _, focused in
             if focused {
                 onEnter()
-                leadChanged()
+                leadChangedNow()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
@@ -1602,6 +1611,10 @@ struct OrbitNativeOpenRow: View {
             let neighbour = self.card(v)
             let raw: String? = neighbour.landscape ?? metaStore.meta(for: neighbour.preview)?.backdrop
             guard let raw, let url = URL(string: raw) else { continue }
+            // (Their colours too, ahead: the wash changes as soon as the slide ends.)
+            if OrbitDominantColor.cached(raw) == nil {
+                Task { _ = await OrbitDominantColor.color(for: raw) }
+            }
             let best = ArtworkURLUpgrade.upgraded(url, role: .backdrop) ?? url
             if ArtworkStore.cached(best, decode: request) == nil {
                 Task { _ = try? await ArtworkStore.fetch(best, decode: request) }

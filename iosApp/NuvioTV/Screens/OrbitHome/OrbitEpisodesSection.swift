@@ -69,15 +69,17 @@ struct OrbitEpisodesSection: View {
     static let detailsWidth: CGFloat = 1300
 
     /// Steven (2026-10-29): the episodes a little larger with the larger seasons (was 384 × 216).
-    static let stillSize = CGSize(width: 416, height: 234)
+    /// (Steven, 2026-10-31, photo: the episode's synopsis cut at the screen's foot — smaller, and the
+    /// gaps above them tighter, so its two lines show whole: 60 points up.)
+    static let stillSize = CGSize(width: 352, height: 198)
     /// Steven (2026-10-24, 2026-10-29 twice): larger season posters (180 × 270, then 210 × 315).
     static let seasonSize = CGSize(width: 240, height: 360)
     /// The episode row's height (card, title, a little room): fixed, so a season change — the old
     /// row fading out while the new one fades in — never stacks two rows (the page bounced).
     /// Steven (2026-10-29): the episodes closer to their synopsis (the room under them was 36).
-    static var episodeRowHeight: CGFloat { stillSize.height + 12 + 30 + 10 }
+    static var episodeRowHeight: CGFloat { stillSize.height + 12 + 30 + 2 }
     /// Steven (2026-10-29): the episodes further from the seasons above them (they sit lower).
-    static let seasonsToEpisodes: CGFloat = 44
+    static let seasonsToEpisodes: CGFloat = 28
 
     private var seasons: [Int] {
         let all = Set(meta.videos.compactMap { $0.season?.value })

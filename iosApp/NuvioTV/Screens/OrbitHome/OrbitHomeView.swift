@@ -412,6 +412,9 @@ struct OrbitRowsBackdrop: View {
     var opaque = true
     /// Its colours told to a mirror too (the views that show the same wash).
     var mirror: OrbitWashMirror? = nil
+    /// The wait for the remote to rest before the colour changes (ms). Home's own rows already wait
+    /// for their slide's end before they tell the page a new title: none again here.
+    var rest: Int = OrbitRowsBackdrop.wait
 
     /// Steven (device: the art behind the rows looked overloaded): no image any more — a soft wash
     /// of the focused title's dominant colour from the top right, fading into the page (as the
@@ -458,7 +461,11 @@ struct OrbitRowsBackdrop: View {
             // caught up in a jump. The colour now changes once the slide has ended (about 0.5 s).
             // Steven (2026-10-29, the rows now UIKit — their slides no longer held up by a redraw):
             // more reactive again, 250 ms, and the headings' bar with the wash, on its curve.
-            do { try await Task.sleep(for: .milliseconds(Self.wait)) } catch { return }
+            // (Steven, 2026-10-31, video: Home black ~1 s down from the hero, and every colour
+            // slow — two waits in a row: the row's, then this one again.)
+            if rest > 0 {
+                do { try await Task.sleep(for: .milliseconds(rest)) } catch { return }
+            }
             if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
                 show(color)
                 // (Only the Home on screen: the hidden one's colour no longer reaches the headings.)
