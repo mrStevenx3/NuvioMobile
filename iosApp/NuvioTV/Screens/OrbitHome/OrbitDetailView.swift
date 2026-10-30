@@ -207,6 +207,8 @@ struct OrbitDetailView: View {
     @State private var showSynopsis = false
     /// Where the synopsis sits on screen (its panel opens out of it, and folds back into it).
     @State private var synopsisBox: CGRect = .zero
+    /// The synopsis' arrow on screen: the full synopsis comes out of it as a bubble.
+    @State private var synopsisArrowBox: CGRect = .zero
     /// The synopsis on the buttons' line, as shown (two lines at most) and in full.
     @State private var synopsisShownHeight: CGFloat = 0
     @State private var synopsisFullHeight: CGFloat = 0
@@ -558,7 +560,7 @@ struct OrbitDetailView: View {
             }
 
             if showSynopsis, let overview {
-                OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview, from: synopsisBox) {
+                OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview, from: synopsisArrowBox) {
                     // (It has folded back into the synopsis by now.)
                     showSynopsis = false
                     DispatchQueue.main.async { focus = .synopsis }
@@ -1268,10 +1270,11 @@ struct OrbitDetailView: View {
                             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { synopsisBox = $0 }
                         if !synopsisFits {
                             OrbitSynopsisArrow(focused: focus == .synopsis) {
-                                // (The panel opens itself, out of the synopsis.)
+                                // (The panel opens itself, out of the arrow.)
                                 showSynopsis = true
                             }
                             .focused($focus, equals: .synopsis)
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { synopsisArrowBox = $0 }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -2198,7 +2201,8 @@ private struct OrbitSynopsisArrow: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "chevron.down")
+            // (Steven, 2026-10-30: the arrow points left — the bubble comes out of it.)
+            Image(systemName: "chevron.left")
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(focused ? Color.black : Color.white)
                 .frame(width: 104, height: 68)
@@ -2231,8 +2235,10 @@ private struct OrbitSynopsisPanel: View {
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         // From the synopsis' place and width to the middle, full size.
+        // Steven (2026-10-30: "une bulle qui part de la flèche et s'ouvre en grand au centre"): a
+        // bubble growing out of the arrow, to the middle; it shrinks back into the arrow.
         let known = from.width > 1
-        let start = known ? max(0.2, from.width / Self.width) : 0.9
+        let start: CGFloat = known ? 0.04 : 0.9
         let offset = known ? CGSize(width: from.midX - W / 2, height: from.midY - H / 2) : .zero
         ZStack {
             Color.black.opacity(open ? 0.7 : 0).ignoresSafeArea()
@@ -2263,7 +2269,7 @@ private struct OrbitSynopsisPanel: View {
             .onExitCommand(perform: close)
         }
         .onAppear {
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.88)) { open = true }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { open = true }
             DispatchQueue.main.async { focused = true }
         }
     }
