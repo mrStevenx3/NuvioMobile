@@ -172,6 +172,8 @@ struct OrbitDetailView: View {
     /// grows while the page fades into the loading screen's blurred art; the loading screen then
     /// takes over with the logo in the same place, which lights up.
     @State private var launching = false
+    /// When the launch's light-up begins (the end of the glide).
+    @State private var launchLightStart: Date?
     /// Steven (2026-10-29, device, twice: two or three logos during the glide). No more matched
     /// views: the hero's title is hidden at once, and ONE logo — the loading screen's own — is put
     /// exactly over it and glides to the middle (`launchGlide` 0 → 1).
@@ -887,14 +889,14 @@ struct OrbitDetailView: View {
         // the loading screen draws it.
         let from = launchFrom
         let g = launchGlide
-        return TimelineView(.animation(minimumInterval: 1.0 / 60)) { timeline in
-            OrbitLoadingView.logo(logoURL, title: title)
-                // Steven (2026-10-30, video: the logo reached the middle dim and pale, then the screen
-                // went black — it never lit up before his eyes): it dims on its way, then lights up
-                // right there, as soon as it has arrived, on the loading screen's own clock (the
-                // loading screen, taking over, carries the very same light on).
-                .brightness(g < 1 ? -0.45 * Double(g) : OrbitLoadingView.dimming(at: timeline.date))
-        }
+        // Steven (2026-10-30): it dims on its way (the dimmed copy coming in with the glide), then
+        // lights up as soon as it has arrived, on the loading screen's clock — the copy fading out
+        // on the screen's own animator (smooth while the film is being opened).
+        return OrbitLoadingView.logo(logoURL, title: title)
+            .overlay {
+                OrbitDimFade(start: launchLightStart) { OrbitLoadingView.logo(logoURL, title: title) }
+                    .opacity(Double(g))
+            }
             .frame(width: 640, height: 260, alignment: .center)
             // From exactly over the hero's title (its size and place) to the loading screen's.
             .scaleEffect(from.map { $0.scale + ($0.scale.distance(to: 1)) * g } ?? 1)
@@ -951,6 +953,7 @@ struct OrbitDetailView: View {
         }
         // The light-up begins as the glide ends (the loading screen goes on from it).
         OrbitLoadingView.lightStartedAt = Date().addingTimeInterval(0.5)
+        launchLightStart = OrbitLoadingView.lightStartedAt
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.5)) { launchGlide = 1 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -1176,6 +1179,7 @@ struct OrbitDetailView: View {
                             .lineSpacing(4)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
+                            .modifier(OrbitHeroTextShade())
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisShownHeight = $0 }
                             // The whole text at the same width, unseen: shorter than two lines, the
                             // arrow has nothing more to open.
@@ -1623,10 +1627,12 @@ private struct OrbitDetailBackground: View {
             // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
             Group {
                 // (Steven, 2026-10-30: lighter was busy on a crowded art — back to the shades as they were.)
+                // (Steven, 2026-10-30: a little less on the side — the synopsis now carries its own
+                // soft shadow.)
                 LinearGradient(stops: [
-                    .init(color: .black.opacity(0.78), location: 0),
-                    .init(color: .black.opacity(0.35), location: 0.45),
-                    .init(color: .clear, location: 0.7),
+                    .init(color: .black.opacity(0.62), location: 0),
+                    .init(color: .black.opacity(0.26), location: 0.45),
+                    .init(color: .clear, location: 0.68),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
                     .init(color: .clear, location: 0.35),

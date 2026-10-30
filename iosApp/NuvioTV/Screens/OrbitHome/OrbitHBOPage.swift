@@ -984,14 +984,17 @@ private struct OrbitHBOGlassText: View {
         // Steven (2026-10-30, HBO Max's own Top 10 as the model): a thin silver rim, brightest along
         // the tops of the strokes and greyer below; dark glass inside, darkest at the top and
         // lighter towards the bottom; a fine glint just inside the upper edges.
-        let rim = LinearGradient(stops: [.init(color: Color(white: 0.98), location: 0),
-                                         .init(color: Color(white: 0.78), location: 0.35),
-                                         .init(color: Color(white: 0.42), location: 0.75),
-                                         .init(color: Color(white: 0.68), location: 1)],
+        // (Steven, 2026-10-30, photo: the rim as polished metal, the inside darker.) Chrome: bright,
+        // a dark band, bright again, darker at the foot.
+        let rim = LinearGradient(stops: [.init(color: Color(white: 0.96), location: 0),
+                                         .init(color: Color(white: 0.62), location: 0.28),
+                                         .init(color: Color(white: 0.9), location: 0.5),
+                                         .init(color: Color(white: 0.38), location: 0.78),
+                                         .init(color: Color(white: 0.7), location: 1)],
                                  startPoint: .top, endPoint: .bottom)
-        let glass = LinearGradient(stops: [.init(color: Color(red: 0.05, green: 0.055, blue: 0.07), location: 0),
-                                           .init(color: Color(red: 0.09, green: 0.10, blue: 0.12), location: 0.55),
-                                           .init(color: Color(red: 0.19, green: 0.20, blue: 0.23), location: 1)],
+        let glass = LinearGradient(stops: [.init(color: Color(red: 0.02, green: 0.025, blue: 0.035), location: 0),
+                                           .init(color: Color(red: 0.05, green: 0.055, blue: 0.07), location: 0.55),
+                                           .init(color: Color(red: 0.12, green: 0.13, blue: 0.15), location: 1)],
                                    startPoint: .top, endPoint: .bottom)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         let glyph = Text(text).font(font).kerning(tight)
@@ -1005,7 +1008,7 @@ private struct OrbitHBOGlassText: View {
             // The glint: the glyph less itself moved down a little — a fine light band just inside
             // its upper edges.
             ZStack {
-                glyph.foregroundStyle(Color.white.opacity(0.22))
+                glyph.foregroundStyle(Color.white.opacity(0.16))
                 glyph.foregroundStyle(Color.black).offset(y: w * 1.8).blendMode(.destinationOut)
             }
             .compositingGroup()

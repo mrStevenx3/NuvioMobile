@@ -1345,17 +1345,17 @@ private struct OrbitStudioHero: View {
                 // Steven (2026-10-30: "un brouillard de la couleur du fond du studio sur la gauche et le
                 // bas"): the art no longer turns see-through over the studio's colour — it is shaded
                 // as Home's hero is, into the page's own dark, on the left and at the bottom.
-                // (Steven, 2026-10-30: the shade too strong on the left and at the bottom — lighter.)
+                // (Steven, 2026-10-30: "pareil que le hero de l'accueil" — Home's shades exactly.)
                 LinearGradient(stops: [
-                    .init(color: OrbitHomeLayout.background.opacity(0.6), location: 0),
-                    .init(color: OrbitHomeLayout.background.opacity(0.25), location: 0.34),
-                    .init(color: .clear, location: 0.55),
+                    .init(color: OrbitHomeLayout.background.opacity(0.88), location: 0),
+                    .init(color: OrbitHomeLayout.background.opacity(0.45), location: 0.38),
+                    .init(color: .clear, location: 0.64),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
-                    .init(color: .black.opacity(0.35), location: 0),
-                    .init(color: .clear, location: 0.14),
-                    .init(color: .clear, location: 0.72),
-                    .init(color: OrbitHomeLayout.background.opacity(0.85), location: 1),
+                    .init(color: .black.opacity(0.45), location: 0),
+                    .init(color: .clear, location: 0.16),
+                    .init(color: .clear, location: 0.6),
+                    .init(color: OrbitHomeLayout.background, location: 0.97),
                 ], startPoint: .top, endPoint: .bottom)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
@@ -1380,6 +1380,7 @@ private struct OrbitStudioHero: View {
                     OrbitTitleMark(name: item.name, logo: info.logo, maxSize: CGSize(width: 600, height: 180), textSize: 62)
                         .frame(width: 600, height: 180, alignment: .bottomLeading)
                     OrbitMetaLine(info: info, size: 27)
+                        .modifier(OrbitHeroTextShade())
                         .frame(height: 36)
                         .padding(.top, 24)
                     Text(info.synopsis)
@@ -1388,6 +1389,7 @@ private struct OrbitStudioHero: View {
                         .lineSpacing(4)
                         .lineLimit(2)
                         .frame(width: 880, alignment: .leading)
+                        .modifier(OrbitHeroTextShade())
                         .padding(.top, 18)
                     HStack(spacing: 18) {
                         Text("Voir la fiche")

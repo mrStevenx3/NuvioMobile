@@ -46,7 +46,8 @@ struct OrbitStudiosPage: View {
     static let tileSize = CGSize(width: 236, height: 133)
     static let tileSpacing: CGFloat = 36  // Home's 16:9 gap (Steven, 2026-10-29)
     static let heroTop: CGFloat = 112
-    static let logoSize = CGSize(width: 460, height: 130)
+    /// (Steven, 2026-10-30: larger, now the image spans the screen — was 460 × 130.)
+    static let logoSize = CGSize(width: 640, height: 180)
     /// The framed backdrop, top right.
     /// Steven (2026-10-26): the large image takes the top of the screen, the studios under it at
     /// the bottom (their size unchanged).
@@ -83,7 +84,8 @@ struct OrbitStudiosPage: View {
                 // top's middle across the whole screen, darker towards the bottom.
                 RadialGradient(colors: [ground.opacity(0.6), ground.opacity(0.34), ground.opacity(0.12)],
                                center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
-                LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
+                // (Steven, 2026-10-30, DC Studios: a dark band too strong at the bottom — lighter, lower.)
+                LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: groundId)
@@ -303,7 +305,7 @@ struct OrbitStudiosPage: View {
         VStack(alignment: .leading, spacing: 16) {
             ZStack(alignment: .bottomLeading) {
                 if let url = Self.logoURL(folder) {
-                    OrbitBalancedLogo(url: url, area: 38_000, maxSize: Self.logoSize,
+                    OrbitBalancedLogo(url: url, area: 72_000, maxSize: Self.logoSize,
                                       whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)

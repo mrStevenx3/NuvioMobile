@@ -20,6 +20,8 @@ struct OrbitLoadingView: View {
     /// Steven (2026-10-28, B): the logo comes up dim and lights up, a glow in the film's own colour
     /// (as the platforms' logos switch on), then breathes.
     @State private var lit = false
+    /// The light-up's start this screen follows (the one already begun, from its first frame).
+    @State private var lightStart: Date? = OrbitLoadingView.lightStartedAt
     @State private var glow: Double = 0
     @State private var tone: Color?
 
@@ -88,14 +90,19 @@ struct OrbitLoadingView: View {
                 TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
                     let now = timeline.date
                     VStack(spacing: 40) {
+                        // Steven (2026-10-29: "le logo se place au centre et s'illumine"): come to the
+                        // middle a little dim, it lights up once — no pulse, no halo.
+                        // Steven (2026-10-30: "ça arrive par saccade"): the light was worked out frame by
+                        // frame on the main thread, busy opening the film then — it stepped. A dimmed
+                        // copy over the logo now fades out on the screen's own animator, smooth
+                        // whatever the app is doing.
                         mark
-                            // (Steven, 2026-10-29: still a glow — the halo behind the logo, white then the
-                            // film's colour once read, changed under his eyes. No halo: the logo alone.)
-                            // Steven (2026-10-29, later: "le logo se place au centre et s'illumine"): come
-                            // to the middle a little dim, it lights up once — no pulse, no halo.
-                            // (Its very first frames come before `onAppear` starts the light: an opening
-                            // with no light begun yet — or an old one — starts dim, never lit then dimmed.)
-                            .brightness(lightsUp && Self.lightIsStale(at: now) ? -0.45 : Self.dimming(at: now))
+                            .overlay {
+                                OrbitDimFade(start: lightStart,
+                                             dimFully: lightsUp && Self.lightIsStale(at: Date(), start: lightStart)) {
+                                    mark
+                                }
+                            }
                             .opacity(Self.breath(at: now))
                         Text("Encore un instant…")
                             .font(.system(size: 26, weight: .medium))
@@ -121,8 +128,12 @@ struct OrbitLoadingView: View {
             }
             lit = false
             // (The same opening seen again — the page drawn anew — does not dim the logo again.)
-            if let started = Self.lightStartedAt, Date().timeIntervalSince(started) < 3 { return }
+            if let started = Self.lightStartedAt, Date().timeIntervalSince(started) < 3 {
+                lightStart = started
+                return
+            }
             Self.lightStartedAt = Date().addingTimeInterval(0.1)
+            lightStart = Self.lightStartedAt
         }
         .task(id: backdropUrl ?? "-") {
             guard let backdropUrl, !backdropUrl.isEmpty else { return }
@@ -148,8 +159,8 @@ struct OrbitLoadingView: View {
     static let lightDuration: Double = 1.1
 
     /// No light-up begun lately (none yet, or one from an earlier opening).
-    static func lightIsStale(at date: Date) -> Bool {
-        guard let start = lightStartedAt else { return true }
+    static func lightIsStale(at date: Date, start: Date? = OrbitLoadingView.lightStartedAt) -> Bool {
+        guard let start else { return true }
         return date.timeIntervalSince(start) > 3
     }
 
@@ -159,5 +170,74 @@ struct OrbitLoadingView: View {
         let t = min(1, max(0, date.timeIntervalSince(start) / lightDuration))
         let eased = 1 - pow(1 - t, 3)
         return -0.45 * (1 - eased)
+    }
+}
+
+
+/// A dimmed copy of `content` laid over it, fading out from `start` over the light-up's duration —
+/// animated by Core Animation (the render server), so it stays smooth while the main thread is busy.
+/// `dimFully`: held dim (no light-up begun yet). No start: not drawn (lit).
+struct OrbitDimFade<Content: View>: UIViewRepresentable {
+    let start: Date?
+    var dimFully = false
+    @ViewBuilder let content: () -> Content
+
+    final class Coordinator {
+        var host: UIHostingController<AnyView>?
+        var key: String?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        let host = UIHostingController(rootView: AnyView(dimmed))
+        host.safeAreaRegions = []
+        host.view.backgroundColor = .clear
+        host.view.frame = view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(host.view)
+        context.coordinator.host = host
+        apply(view, context.coordinator)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.host?.rootView = AnyView(dimmed)
+        apply(view, context.coordinator)
+    }
+
+    private var dimmed: some View {
+        content()
+            .brightness(-0.45)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func apply(_ view: UIView, _ coordinator: Coordinator) {
+        let key = dimFully ? "dim" : (start.map { "\($0.timeIntervalSinceReferenceDate)" } ?? "lit")
+        guard key != coordinator.key else { return }
+        coordinator.key = key
+        let layer = view.layer
+        layer.removeAnimation(forKey: "light")
+        if dimFully { layer.opacity = 1; return }
+        guard let start else { layer.opacity = 0; return }
+        let duration = OrbitLoadingView.lightDuration
+        let elapsed = Date().timeIntervalSince(start)
+        layer.opacity = 0
+        guard elapsed < duration else { return }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1
+        fade.toValue = 0
+        fade.duration = duration
+        fade.timingFunction = CAMediaTimingFunction(controlPoints: 0.33, 1, 0.68, 1)  // (ease-out cubic)
+        fade.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - elapsed
+        fade.fillMode = .backwards
+        layer.add(fade, forKey: "light")
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
     }
 }

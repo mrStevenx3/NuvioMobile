@@ -301,6 +301,12 @@ struct OrbitNativeHome: View {
                     } label: {
                         OrbitNativeHeroPage(item: item, count: count, index: index,
                                             live: abs(index - heroPage) <= 1, trailers: trailers)
+                            // Steven (2026-10-30, video: down from the hero, a band of its art stayed
+                            // under the bar while the rows slid up): leaving it, its art fades with the
+                            // slide; it comes back as the page returns to it. (Only what it draws: the
+                            // button stays, Up still reaches it.)
+                            .opacity(onHero ? 1 : 0)
+                            .animation(.easeInOut(duration: onHero ? 0.3 : 0.22), value: onHero)
                     }
                     .buttonStyle(OrbitPlainStyle())
                     .focused($heroFocus, equals: index)
