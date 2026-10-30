@@ -983,7 +983,11 @@ private struct OrbitHBOGlassText: View {
                                  startPoint: .bottomLeading, endPoint: .topTrailing)
         // (Steven, 2026-10-30, photo: the figures and TOP 10 too dark inside, the top above all —
         // the glass lighter, its top no longer near black.)
-        let glass = LinearGradient(colors: [Color(red: 0.13, green: 0.15, blue: 0.21), Color(red: 0.22, green: 0.25, blue: 0.33)],
+        // (Steven, later: "on voit beaucoup moins le côté verre" — glass again: dark inside, a soft
+        // sheen across its top instead of the near-black that was there.)
+        let glass = LinearGradient(stops: [.init(color: Color(red: 0.20, green: 0.22, blue: 0.29), location: 0),
+                                           .init(color: Color(red: 0.05, green: 0.06, blue: 0.09), location: 0.45),
+                                           .init(color: Color(red: 0.15, green: 0.17, blue: 0.24), location: 1)],
                                    startPoint: .top, endPoint: .bottom)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         ZStack {
