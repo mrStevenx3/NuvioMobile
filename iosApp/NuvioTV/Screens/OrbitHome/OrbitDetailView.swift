@@ -343,7 +343,6 @@ struct OrbitDetailView: View {
                                   trailerURL: cinema || (heroTrailerOn && section == .hero && !coverUp) ? model.trailerVideoURL : nil,
                                   zoomKey: model.trailerZoomKey,
                                   dimmed: section != .hero && !cinema,
-                                  artAway: artInScroll,
                                   cinema: cinema,
                                   holdArt: holdArt,
                                   tint: platform?.theme.tint ?? .black,
@@ -367,13 +366,7 @@ struct OrbitDetailView: View {
                         // curve beside the page): the hero's picture is part of the page now, so it goes up
                         // and comes down with the page exactly, as on Apple TV. Shown while the page moves
                         // (the fixed one, under the trailer, takes over at rest on the hero).
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(alignment: .topLeading) {
-                            OrbitDetailHeroPicture(url: backdropURL, quickURL: quickBackdropURL)
-                                .offset(y: -L.pageTop)
-                                .opacity(artInScroll ? 1 : 0)
-                                .allowsHitTesting(false)
-                        }
+
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
@@ -397,6 +390,8 @@ struct OrbitDetailView: View {
                             .equatable()
                             .focusSection()
                             .modifier(OrbitAboveFade(above: isAbove(.episodes)))
+                            .modifier(OrbitFirstSectionTitle(isFirst: firstSection == .episodes, name: title, logo: logoURL,
+                                                             shown: section != .hero && !cinema))
                             .disabled(returningElsewhere(.episodes))
                             .id(OrbitDetailSection.episodes)
                     }
@@ -412,29 +407,39 @@ struct OrbitDetailView: View {
                     if !(meta?.cast ?? []).isEmpty {
                         OrbitStillSection(key: castKey) { castSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.cast)))
+                            .modifier(OrbitFirstSectionTitle(isFirst: firstSection == .cast, name: title, logo: logoURL,
+                                                             shown: section != .hero && !cinema))
                             .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.cast)))
                             .disabled(returningElsewhere(.cast))
                     }
                     if !(meta?.collectionItems ?? []).isEmpty {
                         OrbitStillSection(key: sagaKey) { sagaSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.saga)))
+                            .modifier(OrbitFirstSectionTitle(isFirst: firstSection == .saga, name: title, logo: logoURL,
+                                                             shown: section != .hero && !cinema))
                             .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.saga)))
                             .disabled(returningElsewhere(.saga))
                     }
                     if !(meta?.trailers ?? []).isEmpty {
                         OrbitStillSection(key: trailersKey) { trailersSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.trailers)))
+                            .modifier(OrbitFirstSectionTitle(isFirst: firstSection == .trailers, name: title, logo: logoURL,
+                                                             shown: section != .hero && !cinema))
                             .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.trailers)))
                             .disabled(returningElsewhere(.trailers))
                     }
                     if !(meta?.moreLikeThis ?? []).isEmpty {
                         OrbitStillSection(key: similarKey) { similarSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.similar)))
+                            .modifier(OrbitFirstSectionTitle(isFirst: firstSection == .similar, name: title, logo: logoURL,
+                                                             shown: section != .hero && !cinema))
                             .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.similar)))
                             .disabled(returningElsewhere(.similar))
                     }
                     if hasAbout {
                         aboutSection
+                            .modifier(OrbitFirstSectionTitle(isFirst: firstSection == .about, name: title, logo: logoURL,
+                                                             shown: section != .hero && !cinema))
                             .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.about)))
                             .disabled(returningElsewhere(.about))
                     }
@@ -464,17 +469,7 @@ struct OrbitDetailView: View {
             // page itself now; Up / Down are the system's one move, aligned on the sections.
             .onChange(of: section) { old, target in
                 if target == .hero { go(to: .hero) }
-                // The picture handed from the fixed one to the page's own at the very start of the move
-                // (same place, unseen), and back once the page is home.
-                var still = Transaction()
-                still.disablesAnimations = true
-                if target != .hero {
-                    withTransaction(still) { artInScroll = true }
-                } else {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-                        if section == .hero { withTransaction(still) { artInScroll = false } }
-                    }
-                }
+
                 // Steven (2026-10-30, Apple TV's own: "les éléments du bas arrivent un peu après"): on
                 // the first step down, what comes under the first section arrives a beat later.
                 // (Steven, 2026-10-30, option A: the delayed rows taken off — Apple's page moves as one.)
@@ -487,11 +482,6 @@ struct OrbitDetailView: View {
             // Steven (2026-10-30, Apple TV's own title page as the model, "ou autre chose qui colle à
             // l'ADN d'Orbit"): off the hero, the title comes back small at the top's middle — lit
             // up as Orbit's logos are (a little dim, then its light), with a slight settle.
-            OrbitDetailHeaderTitle(name: title, logo: logoURL, shown: section == firstSection && section != .hero && !cinema)
-                .frame(maxWidth: .infinity, alignment: .top)
-                .padding(.top, 34)
-                .allowsHitTesting(false)
-                .ignoresSafeArea()
 
             // The platform's logo, top right (not in the trailer's cinema).
             if let platform, !cinema {
@@ -1739,8 +1729,8 @@ private struct OrbitDetailBackground: View {
             }
             // (On the hero, not drawn under its picture: there at once on the way down, gone once
             // the picture is back on the way up.)
-            .opacity(dimmed || artAway ? 1 : 0)
-            .animation(nil, value: dimmed || artAway)
+            .opacity(dimmed ? 1 : 0)
+            .animation(dimmed ? nil : .linear(duration: 0.01).delay(0.5), value: dimmed)
 
             // The hero's picture. Steven (2026-10-30, option A, Apple TV's own first step down): it goes
             // up with the page — blurring and fading as it goes — uncovering the sections' ground; it
@@ -1812,8 +1802,10 @@ private struct OrbitDetailBackground: View {
             }
             .frame(width: size.width, height: size.height)
             // (Off while the page's own copy rides with the page — swapped in place, unseen.)
-            .opacity(artAway ? 0 : 1)
-            .animation(nil, value: artAway)
+            // Steven (2026-10-30, Apple TV's Slow Horses frame by frame): the picture does not move —
+            // it stays in place and melts into its blur as the page goes up (and back the same way).
+            .opacity(dimmed ? 0 : 1)
+            .animation(.easeInOut(duration: 0.45), value: dimmed)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2590,7 +2582,7 @@ struct OrbitDetailHeaderTitle: View {
             .fixedSize()
             .frame(width: 560, height: 120, alignment: .center)
             .opacity(shown ? 1 : 0)
-            .animation(shown ? .easeOut(duration: 0.35).delay(0.35) : .easeIn(duration: 0.12), value: shown)
+            .animation(shown ? .easeOut(duration: 0.4).delay(0.08) : .easeIn(duration: 0.15), value: shown)
     }
 }
 
@@ -2714,5 +2706,26 @@ struct OrbitDetailHeroPicture: View {
         .frame(width: size.width, height: size.height)
         .clipped()
         .accessibilityHidden(true)
+    }
+}
+
+
+/// Steven (2026-10-30, Apple TV's own, frame by frame): the title sits just above the first section, as
+/// part of it — it rises with it into place at the top, fading in, and goes up with it further down.
+struct OrbitFirstSectionTitle: ViewModifier {
+    let isFirst: Bool
+    let name: String
+    let logo: String?
+    let shown: Bool
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .top) {
+            if isFirst {
+                OrbitDetailHeaderTitle(name: name, logo: logo, shown: shown)
+                    .frame(maxWidth: .infinity)
+                    .offset(y: -(120 + 34))
+                    .allowsHitTesting(false)
+            }
+        }
     }
 }
