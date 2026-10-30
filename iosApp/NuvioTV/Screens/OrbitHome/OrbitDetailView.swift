@@ -469,9 +469,22 @@ struct OrbitDetailView: View {
             // page itself now; Up / Down are the system's one move, aligned on the sections.
             .onChange(of: section) { old, target in
                 if target == .hero { go(to: .hero) }
-                // (Apple's page moves as one on the first step down: nothing arrives late — checked
-                // frame by frame on Steven's slow motion of Silo.)
-                _ = old
+                // Steven (2026-10-31, "le décalage des autres affiches en dessous… exactement comme ma
+                // vidéo"): measured on his Slow Horses video (60 fps) — the rows under the focused one
+                // trail it, about 110 points lower, holding a beat (0.15 s) then catching up over half a
+                // second (the next row's heading still ~70 points behind at 0.27 s, ~25 at 0.37 s).
+                if old == .hero, target == firstSection, !reduceMotion {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { entering = true }
+                    DispatchQueue.main.async {
+                        withAnimation(OrbitDetailEntrance.curve) { entering = false }
+                    }
+                } else if entering {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { entering = false }
+                }
             }
             }
 
@@ -2687,8 +2700,10 @@ struct OrbitDetailHeaderTitle: View {
     let name: String
     let logo: String?
     let shown: Bool
-    @State private var lift: CGFloat = 70
+    @State private var lift: CGFloat = 120
     @State private var seen: Double = 0
+    /// Its light: a little dim as it appears, then lit (Orbit's logos).
+    @State private var light: Double = -0.35
 
     var body: some View {
         // (Steven, 2026-10-30, photos side by side: Apple's size.)
@@ -2699,18 +2714,25 @@ struct OrbitDetailHeaderTitle: View {
             // measured frame by frame): the title rides with its row but lags behind it — it starts
             // about 70 points lower (over the row's top), fading in, and catches up with its place as the
             // page settles. On the way down it lags the other way, fading out.
+            // Steven (2026-10-31: "pas assez en retard, tu n'as pas respecté le même temps que ma
+            // vidéo"): measured again on his Slow Horses video (60 fps) and Silo's — unseen for the
+            // first 0.15 s, it appears well below its place (~120 points: over the row's top), fades in
+            // in 0.14 s, and catches up over half a second, still moving a little once the rows have
+            // stopped. It lights up as it comes (a little dim, then lit).
+            .brightness(light)
             .offset(y: lift)
             .opacity(seen)
             .onChange(of: shown, initial: true) { _, on in
                 var still = Transaction()
                 still.disablesAnimations = true
                 if on {
-                    withTransaction(still) { lift = 70; seen = 0 }
-                    withAnimation(.easeOut(duration: 0.5)) { lift = 0 }
-                    withAnimation(.easeOut(duration: 0.3).delay(0.1)) { seen = 1 }
+                    withTransaction(still) { lift = 120; seen = 0; light = -0.35 }
+                    withAnimation(.timingCurve(0.33, 1, 0.68, 1, duration: 0.5).delay(0.15)) { lift = 0 }
+                    withAnimation(.easeOut(duration: 0.14).delay(0.15)) { seen = 1 }
+                    withAnimation(.easeInOut(duration: 0.4).delay(0.2)) { light = 0 }
                 } else {
-                    withAnimation(.easeIn(duration: 0.3)) { lift = -40 }
-                    withAnimation(.easeIn(duration: 0.22)) { seen = 0 }
+                    // (Apple's, back up: it rides down with the page and is gone in about 0.16 s.)
+                    withAnimation(.easeIn(duration: 0.16)) { seen = 0 }
                 }
             }
     }
@@ -2719,7 +2741,8 @@ struct OrbitDetailHeaderTitle: View {
 /// Apple TV's first step down on a title page: the page slides up, and what comes under the focused
 /// row (and the title at the top) arrives a beat later, rising into place.
 enum OrbitDetailEntrance {
-    static let curve: Animation = .easeOut(duration: 0.5).delay(0.15)
+    /// (Ease-out cubic: Apple's long soft end.)
+    static let curve: Animation = .timingCurve(0.33, 1, 0.68, 1, duration: 0.5).delay(0.15)
 }
 
 /// A section under the first one, on the first step down: lower and unseen, then rising into place.
@@ -2727,8 +2750,8 @@ struct OrbitEntranceLift: ViewModifier {
     let waiting: Bool
     func body(content: Content) -> some View {
         content
-            .offset(y: waiting ? 90 : 0)
-            .opacity(waiting ? 0.012 : 1)
+            // (Seen all along, as Apple's — only lower; no fade, nothing drawn apart.)
+            .offset(y: waiting ? 110 : 0)
     }
 }
 
