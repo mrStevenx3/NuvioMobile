@@ -1419,7 +1419,9 @@ private struct OrbitStudioHero: View {
                 .id("\(item.type):\(item.id)")
                 .transition(.opacity.animation(.easeInOut(duration: 0.25)))
                 // Steven (device: "Nouveaux films" ran over the banner's text): higher up.
-                .offset(x: L.margin, y: 130)
+                // (Steven, 2026-10-30: "il flotte au milieu à gauche" — lower, still a row's gap
+                // above the first row's heading.)
+                .offset(x: L.margin, y: 190)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)

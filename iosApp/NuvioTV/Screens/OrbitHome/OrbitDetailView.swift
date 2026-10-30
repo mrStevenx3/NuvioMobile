@@ -369,6 +369,8 @@ struct OrbitDetailView: View {
                         // Steven (2026-10-30, still jerky): no longer faded as it goes up — the
                         // whole hero (glass buttons and all) drawn apart at every frame of every move
                         // below it. As Apple's, its last lines (the cast) stay at the top.
+                        // (Diagnostic: the hero not drawn below it — Up may not go back; Menu does.)
+                        .opacity(OrbitDiag.noHero && section != .hero ? 0 : 1)
                         .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
                     // Steven (2026-10-30: a series without seasons — a large empty gap): no episodes
@@ -1738,6 +1740,7 @@ private struct OrbitDetailBackground: View {
             // The sections' ground, always under the hero's picture (the picture covers it on the hero):
             // the film's colour, then its picture blurred thick (Apple's).
             // Under the sections, until the film's colour is known: dark enough for white text.
+            if !OrbitDiag.noGround {
             ZStack {
                 tint.opacity(sectionTone == nil ? 0.74 : 0)
                 if let deep = sectionTone {
@@ -1755,7 +1758,10 @@ private struct OrbitDetailBackground: View {
             // the picture is back on the way up.)
             .opacity(dimmed ? 1 : 0)
             .animation(dimmed ? nil : .linear(duration: 0.01).delay(0.5), value: dimmed)
+            }
 
+            // (Diagnostic: the picture taken out below the hero instead of faded to nothing.)
+            if !(OrbitDiag.noArt && dimmed) {
             // The hero's picture. Steven (2026-10-30, option A, Apple TV's own first step down): it goes
             // up with the page — blurring and fading as it goes — uncovering the sections' ground; it
             // comes back down the same way.
@@ -1835,6 +1841,7 @@ private struct OrbitDetailBackground: View {
             // (Apple's, slow motion: the blur starts a beat into the page's move and is whole by its
             // end; back up, the picture comes back over the whole move.)
             .animation(dimmed ? .easeInOut(duration: 0.4).delay(0.08) : .easeInOut(duration: 0.45), value: dimmed)
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2280,12 +2287,13 @@ private struct OrbitSynopsisPanel: View {
         return ZStack(alignment: .topLeading) {
             // Steven (2026-10-30: "que le fond se floute… là j'ai le titre dans la bulle et sur le côté"):
             // the page goes under the film's picture, blurred and dark.
+            // (Then "mets le même flou que Apple TV": the thick one of the sections' ground — the film's
+            // picture down to its colour fields — a little darker under the text.)
             ZStack {
                 Color.black
-                OrbitPreBlurred(url: backdropURL, radius: 34)
-                    .saturation(0.9)
-                    .opacity(0.7)
-                Color.black.opacity(0.25)
+                OrbitThickBlur(url: backdropURL)
+                    .saturation(1.2)
+                Color.black.opacity(0.32)
             }
             .frame(width: L.screenWidth, height: L.screenHeight)
             .opacity(open ? 1 : 0)
@@ -2420,7 +2428,7 @@ private struct OrbitDetailLandscapeCard: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : (current ? 0.5 : 0)), lineWidth: focused ? 5 : 3))
             .scaleEffect(focused ? 1.06 : 1)
-            .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: 18, y: 10)
+            .modifier(OrbitCardShadow(focused: focused, lit: 0.55, radius: 18, y: 10))
             HStack(spacing: 8) {
                 Text(item.name).lineLimit(1)
                 if let year = OrbitDetailFormat.year(item.releaseInfo) {
@@ -2451,7 +2459,7 @@ struct OrbitDetailPoster: View {
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
             .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 4))
         .scaleEffect(focused ? 1.08 : 1)
-        .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: 16, y: 8)
+        .modifier(OrbitCardShadow(focused: focused, lit: 0.55, radius: 16, y: 8))
         .animation(.easeOut(duration: 0.16), value: focused)
         .accessibilityLabel(item.name)
     }
@@ -2486,7 +2494,7 @@ private struct OrbitTrailerCard: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : 0), lineWidth: 5))
             .scaleEffect(focused ? 1.06 : 1)
-            .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: 18, y: 10)
+            .modifier(OrbitCardShadow(focused: focused, lit: 0.55, radius: 18, y: 10))
             Text(name)
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Color.white)
@@ -2812,7 +2820,7 @@ struct OrbitFirstSectionTitle: ViewModifier {
 
     func body(content: Content) -> some View {
         content.overlay(alignment: .top) {
-            if isFirst {
+            if isFirst, !OrbitDiag.noTitle {
                 OrbitDetailHeaderTitle(name: name, logo: logo, shown: shown)
                     .frame(maxWidth: .infinity)
                     .offset(y: -(120 + 34))
@@ -2830,4 +2838,37 @@ final class OrbitDetailPlaces {
     var synopsisArrow: CGRect = .zero
     /// The hero's synopsis line, on the screen (the full synopsis opens from it and folds back to it).
     var synopsisText: CGRect = .zero
+}
+
+
+/// Steven (2026-10-30, the title page still jerky — "fais le diagnostic build"): switches in
+/// Réglages › À propos › Diagnostic, each taking one thing off the title page, to find which one
+/// costs the frames. Off by default (the page as it is). Temporary.
+enum OrbitDiag {
+    static let groundKey = "diag.detail.noGround"
+    static let artKey = "diag.detail.noArt"
+    static let titleKey = "diag.detail.noTitle"
+    static let shadowsKey = "diag.detail.noShadows"
+    static let heroKey = "diag.detail.noHero"
+    static var noGround: Bool { UserDefaults.standard.bool(forKey: groundKey) }
+    static var noArt: Bool { UserDefaults.standard.bool(forKey: artKey) }
+    static var noTitle: Bool { UserDefaults.standard.bool(forKey: titleKey) }
+    static var noShadows: Bool { UserDefaults.standard.bool(forKey: shadowsKey) }
+    static var noHero: Bool { UserDefaults.standard.bool(forKey: heroKey) }
+}
+
+/// A card's shadow (a light one at rest, a deeper one focused) — none with the diagnostic's switch.
+struct OrbitCardShadow: ViewModifier {
+    let focused: Bool
+    let lit: Double
+    let radius: CGFloat
+    let y: CGFloat
+
+    func body(content: Content) -> some View {
+        if OrbitDiag.noShadows {
+            content
+        } else {
+            content.shadow(color: .black.opacity(focused ? lit : 0.2), radius: radius, y: y)
+        }
+    }
 }
