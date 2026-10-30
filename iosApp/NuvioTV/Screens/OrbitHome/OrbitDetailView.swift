@@ -1246,6 +1246,8 @@ struct OrbitDetailView: View {
         .font(.system(size: 23, weight: .medium))
         .lineLimit(1)
         .multilineTextAlignment(.trailing)
+        // (Steven, 2026-10-30: the same soft shadow as the synopsis.)
+        .modifier(OrbitHeroTextShade())
     }
 
     @ViewBuilder

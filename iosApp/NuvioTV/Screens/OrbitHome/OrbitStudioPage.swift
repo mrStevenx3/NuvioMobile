@@ -2141,72 +2141,92 @@ struct OrbitStudioIntroLogo: View {
 }
 
 
-/// Its content drifting very slowly — a gentle push in (to 108 %) and across, there and back over
-/// half a minute — animated by Core Animation (no work for the app on each frame). Stops (eased back
-/// to rest) when not `active`; starts again from rest for a new `key`.
+/// Its content drifting very slowly — a gentle push in and across, there and back — animated by
+/// Core Animation (no work for the app on each frame). Stops (eased back to rest) when not
+/// `active`; starts again from rest for a new `key`.
+/// Steven (2026-10-30: "ça bouge pas", no trailer there): the animation was put on before the view was
+/// on screen, and the system drops a view's animations when it is put on (or taken off) the screen —
+/// the view now starts it itself once it is on screen, and again whenever it was lost.
 struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
     let active: Bool
     let key: String
     @ViewBuilder let content: () -> Content
 
-    final class Coordinator {
-        var host: UIHostingController<AnyView>?
-        var running = false
+    final class DriftView: UIView {
+        let host: UIHostingController<AnyView>
+        var active = false
         var key = ""
-    }
+        private var driftKey = ""
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+        init(host: UIHostingController<AnyView>) {
+            self.host = host
+            super.init(frame: .zero)
+            backgroundColor = .clear
+            isUserInteractionEnabled = false
+            host.view.backgroundColor = .clear
+            host.view.frame = bounds
+            host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            addSubview(host.view)
+            NotificationCenter.default.addObserver(self, selector: #selector(refresh),
+                                                   name: UIApplication.didBecomeActiveNotification, object: nil)
+        }
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
-        let host = UIHostingController(rootView: AnyView(content()))
-        host.safeAreaRegions = []
-        host.view.backgroundColor = .clear
-        host.view.frame = view.bounds
-        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(host.view)
-        context.coordinator.host = host
-        return view
-    }
+        required init?(coder: NSCoder) { fatalError() }
 
-    func updateUIView(_ view: UIView, context: Context) {
-        let c = context.coordinator
-        c.host?.rootView = AnyView(content())
-        guard let layer = c.host?.view.layer else { return }
-        let restart = c.key != key
-        c.key = key
-        if active, !c.running || restart {
-            layer.removeAnimation(forKey: "drift")
-            let drift = CABasicAnimation(keyPath: "transform")
-            drift.fromValue = CATransform3DIdentity
-            // (Steven, 2026-10-30: "ça bouge pas" — eased in, it hardly moved in the seconds before the
-            // trailer came. Even now, from the first second.)
-            var to = CATransform3DMakeScale(1.12, 1.12, 1)
-            to = CATransform3DTranslate(to, -40, -10, 0)
-            drift.toValue = to
-            drift.duration = 16
-            drift.autoreverses = true
-            drift.repeatCount = .infinity
-            drift.timingFunction = CAMediaTimingFunction(name: .linear)
-            layer.add(drift, forKey: "drift")
-            c.running = true
-        } else if !active, c.running {
-            // Back to rest, gently, from wherever it is.
-            let now = layer.presentation()?.transform ?? CATransform3DIdentity
-            layer.removeAnimation(forKey: "drift")
-            let settle = CABasicAnimation(keyPath: "transform")
-            settle.fromValue = now
-            settle.toValue = CATransform3DIdentity
-            settle.duration = 0.6
-            settle.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            layer.add(settle, forKey: "settle")
-            c.running = false
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            refresh()
+        }
+
+        @objc func refresh() {
+            let layer = host.view.layer
+            guard window != nil else { return }
+            if active {
+                if layer.animation(forKey: "drift") == nil || driftKey != key {
+                    layer.removeAnimation(forKey: "settle")
+                    layer.removeAnimation(forKey: "drift")
+                    let drift = CABasicAnimation(keyPath: "transform")
+                    drift.fromValue = CATransform3DIdentity
+                    var to = CATransform3DMakeScale(1.12, 1.12, 1)
+                    to = CATransform3DTranslate(to, -40, -10, 0)
+                    drift.toValue = to
+                    drift.duration = 16
+                    drift.autoreverses = true
+                    drift.repeatCount = .infinity
+                    drift.timingFunction = CAMediaTimingFunction(name: .linear)
+                    drift.isRemovedOnCompletion = false
+                    layer.add(drift, forKey: "drift")
+                    driftKey = key
+                }
+            } else if layer.animation(forKey: "drift") != nil {
+                // Back to rest, gently, from wherever it is.
+                let now = layer.presentation()?.transform ?? CATransform3DIdentity
+                layer.removeAnimation(forKey: "drift")
+                let settle = CABasicAnimation(keyPath: "transform")
+                settle.fromValue = now
+                settle.toValue = CATransform3DIdentity
+                settle.duration = 0.6
+                settle.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                layer.add(settle, forKey: "settle")
+                driftKey = ""
+            }
         }
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIView, context: Context) -> CGSize? {
+    func makeUIView(context: Context) -> DriftView {
+        let host = UIHostingController(rootView: AnyView(content()))
+        host.safeAreaRegions = []
+        return DriftView(host: host)
+    }
+
+    func updateUIView(_ view: DriftView, context: Context) {
+        view.host.rootView = AnyView(content())
+        view.active = active
+        view.key = key
+        view.refresh()
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: DriftView, context: Context) -> CGSize? {
         CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
     }
 }
