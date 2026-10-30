@@ -2569,18 +2569,32 @@ struct OrbitDetailHeaderTitle: View {
     let name: String
     let logo: String?
     let shown: Bool
+    @State private var lift: CGFloat = 70
+    @State private var seen: Double = 0
 
     var body: some View {
-        // Steven (2026-10-30, option A, Apple TV's own): small, centred, it fades in once the hero's
-        // logo has gone up out of the screen (never two titles at once), no glow.
-        // (Steven, 2026-10-30, photos side by side: smaller than Apple's — Apple's size now.)
+        // (Steven, 2026-10-30, photos side by side: Apple's size.)
         OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 560, height: 120), textSize: 56, hugsLogo: true)
             .fixedSize()
             .frame(width: 560, height: 120, alignment: .center)
-            .opacity(shown ? 1 : 0)
-            // (Apple's, slow motion: it shows from about halfway up the rise, and on the way back down it is
-            // gone by about halfway.)
-            .animation(shown ? .easeOut(duration: 0.3).delay(0.15) : .easeIn(duration: 0.25), value: shown)
+            // Steven (2026-10-30: "il apparaît et disparaît en décalé", Apple's slow motion of Silo
+            // measured frame by frame): the title rides with its row but lags behind it — it starts
+            // about 70 points lower (over the row's top), fading in, and catches up with its place as the
+            // page settles. On the way down it lags the other way, fading out.
+            .offset(y: lift)
+            .opacity(seen)
+            .onChange(of: shown, initial: true) { _, on in
+                var still = Transaction()
+                still.disablesAnimations = true
+                if on {
+                    withTransaction(still) { lift = 70; seen = 0 }
+                    withAnimation(.easeOut(duration: 0.5)) { lift = 0 }
+                    withAnimation(.easeOut(duration: 0.3).delay(0.1)) { seen = 1 }
+                } else {
+                    withAnimation(.easeIn(duration: 0.3)) { lift = -40 }
+                    withAnimation(.easeIn(duration: 0.22)) { seen = 0 }
+                }
+            }
     }
 }
 
