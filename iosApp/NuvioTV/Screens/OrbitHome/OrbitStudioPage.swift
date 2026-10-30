@@ -538,6 +538,10 @@ struct OrbitStudioPage: View {
             }
             .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop,
                    alignment: .topLeading)
+            // (Off the banner its art fades — only what it draws: the button itself stays, focusable;
+            // Steven: hidden whole, Up could no longer reach it, nor the bar.)
+            .opacity(nativeOnHero ? 1 : 0)
+            .animation(.easeInOut(duration: 0.3), value: nativeOnHero)
         }
         .buttonStyle(OrbitPlainStyle())
         .focused($nativeHeroFocus, equals: 0)
@@ -550,8 +554,6 @@ struct OrbitStudioPage: View {
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight - Self.nativeTop)
-        .opacity(nativeOnHero ? 1 : 0)
-        .animation(.easeInOut(duration: 0.3), value: nativeOnHero)
         .focusSection()
         .defaultFocus($nativeHeroFocus, 0,
                       // (Back from a title of a row: its card takes the focus, not the banner first.)
