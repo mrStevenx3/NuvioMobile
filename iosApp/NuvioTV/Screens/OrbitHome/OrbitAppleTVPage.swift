@@ -994,7 +994,7 @@ private struct OrbitAppleTVPoster: View {
                         .scaleEffect(x: 1, y: -1)
                         .frame(width: L.poster.width, height: L.captionFoot, alignment: .top)
                         .clipped()
-                        .blur(radius: 6)
+                        .blur(radius: focused ? 6 : 0)  // (no blur pass while the foot is shut)
                         .frame(width: L.poster.width, height: foot, alignment: .top)
                         .clipped()
                 }
@@ -1118,7 +1118,10 @@ private struct OrbitAppleTVFocus: ViewModifier {
                     .strokeBorder(LinearGradient(colors: [Color.white.opacity(focused ? 0.7 : 0), Color.white.opacity(focused ? 0.1 : 0)],
                                                  startPoint: .top, endPoint: .bottom), lineWidth: 2)
             }
-            .shadow(color: .black.opacity(focused ? 0.55 : 0.25), radius: focused ? 24 : 8, y: focused ? 16 : 4)
+            // Steven (2026-10-30: Apple TV smooth from the hero to the first row, jerky past it — two
+            // rows of tiles on screen): every tile's soft shadow was worked out again at every frame of
+            // a move. Only the focused tile keeps its shadow (as Apple's own tiles).
+            .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: focused ? 24 : 0, y: focused ? 16 : 0)
             .scaleEffect(focused ? scale : 1)
             // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }

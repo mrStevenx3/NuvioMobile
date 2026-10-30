@@ -994,8 +994,13 @@ private struct OrbitHBOGlassText: View {
             Text(text).font(font).kerning(tight).foregroundStyle(glass)
             Text(text).font(font).kerning(tight).foregroundStyle(lit).opacity(filled ? 1 : 0)
         }
-        .compositingGroup()
+        // (Steven, 2026-10-30: lag from the Top 10 on — each rank was 18 lines of text at full size,
+        // grouped and shadowed again at every frame of a move.) Drawn once into one picture, its
+        // shadow in it; the move only carries the picture.
         .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+        .padding(12)
+        .drawingGroup()
+        .padding(-12)
         .fixedSize()
     }
 }
@@ -1299,7 +1304,10 @@ private struct OrbitHBOFocus: ViewModifier {
                 RoundedRectangle(cornerRadius: OrbitHBOLayout.radius, style: .continuous)
                     .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 4)
             }
-            .shadow(color: .black.opacity(focused ? 0.6 : 0.25), radius: focused ? 18 : 6, y: focused ? 10 : 4)
+            // Steven (2026-10-30: HBO Max lagged from the Top 10 down, Apple TV past its first row):
+            // a soft shadow under every tile, worked out again at every frame of a move for each one
+            // on screen. Only the focused tile keeps its shadow (as Apple's own tiles).
+            .shadow(color: .black.opacity(focused ? 0.6 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
             .scaleEffect(focused ? OrbitHBOLayout.focusScale : 1)
             // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
