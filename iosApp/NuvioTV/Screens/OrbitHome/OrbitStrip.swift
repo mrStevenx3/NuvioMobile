@@ -649,14 +649,14 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             let initial = max(0, speed / (x - current))
             slideFrom = current; slideTo = x; slideStart = now
             UIView.animate(withDuration: 0.45, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: initial,
-                           options: [.beginFromCurrentState, .allowUserInteraction]) {
-                self.collectionView.contentOffset = CGPoint(x: x, y: 0)
-            } completion: finish
+                           options: [.beginFromCurrentState, .allowUserInteraction],
+                           animations: { self.collectionView.contentOffset = CGPoint(x: x, y: 0) },
+                           completion: finish)
         } else {
             slideFrom = current; slideTo = x; slideStart = now
-            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
-                self.collectionView.contentOffset = CGPoint(x: x, y: 0)
-            } completion: finish
+            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
+                           animations: { self.collectionView.contentOffset = CGPoint(x: x, y: 0) },
+                           completion: finish)
         }
     }
 
