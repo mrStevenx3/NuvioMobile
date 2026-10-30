@@ -887,9 +887,14 @@ struct OrbitDetailView: View {
         // the loading screen draws it.
         let from = launchFrom
         let g = launchGlide
-        return OrbitLoadingView.logo(logoURL, title: title)
-            // (It arrives a little dim: the loading screen lights it up — Steven, 2026-10-29.)
-            .brightness(-0.45 * Double(g))
+        return TimelineView(.animation(minimumInterval: 1.0 / 60)) { timeline in
+            OrbitLoadingView.logo(logoURL, title: title)
+                // Steven (2026-10-30, video: the logo reached the middle dim and pale, then the screen
+                // went black — it never lit up before his eyes): it dims on its way, then lights up
+                // right there, as soon as it has arrived, on the loading screen's own clock (the
+                // loading screen, taking over, carries the very same light on).
+                .brightness(g < 1 ? -0.45 * Double(g) : OrbitLoadingView.dimming(at: timeline.date))
+        }
             .frame(width: 640, height: 260, alignment: .center)
             // From exactly over the hero's title (its size and place) to the loading screen's.
             .scaleEffect(from.map { $0.scale + ($0.scale.distance(to: 1)) * g } ?? 1)
@@ -944,6 +949,8 @@ struct OrbitDetailView: View {
             launchGlide = 0
             launching = true
         }
+        // The light-up begins as the glide ends (the loading screen goes on from it).
+        OrbitLoadingView.lightStartedAt = Date().addingTimeInterval(0.5)
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.5)) { launchGlide = 1 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
