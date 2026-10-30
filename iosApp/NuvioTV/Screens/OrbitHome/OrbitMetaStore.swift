@@ -259,6 +259,8 @@ final class OrbitMetaStore: ObservableObject {
         nonisolated struct Logo: Decodable {
             let file_path: String?
             let iso_639_1: String?
+            /// The image's country (TMDB): a French logo may be Québec's ("Histoire de jouets").
+            let iso_3166_1: String?
         }
         nonisolated struct Images: Decodable {
             let logos: [Logo]?
@@ -331,6 +333,11 @@ final class OrbitMetaStore: ObservableObject {
         path.lowercased().hasSuffix(".svg") ? String(path.dropLast(4)) + ".png" : path
     }
 
+    /// A language's own country when the setting names none.
+    nonisolated private static let defaultRegions: [String: String] = [
+        "fr": "FR", "pt": "PT", "es": "ES", "en": "US", "de": "DE", "it": "IT",
+    ]
+
     nonisolated private static func load(ref: Reference, apiKey: String, language: String) async -> Outcome {
         let lang = language.isEmpty ? "en" : language
         let short = String(lang.prefix(2))
@@ -391,7 +398,19 @@ final class OrbitMetaStore: ObservableObject {
             english = en.overview.flatMap { $0.isEmpty ? nil : $0 }
         }
         let logos = d.images?.logos ?? []
-        var logo = (logos.first { $0.iso_639_1 == short } ?? logos.first { $0.iso_639_1 == "en" } ?? logos.first)?.file_path
+        // Steven (2026-10-30, Toy Story's saga: "parfois Toy Story et parfois Histoire de jouets"):
+        // the first French logo was sometimes Québec's. The country's own first (France for French),
+        // then one with no country, then English — another country's French only after.
+        let imageRegion = lang.split(separator: "-").dropFirst().first.map { String($0).uppercased() }
+            ?? Self.defaultRegions[short]
+        func ranked(_ images: [Details.Logo]) -> Details.Logo? {
+            images.first { $0.iso_639_1 == short && $0.iso_3166_1?.uppercased() == imageRegion }
+                ?? images.first { $0.iso_639_1 == short && $0.iso_3166_1 == nil }
+                ?? images.first { $0.iso_639_1 == "en" }
+                ?? images.first { $0.iso_639_1 == short }
+                ?? images.first
+        }
+        var logo = ranked(logos)?.file_path
         if logo == nil,
            let imagesURL = URL(string: "https://api.themoviedb.org/3/\(media)/\(tmdbId)/images?api_key=\(apiKey)"),
            let body = await fetch(imagesURL).data,
@@ -423,7 +442,9 @@ final class OrbitMetaStore: ObservableObject {
                          cleanPoster: cleanPoster,
                          certification: certification,
                          titledPoster: d.poster_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
-                         localPoster: d.images?.posters?.first { $0.iso_639_1 == short }?.file_path
+                         localPoster: (d.images?.posters?.first { $0.iso_639_1 == short && $0.iso_3166_1?.uppercased() == imageRegion }
+                                       ?? d.images?.posters?.first { $0.iso_639_1 == short && $0.iso_3166_1 == nil }
+                                       ?? d.images?.posters?.first { $0.iso_639_1 == short })?.file_path
                              .map { "https://image.tmdb.org/t/p/w780\($0)" },
                          producers: ((d.production_companies ?? []) + (d.networks ?? [])).compactMap(\.name),
                          seasons: d.number_of_seasons,

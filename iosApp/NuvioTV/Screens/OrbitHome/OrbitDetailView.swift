@@ -226,8 +226,6 @@ struct OrbitDetailView: View {
     @State private var cinemaHintTask: Task<Void, Never>?
     @FocusState private var cinemaFocused: Bool
     @Namespace private var titleSpace
-    /// The synopsis moving from its line to the middle of the screen (and back).
-    @Namespace private var synopsisSpace
     /// Steven's video: most trailers open on black frames, so a cold start went black for a
     /// moment. The film's art stays over the trailer for its first seconds, then fades away.
     @State private var holdArt = false
@@ -368,7 +366,9 @@ struct OrbitDetailView: View {
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
-                        .modifier(OrbitAboveFade(above: isAbove(.hero), slow: true))
+                        // Steven (2026-10-30, still jerky): no longer faded as it goes up — the
+                        // whole hero (glass buttons and all) drawn apart at every frame of every move
+                        // below it. As Apple's, its last lines (the cast) stay at the top.
                         .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
                     // Steven (2026-10-30: a series without seasons — a large empty gap): no episodes
@@ -547,11 +547,16 @@ struct OrbitDetailView: View {
             }
 
             if showSynopsis, let overview {
-                OrbitSynopsisPanel(title: title, logoURL: logoURL, text: overview, space: synopsisSpace) {
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) { showSynopsis = false }
+                OrbitSynopsisPanel(title: title, logoURL: logoURL, backdropURL: backdropURL, text: overview,
+                                   from: places.synopsisText,
+                                   shownHeight: synopsisShownHeight, fullHeight: synopsisFullHeight) {
+                    // (The panel has folded back itself: the line takes over exactly where it ended.)
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { showSynopsis = false }
                     DispatchQueue.main.async { focus = .synopsis }
                 }
-                .transition(.opacity)
+                .transition(.identity)
                 .zIndex(10)
             }
         }
@@ -950,6 +955,11 @@ struct OrbitDetailView: View {
         // lights up as soon as it has arrived, on the loading screen's clock — the copy fading out
         // on the screen's own animator (smooth while the film is being opened).
         return OrbitLoadingView.logo(logoURL, title: title)
+            // (The loading screen's halo, on the same clock: it goes on from here unseen.)
+            .background {
+                OrbitHaloRise(start: launchLightStart) { OrbitLoadingView.logo(logoURL, title: title) }
+                    .padding(-90)
+            }
             .overlay {
                 OrbitDimFade(start: launchLightStart) { OrbitLoadingView.logo(logoURL, title: title) }
                     .opacity(Double(g))
@@ -1009,8 +1019,9 @@ struct OrbitDetailView: View {
             launchGlide = 0
             launching = true
         }
-        // The light-up begins as the glide ends (the loading screen goes on from it).
-        OrbitLoadingView.lightStartedAt = Date().addingTimeInterval(0.5)
+        // The light-up begins near the glide's end (the loading screen goes on from it).
+        // (Steven, 2026-10-30: "trop sombre au début pendant longtemps" — no longer waits for the end.)
+        OrbitLoadingView.lightStartedAt = Date().addingTimeInterval(0.3)
         launchLightStart = OrbitLoadingView.lightStartedAt
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.5)) { launchGlide = 1 }
@@ -1240,8 +1251,14 @@ struct OrbitDetailView: View {
                             .multilineTextAlignment(.leading)
                             // Steven (2026-10-30: "c'est directement la synopsis… qui se déplace et vient se
                             // placer entière au centre"): this very text travels to the middle and opens.
-                            .matchedGeometryEffect(id: "synopsis", in: synopsisSpace, isSource: !showSynopsis)
+                            // Steven (2026-10-30: the text doubled during its move — this line fading out
+                            // while the panel's faded in): off at once, the panel's copy (laid out the
+                            // same, line for line) moves alone.
                             .opacity(showSynopsis ? 0 : 1)
+                            .transaction { $0.animation = nil }
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { box in
+                                if !showSynopsis { places.synopsisText = box }
+                            }
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisShownHeight = $0 }
                             // The whole text at the same width, unseen: shorter than two lines, the
                             // arrow has nothing more to open.
@@ -1260,7 +1277,7 @@ struct OrbitDetailView: View {
                             .offset(y: 8)
                         if !synopsisFits {
                             OrbitSynopsisArrow(focused: focus == .synopsis) {
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.88)) { showSynopsis = true }
+                                showSynopsis = true
                             }
                             .focused($focus, equals: .synopsis)
                             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { places.synopsisArrow = $0 }
@@ -1708,7 +1725,11 @@ private struct OrbitDetailBackground: View {
 
     var body: some View {
         let size = CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
-        ZStack {
+        // The hero's picture shown (1) or melted into the ground (0). Steven (2026-10-30, still
+        // jerky): set on each of its layers, not on the whole — a whole group fading is drawn apart
+        // into a buffer at every frame of the move.
+        let art: Double = dimmed ? 0 : 1
+        return ZStack {
             OrbitHomeLayout.background
             // The sections' ground, always under the hero's picture (the picture covers it on the hero):
             // the film's colour, then its picture blurred thick (Apple's).
@@ -1740,8 +1761,10 @@ private struct OrbitDetailBackground: View {
                         // (Steven's video: drawn at 1280 × 720 points, it sat small in the middle of
                         // the screen — the whole screen, as the art it stands in for.)
                         OrbitImage(url: quickURL, mode: .fill, size: size)
+                            .opacity(art)
                     }
                     OrbitSwapImage(url: url, fallback: nil, size: size)
+                        .opacity(art)
                 }
                 .scaleEffect(cinema ? 1.05 : 1)
                 // Steven: the bottom of the art melts into a blur (Apple TV style), under the
@@ -1760,7 +1783,7 @@ private struct OrbitDetailBackground: View {
                         .init(color: .black.opacity(0.7), location: 0.86),
                         .init(color: .black, location: 0.97),
                     ], startPoint: .top, endPoint: .bottom))
-                    .opacity(cinema ? 0 : 1)
+                    .opacity(cinema ? 0 : art)
                     .allowsHitTesting(false)
                 if let trailerURL {
                     TrailerHeroPlayer(urlString: trailerURL,
@@ -1772,6 +1795,7 @@ private struct OrbitDetailBackground: View {
                                       uncropped: cinema,
                                       onFirstFrame: onTrailerFirstFrame)
                         .frame(width: size.width, height: size.height)
+                        .opacity(art)
                         .transition(.opacity)
                 }
                 // The art held over a trailer just started. Steven (a ghost frame of the trailer, then
@@ -1781,7 +1805,7 @@ private struct OrbitDetailBackground: View {
                     .scaleEffect(cinema ? 1.05 : 1)
                     // (Not tied to the trailer's arrival: that came in the same animated change, so the art
                     // faded in with the trailer and its first frames showed through.)
-                    .opacity(holdArt ? 1 : 0)
+                    .opacity(holdArt ? art : 0)
                     .allowsHitTesting(false)
                 // The hero's shades: the left for the logo and actions, the bottom for the synopsis.
                 Group {
@@ -1797,13 +1821,13 @@ private struct OrbitDetailBackground: View {
                     ], startPoint: .top, endPoint: .bottom)
                 }
                 // Cinema: only a light bottom shade stays (for the title and the hint).
-                .opacity(cinema ? 0.35 : 1)
+                // (A Group: set on each shade.)
+                .opacity((cinema ? 0.35 : 1) * art)
             }
             .frame(width: size.width, height: size.height)
-            // (Off while the page's own copy rides with the page — swapped in place, unseen.)
             // Steven (2026-10-30, Apple TV's Slow Horses frame by frame): the picture does not move —
             // it stays in place and melts into its blur as the page goes up (and back the same way).
-            .opacity(dimmed ? 0 : 1)
+            // (Each layer's own opacity, `art`, above.)
             // (Apple's, slow motion: the blur starts a beat into the page's move and is whole by its
             // end; back up, the picture comes back over the whole move.)
             .animation(dimmed ? .easeInOut(duration: 0.4).delay(0.08) : .easeInOut(duration: 0.45), value: dimmed)
@@ -2214,43 +2238,112 @@ private struct OrbitSynopsisArrow: View {
 private struct OrbitSynopsisPanel: View {
     let title: String
     let logoURL: String?
+    let backdropURL: String?
     let text: String
-    /// The synopsis' own line on the page: its text travels from there to here (and back).
-    let space: Namespace.ID
+    /// The hero's synopsis line on the screen: this text starts exactly over it.
+    let from: CGRect
+    /// The line's two lines' height, and the whole text's at the same width.
+    let shownHeight: CGFloat
+    let fullHeight: CGFloat
     let onClose: () -> Void
 
     @FocusState private var focused: Bool
-    static let width: CGFloat = 1240
+    /// Opened (the text in the middle, whole) or at the hero's line.
+    @State private var open = false
+    @State private var closing = false
 
+    private static let pad: CGFloat = 60
+    private static let logoHeight: CGFloat = 160
+    private static let gap: CGFloat = 30
+    private static let maxText: CGFloat = 520
+
+    // Steven (2026-10-30: "c'est directement la synopsis… qui se déplace et vient se placer entière
+    // au centre"; then "le texte s'affiche en double"): one text only — laid out at the line's very
+    // width, so its first two lines are the line's own — it leaves the line, unfolds whole and
+    // settles in the middle; the card and the blurred page come in around it. Back the same way.
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.7).ignoresSafeArea()
-            Button(action: onClose) {
-                VStack(alignment: .leading, spacing: 30) {
-                    OrbitTitleMark(name: title, logo: logoURL, maxSize: CGSize(width: 500, height: 160), textSize: 54)
-                    ScrollView(.vertical, showsIndicators: false) {
-                        // The page's synopsis itself (same size, same spacing), opened whole.
-                        Text(text)
-                            .font(.system(size: 25, weight: .medium))
-                            .foregroundStyle(Color.white)
-                            .lineSpacing(4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .matchedGeometryEffect(id: "synopsis", in: space, isSource: true)
+        let L = OrbitHomeLayout.self
+        let textWidth = from.width > 100 ? from.width : 1120
+        let whole = fullHeight > 0 ? min(fullHeight, Self.maxText) : Self.maxText
+        let folded = shownHeight > 0 ? min(shownHeight, whole) : whole
+        let cardWidth = textWidth + 2 * Self.pad
+        let cardHeight = Self.pad + Self.logoHeight + Self.gap + whole + Self.pad
+        let cardX = (L.screenWidth - cardWidth) / 2
+        let cardY = (L.screenHeight - cardHeight) / 2
+        let textX = cardX + Self.pad
+        let textY = cardY + Self.pad + Self.logoHeight + Self.gap
+        let startShift = from.width > 100 ? CGSize(width: from.minX - textX, height: from.minY - textY) : .zero
+        return ZStack(alignment: .topLeading) {
+            // Steven (2026-10-30: "que le fond se floute… là j'ai le titre dans la bulle et sur le côté"):
+            // the page goes under the film's picture, blurred and dark.
+            ZStack {
+                Color.black
+                OrbitPreBlurred(url: backdropURL, radius: 34)
+                    .saturation(0.9)
+                    .opacity(0.7)
+                Color.black.opacity(0.25)
+            }
+            .frame(width: L.screenWidth, height: L.screenHeight)
+            .opacity(open ? 1 : 0)
+
+            Button(action: close) {
+                ZStack(alignment: .topLeading) {
+                    // The card (glass, rim) and the title come in around the text.
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 34, style: .continuous).fill(OrbitGlass.tint)
+                        RoundedRectangle(cornerRadius: 34, style: .continuous).fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: 34, style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5)
                     }
-                    .frame(maxHeight: 520)
+                    .frame(width: cardWidth, height: cardHeight)
+                    .opacity(open ? 1 : 0)
+                    .scaleEffect(open ? 1 : 0.97)
+
+                    OrbitTitleMark(name: title, logo: logoURL, maxSize: CGSize(width: 500, height: Self.logoHeight), textSize: 54)
+                        .frame(width: textWidth, height: Self.logoHeight, alignment: .bottomLeading)
+                        .offset(x: Self.pad, y: Self.pad)
+                        .opacity(open ? 1 : 0)
+
+                    // The synopsis itself: the line's font, spacing and width — the same lines.
+                    Text(text)
+                        .font(.system(size: 25, weight: .medium))
+                        .foregroundStyle(Color.white)
+                        .lineSpacing(4)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: textWidth, alignment: .topLeading)
+                        .frame(height: whole, alignment: .top)
+                        // Its two lines at first, the rest unfolding under them.
+                        .mask(alignment: .top) {
+                            Rectangle().frame(height: open ? whole : folded)
+                        }
+                        .offset(x: Self.pad, y: Self.pad + Self.logoHeight + Self.gap)
+                        .offset(open ? .zero : startShift)
                 }
-                .padding(60)
-                .frame(width: Self.width, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(.ultraThinMaterial))
-                .overlay(RoundedRectangle(cornerRadius: 34, style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
-                .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(OrbitGlass.tint))
+                .frame(width: cardWidth, height: cardHeight, alignment: .topLeading)
             }
             .buttonStyle(OrbitPlainStyle())
             .focused($focused)
-            .onExitCommand(perform: onClose)
+            .onExitCommand(perform: close)
+            .offset(x: cardX, y: cardY)
         }
-        .onAppear { DispatchQueue.main.async { focused = true } }
+        .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
+        .ignoresSafeArea()
+        .onAppear {
+            focused = true
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.88)) { open = true }
+            }
+        }
+    }
+
+    private func close() {
+        guard !closing else { return }
+        closing = true
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.9), completionCriteria: .logicallyComplete) {
+            open = false
+        } completion: {
+            onClose()
+        }
     }
 }
 
@@ -2731,4 +2824,6 @@ struct OrbitFirstSectionTitle: ViewModifier {
 final class OrbitDetailPlaces {
     var heroTitle: CGRect = .zero
     var synopsisArrow: CGRect = .zero
+    /// The hero's synopsis line, on the screen (the full synopsis opens from it and folds back to it).
+    var synopsisText: CGRect = .zero
 }

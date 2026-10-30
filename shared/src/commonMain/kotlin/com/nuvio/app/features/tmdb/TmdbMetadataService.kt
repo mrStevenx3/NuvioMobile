@@ -1979,13 +1979,16 @@ private fun List<TmdbImage>.selectBestLocalizedImagePath(normalizedLanguage: Str
     return sortedWith(
         compareByDescending<TmdbImage> { it.iso6391 == languageCode && it.iso31661 == regionCode }
             .thenByDescending { it.iso6391 == languageCode && it.iso31661 == null }
-            .thenByDescending { it.iso6391 == languageCode }
+            // (Steven, Toy Story: a French logo from Québec — "Histoire de jouets" — came before the
+            // English one. Another country's version of the language now only after English.)
             .thenByDescending { it.iso6391 == "en" }
+            .thenByDescending { it.iso6391 == languageCode }
             .thenByDescending { it.iso6391 == null },
     ).firstOrNull()?.filePath
 }
 
 private val defaultLanguageRegions = mapOf(
+    "fr" to "FR",
     "pt" to "PT",
     "es" to "ES",
 )

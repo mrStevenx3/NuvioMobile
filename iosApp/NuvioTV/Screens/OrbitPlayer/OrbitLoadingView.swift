@@ -97,6 +97,9 @@ struct OrbitLoadingView: View {
                         // copy over the logo now fades out on the screen's own animator, smooth
                         // whatever the app is doing.
                         mark
+                            // Steven (2026-10-30: "quand il s'éclaire il faudrait qu'il y ait un halo
+                            // autour"): a soft glow of the logo's own colours rises with the light.
+                            .background { OrbitHaloRise(start: lightStart) { mark }.padding(-90) }
                             .overlay {
                                 OrbitDimFade(start: lightStart,
                                              dimFully: lightsUp && Self.lightIsStale(at: Date(), start: lightStart)) {
@@ -156,7 +159,10 @@ struct OrbitLoadingView: View {
 
     /// When the logo began to light up (the sources' page); the player's screen goes on from it.
     nonisolated(unsafe) static var lightStartedAt: Date?
-    static let lightDuration: Double = 1.1
+    /// (Steven, 2026-10-30: "il arrive trop sombre au début pendant longtemps" — less dark, lit sooner.)
+    static let lightDuration: Double = 0.8
+    /// The dimmed copy's darkening (was −0.45).
+    static let dimLevel: Double = -0.25
 
     /// No light-up begun lately (none yet, or one from an earlier opening).
     static func lightIsStale(at date: Date, start: Date? = OrbitLoadingView.lightStartedAt) -> Bool {
@@ -169,7 +175,7 @@ struct OrbitLoadingView: View {
         guard let start = lightStartedAt else { return 0 }
         let t = min(1, max(0, date.timeIntervalSince(start) / lightDuration))
         let eased = 1 - pow(1 - t, 3)
-        return -0.45 * (1 - eased)
+        return dimLevel * (1 - eased)
     }
 }
 
@@ -211,7 +217,7 @@ struct OrbitDimFade<Content: View>: UIViewRepresentable {
 
     private var dimmed: some View {
         content()
-            .brightness(-0.45)
+            .brightness(OrbitLoadingView.dimLevel)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -235,6 +241,88 @@ struct OrbitDimFade<Content: View>: UIViewRepresentable {
         fade.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - elapsed
         fade.fillMode = .backwards
         layer.add(fade, forKey: "light")
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
+    }
+}
+
+
+/// The logo's halo: a blurred, brightened copy of it behind it, rising as the logo lights up
+/// (0 → a peak at the light's end → settling a little lower, held) — on Core Animation, like
+/// `OrbitDimFade`, so it stays smooth while the film is being opened. Drawn larger than the logo
+/// (`spread` all round) so the glow is not cut at its edges. No start, or an old one: held settled.
+struct OrbitHaloRise<Content: View>: UIViewRepresentable {
+    let start: Date?
+    var spread: CGFloat = 90
+    @ViewBuilder let content: () -> Content
+
+    static var peak: Float { 0.85 }
+    static var settled: Float { 0.6 }
+    static var settleDuration: Double { 0.6 }
+
+    final class Coordinator {
+        var host: UIHostingController<AnyView>?
+        var key: String?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = false
+        let host = UIHostingController(rootView: AnyView(glow))
+        host.safeAreaRegions = []
+        host.view.backgroundColor = .clear
+        host.view.clipsToBounds = false
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        host.view.frame = view.bounds
+        view.addSubview(host.view)
+        context.coordinator.host = host
+        apply(view, context.coordinator)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.host?.rootView = AnyView(glow)
+        apply(view, context.coordinator)
+    }
+
+    /// Two blurs of the logo: a close one (the rim's light) and a wide one (the halo).
+    private var glow: some View {
+        ZStack {
+            content().brightness(0.35).saturation(1.3).blur(radius: 46).opacity(0.9)
+            content().brightness(0.45).blur(radius: 16).opacity(0.7)
+        }
+        .padding(spread)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .compositingGroup()
+    }
+
+    private func apply(_ view: UIView, _ coordinator: Coordinator) {
+        let key = start.map { "\($0.timeIntervalSinceReferenceDate)" } ?? "lit"
+        guard key != coordinator.key else { return }
+        coordinator.key = key
+        let layer = view.layer
+        layer.removeAnimation(forKey: "halo")
+        layer.opacity = Self.settled
+        guard let start else { return }
+        let rise = OrbitLoadingView.lightDuration
+        let total = rise + Self.settleDuration
+        let elapsed = Date().timeIntervalSince(start)
+        guard elapsed < total else { return }
+        let anim = CAKeyframeAnimation(keyPath: "opacity")
+        anim.values = [0, Self.peak, Self.settled]
+        anim.keyTimes = [0, NSNumber(value: rise / total), 1]
+        anim.timingFunctions = [CAMediaTimingFunction(controlPoints: 0.33, 1, 0.68, 1),
+                                CAMediaTimingFunction(name: .easeInEaseOut)]
+        anim.duration = total
+        anim.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - elapsed
+        anim.fillMode = .backwards
+        layer.add(anim, forKey: "halo")
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIView, context: Context) -> CGSize? {
