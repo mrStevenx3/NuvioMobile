@@ -382,15 +382,28 @@ struct OrbitDetailView: View {
                     // Steven (2026-10-29: "fais comme l'accueil"): as Home's rows, a row is redrawn
                     // only when what it shows changes — a move in one row (or the page's own state
                     // changing with it) no longer redraws every row of the page.
-                    OrbitStillSection(key: castKey) { castSection }.equatable()
-                        .disabled(returningElsewhere(.cast))
-                    OrbitStillSection(key: sagaKey) { sagaSection }.equatable()
-                        .disabled(returningElsewhere(.saga))
-                    OrbitStillSection(key: trailersKey) { trailersSection }.equatable()
-                        .disabled(returningElsewhere(.trailers))
-                    OrbitStillSection(key: similarKey) { similarSection }.equatable()
-                        .disabled(returningElsewhere(.similar))
-                    aboutSection.disabled(returningElsewhere(.about))
+                    // Steven (2026-10-30: a film without a saga — or without seasons — had larger gaps
+                    // between its rows): an empty section still took its place in the column, so the
+                    // gap around it counted twice. A section with nothing to show is left out.
+                    if !(meta?.cast ?? []).isEmpty {
+                        OrbitStillSection(key: castKey) { castSection }.equatable()
+                            .disabled(returningElsewhere(.cast))
+                    }
+                    if !(meta?.collectionItems ?? []).isEmpty {
+                        OrbitStillSection(key: sagaKey) { sagaSection }.equatable()
+                            .disabled(returningElsewhere(.saga))
+                    }
+                    if !(meta?.trailers ?? []).isEmpty {
+                        OrbitStillSection(key: trailersKey) { trailersSection }.equatable()
+                            .disabled(returningElsewhere(.trailers))
+                    }
+                    if !(meta?.moreLikeThis ?? []).isEmpty {
+                        OrbitStillSection(key: similarKey) { similarSection }.equatable()
+                            .disabled(returningElsewhere(.similar))
+                    }
+                    if hasAbout {
+                        aboutSection.disabled(returningElsewhere(.about))
+                    }
                 }
                 .scrollTargetLayout()
                 .padding(.bottom, 160)
@@ -1529,6 +1542,12 @@ struct OrbitDetailView: View {
     }
 
     @ViewBuilder
+    private var hasAbout: Bool {
+        guard let meta else { return false }
+        return !OrbitAboutRows.make(meta: meta, isSeries: isSeries).isEmpty || !companies.isEmpty
+            || !model.parentalWarnings.isEmpty
+    }
+
     private var aboutSection: some View {
         if let meta {
             let rows = OrbitAboutRows.make(meta: meta, isSeries: isSeries)
