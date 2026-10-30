@@ -1011,9 +1011,11 @@ private struct OrbitAppleTVPoster: View {
                     .lineLimit(1)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
-                    // In once the foot is open; out at once.
+                    // Steven (2026-10-30: "il faut qu'elle soit en fondu, là elle arrive du haut"): the words
+                    // stay at their place under the art (the foot opening over them) and only fade in.
+                    .offset(y: L.captionFoot - foot)
                     .opacity(focused ? 1 : 0)
-                    .animation(focused ? .easeOut(duration: 0.15).delay(0.12) : nil, value: focused)
+                    .animation(focused ? .easeOut(duration: 0.25).delay(0.1) : .easeIn(duration: 0.1), value: focused)
             }
             if let rank {
                 Text(String(rank))
@@ -1125,6 +1127,9 @@ private struct OrbitAppleTVFocus: ViewModifier {
             .shadow(color: .black.opacity(focused ? 0.55 : 0), radius: focused ? 24 : 0, y: focused ? 16 : 0)
             .scaleEffect(focused ? scale : 1)
             // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
+            // Steven (2026-10-30: the large cards grew "de façon sèche"): the focus's growth on its own
+            // short curve, as tvOS's.
+            .animation(.easeOut(duration: 0.2), value: focused)
     }
 }
 
