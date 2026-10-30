@@ -439,41 +439,8 @@ struct OrbitDetailView: View {
             }
             }
 
-            // Under the sections, the page fades out at the top (Steven: the trailers' captions
-            // showed by the house) — a shade over it, not a mask.
-            // Steven (2026-10-30: "ombre permanente en haut — fais comme l'accueil"): the band is the
-            // page's own ground and colour, as Home's (not a dark shade): what goes under it melts
-            // into the page (the hero's "Réalisé par" line no longer shows there).
-            ZStack(alignment: .top) {
-                if let topTone {
-                    OrbitToneBackdrop(tone: topTone)
-                        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
-                        .frame(width: OrbitHomeLayout.screenWidth, height: L.pageTop + 20, alignment: .top)
-                        .clipped()
-                        .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                                     .init(color: .black, location: 0.7),
-                                                     .init(color: .clear, location: 1)],
-                                             startPoint: .top, endPoint: .bottom))
-                } else {
-                    LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
-                }
-            }
-                .frame(width: OrbitHomeLayout.screenWidth, height: L.pageTop + 20)
-                .task(id: posterURL ?? backdropURL ?? "-") {
-                    guard let raw = posterURL ?? backdropURL else { return }
-                    if let known = OrbitDominantColor.cached(raw) { topTone = known; return }
-                    topTone = await OrbitDominantColor.color(for: raw)
-                }
-                .opacity(section == .hero || cinema ? 0 : 1)
-                // Steven (2026-10-30, video: a dark bar at the top as the page went down or up): the
-                // band faded in a quarter second while the picture under it still faded out (0.45 s) —
-                // a band of the film's colour over the picture. It now comes once the page under it
-                // is all colour (then it is the same as what is under it) and goes at once on the way
-                // up (the page under it still all colour at that moment).
-                .animation(section == .hero || cinema ? nil : .linear(duration: 0.01).delay(0.46),
-                           value: section == .hero || cinema)
-                .allowsHitTesting(false)
-                .ignoresSafeArea()
+            // (The band under the bar is gone: the sections above the one shown fade out, as on a
+            // studio's page, and the page's ground is the same picture everywhere.)
 
             // Steven (2026-10-30, Apple TV's own title page as the model, "ou autre chose qui colle à
             // l'ADN d'Orbit"): off the hero, the title comes back small at the top's middle — lit
@@ -1656,7 +1623,7 @@ private struct OrbitDetailBackground: View {
     var onTrailerFirstFrame: (() -> Void)? = nil
 
     /// Under the sections, the film's colour covering the whole screen.
-    private var hiddenUnderColour: Bool { dimmed && sectionTone != nil && !cinema }
+    private var hiddenUnderColour: Bool { dimmed && !cinema }
 
     /// The poster's colour, known (at once when it was seen before).
     private var sectionTone: Color? {
@@ -1676,12 +1643,9 @@ private struct OrbitDetailBackground: View {
                     OrbitImage(url: quickURL, mode: .fill, size: size)
                 }
                 OrbitSwapImage(url: url, fallback: nil, size: size)
-                // Steven (device: not dark or blurred enough under the sections).
-                OrbitPreBlurred(url: url, radius: 44)
-                    .opacity(dimmed && sectionTone == nil ? 1 : 0)
             }
             // (Hidden under the film's colour: not pushed in for nothing.)
-            .scaleEffect(dimmed && sectionTone == nil ? 1.06 : (cinema ? 1.05 : 1))
+            .scaleEffect(cinema ? 1.05 : 1)
             // Steven (2026-10-30, slow-motion video measured: a frame missed about every fifth all
             // along a move in the sections): the picture and its shades were still drawn under the
             // film's colour at every frame — off once the colour covers them, back at once.
@@ -1744,14 +1708,15 @@ private struct OrbitDetailBackground: View {
             // Cinema: only a light bottom shade stays (for the title and the hint).
             .opacity(cinema ? 0.35 : 1)
             .modifier(OrbitUnderColour(hidden: hiddenUnderColour))
-            // Under the sections: dark enough for white text on any art.
-            tint.opacity(dimmed && sectionTone == nil ? 0.74 : 0)
-            // The film's colour, deep enough for white text, melting into the page's colour.
-            if let deep = sectionTone {
-                OrbitToneBackdrop(tone: deep)
-                    .opacity(dimmed ? 1 : 0)
-                    .allowsHitTesting(false)
-            }
+            // Steven (2026-10-30, Apple TV's own title page as the model: "c'est quoi l'effet de
+            // flou… les couleurs se basent sur quoi"): under the sections, the film's own picture,
+            // blurred until only its colours are left, a little livelier, and just dimmed enough for
+            // white text — as Apple's (no single colour any more: the picture's own gradient).
+            OrbitPreBlurred(url: url, radius: 70)
+                .saturation(1.2)
+                .overlay(Color.black.opacity(0.22))
+                .opacity(dimmed ? 1 : 0)
+                .allowsHitTesting(false)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2485,8 +2450,9 @@ struct OrbitDetailHeaderTitle: View {
     let shown: Bool
 
     var body: some View {
-        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 380, height: 84), textSize: 40)
-            .frame(width: 380, height: 84, alignment: .center)
+        // (Apple's own: about a quarter of the screen's width.)
+        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 460, height: 100), textSize: 46)
+            .frame(width: 460, height: 100, alignment: .center)
             .brightness(shown ? 0 : -0.35)
             .scaleEffect(shown ? 1 : 0.94)
             .opacity(shown ? 1 : 0)
