@@ -307,7 +307,9 @@ struct OrbitStudiosPage: View {
             }
         }
         shownWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42, execute: work)
+        // (Steven, 2026-10-31, video: the picture changed ~0.42 s after the press, then its 0.2 s
+        // fade — the wait was most of it. The pictures and blurs are ready ahead now: a shorter wait.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     /// The studio's page switch, once the row rests.
@@ -847,7 +849,12 @@ enum OrbitStudioLogos {
         let key = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         if key.contains("pixar") { return base + "pixar.png" }
         // (Disney's studio — not Disney+, the platform.)
-        if key.contains("disney"), !key.contains("+"), !key.contains("plus") { return base + "disney.png" }
+        if isDisney(title) { return base + "disney.png" }
         return nil
+    }
+
+    static func isDisney(_ title: String) -> Bool {
+        let key = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        return key.contains("disney") && !key.contains("+") && !key.contains("plus")
     }
 }

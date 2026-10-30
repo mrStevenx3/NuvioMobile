@@ -1421,9 +1421,10 @@ private struct OrbitStudioHero: View {
                 // Steven (device: "Nouveaux films" ran over the banner's text): higher up.
                 // (Steven, 2026-10-30: "il flotte au milieu à gauche" — lower, still a row's gap
                 // above the first row's heading.)
-                // (2026-10-31: "tu ne l'as pas baissé" — 60 points was not enough to see: down to just
-                // above the first row, about 45 points over its heading.)
-                .offset(x: L.margin, y: 235)
+                // (2026-10-31: "tu ne l'as pas baissé" — 60 points was not enough to see. Measured on
+                // his video: the first row's heading is ~770 points down the screen; the button now
+                // ends ~65 points above it, as on Home.)
+                .offset(x: L.margin, y: 300)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
@@ -2135,6 +2136,9 @@ struct OrbitStudioIntroLogo: View {
         } else if let logoUrl, !logoUrl.isEmpty {
             OrbitBalancedLogo(url: logoUrl, area: 13_000, maxSize: OrbitStudioIntro.cornerBox,
                               whiten: OrbitBalancedLogo.isGrey(name), alignment: corner ? .topTrailing : .center)
+                // (Steven, 2026-10-31: Disney's flat signature sat too high in the corner — a little
+                // lower, level with the others' middle.)
+                .offset(y: corner && OrbitStudioLogos.isDisney(name) ? 16 : 0)
         } else {
             Text(name)
                 .font(.system(size: 40, weight: .heavy))
