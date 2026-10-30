@@ -971,33 +971,47 @@ private struct OrbitHBOGlassText: View {
     var bright = false
 
     var body: some View {
-        let font = Font.system(size: size, weight: .medium)
-        let w = max(1.5, size * (bright ? 0.03 : 0.022))
+        // (HBO Max's lettering: rounded, wide strokes.)
+        let font = Font.system(size: size, weight: .medium, design: .rounded)
+        let w = max(1.5, size * (bright ? 0.026 : 0.02))
         // (Steven: the 1 and the 0 of 10 touching.)
         let tight: CGFloat = text == "10" ? -size * 0.09 : 0
         let offsets: [CGSize] = (0..<16).map { i in
             let a = Double(i) / 16 * 2 * .pi
             return CGSize(width: cos(a) * w, height: sin(a) * w)
         }
-        let rim = LinearGradient(colors: [Color(white: 0.97), Color(white: 0.55), Color(white: 0.3), Color(white: 0.85)],
-                                 startPoint: .bottomLeading, endPoint: .topTrailing)
-        // (Steven, 2026-10-30, photo: the figures and TOP 10 too dark inside, the top above all —
-        // the glass lighter, its top no longer near black.)
-        // (Steven, later: "on voit beaucoup moins le côté verre" — glass again: dark inside, a soft
-        // sheen across its top instead of the near-black that was there.)
-        let glass = LinearGradient(stops: [.init(color: Color(red: 0.20, green: 0.22, blue: 0.29), location: 0),
-                                           .init(color: Color(red: 0.05, green: 0.06, blue: 0.09), location: 0.45),
-                                           .init(color: Color(red: 0.15, green: 0.17, blue: 0.24), location: 1)],
+        // Steven (2026-10-30, HBO Max's own Top 10 as the model): a thin silver rim, brightest along
+        // the tops of the strokes and greyer below; dark glass inside, darkest at the top and
+        // lighter towards the bottom; a fine glint just inside the upper edges.
+        let rim = LinearGradient(stops: [.init(color: Color(white: 0.98), location: 0),
+                                         .init(color: Color(white: 0.78), location: 0.35),
+                                         .init(color: Color(white: 0.42), location: 0.75),
+                                         .init(color: Color(white: 0.68), location: 1)],
+                                 startPoint: .top, endPoint: .bottom)
+        let glass = LinearGradient(stops: [.init(color: Color(red: 0.05, green: 0.055, blue: 0.07), location: 0),
+                                           .init(color: Color(red: 0.11, green: 0.12, blue: 0.14), location: 0.55),
+                                           .init(color: Color(red: 0.27, green: 0.28, blue: 0.31), location: 1)],
                                    startPoint: .top, endPoint: .bottom)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
+        let glyph = Text(text).font(font).kerning(tight)
         ZStack {
             ForEach(offsets.indices, id: \.self) { i in
-                Text(text).font(font).kerning(tight).foregroundStyle(rim).offset(offsets[i])
+                glyph.foregroundStyle(rim).offset(offsets[i])
             }
             // Steven (device: the rank arrived offset, then filled): both fills drawn, the lit one
             // faded in on the move's own curve (a style swap cannot animate; it jumped afterwards).
-            Text(text).font(font).kerning(tight).foregroundStyle(glass)
-            Text(text).font(font).kerning(tight).foregroundStyle(lit).opacity(filled ? 1 : 0)
+            glyph.foregroundStyle(glass)
+            // The glint: the glyph less itself moved down a little — a fine light band just inside
+            // its upper edges.
+            ZStack {
+                glyph.foregroundStyle(Color.white.opacity(0.32))
+                glyph.foregroundStyle(Color.black).offset(y: w * 1.8).blendMode(.destinationOut)
+            }
+            .compositingGroup()
+            .padding(w * 0.9)
+            .mask(glyph.padding(w * 0.9))
+            .padding(-w * 0.9)
+            glyph.foregroundStyle(lit).opacity(filled ? 1 : 0)
         }
         // (Steven, 2026-10-30: lag from the Top 10 on — each rank was 18 lines of text at full size,
         // grouped and shadowed again at every frame of a move.) Drawn once into one picture, its
