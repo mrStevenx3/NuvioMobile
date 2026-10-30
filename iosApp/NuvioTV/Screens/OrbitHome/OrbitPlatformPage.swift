@@ -876,9 +876,11 @@ struct OrbitPlatformIntro: View {
         // Steven (2026-10-30: "il s'illumine, se désillumine, le logo bloque, puis va à son
         // emplacement — pas un effet continu"): the glow went out, then a pause, then the glide. Now one
         // gesture: it leaves at once, its glow fading as it goes.
+        // (Steven, 2026-10-30: "je veux la même chose dans les deux" — exactly the studios' glide: the
+        // same spring, the glow going on the same curve.)
         guard phase == .splash else { return }
-        withAnimation(.easeOut(duration: 0.4)) { glow = 0 }
-        withAnimation(.timingCurve(0.3, 0.0, 0.2, 1.0, duration: 0.8)) { phase = .settled }
+        withAnimation(.spring(response: 0.8, dampingFraction: 0.9)) { phase = .settled }
+        withAnimation(.easeInOut(duration: 0.8)) { glow = 0 }
     }
 
     /// The logo switched on as a neon sign: two quick flickers, then full light with its flash,
