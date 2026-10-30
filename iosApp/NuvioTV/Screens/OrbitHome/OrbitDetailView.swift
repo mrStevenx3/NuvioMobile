@@ -2142,6 +2142,7 @@ private struct OrbitSynopsisPanel: View {
                 .padding(60)
                 .frame(width: 1240, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(.ultraThinMaterial))
+                .overlay(RoundedRectangle(cornerRadius: 34, style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
                 .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(OrbitGlass.tint))
             }
             .buttonStyle(OrbitPlainStyle())

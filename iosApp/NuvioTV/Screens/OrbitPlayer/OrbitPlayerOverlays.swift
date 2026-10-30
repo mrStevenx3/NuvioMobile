@@ -105,6 +105,7 @@ struct OrbitUpNextCard: View {
         .frame(width: 520, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(OrbitGlass.tint))
         .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(.ultraThinMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .padding(.trailing, 96)
         .padding(.bottom, 200)

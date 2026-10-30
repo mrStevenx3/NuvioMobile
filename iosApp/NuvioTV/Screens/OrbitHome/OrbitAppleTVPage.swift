@@ -756,7 +756,7 @@ private struct OrbitAppleTVCapsule: View {
             .padding(.horizontal, size * 0.6)
             .padding(.vertical, size * 0.25)
             .background(Capsule().fill(.ultraThinMaterial))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
+            .overlay(Capsule().strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
     }
 }
 
@@ -863,6 +863,7 @@ private struct OrbitAppleTVHero: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(Capsule().fill(.ultraThinMaterial))
+                .overlay(Capsule().strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
                 .animation(.easeInOut(duration: 0.3), value: index)
                 .frame(width: size.width)
                 .offset(y: L.rowsTopOnArrival - 64)
