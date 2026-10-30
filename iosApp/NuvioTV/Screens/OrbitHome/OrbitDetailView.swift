@@ -1582,6 +1582,9 @@ struct OrbitDetailView: View {
         // s'efface"): the last section cannot come up to the top — the page stops lower, the ones
         // above it still in view. Down there, nothing fades.
         guard section != lastSection else { return false }
+        // (Steven, 2026-10-30: "l'élément du haut n'a pas besoin de disparaître, il peut rester" —
+        // only the hero's own lines go, under the title at the top.)
+        guard s == .hero else { return false }
         return Self.rank(s) < Self.rank(section)
     }
 
