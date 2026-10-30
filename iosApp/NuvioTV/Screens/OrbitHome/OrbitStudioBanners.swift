@@ -54,7 +54,10 @@ final class OrbitStudioBanners: ObservableObject {
               let backdrops = json["backdrops"] as? [[String: Any]], !backdrops.isEmpty else { return nil }
         func score(_ b: [String: Any]) -> Double { (b["vote_average"] as? Double) ?? 0 }
         let clean = backdrops.filter { ($0["iso_639_1"] as? String) == nil }
-        let pool = clean.isEmpty ? backdrops : clean
+        var pool = clean.isEmpty ? backdrops : clean
+        // Full HD at least (the banner spans the whole screen), when the film has one.
+        let sharp = pool.filter { (($0["width"] as? Int) ?? 0) >= 1920 }
+        if !sharp.isEmpty { pool = sharp }
         return pool.max { score($0) < score($1) }?["file_path"] as? String
     }
 }
