@@ -65,7 +65,11 @@ struct OrbitHomeHeroView: View {
                         OrbitTitleMark(name: item.name, logo: info.logo,
                                        maxSize: CGSize(width: 640, height: 200), textSize: 70, hugsLogo: true)
                             .frame(width: 640, alignment: .leading)
+                        // Steven (2026-10-30): the small lines read on any art — a soft shadow under the
+                        // letters only (no veil over the image); drawn once into a picture, so the page's
+                        // moves carry it without working it out again.
                         OrbitMetaLine(info: info, size: 28)
+                            .modifier(OrbitHeroTextShade())
                             .padding(.top, 34)
                         Text(info.synopsis)
                             .font(.system(size: 26, weight: .medium))
@@ -73,6 +77,7 @@ struct OrbitHomeHeroView: View {
                             .lineSpacing(5)
                             .lineLimit(3)
                             .frame(width: 880, alignment: .leading)
+                            .modifier(OrbitHeroTextShade())
                             .padding(.top, 22)
                         Text("Voir la fiche")
                             .font(.system(size: 27, weight: .semibold))
@@ -186,5 +191,19 @@ struct OrbitPreBlurred: View {
               let rendered = CIContext(options: [.useSoftwareRenderer: false]).createCGImage(output, from: input.extent)
         else { return nil }
         return UIImage(cgImage: rendered)
+    }
+}
+
+
+/// A soft shadow under small text over an image (the hero's synopsis and its line of details): a
+/// close dark edge and a wider soft one, baked into one picture with the text.
+struct OrbitHeroTextShade: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: .black.opacity(0.55), radius: 1.5, y: 1)
+            .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
+            .padding(14)
+            .drawingGroup()
+            .padding(-14)
     }
 }
