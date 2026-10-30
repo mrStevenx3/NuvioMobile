@@ -1331,7 +1331,13 @@ private struct OrbitStudioHero: View {
             // Steven (device: a sharp line between the banner and the rows): the art itself fades
             // out at the bottom, into the page's own colour, whatever it is.
             ZStack(alignment: .topLeading) {
-                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+                // Steven (2026-10-30, as Netflix's hero): the art drifts very slowly (a slow push in
+                // and across), on the screen's own animator; still while a trailer plays.
+                OrbitSlowDrift(active: trailerURL == nil, key: item.map { "\($0.type):\($0.id)" } ?? "-") {
+                    OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+                }
+                .frame(width: size.width, height: size.height)
+                .clipped()
                 if let trailerURL, let item {
                     TrailerHeroPlayer(urlString: trailerURL,
                                       onFailure: onTrailerFailure,
@@ -1347,8 +1353,8 @@ private struct OrbitStudioHero: View {
                 // as Home's hero is, into the page's own dark, on the left and at the bottom.
                 // (Steven, 2026-10-30: "pareil que le hero de l'accueil" — Home's shades exactly.)
                 LinearGradient(stops: [
-                    .init(color: OrbitHomeLayout.background.opacity(0.88), location: 0),
-                    .init(color: OrbitHomeLayout.background.opacity(0.45), location: 0.38),
+                    .init(color: OrbitHomeLayout.background.opacity(0.6), location: 0),
+                    .init(color: OrbitHomeLayout.background.opacity(0.3), location: 0.38),
                     .init(color: .clear, location: 0.64),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
@@ -2131,5 +2137,74 @@ struct OrbitStudioIntroLogo: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
         }
+    }
+}
+
+
+/// Its content drifting very slowly — a gentle push in (to 108 %) and across, there and back over
+/// half a minute — animated by Core Animation (no work for the app on each frame). Stops (eased back
+/// to rest) when not `active`; starts again from rest for a new `key`.
+struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
+    let active: Bool
+    let key: String
+    @ViewBuilder let content: () -> Content
+
+    final class Coordinator {
+        var host: UIHostingController<AnyView>?
+        var running = false
+        var key = ""
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        let host = UIHostingController(rootView: AnyView(content()))
+        host.safeAreaRegions = []
+        host.view.backgroundColor = .clear
+        host.view.frame = view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(host.view)
+        context.coordinator.host = host
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        let c = context.coordinator
+        c.host?.rootView = AnyView(content())
+        guard let layer = c.host?.view.layer else { return }
+        let restart = c.key != key
+        c.key = key
+        if active, !c.running || restart {
+            layer.removeAnimation(forKey: "drift")
+            let drift = CABasicAnimation(keyPath: "transform")
+            drift.fromValue = CATransform3DIdentity
+            var to = CATransform3DMakeScale(1.08, 1.08, 1)
+            to = CATransform3DTranslate(to, -28, -6, 0)
+            drift.toValue = to
+            drift.duration = 15
+            drift.autoreverses = true
+            drift.repeatCount = .infinity
+            drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.add(drift, forKey: "drift")
+            c.running = true
+        } else if !active, c.running {
+            // Back to rest, gently, from wherever it is.
+            let now = layer.presentation()?.transform ?? CATransform3DIdentity
+            layer.removeAnimation(forKey: "drift")
+            let settle = CABasicAnimation(keyPath: "transform")
+            settle.fromValue = now
+            settle.toValue = CATransform3DIdentity
+            settle.duration = 0.6
+            settle.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(settle, forKey: "settle")
+            c.running = false
+        }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
     }
 }

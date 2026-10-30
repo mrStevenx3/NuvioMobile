@@ -43,8 +43,9 @@ struct OrbitHomeHeroView: View {
             // Steven (device: the art flashed lighter, then darkened, on each change): the shades
             // stay put; only the title's details cross-fade.
             LinearGradient(stops: [
-                .init(color: L.background.opacity(0.88), location: 0),
-                .init(color: L.background.opacity(0.45), location: 0.38),
+                // (Steven, 2026-10-30: the text has its own shadow now — the side shade a third lighter.)
+                .init(color: L.background.opacity(0.6), location: 0),
+                .init(color: L.background.opacity(0.3), location: 0.38),
                 .init(color: .clear, location: 0.64),
             ], startPoint: .leading, endPoint: .trailing)
             LinearGradient(stops: [

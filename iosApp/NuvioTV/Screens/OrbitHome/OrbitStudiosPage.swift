@@ -478,12 +478,14 @@ private struct OrbitStudioTile: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         // Steven (2026-10-30: the studios' row jerky when pressed quickly or swiped): every tile's
         // logo shadow and soft tile shadow were worked out again at every frame of a slide (as on
         // HBO Max and Apple TV). The tile is drawn once into a picture (its logo's shadow in it), and
         // only the focused or chosen tile casts a shadow.
+        // (Steven, video: dark slivers inside the frame on each side — the rounded edge drawn into the
+        // picture came out with a dark fringe. The whole tile drawn, then rounded.)
         .drawingGroup()
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.5 : 0.12)),
