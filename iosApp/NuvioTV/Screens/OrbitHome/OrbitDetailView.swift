@@ -64,7 +64,8 @@ enum OrbitDetailLayout {
     /// The episodes section's top (it holds the season posters, the episodes and their text).
     static let episodesRest: CGFloat = 100
     /// The line the system aligns a focused section's top on (the page's top margin).
-    static let pageTop: CGFloat = 140
+    // (Steven, 2026-10-30: the cast too close under the title at the top — the sections a little lower.)
+    static let pageTop: CGFloat = 215
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
@@ -127,6 +128,8 @@ struct OrbitDetailView: View {
     @State private var section: OrbitDetailSection = .hero
     /// The poster's colour (the band under the bar off the hero, as Home's).
     @State private var topTone: Color?
+    /// The first step down: the sections under the first one wait, then rise into place.
+    @State private var entering = false
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
     @State private var pagePosition: OrbitDetailSection? = .hero
     /// Steven (2026-10-29, device: "un peu de tremblement à la verticale… par rapport à l'accueil
@@ -391,25 +394,31 @@ struct OrbitDetailView: View {
                     if !(meta?.cast ?? []).isEmpty {
                         OrbitStillSection(key: castKey) { castSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.cast)))
+                            .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.cast)))
                             .disabled(returningElsewhere(.cast))
                     }
                     if !(meta?.collectionItems ?? []).isEmpty {
                         OrbitStillSection(key: sagaKey) { sagaSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.saga)))
+                            .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.saga)))
                             .disabled(returningElsewhere(.saga))
                     }
                     if !(meta?.trailers ?? []).isEmpty {
                         OrbitStillSection(key: trailersKey) { trailersSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.trailers)))
+                            .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.trailers)))
                             .disabled(returningElsewhere(.trailers))
                     }
                     if !(meta?.moreLikeThis ?? []).isEmpty {
                         OrbitStillSection(key: similarKey) { similarSection }.equatable()
                             .modifier(OrbitAboveFade(above: isAbove(.similar)))
+                            .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.similar)))
                             .disabled(returningElsewhere(.similar))
                     }
                     if hasAbout {
-                        aboutSection.disabled(returningElsewhere(.about))
+                        aboutSection
+                            .modifier(OrbitEntranceLift(waiting: entering && isBelowFirst(.about)))
+                            .disabled(returningElsewhere(.about))
                     }
                 }
                 .scrollTargetLayout()
@@ -435,8 +444,18 @@ struct OrbitDetailView: View {
             // Steven ("le problème de coupure" on Up / Down): the system scrolled to the focus, then
             // the page scrolled again to its section — two moves. Only Menu back to the top moves the
             // page itself now; Up / Down are the system's one move, aligned on the sections.
-            .onChange(of: section) { _, target in
+            .onChange(of: section) { old, target in
                 if target == .hero { go(to: .hero) }
+                // Steven (2026-10-30, Apple TV's own: "les éléments du bas arrivent un peu après"): on
+                // the first step down, what comes under the first section arrives a beat later.
+                if old == .hero, target == firstSection, !reduceMotion {
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { entering = true }
+                    DispatchQueue.main.async {
+                        withAnimation(OrbitDetailEntrance.curve) { entering = false }
+                    }
+                }
             }
             }
 
@@ -1540,20 +1559,26 @@ struct OrbitDetailView: View {
         return .about
     }
 
+    /// A section under the first one (the first step down brings it a beat later).
+    private func isBelowFirst(_ s: OrbitDetailSection) -> Bool {
+        Self.rank(s) > Self.rank(firstSection)
+    }
+
+    private static func rank(_ s: OrbitDetailSection) -> Int {
+        switch s {
+        case .hero: return 0
+        case .episodes: return 1
+        case .cast: return 2
+        case .saga: return 3
+        case .trailers: return 4
+        case .similar: return 5
+        case .about: return 6
+        }
+    }
+
     /// A section above the one shown (faded out, as the studio page's rows above the current one).
     private func isAbove(_ s: OrbitDetailSection) -> Bool {
-        func rank(_ s: OrbitDetailSection) -> Int {
-            switch s {
-            case .hero: return 0
-            case .episodes: return 1
-            case .cast: return 2
-            case .saga: return 3
-            case .trailers: return 4
-            case .similar: return 5
-            case .about: return 6
-            }
-        }
-        return rank(s) < rank(section)
+        Self.rank(s) < Self.rank(section)
     }
 
     private var hasAbout: Bool {
@@ -2457,7 +2482,9 @@ struct OrbitAboveFade: ViewModifier {
         content
             // (Steven, 2026-10-30: Up no longer went back — a section at 0 is out of the focus's
             // reach. Faded to almost nothing instead: unseen, still reachable.)
-            .opacity(above ? 0.02 : 1)
+            // (Steven, 2026-10-30: at 2 % it still showed as a ghost — 1.2 %, just above what the
+            // system still counts as there.)
+            .opacity(above ? 0.012 : 1)
             .animation(.easeOut(duration: 0.18), value: above)
     }
 }
@@ -2474,24 +2501,28 @@ struct OrbitDetailHeaderTitle: View {
     @State private var steps: [DispatchWorkItem] = []
 
     var body: some View {
-        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 640, height: 150), textSize: 64)
+        // (Steven: not centred — the mark drawn at the left of its box; it hugs its logo now, centred.)
+        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 640, height: 150), textSize: 64, hugsLogo: true)
+            .fixedSize()
             .frame(width: 640, height: 150, alignment: .center)
             .modifier(OrbitLightUp(dim: dim, glow: glow, tint: Color.white.opacity(0.7)))
-            .scaleEffect(shown ? 1 : 0.95)
+            // Steven (2026-10-30, Apple TV's first step down: "exactement la même animation"): it rises
+            // into place a beat after the page, as the rows below it.
+            .offset(y: shown ? 0 : 50)
             .opacity(shown ? 1 : 0)
-            .animation(shown ? .easeOut(duration: 0.4) : .easeIn(duration: 0.15), value: shown)
+            .animation(shown ? OrbitDetailEntrance.curve : .easeIn(duration: 0.15), value: shown)
             .onChange(of: shown, initial: true) { _, on in
                 steps.forEach { $0.cancel() }
                 steps = []
                 var still = Transaction()
                 still.disablesAnimations = true
-                guard on else { withTransaction(still) { dim = 1; glow = 0 }; return }
                 withTransaction(still) { dim = 1; glow = 0 }
+                guard on else { return }
                 // Orbit's light-up: rising to bright, its peak, a soft glow left on it.
                 let plan: [(Double, Double, Double, Animation)] = [
-                    (0.10, 0, 0.8, .easeIn(duration: 0.45)),
-                    (0.55, 0, 1.2, .easeOut(duration: 0.18)),
-                    (0.75, 0, 0.3, .easeInOut(duration: 0.5)),
+                    (0.15, 0, 0.8, .easeIn(duration: 0.45)),
+                    (0.60, 0, 1.2, .easeOut(duration: 0.18)),
+                    (0.80, 0, 0.3, .easeInOut(duration: 0.5)),
                 ]
                 for (at, d, g, a) in plan {
                     let w = DispatchWorkItem { withAnimation(a) { dim = d; glow = g } }
@@ -2499,6 +2530,22 @@ struct OrbitDetailHeaderTitle: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + at, execute: w)
                 }
             }
+    }
+}
+
+/// Apple TV's first step down on a title page: the page slides up, and what comes under the focused
+/// row (and the title at the top) arrives a beat later, rising into place.
+enum OrbitDetailEntrance {
+    static let curve: Animation = .easeOut(duration: 0.5).delay(0.15)
+}
+
+/// A section under the first one, on the first step down: lower and unseen, then rising into place.
+struct OrbitEntranceLift: ViewModifier {
+    let waiting: Bool
+    func body(content: Content) -> some View {
+        content
+            .offset(y: waiting ? 90 : 0)
+            .opacity(waiting ? 0.012 : 1)
     }
 }
 
@@ -2519,6 +2566,8 @@ struct OrbitUnderColour: ViewModifier {
 /// cheap to draw (one small image).
 struct OrbitThickBlur: View {
     let url: String?
+    /// A wait before a new picture (Home: once the row rests).
+    var settle: Double = 0
     @State private var image: UIImage?
     @State private var shown: String?
 
@@ -2538,6 +2587,9 @@ struct OrbitThickBlur: View {
         .animation(.easeInOut(duration: 0.35), value: shown)
         .task(id: url ?? "-") {
             guard let url, let address = URL(string: url) else { return }
+            if settle > 0, image != nil {
+                do { try await Task.sleep(for: .seconds(settle)) } catch { return }
+            }
             guard let small = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(48), fill: true, scale: 1)),
                   let cg = small.cgImage else { return }
             let soft = await Task.detached(priority: .userInitiated) { () -> UIImage? in

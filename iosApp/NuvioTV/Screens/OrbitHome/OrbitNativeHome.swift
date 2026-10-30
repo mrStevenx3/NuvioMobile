@@ -128,7 +128,8 @@ struct OrbitNativeHome: View {
     /// where nothing of it shows.)
     /// Steven (2026-10-30, as the Apple TV app): the first row peeks in at the bottom of the hero —
     /// its heading and the top of its titles — so it is plain there is more below.
-    static let firstRowPeek: CGFloat = 150
+    // (Steven, 2026-10-30: the hero full screen again — no row peeking under it.)
+    static let firstRowPeek: CGFloat = 0
     static var heroHeight: CGFloat { OrbitHomeLayout.screenHeight - topLine - sectionGap - firstRowPeek }
     /// (Steven: 12 points taken from here went above the details, so the rows stay in place.)
     /// Steven (2026-10-29: "un petit peu d'espace entre chaque ligne comme dans l'application Apple
@@ -409,7 +410,12 @@ private struct OrbitNativeTopCover: View {
     @ObservedObject private var state = OrbitNativeHomeState.shared
 
     var body: some View {
-        OrbitMirroredWash(mirror: OrbitWashMirror.home)
+        ZStack {
+            OrbitMirroredWash(mirror: OrbitWashMirror.home)
+            // (The same thick blur as the page under it, so the band is the page itself.)
+            OrbitThickBlur(url: state.art, settle: OrbitHomeThickBlur.settle)
+                .modifier(OrbitHomeThickBlur())
+        }
             .mask(alignment: .top) {
                 LinearGradient(stops: [.init(color: .black, location: 0),
                                        .init(color: .black, location: 0.7),
@@ -432,7 +438,13 @@ private struct OrbitNativeBackdrop: View {
     @ObservedObject private var state = OrbitNativeHomeState.shared
 
     var body: some View {
-        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
+        ZStack {
+            OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
+            // Steven (2026-10-30, trying the title page's thick blur on Home): the focused title's
+            // picture reduced to its colour fields, over the wash, once the row rests.
+            OrbitThickBlur(url: state.art, settle: OrbitHomeThickBlur.settle)
+                .modifier(OrbitHomeThickBlur())
+        }
             .opacity(visible ? 1 : 0)
             .animation(.easeInOut(duration: 0.35), value: visible)
             .ignoresSafeArea()
@@ -1098,6 +1110,7 @@ struct OrbitNativeTile: View {
                 OrbitSmallPoster(card: card, meta: meta, focused: isFocused, size: OrbitTileLayout.sagaPoster)
             }
         }
+        .modifier(OrbitPosterDepth(focused: isFocused))
         .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
@@ -1727,5 +1740,40 @@ struct OrbitSwipeCatcher: UIViewRepresentable {
     func updateUIView(_ view: Catcher, context: Context) {
         view.active = active
         view.onStep = onStep
+    }
+}
+
+
+/// Home's thick blur (tried on Steven's ask): livelier, dimmed for the rows' white text.
+struct OrbitHomeThickBlur: ViewModifier {
+    /// After the row rests (a colour change under a moving row cost frames).
+    static let settle: Double = 0.5
+    func body(content: Content) -> some View {
+        content
+            .saturation(1.2)
+            .overlay(Color.black.opacity(0.3))
+    }
+}
+
+/// Steven (2026-10-30, the depth effect talked about the day before, on Home to try): the focused
+/// poster lifts off the page — a deeper soft shadow under it and a light sheen across it, from its top
+/// left. No tilt. Only the focused tile draws it.
+struct OrbitPosterDepth: ViewModifier {
+    let focused: Bool
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if focused {
+                    LinearGradient(stops: [.init(color: .white.opacity(0.22), location: 0),
+                                           .init(color: .white.opacity(0.06), location: 0.35),
+                                           .init(color: .clear, location: 0.6)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .blendMode(.plusLighter)
+                        .mask(content)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .shadow(color: .black.opacity(focused ? 0.5 : 0), radius: focused ? 26 : 0, y: focused ? 18 : 0)
     }
 }
