@@ -1338,21 +1338,22 @@ private struct OrbitStudioHero: View {
                         .frame(width: size.width, height: size.height)
                         .transition(.opacity.animation(.easeOut(duration: 0.6)))
                 }
+                // Steven (2026-10-30: "un brouillard de la couleur du fond du studio sur la gauche et le
+                // bas"): the art no longer turns see-through over the studio's colour — it is shaded
+                // as Home's hero is, into the page's own dark, on the left and at the bottom.
                 LinearGradient(stops: [
-                    .init(color: .black.opacity(0.85), location: 0),
-                    .init(color: .black.opacity(0.4), location: 0.45),
-                    .init(color: .clear, location: 0.72),
+                    .init(color: OrbitHomeLayout.background.opacity(0.88), location: 0),
+                    .init(color: OrbitHomeLayout.background.opacity(0.45), location: 0.38),
+                    .init(color: .clear, location: 0.64),
                 ], startPoint: .leading, endPoint: .trailing)
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.45), location: 0),
+                    .init(color: .clear, location: 0.16),
+                    .init(color: .clear, location: 0.62),
+                    .init(color: OrbitHomeLayout.background, location: 0.97),
+                ], startPoint: .top, endPoint: .bottom)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
-            // (Steven, 2026-10-30, photo: "un gros brouillard en bas du hero" — the art faded from
-            // its middle; now whole down to three quarters, then a short fade into the page.)
-            .mask(LinearGradient(stops: [
-                .init(color: .black, location: 0),
-                .init(color: .black, location: 0.72),
-                .init(color: .black.opacity(0.6), location: 0.86),
-                .init(color: .clear, location: 1),
-            ], startPoint: .top, endPoint: .bottom))
 
             // The studio's logo, top right (Steven: no figures; the film's name has the left).
             Group {
