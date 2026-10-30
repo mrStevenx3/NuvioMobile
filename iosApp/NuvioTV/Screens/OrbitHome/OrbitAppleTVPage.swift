@@ -925,7 +925,9 @@ private struct OrbitAppleTVRowView: View {
                                  box: box, alignment: .top, keepsLeadAtMargin: false,
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
                                  onLeadChange: { _ in onLeadChange() },
-                                 redrawKey: AnyHashable([AnyHashable(trailerURL), AnyHashable(newIDs)])) { index, lit in
+                                 redrawKey: AnyHashable([AnyHashable(trailerURL), AnyHashable(newIDs),
+                                                         AnyHashable(row.items.map { metaStore.meta(for: $0) != nil })]),
+                                 followsMeta: false) { index, lit in
                 let item = row.items[index]
                 Group {
                     switch row.kind {

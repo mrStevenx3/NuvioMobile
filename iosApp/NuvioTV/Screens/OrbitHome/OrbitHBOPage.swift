@@ -914,7 +914,9 @@ private struct OrbitHBORowView: View {
                                  onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
                                  onLeadChange: { _ in onLeadChange() },
                                  width: { index in row.slot(index) - L.gap },
-                                 redrawKey: AnyHashable([AnyHashable(trailerURL), AnyHashable(news)])) { index, lit in
+                                 redrawKey: AnyHashable([AnyHashable(trailerURL), AnyHashable(news),
+                                                         AnyHashable(row.universe ? [] : row.items.map { metaStore.meta(for: $0) != nil })]),
+                                 followsMeta: false) { index, lit in
                 if row.universe {
                     OrbitHBOBrandTile(brand: OrbitHBOBrand.all[index], focused: lit)
                 } else if row.featured {
