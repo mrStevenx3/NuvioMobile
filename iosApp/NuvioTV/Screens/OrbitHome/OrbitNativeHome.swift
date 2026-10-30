@@ -322,6 +322,25 @@ struct OrbitNativeHome: View {
         .scrollTargetBehavior(.viewAligned)
         .scrollClipDisabled()
         .frame(width: OrbitHomeLayout.screenWidth, height: Self.heroHeight)
+        // Steven (2026-10-30: the dots that tell the page "ne doivent pas se décaler avec l'affiche"):
+        // drawn once over the pages, in place — only the lit one moves.
+        .overlay(alignment: .topLeading) {
+            if count > 1 {
+                HStack(spacing: 10) {
+                    ForEach(0..<count, id: \.self) { i in
+                        Capsule()
+                            .fill(Color.white.opacity(i == heroPage ? 1 : 0.35))
+                            .frame(width: i == heroPage ? 24 : 8, height: 8)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.3), value: heroPage)
+                .frame(width: OrbitHomeLayout.screenWidth)
+                .offset(y: OrbitHomeLayout.heroInfoBottom + 110 - Self.topLine)
+                .opacity(onHero ? 1 : 0)
+                .animation(.easeInOut(duration: onHero ? 0.3 : 0.22), value: onHero)
+                .allowsHitTesting(false)
+            }
+        }
         .focusSection()
         .defaultFocus($heroFocus, heroPage,
                       // Back from a title opened in a row: the hero must not take the focus first
@@ -389,7 +408,8 @@ private struct OrbitNativeHeroPage: View {
         ZStack(alignment: .top) {
             if live {
                 OrbitNativeTrailerReader(host: trailers, key: "hero|\(item.type):\(item.id)") { url in
-                    OrbitHomeHeroView(item: item, focused: isFocused, count: count, index: index,
+                    // (The page dots are the hero's own, drawn once over the pages: `OrbitNativeHome.hero`.)
+                    OrbitHomeHeroView(item: item, focused: isFocused, count: 0, index: index,
                                       trailerURL: url,
                                       onTrailerFailure: { trailers.model.playbackFailed($0) },
                                       onTrailerEnded: { trailers.model.playbackFinished() })
