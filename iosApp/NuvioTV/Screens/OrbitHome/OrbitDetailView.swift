@@ -1774,15 +1774,15 @@ private struct OrbitDetailBackground: View {
             if !OrbitDiag.noGround {
             ZStack {
                 tint.opacity(sectionTone == nil ? 0.74 : 0)
-                if let deep = sectionTone {
+                // (Only until the thick picture is made — covered by it after, not drawn for nothing.)
+                if let deep = sectionTone, url.map({ OrbitThickBlur.made.object(forKey: $0 as NSString) == nil }) ?? true {
                     OrbitToneBackdrop(tone: deep)
                         .allowsHitTesting(false)
                 }
                 // Steven (2026-10-30, Apple TV's Nocturne page: "un flou épais"): the film's own picture
                 // reduced to its colour fields — no shape left, as Apple's.
+                // (Its colour and veil baked into the picture — the diagnostic.)
                 OrbitThickBlur(url: url)
-                    .saturation(1.2)
-                    .overlay(Color.black.opacity(0.24))
                     .allowsHitTesting(false)
             }
             // (On the hero, not drawn under its picture: there at once on the way down, gone once
@@ -2323,8 +2323,7 @@ private struct OrbitSynopsisPanel: View {
             ZStack {
                 Color.black
                 OrbitThickBlur(url: backdropURL)
-                    .saturation(1.2)
-                Color.black.opacity(0.32)
+                Color.black.opacity(0.1)
             }
             .frame(width: L.screenWidth, height: L.screenHeight)
             .opacity(open ? 1 : 0)
@@ -2758,9 +2757,10 @@ struct OrbitThickBlur: View {
     var body: some View {
         ZStack {
             if let image {
+                // (A plain picture: its colour and darkening are in it — no filter worked out at
+                // every frame of a scroll over it.)
                 Image(uiImage: image)
                     .resizable()
-                    .interpolation(.high)
                     .aspectRatio(contentMode: .fill)
                     .id(shown ?? "-")
                     .transition(.opacity)
@@ -2771,6 +2771,11 @@ struct OrbitThickBlur: View {
         .animation(.easeInOut(duration: 0.35), value: shown)
         .task(id: url ?? "-") {
             guard let url, let address = URL(string: url) else { return }
+            if let ready = Self.made.object(forKey: url as NSString) {
+                image = ready
+                shown = url
+                return
+            }
             if settle > 0, image != nil {
                 do { try await Task.sleep(for: .seconds(settle)) } catch { return }
             }
@@ -2779,14 +2784,27 @@ struct OrbitThickBlur: View {
             let soft = await Task.detached(priority: .userInitiated) { () -> UIImage? in
                 OrbitThickBlur.thick(cg)
             }.value
-            guard !Task.isCancelled, let soft else { return }
+            guard let soft else { return }
+            Self.made.setObject(soft, forKey: url as NSString)
+            guard !Task.isCancelled else { return }
             image = soft
             shown = url
         }
         .accessibilityHidden(true)
     }
 
-    /// The picture at 40 px wide, softened (its edges held), as a small image.
+    /// The thick pictures made (by url).
+    nonisolated(unsafe) static let made: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 40
+        return cache
+    }()
+    nonisolated(unsafe) private static let context = CIContext(options: [.useSoftwareRenderer: false])
+
+    /// The picture at 40 px wide, softened (its edges held), then — Steven (2026-10-31, the
+    /// diagnostic: the page smooth without this ground) — finished here once instead of at every
+    /// frame on the screen: its colour lifted (×1.2), darkened (the 24 % veil), and enlarged smoothly
+    /// to 640 px so the screen only stretches a soft picture (no high-quality resampling per frame).
     nonisolated static func thick(_ cg: CGImage) -> UIImage? {
         let input = CIImage(cgImage: cg)
         let scale = 40 / max(input.extent.width, 1)
@@ -2795,9 +2813,32 @@ struct OrbitThickBlur: View {
         guard let blur = CIFilter(name: "CIGaussianBlur") else { return nil }
         blur.setValue(small.clampedToExtent(), forKey: kCIInputImageKey)
         blur.setValue(2.2, forKey: kCIInputRadiusKey)
-        guard let out = blur.outputImage?.cropped(to: extent),
-              let rendered = CIContext(options: [.useSoftwareRenderer: false]).createCGImage(out, from: extent)
-        else { return nil }
+        guard var out = blur.outputImage?.cropped(to: extent) else { return nil }
+        if let colour = CIFilter(name: "CIColorControls") {
+            colour.setValue(out, forKey: kCIInputImageKey)
+            colour.setValue(1.2, forKey: kCIInputSaturationKey)
+            if let lifted = colour.outputImage { out = lifted }
+        }
+        // The veil: 76 % of each colour (black at 24 % over it).
+        if let veil = CIFilter(name: "CIColorMatrix") {
+            veil.setValue(out, forKey: kCIInputImageKey)
+            veil.setValue(CIVector(x: 0.76, y: 0, z: 0, w: 0), forKey: "inputRVector")
+            veil.setValue(CIVector(x: 0, y: 0.76, z: 0, w: 0), forKey: "inputGVector")
+            veil.setValue(CIVector(x: 0, y: 0, z: 0.76, w: 0), forKey: "inputBVector")
+            if let dark = veil.outputImage { out = dark }
+        }
+        // Enlarged smoothly (and softened again a little, so no step of the small grid shows).
+        let grow = 640 / max(extent.width, 1)
+        var large = out.clampedToExtent()
+            .transformed(by: CGAffineTransform(scaleX: grow, y: grow))
+        if let soften = CIFilter(name: "CIGaussianBlur") {
+            soften.setValue(large, forKey: kCIInputImageKey)
+            soften.setValue(grow * 0.6, forKey: kCIInputRadiusKey)
+            if let soft = soften.outputImage { large = soft }
+        }
+        let target = CGRect(x: extent.minX * grow, y: extent.minY * grow,
+                            width: extent.width * grow, height: extent.height * grow).integral
+        guard let rendered = context.createCGImage(large.cropped(to: target), from: target) else { return nil }
         return UIImage(cgImage: rendered)
     }
 }
