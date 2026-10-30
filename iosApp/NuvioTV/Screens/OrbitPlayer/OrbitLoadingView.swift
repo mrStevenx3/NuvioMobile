@@ -93,7 +93,9 @@ struct OrbitLoadingView: View {
                             // film's colour once read, changed under his eyes. No halo: the logo alone.)
                             // Steven (2026-10-29, later: "le logo se place au centre et s'illumine"): come
                             // to the middle a little dim, it lights up once — no pulse, no halo.
-                            .brightness(Self.dimming(at: now))
+                            // (Its very first frames come before `onAppear` starts the light: an opening
+                            // with no light begun yet — or an old one — starts dim, never lit then dimmed.)
+                            .brightness(lightsUp && Self.lightIsStale(at: now) ? -0.45 : Self.dimming(at: now))
                             .opacity(Self.breath(at: now))
                         Text("Encore un instant…")
                             .font(.system(size: 26, weight: .medium))
@@ -144,6 +146,12 @@ struct OrbitLoadingView: View {
     /// When the logo began to light up (the sources' page); the player's screen goes on from it.
     nonisolated(unsafe) static var lightStartedAt: Date?
     static let lightDuration: Double = 1.1
+
+    /// No light-up begun lately (none yet, or one from an earlier opening).
+    static func lightIsStale(at date: Date) -> Bool {
+        guard let start = lightStartedAt else { return true }
+        return date.timeIntervalSince(start) > 3
+    }
 
     /// The logo's dimming at `date` (−0.45: off, 0: lit), on an ease-out over `lightDuration`.
     static func dimming(at date: Date) -> Double {
