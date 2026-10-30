@@ -1421,7 +1421,9 @@ private struct OrbitStudioHero: View {
                 // Steven (device: "Nouveaux films" ran over the banner's text): higher up.
                 // (Steven, 2026-10-30: "il flotte au milieu à gauche" — lower, still a row's gap
                 // above the first row's heading.)
-                .offset(x: L.margin, y: 190)
+                // (2026-10-31: "tu ne l'as pas baissé" — 60 points was not enough to see: down to just
+                // above the first row, about 45 points over its heading.)
+                .offset(x: L.margin, y: 235)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)

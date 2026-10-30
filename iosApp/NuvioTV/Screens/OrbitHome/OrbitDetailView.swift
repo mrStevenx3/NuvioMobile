@@ -1255,10 +1255,9 @@ struct OrbitDetailView: View {
                     .frame(minWidth: 680, alignment: .leading)
                     .layoutPriority(1)
                 if let overview {
-                    // Steven (2026-10-31: "essaie le PLUS"): no arrow — as Apple TV's, the synopsis
-                    // itself is focusable, a "PLUS" at the end of its second line (the text fading
-                    // out under it); Right from the last button lands on it.
-                    Button { showSynopsis = true } label: {
+                    // Steven: the arrow at the right margin, on the credits' edge; the text runs
+                    // up to it.
+                    HStack(alignment: .center, spacing: 24) {
                         Text(overview)
                             .font(.system(size: 25, weight: .medium))
                             .foregroundStyle(Color.white.opacity(focus == .synopsis ? 1 : 0.9))
@@ -1276,8 +1275,8 @@ struct OrbitDetailView: View {
                                 if !showSynopsis { places.synopsisText = box }
                             }
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisShownHeight = $0 }
-                            // The whole text at the same width, unseen: shorter than two lines, there
-                            // is nothing more to open.
+                            // The whole text at the same width, unseen: shorter than two lines, the
+                            // arrow has nothing more to open.
                             .background(alignment: .topLeading) {
                                 Text(overview)
                                     .font(.system(size: 25, weight: .medium))
@@ -1286,50 +1285,20 @@ struct OrbitDetailView: View {
                                     .hidden()
                                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisFullHeight = $0 }
                             }
-                            // The end of the second line fading out under "PLUS".
-                            .mask {
-                                if synopsisFits {
-                                    Color.black
-                                } else {
-                                    VStack(spacing: 0) {
-                                        Color.black
-                                        HStack(spacing: 0) {
-                                            Color.black
-                                            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
-                                                .frame(width: 60)
-                                            Color.clear.frame(width: 86)
-                                        }
-                                        .frame(height: max(30, synopsisShownHeight / 2))
-                                    }
-                                }
+                            // Steven: a short synopsis floated in the middle; it now hugs the
+                            // right margin, on the credits' edge.
+                            .frame(maxWidth: .infinity, alignment: synopsisFits ? .trailing : .leading)
+                            // Steven: a touch lower, level with the buttons.
+                            .offset(y: 8)
+                        if !synopsisFits {
+                            OrbitSynopsisArrow(focused: focus == .synopsis) {
+                                showSynopsis = true
                             }
-                            .overlay(alignment: .bottomTrailing) {
-                                if !synopsisFits {
-                                    Text("PLUS")
-                                        .font(.system(size: 20, weight: .bold))
-                                        .tracking(1.2)
-                                        .foregroundStyle(Color.white)
-                                        .offset(y: -3)
-                                }
-                            }
-                            // Focused: a light platter around the text (drawn beyond it: the text
-                            // stays in place).
-                            .background {
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color.white.opacity(focus == .synopsis ? 0.16 : 0))
-                                    .padding(.horizontal, -18)
-                                    .padding(.vertical, -12)
-                            }
-                            .animation(.easeOut(duration: 0.2), value: focus == .synopsis)
+                            .focused($focus, equals: .synopsis)
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { places.synopsisArrow = $0 }
+                        }
                     }
-                    .buttonStyle(OrbitPlainStyle())
-                    .disabled(synopsisFits)
-                    .focused($focus, equals: .synopsis)
-                    // Steven: a short synopsis floated in the middle; it now hugs the
-                    // right margin, on the credits' edge.
-                    .frame(maxWidth: .infinity, alignment: synopsisFits ? .trailing : .leading)
-                    // Steven: a touch lower, level with the buttons.
-                    .offset(y: 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .padding(.top, 36)
@@ -2704,6 +2673,9 @@ struct OrbitDetailHeaderTitle: View {
     @State private var seen: Double = 0
     /// Its light: a little dim as it appears, then lit (Orbit's logos).
     @State private var light: Double = -0.35
+    /// Steven (2026-10-31: "un halo pendant que le titre s'éclaire"): a glow of the title's own
+    /// shape, rising with its light, then gone.
+    @State private var halo: Double = 0
 
     var body: some View {
         // (Steven, 2026-10-30, photos side by side: Apple's size.)
@@ -2720,17 +2692,37 @@ struct OrbitDetailHeaderTitle: View {
             // in 0.14 s, and catches up over half a second, still moving a little once the rows have
             // stopped. It lights up as it comes (a little dim, then lit).
             .brightness(light)
+            .background {
+                // The title blurred and brightened, flattened once into a picture (it rides with the
+                // page as a plain image — no blur worked out at every frame of the move).
+                OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 560, height: 120), textSize: 56, hugsLogo: true)
+                    .fixedSize()
+                    .frame(width: 560, height: 120, alignment: .center)
+                    .brightness(0.45)
+                    .blur(radius: 22)
+                    .padding(70)
+                    .drawingGroup()
+                    .padding(-70)
+                    .opacity(halo)
+                    .allowsHitTesting(false)
+            }
             .offset(y: lift)
             .opacity(seen)
             .onChange(of: shown, initial: true) { _, on in
                 var still = Transaction()
                 still.disablesAnimations = true
                 if on {
-                    withTransaction(still) { lift = 120; seen = 0; light = -0.35 }
+                    withTransaction(still) { lift = 120; seen = 0; light = -0.35; halo = 0 }
                     withAnimation(.timingCurve(0.33, 1, 0.68, 1, duration: 0.5).delay(0.15)) { lift = 0 }
                     withAnimation(.easeOut(duration: 0.14).delay(0.15)) { seen = 1 }
                     withAnimation(.easeInOut(duration: 0.4).delay(0.2)) { light = 0 }
+                    // The halo with the light, then fading once it is lit.
+                    withAnimation(.easeOut(duration: 0.4).delay(0.2)) { halo = 0.8 } completion: {
+                        guard shown else { return }
+                        withAnimation(.easeInOut(duration: 0.6)) { halo = 0 }
+                    }
                 } else {
+                    withAnimation(.easeIn(duration: 0.16)) { halo = 0 }
                     // (Apple's, back up: it rides down with the page and is gone in about 0.16 s.)
                     withAnimation(.easeIn(duration: 0.16)) { seen = 0 }
                 }
