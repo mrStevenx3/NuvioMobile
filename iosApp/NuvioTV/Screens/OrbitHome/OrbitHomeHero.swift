@@ -170,19 +170,44 @@ struct OrbitPreBlurred: View {
         .clipped()
         .animation(.easeInOut(duration: 0.35), value: shown)
         .task(id: "\(url ?? "-")|\(radius)") {
-            guard let url, let address = URL(string: url) else { image = nil; shown = nil; return }
-            guard let small = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(Int(Self.width)), fill: true, scale: 1)),
-                  let cg = small.cgImage else { return }
-            let pixels = radius * Self.width / OrbitHomeLayout.screenWidth
-            let blurred = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-                OrbitPreBlurred.blur(cg, radius: pixels)
-            }.value
-            guard !Task.isCancelled, let blurred else { return }
+            guard let url else { image = nil; shown = nil; return }
+            // (Blurred before — a studio's banner prepared ahead: at once.)
+            if let ready = Self.made.object(forKey: "\(url)|\(radius)" as NSString) {
+                image = ready
+                shown = url
+                return
+            }
+            guard let blurred = await Self.prepare(url, radius: radius), !Task.isCancelled else { return }
             image = blurred
             shown = url
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// The blurred copies made (by url and radius).
+    nonisolated(unsafe) static let made: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 60
+        return cache
+    }()
+    /// One Core Image context for every blur (making one costs more than the blur).
+    nonisolated(unsafe) private static let context = CIContext(options: [.useSoftwareRenderer: false])
+
+    /// The blurred copy of `url` at `radius`, made once and kept.
+    @discardableResult
+    static func prepare(_ url: String, radius: CGFloat) async -> UIImage? {
+        let key = "\(url)|\(radius)" as NSString
+        if let ready = made.object(forKey: key) { return ready }
+        guard let address = URL(string: url),
+              let small = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(Int(width)), fill: true, scale: 1)),
+              let cg = small.cgImage else { return nil }
+        let pixels = radius * width / OrbitHomeLayout.screenWidth
+        let blurred = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            OrbitPreBlurred.blur(cg, radius: pixels)
+        }.value
+        if let blurred { made.setObject(blurred, forKey: key) }
+        return blurred
     }
 
     nonisolated static func blur(_ cg: CGImage, radius: CGFloat) -> UIImage? {
@@ -191,7 +216,7 @@ struct OrbitPreBlurred: View {
         filter.setValue(input.clampedToExtent(), forKey: kCIInputImageKey)
         filter.setValue(radius, forKey: kCIInputRadiusKey)
         guard let output = filter.outputImage?.cropped(to: input.extent),
-              let rendered = CIContext(options: [.useSoftwareRenderer: false]).createCGImage(output, from: input.extent)
+              let rendered = context.createCGImage(output, from: input.extent)
         else { return nil }
         return UIImage(cgImage: rendered)
     }

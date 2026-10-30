@@ -206,6 +206,8 @@ struct OrbitStudiosPage: View {
             if let folder = shownFolder { films.focus(title: folder.title) }
             prefetchBackdrops()
         }
+        // (Once the chosen films are known, and whenever they change.)
+        .task(id: folders.map { bannerURL($0) ?? "-" }.joined(separator: "|")) { prefetchBanners() }
         .onDisappear {
             let now = ProcessInfo.processInfo.systemUptime
             Self.leftWithFocus = tilesHaveFocus || focused != nil || now - Self.lostTilesAt < 1.0
@@ -215,6 +217,24 @@ struct OrbitStudiosPage: View {
     /// The banner: the studio's chosen film's backdrop (TMDB), else its own configured image.
     private func bannerURL(_ folder: CollectionFolder?) -> String? {
         folder.flatMap { banners.url(forTitle: $0.title) } ?? Self.backdropURL(folder)
+    }
+
+    /// The banners' images (the studios' chosen films), fetched ahead at the banner's size and
+    /// blurred ahead, so a change of studio shows at once.
+    private func prefetchBanners() {
+        let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.screenWidth,
+                                                         height: OrbitHomeLayout.screenWidth * 9 / 16),
+                                           fill: true, scale: displayScale)
+        let raws = folders.compactMap { bannerURL($0) }
+        Task(priority: .utility) {
+            for raw in raws {
+                guard let url = URL(string: raw) else { continue }
+                if ArtworkStore.cached(url, decode: request) == nil {
+                    _ = try? await ArtworkStore.fetch(url, decode: request)
+                }
+                await OrbitPreBlurred.prepare(raw, radius: 24)
+            }
+        }
     }
 
     /// Every studio's backdrop fetched as the page opens (a change is instant), then its colour.
@@ -759,8 +779,8 @@ private struct OrbitStudioFilmPoster: View {
 
 
 /// The Studios page's picture: the studio's image across the banner, sharp, melting at its foot into
-/// the same image blurred, down to the screen's bottom — one picture, gliding slowly from side to side
-/// as Netflix's billboard (the next studio's image coming in on it where it is).
+/// the same image blurred, down to the screen's bottom — one still picture (the next studio's image
+/// fading in over it).
 private struct OrbitStudiosBackdrop: View {
     let url: String?
     var lift: CGFloat = 0
@@ -769,27 +789,25 @@ private struct OrbitStudiosBackdrop: View {
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let band = OrbitStudioFrame.bannerSize.height
-        let full = CGSize(width: W * 1.1, height: W * 9 / 16 * 1.1)
+        // (Steven, 2026-10-30: "une latence pour que l'image se change, le fondu pas fluide — je
+        // n'avais pas ce problème avant": drawn larger for the glide, the image was decoded anew at
+        // each change (the page fetches it ahead at the screen's width), and the still glide's
+        // hosting delayed it. Back at the screen's width, drawn in place.)
+        let full = CGSize(width: W, height: W * 9 / 16)
         let spare = max(0, W * 9 / 16 - band) / 2
-        let travel = W * 0.05
         // Where the sharp image melts into the blurred one.
         let seam = band * 0.96
-        // (Steven, 2026-10-30: "le défilement apporte trop de bugs pour pas grand-chose" — still.)
-        OrbitSlowDrift(active: false, key: "studios-banner",
-                       from: CATransform3DMakeTranslation(travel, 0, 0),
-                       to: CATransform3DMakeTranslation(-travel, 0, 0),
-                       duration: 16, timing: .easeInEaseOut) {
+        Group {
             ZStack(alignment: .top) {
                 // The same image blurred, at the very place of the sharp one (its centre on the
                 // banner's), stretched down from the seam to reach the screen's bottom.
                 OrbitPreBlurred(url: url, radius: 24)
-                    .scaleEffect(1.1)
                     .offset(y: band / 2 - H / 2)
                     .frame(width: W, height: H)
                     .scaleEffect(x: 1, y: 1.4, anchor: UnitPoint(x: 0.5, y: seam / H))
                     .saturation(0.9)
                     .overlay(Color.black.opacity(0.2))
-                OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift * 1.1)
+                OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
                     .frame(width: full.width, height: full.height)
                     .frame(width: full.width, height: band)
                     .clipped()

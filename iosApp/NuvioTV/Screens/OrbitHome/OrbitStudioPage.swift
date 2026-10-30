@@ -1332,23 +1332,11 @@ private struct OrbitStudioHero: View {
             // Steven (device: a sharp line between the banner and the rows): the art itself fades
             // out at the bottom, into the page's own colour, whatever it is.
             ZStack(alignment: .topLeading) {
-                // Steven (2026-10-30, as Netflix's hero): the art drifts very slowly (a slow push in
-                // and across), on the screen's own animator; still while a trailer plays.
-                // (Steven, 2026-10-30: still not moving — "la même correction que Netflix": as the
-                // Netflix billboard's, the art drawn a little larger, gliding from side to side,
-                // always on (a trailer simply covers it).)
-                let travel = size.width * 0.05
-                OrbitSlowDrift(active: !reduceMotion, key: item.map { "\($0.type):\($0.id)" } ?? "-",
-                               from: CATransform3DMakeTranslation(travel, 0, 0),
-                               to: CATransform3DMakeTranslation(-travel, 0, 0),
-                               duration: 16, timing: .easeInEaseOut) {
-                    OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil,
-                                   size: CGSize(width: size.width * 1.1, height: size.height * 1.1))
-                        .frame(width: size.width * 1.1, height: size.height * 1.1)
-                        .frame(width: size.width, height: size.height)
-                }
-                .frame(width: size.width, height: size.height)
-                .clipped()
+                // Steven (2026-10-30: "l'image du hero qui défile, je t'ai jamais demandé ça"): the art
+                // still, as before (a trailer covers it when it plays).
+                OrbitSwapImage(url: banner ?? meta?.backdrop, fallback: nil, size: size)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
                 if let trailerURL, let item {
                     TrailerHeroPlayer(urlString: trailerURL,
                                       onFailure: onTrailerFailure,
