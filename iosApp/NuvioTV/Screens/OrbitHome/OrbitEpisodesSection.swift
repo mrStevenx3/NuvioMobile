@@ -67,6 +67,8 @@ struct OrbitEpisodesSection: View {
     /// The focus is (or was last) on a season's poster.
     @State private var comingFromSeason = false
     static let detailsWidth: CGFloat = 1300
+    /// The episode's line and its two lines of synopsis, with a little room (was 136).
+    static let detailsHeight: CGFloat = 118
 
     /// Steven (2026-10-29): the episodes a little larger with the larger seasons (was 384 × 216).
     /// (Steven, 2026-10-31, photo: the episode's synopsis cut at the screen's foot — smaller, and the
@@ -184,9 +186,12 @@ struct OrbitEpisodesSection: View {
                                     hidesSynopsis: shown.map { EpisodeSpoilerRules.hidesSpoilers(settingOn: hideSpoilers,
                                                                                                  isWatched: isWatched($0)) } ?? false)
             }
-            .frame(width: Self.detailsWidth, height: 136, alignment: .topLeading)
+            .frame(width: Self.detailsWidth, height: Self.detailsHeight, alignment: .topLeading)
             .clipped()
             .padding(.leading, OrbitDetailLayout.margin)
+            // (Steven, 2026-10-31, photo: a series without seasons — too much room between the
+            // episodes and the cast. The text's room held for two lines, closer to the next row.)
+            .padding(.bottom, -20)
         }
     }
 
@@ -339,7 +344,7 @@ private struct OrbitEpisodeDetails: View {
                 }
             }
         }
-        .frame(width: OrbitEpisodesSection.detailsWidth, height: 136, alignment: .topLeading)
+        .frame(width: OrbitEpisodesSection.detailsWidth, height: OrbitEpisodesSection.detailsHeight, alignment: .topLeading)
         // Swapped at once: two texts cross-fading overlapped into an unreadable mix.
     }
 }
