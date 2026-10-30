@@ -774,7 +774,8 @@ private struct OrbitStudiosBackdrop: View {
         let travel = W * 0.05
         // Where the sharp image melts into the blurred one.
         let seam = band * 0.96
-        OrbitSlowDrift(active: !reduceMotion, key: "studios-banner",
+        // (Steven, 2026-10-30: "le défilement apporte trop de bugs pour pas grand-chose" — still.)
+        OrbitSlowDrift(active: false, key: "studios-banner",
                        from: CATransform3DMakeTranslation(travel, 0, 0),
                        to: CATransform3DMakeTranslation(-travel, 0, 0),
                        duration: 16, timing: .easeInEaseOut) {

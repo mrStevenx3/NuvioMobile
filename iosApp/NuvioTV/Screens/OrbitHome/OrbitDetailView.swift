@@ -445,7 +445,7 @@ struct OrbitDetailView: View {
             // Steven (2026-10-30, Apple TV's own title page as the model, "ou autre chose qui colle à
             // l'ADN d'Orbit"): off the hero, the title comes back small at the top's middle — lit
             // up as Orbit's logos are (a little dim, then its light), with a slight settle.
-            OrbitDetailHeaderTitle(name: title, logo: logoURL, shown: section != .hero && !cinema)
+            OrbitDetailHeaderTitle(name: title, logo: logoURL, shown: section == firstSection && section != .hero && !cinema)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .padding(.top, 34)
                 .allowsHitTesting(false)
@@ -1529,6 +1529,16 @@ struct OrbitDetailView: View {
         .prefix(6).map { $0 }
     }
 
+    /// The first section under the hero (the title shows at the top on the first step down only).
+    private var firstSection: OrbitDetailSection {
+        if isSeries, let meta, !meta.videos.isEmpty { return .episodes }
+        if !(meta?.cast ?? []).isEmpty { return .cast }
+        if !(meta?.collectionItems ?? []).isEmpty { return .saga }
+        if !(meta?.trailers ?? []).isEmpty { return .trailers }
+        if !(meta?.moreLikeThis ?? []).isEmpty { return .similar }
+        return .about
+    }
+
     /// A section above the one shown (faded out, as the studio page's rows above the current one).
     private func isAbove(_ s: OrbitDetailSection) -> Bool {
         func rank(_ s: OrbitDetailSection) -> Int {
@@ -1623,7 +1633,7 @@ private struct OrbitDetailBackground: View {
     var onTrailerFirstFrame: (() -> Void)? = nil
 
     /// Under the sections, the film's colour covering the whole screen.
-    private var hiddenUnderColour: Bool { dimmed && !cinema }
+    private var hiddenUnderColour: Bool { dimmed && sectionTone != nil && !cinema }
 
     /// The poster's colour, known (at once when it was seen before).
     private var sectionTone: Color? {
@@ -1708,15 +1718,15 @@ private struct OrbitDetailBackground: View {
             // Cinema: only a light bottom shade stays (for the title and the hint).
             .opacity(cinema ? 0.35 : 1)
             .modifier(OrbitUnderColour(hidden: hiddenUnderColour))
-            // Steven (2026-10-30, Apple TV's own title page as the model: "c'est quoi l'effet de
-            // flou… les couleurs se basent sur quoi"): under the sections, the film's own picture,
-            // blurred until only its colours are left, a little livelier, and just dimmed enough for
-            // white text — as Apple's (no single colour any more: the picture's own gradient).
-            OrbitPreBlurred(url: url, radius: 70)
-                .saturation(1.2)
-                .overlay(Color.black.opacity(0.22))
-                .opacity(dimmed ? 1 : 0)
-                .allowsHitTesting(false)
+            // (Steven, 2026-10-30: the blurred picture, Apple's, "raté" — the film's colour again.)
+            // Under the sections, until the film's colour is known: dark enough for white text.
+            tint.opacity(dimmed && sectionTone == nil ? 0.74 : 0)
+            // The film's colour (Home's wash), melting into the page's colour.
+            if let deep = sectionTone {
+                OrbitToneBackdrop(tone: deep)
+                    .opacity(dimmed ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2437,26 +2447,50 @@ struct OrbitAboveFade: ViewModifier {
     let above: Bool
     func body(content: Content) -> some View {
         content
-            .opacity(above ? 0 : 1)
+            // (Steven, 2026-10-30: Up no longer went back — a section at 0 is out of the focus's
+            // reach. Faded to almost nothing instead: unseen, still reachable.)
+            .opacity(above ? 0.02 : 1)
             .animation(.easeOut(duration: 0.18), value: above)
     }
 }
 
-/// The title, small, at the top's middle of a title page off its hero: it comes in a little dim and
-/// settles lit (Orbit's light-up), and goes at once on the way back up.
+/// The title at the top's middle of a title page, on the first step down only (Steven, 2026-10-30:
+/// "au premier clic, puis disparaître"): it comes in dim and lights up as Orbit's logos do (a rise
+/// to bright, then a soft glow), and goes as the page goes further down or back up.
 struct OrbitDetailHeaderTitle: View {
     let name: String
     let logo: String?
     let shown: Bool
+    @State private var dim: Double = 1
+    @State private var glow: Double = 0
+    @State private var steps: [DispatchWorkItem] = []
 
     var body: some View {
-        // (Apple's own: about a quarter of the screen's width.)
-        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 460, height: 100), textSize: 46)
-            .frame(width: 460, height: 100, alignment: .center)
-            .brightness(shown ? 0 : -0.35)
-            .scaleEffect(shown ? 1 : 0.94)
+        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 640, height: 150), textSize: 64)
+            .frame(width: 640, height: 150, alignment: .center)
+            .modifier(OrbitLightUp(dim: dim, glow: glow, tint: Color.white.opacity(0.7)))
+            .scaleEffect(shown ? 1 : 0.95)
             .opacity(shown ? 1 : 0)
-            .animation(shown ? .easeOut(duration: 0.5).delay(0.12) : .easeIn(duration: 0.12), value: shown)
+            .animation(shown ? .easeOut(duration: 0.4) : .easeIn(duration: 0.15), value: shown)
+            .onChange(of: shown, initial: true) { _, on in
+                steps.forEach { $0.cancel() }
+                steps = []
+                var still = Transaction()
+                still.disablesAnimations = true
+                guard on else { withTransaction(still) { dim = 1; glow = 0 }; return }
+                withTransaction(still) { dim = 1; glow = 0 }
+                // Orbit's light-up: rising to bright, its peak, a soft glow left on it.
+                let plan: [(Double, Double, Double, Animation)] = [
+                    (0.10, 0, 0.8, .easeIn(duration: 0.45)),
+                    (0.55, 0, 1.2, .easeOut(duration: 0.18)),
+                    (0.75, 0, 0.3, .easeInOut(duration: 0.5)),
+                ]
+                for (at, d, g, a) in plan {
+                    let w = DispatchWorkItem { withAnimation(a) { dim = d; glow = g } }
+                    steps.append(w)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + at, execute: w)
+                }
+            }
     }
 }
 
