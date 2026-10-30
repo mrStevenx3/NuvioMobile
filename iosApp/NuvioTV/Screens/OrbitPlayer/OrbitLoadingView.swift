@@ -93,7 +93,7 @@ struct OrbitLoadingView: View {
                             // film's colour once read, changed under his eyes. No halo: the logo alone.)
                             // Steven (2026-10-29, later: "le logo se place au centre et s'illumine"): come
                             // to the middle a little dim, it lights up once — no pulse, no halo.
-                            .brightness(lit || !lightsUp ? 0 : -0.45)
+                            .brightness(Self.dimming(at: now))
                             .opacity(Self.breath(at: now))
                         Text("Encore un instant…")
                             .font(.system(size: 26, weight: .medium))
@@ -108,15 +108,19 @@ struct OrbitLoadingView: View {
         .accessibilityLabel(Text("Chargement"))
         .onAppear {
             guard !plain else { return }
+            // Steven (2026-10-30: the logo lit "d'un coup sec", not little by little): the source was
+            // found before the light-up ended, and the player's own screen took over already lit. The
+            // light is read off the wall clock from when it began, so the player's screen carries it
+            // on where the sources' page left it.
             if !lightsUp {
                 lit = true
                 glow = 0.3
                 return
             }
             lit = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.easeOut(duration: 0.9)) { lit = true }
-            }
+            // (The same opening seen again — the page drawn anew — does not dim the logo again.)
+            if let started = Self.lightStartedAt, Date().timeIntervalSince(started) < 3 { return }
+            Self.lightStartedAt = Date().addingTimeInterval(0.1)
         }
         .task(id: backdropUrl ?? "-") {
             guard let backdropUrl, !backdropUrl.isEmpty else { return }
@@ -136,4 +140,16 @@ struct OrbitLoadingView: View {
     }
 
     private var mark: some View { Self.logo(logoUrl, title: title) }
+
+    /// When the logo began to light up (the sources' page); the player's screen goes on from it.
+    nonisolated(unsafe) static var lightStartedAt: Date?
+    static let lightDuration: Double = 1.1
+
+    /// The logo's dimming at `date` (−0.45: off, 0: lit), on an ease-out over `lightDuration`.
+    static func dimming(at date: Date) -> Double {
+        guard let start = lightStartedAt else { return 0 }
+        let t = min(1, max(0, date.timeIntervalSince(start) / lightDuration))
+        let eased = 1 - pow(1 - t, 3)
+        return -0.45 * (1 - eased)
+    }
 }
