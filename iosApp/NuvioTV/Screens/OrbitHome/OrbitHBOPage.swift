@@ -986,16 +986,13 @@ private struct OrbitHBOGlassText: View {
         // lighter towards the bottom; a fine glint just inside the upper edges.
         // (Steven, 2026-10-30, photo: the rim as polished metal, the inside darker.) Chrome: bright,
         // a dark band, bright again, darker at the foot.
-        let rim = LinearGradient(stops: [.init(color: Color(white: 0.96), location: 0),
-                                         .init(color: Color(white: 0.62), location: 0.28),
-                                         .init(color: Color(white: 0.9), location: 0.5),
-                                         .init(color: Color(white: 0.38), location: 0.78),
-                                         .init(color: Color(white: 0.7), location: 1)],
+        // Steven (2026-10-30, Max's own Top 10 photo: "reprends plutôt ce style-là"): a fine
+        // blue-violet outline, lighter at the top, around letters as dark as the page — no chrome,
+        // no glint.
+        let rim = LinearGradient(colors: [Color(red: 0.66, green: 0.64, blue: 1.0),
+                                          Color(red: 0.36, green: 0.38, blue: 0.9)],
                                  startPoint: .top, endPoint: .bottom)
-        let glass = LinearGradient(stops: [.init(color: Color(red: 0.02, green: 0.025, blue: 0.035), location: 0),
-                                           .init(color: Color(red: 0.05, green: 0.055, blue: 0.07), location: 0.55),
-                                           .init(color: Color(red: 0.12, green: 0.13, blue: 0.15), location: 1)],
-                                   startPoint: .top, endPoint: .bottom)
+        let glass = Color(red: 0.03, green: 0.035, blue: 0.09)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         let glyph = Text(text).font(font).kerning(tight)
         ZStack {
@@ -1005,16 +1002,6 @@ private struct OrbitHBOGlassText: View {
             // Steven (device: the rank arrived offset, then filled): both fills drawn, the lit one
             // faded in on the move's own curve (a style swap cannot animate; it jumped afterwards).
             glyph.foregroundStyle(glass)
-            // The glint: the glyph less itself moved down a little — a fine light band just inside
-            // its upper edges.
-            ZStack {
-                glyph.foregroundStyle(Color.white.opacity(0.16))
-                glyph.foregroundStyle(Color.black).offset(y: w * 1.8).blendMode(.destinationOut)
-            }
-            .compositingGroup()
-            .padding(w * 0.9)
-            .mask(glyph.padding(w * 0.9))
-            .padding(-w * 0.9)
             glyph.foregroundStyle(lit).opacity(filled ? 1 : 0)
         }
         // (Steven, 2026-10-30: lag from the Top 10 on — each rank was 18 lines of text at full size,

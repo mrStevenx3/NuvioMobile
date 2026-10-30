@@ -357,6 +357,7 @@ private struct OrbitStudioFrame: View {
 
     @State private var zoom: CGFloat = 1
     @State private var shift: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Steven (2026-10-30: "un bandeau large"): the frame becomes a banner across the whole width,
     /// from the screen's top down to where the frame ended; no corners, its bottom melting into the
@@ -375,9 +376,21 @@ private struct OrbitStudioFrame: View {
             let spare = max(0, full.height - size.height) / 2
             // Steven (device: Lucasfilm and Illumination switched differently): Lucasfilm's lift
             // belongs to its image — it no longer jumps the whole frame (the old image with it).
-            OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
-                .frame(width: full.width, height: full.height)
+            // Steven (2026-10-30: "je ne vois toujours pas le défilement" — this banner was the one
+            // meant): the image glides slowly from side to side, exactly as Netflix's billboard (drawn
+            // a little larger, 16 s each way), on the Apple TV's own animator.
+            let travel = size.width * 0.05
+            OrbitSlowDrift(active: !reduceMotion, key: url ?? "-",
+                           from: CATransform3DMakeTranslation(travel, 0, 0),
+                           to: CATransform3DMakeTranslation(-travel, 0, 0),
+                           duration: 16, timing: .easeInEaseOut) {
+                OrbitSwapImage(url: url, fallback: nil, size: CGSize(width: full.width * 1.1, height: full.height * 1.1),
+                               shiftY: spare * lift * 1.1)
+                    .frame(width: full.width * 1.1, height: full.height * 1.1)
+                    .frame(width: size.width, height: size.height)
+            }
                 .frame(width: size.width, height: size.height)
+                .clipped()
                 .scaleEffect(zoom)
                 .offset(x: shift)
             // The name reads at the bottom left; the rest of the image stays clean.
@@ -393,7 +406,7 @@ private struct OrbitStudioFrame: View {
         // Its bottom melts into the page's colour (the tiles come just under it).
         // (Steven, 2026-10-30: the blur starting lower.)
         .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                     .init(color: .black, location: 0.84),
+                                     .init(color: .black, location: 0.92),
                                      .init(color: .clear, location: 1)],
                              startPoint: .top, endPoint: .bottom))
         // (Steven, 2026-10-26: the image in a plain fade — no glide, no zoom.)

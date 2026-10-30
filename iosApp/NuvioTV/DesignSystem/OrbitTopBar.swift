@@ -274,7 +274,7 @@ struct OrbitTopBar: View {
         // (Steven, 2026-10-30: Orbit's one glass, a little dark — was a white veil over the glass.)
         .background(Capsule(style: .continuous).fill(OrbitGlass.tint))
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
+        .overlay(Capsule(style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
     }
 
     private var rule: some View {
@@ -879,7 +879,7 @@ struct CollectionFilterBar: View {
         .padding(OrbitBarMetrics.pillPadding)
         .background(Capsule(style: .continuous).fill(OrbitGlass.tint))
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
+        .overlay(Capsule(style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
         // Steven: Disney+ / Hulu switch on focus, no press (after a short rest: passing over opens nothing).
         .onChange(of: switchFocused) { _, index in
             guard let index else { return }
@@ -940,7 +940,7 @@ struct CollectionFilterBar: View {
         .padding(OrbitBarMetrics.pillPadding)
         .background(Capsule(style: .continuous).fill(OrbitGlass.tint))
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
+        .overlay(Capsule(style: .continuous).strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
     }
 
     @ViewBuilder

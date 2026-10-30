@@ -153,6 +153,26 @@ private final class OrbitSearchHostController: UIViewController {
     /// restoration lands on the poster.
     private var returning = false
 
+    /// Steven (2026-10-30, video: Search on a grey ground, not black): the system's search screen
+    /// lays its own frosted ground over the whole screen — hidden, the page's dark ground shows (the
+    /// keyboard's keys keep theirs).
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        hideFullScreenFrost(in: view)
+    }
+
+    private func hideFullScreenFrost(in root: UIView) {
+        let screen = view.bounds.size
+        for sub in root.subviews {
+            if let frost = sub as? UIVisualEffectView,
+               frost.bounds.width >= screen.width * 0.9, frost.bounds.height >= screen.height * 0.5 {
+                if !frost.isHidden { frost.isHidden = true }
+                continue
+            }
+            hideFullScreenFrost(in: sub)
+        }
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         if results?.hasRestore == true, let target = results?.prepareRestore() {

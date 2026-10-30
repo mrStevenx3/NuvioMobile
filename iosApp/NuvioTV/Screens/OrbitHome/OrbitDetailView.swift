@@ -2010,6 +2010,7 @@ private struct OrbitActionButton: View {
             .padding(.horizontal, focused ? 30 : 0)
             .frame(minWidth: 84, minHeight: 84)
             .background(Capsule().fill(focused ? Color.white : OrbitGlass.tint))
+            .overlay(Capsule().strokeBorder(OrbitGlass.rim.opacity(focused ? 0 : 1), lineWidth: 1.5))
             .scaleEffect(focused ? 1.04 : 1)
             .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 16, y: 8)
         }
@@ -2079,6 +2080,7 @@ private struct OrbitSynopsisArrow: View {
                 .foregroundStyle(focused ? Color.black : Color.white)
                 .frame(width: 104, height: 68)
                 .background(Capsule().fill(focused ? Color.white : OrbitGlass.tint))
+                .overlay(Capsule().strokeBorder(OrbitGlass.rim.opacity(focused ? 0 : 1), lineWidth: 1.5))
                 .scaleEffect(focused ? 1.06 : 1)
                 .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 16, y: 8)
                 .animation(.easeOut(duration: 0.18), value: focused)

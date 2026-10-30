@@ -6,4 +6,7 @@ import SwiftUI
 enum OrbitGlass {
     /// The glass's tint (over the bar's blur, or alone on a button).
     static let tint = Color.black.opacity(0.34)
+    /// Its fine light edge (Steven, 2026-10-30: on a dark poster the dark glass vanished) — the glass
+    /// shows on a dark picture by its edge, on a bright one by its tint.
+    static let rim = Color.white.opacity(0.3)
 }

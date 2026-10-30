@@ -132,8 +132,8 @@ struct OrbitHomeButton: View {
                 .foregroundStyle(focused ? Color.black : Color.white)
                 .frame(width: 62, height: 62)
                 .background(Circle().fill(focused ? Color.white : OrbitGlass.tint))
+                .overlay(Circle().strokeBorder(OrbitGlass.rim.opacity(focused ? 0 : 1), lineWidth: 1.5))
                 .background(Circle().fill(.ultraThinMaterial))
-                .overlay(Circle().strokeBorder(Color.white.opacity(focused ? 0 : 0.24), lineWidth: 1))
                 .scaleEffect(focused ? 1.08 : 1)
                 .animation(.easeOut(duration: 0.15), value: focused)
         }
