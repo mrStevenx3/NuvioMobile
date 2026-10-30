@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Detail (Steven, 2026-10-23): the film / series page rebuilt from scratch for Orbit (the old
 // page is kept, as `LegacyDetailView`, for the other navigation modes only). The data and every
@@ -333,6 +334,7 @@ struct OrbitDetailView: View {
                                   cinema: cinema,
                                   holdArt: holdArt,
                                   tint: platform?.theme.tint ?? .black,
+                                  toneURL: posterURL ?? backdropURL,
                                   onTrailerFailure: {
                                       model.trailerFailed()
                                       if cinema { exitCinema() }
@@ -1563,9 +1565,18 @@ private struct OrbitDetailBackground: View {
     var holdArt: Bool = false
     /// Under the sections (black, or the platform's tint when opened from one).
     var tint: Color = .black
+    /// Steven (2026-10-30): under the sections, the poster's own colour (deepened) in a gradient,
+    /// instead of the darkened art. Its poster; `tint` stays only until its colour is known.
+    var toneURL: String? = nil
+    @State private var tone: Color?
     let onTrailerFailure: () -> Void
     let onTrailerEnded: () -> Void
     var onTrailerFirstFrame: (() -> Void)? = nil
+
+    /// The poster's colour, known (at once when it was seen before).
+    private var sectionTone: Color? {
+        (tone ?? OrbitDominantColor.cached(toneURL)).map(OrbitToneBackdrop.deepen)
+    }
 
     var body: some View {
         let size = CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
@@ -1582,7 +1593,7 @@ private struct OrbitDetailBackground: View {
                 OrbitSwapImage(url: url, fallback: nil, size: size)
                 // Steven (device: not dark or blurred enough under the sections).
                 OrbitPreBlurred(url: url, radius: 44)
-                    .opacity(dimmed ? 1 : 0)
+                    .opacity(dimmed && sectionTone == nil ? 1 : 0)
             }
             .scaleEffect(dimmed ? 1.06 : (cinema ? 1.05 : 1))
             // Steven: the bottom of the art melts into a blur (Apple TV style), under the
@@ -1643,12 +1654,22 @@ private struct OrbitDetailBackground: View {
             // Cinema: only a light bottom shade stays (for the title and the hint).
             .opacity(cinema ? 0.35 : 1)
             // Under the sections: dark enough for white text on any art.
-            tint.opacity(dimmed ? 0.74 : 0)
+            tint.opacity(dimmed && sectionTone == nil ? 0.74 : 0)
+            // The film's colour, deep enough for white text, melting into the page's colour.
+            if let deep = sectionTone {
+                OrbitToneBackdrop(tone: deep)
+                    .opacity(dimmed ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipped()
         .animation(.easeInOut(duration: 0.45), value: dimmed)
         .animation(.easeInOut(duration: 0.8), value: cinema)
+        .task(id: toneURL) {
+            guard let toneURL, OrbitDominantColor.cached(toneURL) == nil else { return }
+            tone = await OrbitDominantColor.color(for: toneURL)
+        }
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
@@ -2329,5 +2350,41 @@ private struct OrbitLaunchVeil: View {
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+}
+
+
+/// Under a title's sections: its poster's colour — deepened and calmed, never light enough to fight
+/// white text — from the top left, melting into the page's colour at the bottom right, with a soft
+/// glow of the same colour in the corner.
+struct OrbitToneBackdrop: View {
+    let tone: Color
+
+    /// A poster's (lively) colour made deep: a grey poster a deep neutral, a coloured one its hue,
+    /// a little calmer, dark.
+    static func deepen(_ color: Color) -> Color {
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        let calm = sat < 0.12 ? min(sat, 0.08) : min(sat * 0.8, 0.62)
+        return Color(hue: Double(h), saturation: Double(calm), brightness: 0.3)
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(stops: [
+                .init(color: tone, location: 0),
+                .init(color: tone.opacity(0.55), location: 0.45),
+                .init(color: .clear, location: 1),
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+            .background(OrbitHomeLayout.background)
+            RadialGradient(colors: [tone.opacity(0.6), .clear],
+                           center: .topLeading, startRadius: 0, endRadius: 1100)
+            // The bottom always ends in the page's colour.
+            LinearGradient(stops: [
+                .init(color: .clear, location: 0.55),
+                .init(color: OrbitHomeLayout.background.opacity(0.85), location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+        }
+        .drawingGroup()
     }
 }
