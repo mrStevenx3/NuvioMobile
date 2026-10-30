@@ -1578,7 +1578,21 @@ struct OrbitDetailView: View {
 
     /// A section above the one shown (faded out, as the studio page's rows above the current one).
     private func isAbove(_ s: OrbitDetailSection) -> Bool {
-        Self.rank(s) < Self.rank(section)
+        // Steven (2026-10-30, photo: down at the studios, "il ne faut pas que l'image du haut
+        // s'efface"): the last section cannot come up to the top — the page stops lower, the ones
+        // above it still in view. Down there, nothing fades.
+        guard section != lastSection else { return false }
+        return Self.rank(s) < Self.rank(section)
+    }
+
+    /// The page's last section (the page's end: it stops before it reaches the top).
+    private var lastSection: OrbitDetailSection {
+        if hasAbout { return .about }
+        if !(meta?.moreLikeThis ?? []).isEmpty { return .similar }
+        if !(meta?.trailers ?? []).isEmpty { return .trailers }
+        if !(meta?.collectionItems ?? []).isEmpty { return .saga }
+        if !(meta?.cast ?? []).isEmpty { return .cast }
+        return .episodes
     }
 
     private var hasAbout: Bool {
