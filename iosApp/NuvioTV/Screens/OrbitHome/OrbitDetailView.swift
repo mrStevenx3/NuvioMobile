@@ -459,7 +459,13 @@ struct OrbitDetailView: View {
                     topTone = await OrbitDominantColor.color(for: raw)
                 }
                 .opacity(section == .hero || cinema ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: section == .hero)
+                // Steven (2026-10-30, video: a dark bar at the top as the page went down or up): the
+                // band faded in a quarter second while the picture under it still faded out (0.45 s) —
+                // a band of the film's colour over the picture. It now comes once the page under it
+                // is all colour (then it is the same as what is under it) and goes at once on the way
+                // up (the page under it still all colour at that moment).
+                .animation(section == .hero || cinema ? nil : .linear(duration: 0.01).delay(0.46),
+                           value: section == .hero || cinema)
                 .allowsHitTesting(false)
                 .ignoresSafeArea()
 
