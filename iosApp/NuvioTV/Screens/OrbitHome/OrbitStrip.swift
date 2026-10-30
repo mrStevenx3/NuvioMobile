@@ -476,9 +476,13 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         guard let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return }
         let x = max(0, frame.minX - margin)
         if animated {
+            // (Steven, 2026-10-30: "applique ce fonctionnement de PARTOUT" — the titles leaving slide out.)
+            let generation = leaving.keep(collectionView, goingTo: x)
             UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
                 self.collectionView.contentOffset = CGPoint(x: x, y: 0)
                 self.shadeVisible()
+            } completion: { [weak self] _ in
+                self?.leaving.done(generation)
             }
         } else {
             collectionView.contentOffset = CGPoint(x: x, y: 0)
@@ -576,10 +580,16 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         if pinned, openDelta != nil {
             // The room goes with the focus, in the same move as the row's slide (one layout, one aim).
             roomLead = next
+            // (The titles leaving slide out with the row: their pictures kept until it rests.)
+            collectionView.collectionViewLayout.invalidateLayout()
+            let aim = collectionView.layoutAttributesForItem(at: IndexPath(item: next, section: 0)).map { max(0, $0.frame.minX - margin) }
+            let generation = aim.map { leaving.keep(collectionView, goingTo: $0) }
             UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
                 self.collectionView.collectionViewLayout.invalidateLayout()
                 self.collectionView.layoutIfNeeded()
                 self.offsetToMargin(next)
+            } completion: { [weak self] _ in
+                if let generation { self?.leaving.done(generation) }
             }
             onFocus(next)
             return

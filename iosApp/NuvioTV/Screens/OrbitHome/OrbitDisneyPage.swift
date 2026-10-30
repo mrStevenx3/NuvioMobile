@@ -434,18 +434,29 @@ struct OrbitDisneyPage: View {
             // with the page (only its text fades), and fades only past the first row.
             OrbitDisneyHeroScroll(tracker: heroFade,
                                   keepsUntil: OrbitDisneyLayout.rowsTop(hulu: isHulu) - OrbitDisneyLayout.restTopNew) {
+                // Steven (2026-10-30: still a stutter at the first Down, from the hero to the posters):
+                // the hero follows the page's scroll frame by frame — and was drawn again, whole (its
+                // art, its trailer), at every frame of it. It is drawn again only when what it shows
+                // changes; the scroll only moves and fades it.
+                let heroPool = heroPool
+                let heroTrailer = trailerURL(for: hero)
+                OrbitStillSection(key: [hero.map { "\($0.type):\($0.id)" } ?? "-", "\(heroIndex)", "\(heroItems.count)",
+                                        "\(pageFocused && current == 0)", "\(isHulu)", brandLogoURL ?? "-",
+                                        "\(heroPool.fresh)", heroTrailer ?? "-", "\(metaStore.revision)"]) {
                 OrbitDisneyHero(item: hero, meta: hero.flatMap { metaStore.meta(for: $0) },
                                 count: heroItems.count, index: min(heroIndex, max(0, heroItems.count - 1)),
                                 focused: pageFocused && current == 0, isHulu: isHulu, brandLogoURL: brandLogoURL,
                                 dotsY: OrbitDisneyLayout.rowsTop(hulu: isHulu) - 44,
                                 newcomer: heroPool.fresh,
                                 fade: heroFade,
-                                trailerURL: trailerURL(for: hero),
+                                trailerURL: heroTrailer,
                                 onTrailerFailure: { trailer.playbackFailed($0) },
                                 onTrailerEnded: {
                                     trailer.playbackFinished()
                                     advanceHero()
                                 })
+                }
+                .equatable()
             }
 
                             nativeSections(rows)

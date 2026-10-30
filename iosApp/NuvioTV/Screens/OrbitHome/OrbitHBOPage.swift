@@ -399,7 +399,6 @@ struct OrbitHBOPage: View {
     var body: some View {
         let rows = rows
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
-        let offset = scroll(rows)
         let onArrival = current == 0
 
         ZStack(alignment: .topLeading) {
@@ -422,6 +421,7 @@ struct OrbitHBOPage: View {
                     // Steven (device: back to the top, the art came down from above): it stays in
                     // place and fades; only the rows move.
                     .opacity(onArrival ? 1 : 0)
+                    .animation(onArrival ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onArrival)
             }
 
                             nativeSections(rows)
@@ -436,6 +436,7 @@ struct OrbitHBOPage: View {
                            startPoint: .top, endPoint: .bottom)
                 .frame(width: W, height: 130)
                 .opacity(onArrival ? 0 : 1)
+                .animation(onArrival ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onArrival)
                 .allowsHitTesting(false)
 
             if rows.isEmpty, model.isLoading {
@@ -464,11 +465,10 @@ struct OrbitHBOPage: View {
         .background(OrbitHBOLayout.background)
         .ignoresSafeArea()
         .background { ViewerInputClockInstaller().frame(width: 0, height: 0) }
-        .animation(reduceMotion ? nil : OrbitHBOLayout.vertical, value: offset)
-        // Steven (device, Apple TV: the first row's title ran over the carousel's poster while it
-        // faded): leaving, the carousel is gone before the rows reach it; coming back, it fades in
-        // once they have moved off it.
-        .animation(onArrival ? .easeInOut(duration: 0.3).delay(0.14) : .easeOut(duration: 0.14), value: onArrival)
+        // Steven (2026-10-30: HBO Max and Apple TV still jerky down, the other platforms smooth): the
+        // whole page was animated at every row change (an animation on all of it, by the rows'
+        // offset — left from the page before its rows were native); only these two pages still had
+        // it. The hero and the band fade on their own (above).
         .onAppear {
             covered = false
             tabBarVisibility.pushImmersive()
