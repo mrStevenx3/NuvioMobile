@@ -1547,13 +1547,13 @@ struct OrbitDetailView: View {
         .prefix(6).map { $0 }
     }
 
-    @ViewBuilder
     private var hasAbout: Bool {
         guard let meta else { return false }
         return !OrbitAboutRows.make(meta: meta, isSeries: isSeries).isEmpty || !companies.isEmpty
             || !model.parentalWarnings.isEmpty
     }
 
+    @ViewBuilder
     private var aboutSection: some View {
         if let meta {
             let rows = OrbitAboutRows.make(meta: meta, isSeries: isSeries)
