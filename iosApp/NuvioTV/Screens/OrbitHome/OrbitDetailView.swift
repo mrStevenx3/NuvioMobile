@@ -362,11 +362,6 @@ struct OrbitDetailView: View {
                     hero
                         // (The page's top margin is above it: the hero ends where it always did.)
                         .frame(height: L.heroHeight - L.pageTop, alignment: .bottomLeading)
-                        // Steven (2026-10-30: "l'effet est absolument raté" — the picture moved on its own
-                        // curve beside the page): the hero's picture is part of the page now, so it goes up
-                        // and comes down with the page exactly, as on Apple TV. Shown while the page moves
-                        // (the fixed one, under the trailer, takes over at rest on the hero).
-
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
@@ -469,10 +464,9 @@ struct OrbitDetailView: View {
             // page itself now; Up / Down are the system's one move, aligned on the sections.
             .onChange(of: section) { old, target in
                 if target == .hero { go(to: .hero) }
-
-                // Steven (2026-10-30, Apple TV's own: "les éléments du bas arrivent un peu après"): on
-                // the first step down, what comes under the first section arrives a beat later.
-                // (Steven, 2026-10-30, option A: the delayed rows taken off — Apple's page moves as one.)
+                // (Apple's page moves as one on the first step down: nothing arrives late — checked
+                // frame by frame on Steven's slow motion of Silo.)
+                _ = old
             }
             }
 
