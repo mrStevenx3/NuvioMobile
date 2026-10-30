@@ -483,7 +483,9 @@ struct OrbitRowsBackdrop: View {
 
     /// The wait once the focus rests, and the cross-fade (the headings' bar on the same curve).
     static let wait = 450
-    static let fade: Double = 0.45
+    // (Steven, 2026-10-30: the colours too slow to change — the fade shorter; the wait stays at
+    // 0.45 s so it still starts once the row has stopped.)
+    static let fade: Double = 0.3
 
     private func show(_ color: Color) {
         if (showsB ? colourB : colourA) == color { return }
