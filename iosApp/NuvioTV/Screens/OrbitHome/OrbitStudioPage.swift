@@ -745,9 +745,13 @@ struct OrbitStudioIntro: View {
                     var still = Transaction()
                     still.disablesAnimations = true
                     withTransaction(still) { phase = .splash; dim = 0; glow = 0.35 }
-                    let lift = max(0.3, OrbitPlatformCurtain.litAfter - OrbitPlatformCurtain.pushAt)
+                    // Steven (2026-10-30: the studio's page showed a second during the opening, then
+                    // went — as the platforms' did): the curtain went 0.3 s after the push began, the
+                    // push still sliding the page in. As the platforms' now: it goes at 0.75 s, as the
+                    // logo leaves for its corner, the page fading in under it.
+                    let lift = 0.75
                     DispatchQueue.main.asyncAfter(deadline: .now() + lift) { OrbitPlatformCurtain.shared.lift(instant: true) }
-                    play(fromSplash: true, after: lift)
+                    play(fromSplash: true, after: lift - 0.4)
                     return
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { OrbitPlatformCurtain.shared.lift() }
