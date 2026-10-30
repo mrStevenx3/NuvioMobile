@@ -2150,12 +2150,21 @@ struct OrbitStudioIntroLogo: View {
 struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
     let active: Bool
     let key: String
+    /// Where it goes from and to (a push in and across by default), and in how long each way.
+    var from: CATransform3D = CATransform3DIdentity
+    var to: CATransform3D = CATransform3DTranslate(CATransform3DMakeScale(1.12, 1.12, 1), -40, -10, 0)
+    var duration: Double = 16
+    var timing: CAMediaTimingFunctionName = .linear
     @ViewBuilder let content: () -> Content
 
     final class DriftView: UIView {
         let host: UIHostingController<AnyView>
         var active = false
         var key = ""
+        var from = CATransform3DIdentity
+        var to = CATransform3DIdentity
+        var duration: Double = 16
+        var timing: CAMediaTimingFunctionName = .linear
         private var driftKey = ""
 
         init(host: UIHostingController<AnyView>) {
@@ -2163,6 +2172,7 @@ struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
             super.init(frame: .zero)
             backgroundColor = .clear
             isUserInteractionEnabled = false
+            clipsToBounds = true
             host.view.backgroundColor = .clear
             host.view.frame = bounds
             host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -2186,14 +2196,14 @@ struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
                     layer.removeAnimation(forKey: "settle")
                     layer.removeAnimation(forKey: "drift")
                     let drift = CABasicAnimation(keyPath: "transform")
-                    drift.fromValue = CATransform3DIdentity
-                    var to = CATransform3DMakeScale(1.12, 1.12, 1)
-                    to = CATransform3DTranslate(to, -40, -10, 0)
+                    drift.fromValue = from
                     drift.toValue = to
-                    drift.duration = 16
+                    drift.duration = duration
                     drift.autoreverses = true
                     drift.repeatCount = .infinity
-                    drift.timingFunction = CAMediaTimingFunction(name: .linear)
+                    drift.timingFunction = CAMediaTimingFunction(name: timing)
+                    // Its resting place is where it starts (no jump when it settles or starts).
+                    layer.transform = from
                     drift.isRemovedOnCompletion = false
                     layer.add(drift, forKey: "drift")
                     driftKey = key
@@ -2204,7 +2214,7 @@ struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
                 layer.removeAnimation(forKey: "drift")
                 let settle = CABasicAnimation(keyPath: "transform")
                 settle.fromValue = now
-                settle.toValue = CATransform3DIdentity
+                settle.toValue = from
                 settle.duration = 0.6
                 settle.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 layer.add(settle, forKey: "settle")
@@ -2223,6 +2233,10 @@ struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
         view.host.rootView = AnyView(content())
         view.active = active
         view.key = key
+        view.from = from
+        view.to = to
+        view.duration = duration
+        view.timing = timing
         view.refresh()
     }
 

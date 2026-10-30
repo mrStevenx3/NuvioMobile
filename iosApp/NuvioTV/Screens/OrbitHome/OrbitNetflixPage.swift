@@ -543,7 +543,6 @@ struct OrbitDriftImage: View {
     let fallback: String?
     let size: CGSize
 
-    @State private var drifting = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -551,17 +550,20 @@ struct OrbitDriftImage: View {
         let travel = size.width * (zoom - 1) / 2
         // Steven (device: one image for a second, then another): the art stays until the next one
         // is ready, then cross-fades (never an empty or interim frame).
-        OrbitSwapImage(url: url, fallback: fallback, size: CGSize(width: size.width * zoom, height: size.height * zoom))
-            .offset(x: drifting ? -travel : travel)
-            .frame(width: size.width, height: size.height)
-            .clipped()
-            // Steven: it never moved — an animation started in the first appearance is dropped; a beat
-            // later it runs. It goes on whether or not the billboard has the focus (back and forth).
-            .task {
-                guard !reduceMotion else { return }
-                try? await Task.sleep(for: .milliseconds(300))
-                withAnimation(.easeInOut(duration: 16).repeatForever(autoreverses: true)) { drifting = true }
-            }
+        // Steven (2026-10-30: small jerks back on the billboard; "laisse l'Apple TV gérer le
+        // mouvement"): the glide was SwiftUI's, worked out by the app at every frame, always — now the
+        // Apple TV's own animator moves it, as on a studio's page. Back and forth, whether or not the
+        // billboard has the focus.
+        OrbitSlowDrift(active: !reduceMotion, key: url ?? "-",
+                       from: CATransform3DMakeTranslation(travel, 0, 0),
+                       to: CATransform3DMakeTranslation(-travel, 0, 0),
+                       duration: 16, timing: .easeInEaseOut) {
+            OrbitSwapImage(url: url, fallback: fallback, size: CGSize(width: size.width * zoom, height: size.height * zoom))
+                .frame(width: size.width * zoom, height: size.height * zoom)
+                .frame(width: size.width, height: size.height)
+        }
+        .frame(width: size.width, height: size.height)
+        .clipped()
     }
 }
 
