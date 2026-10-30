@@ -1242,9 +1242,10 @@ struct OrbitDetailView: View {
                     .frame(minWidth: 680, alignment: .leading)
                     .layoutPriority(1)
                 if let overview {
-                    // Steven: the arrow at the right margin, on the credits' edge; the text runs
-                    // up to it.
-                    HStack(alignment: .center, spacing: 24) {
+                    // Steven (2026-10-31: "essaie le PLUS"): no arrow — as Apple TV's, the synopsis
+                    // itself is focusable, a "PLUS" at the end of its second line (the text fading
+                    // out under it); Right from the last button lands on it.
+                    Button { showSynopsis = true } label: {
                         Text(overview)
                             .font(.system(size: 25, weight: .medium))
                             .foregroundStyle(Color.white.opacity(focus == .synopsis ? 1 : 0.9))
@@ -1262,8 +1263,8 @@ struct OrbitDetailView: View {
                                 if !showSynopsis { places.synopsisText = box }
                             }
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisShownHeight = $0 }
-                            // The whole text at the same width, unseen: shorter than two lines, the
-                            // arrow has nothing more to open.
+                            // The whole text at the same width, unseen: shorter than two lines, there
+                            // is nothing more to open.
                             .background(alignment: .topLeading) {
                                 Text(overview)
                                     .font(.system(size: 25, weight: .medium))
@@ -1272,20 +1273,50 @@ struct OrbitDetailView: View {
                                     .hidden()
                                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { synopsisFullHeight = $0 }
                             }
-                            // Steven: a short synopsis floated in the middle; it now hugs the
-                            // right margin, on the credits' edge.
-                            .frame(maxWidth: .infinity, alignment: synopsisFits ? .trailing : .leading)
-                            // Steven: a touch lower, level with the buttons.
-                            .offset(y: 8)
-                        if !synopsisFits {
-                            OrbitSynopsisArrow(focused: focus == .synopsis) {
-                                showSynopsis = true
+                            // The end of the second line fading out under "PLUS".
+                            .mask {
+                                if synopsisFits {
+                                    Color.black
+                                } else {
+                                    VStack(spacing: 0) {
+                                        Color.black
+                                        HStack(spacing: 0) {
+                                            Color.black
+                                            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                                                .frame(width: 60)
+                                            Color.clear.frame(width: 86)
+                                        }
+                                        .frame(height: max(30, synopsisShownHeight / 2))
+                                    }
+                                }
                             }
-                            .focused($focus, equals: .synopsis)
-                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { places.synopsisArrow = $0 }
-                        }
+                            .overlay(alignment: .bottomTrailing) {
+                                if !synopsisFits {
+                                    Text("PLUS")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .tracking(1.2)
+                                        .foregroundStyle(Color.white)
+                                        .offset(y: -3)
+                                }
+                            }
+                            // Focused: a light platter around the text (drawn beyond it: the text
+                            // stays in place).
+                            .background {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(Color.white.opacity(focus == .synopsis ? 0.16 : 0))
+                                    .padding(.horizontal, -18)
+                                    .padding(.vertical, -12)
+                            }
+                            .animation(.easeOut(duration: 0.2), value: focus == .synopsis)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(OrbitPlainStyle())
+                    .disabled(synopsisFits)
+                    .focused($focus, equals: .synopsis)
+                    // Steven: a short synopsis floated in the middle; it now hugs the
+                    // right margin, on the credits' edge.
+                    .frame(maxWidth: .infinity, alignment: synopsisFits ? .trailing : .leading)
+                    // Steven: a touch lower, level with the buttons.
+                    .offset(y: 8)
                 }
             }
             .padding(.top, 36)
