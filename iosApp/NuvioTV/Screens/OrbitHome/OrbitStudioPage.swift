@@ -45,7 +45,7 @@ struct OrbitStudioRoute: Hashable {
     }
 
     static func folder(collectionId: String, folder: CollectionFolder) -> OrbitStudioRoute {
-        let logo: String? = folder.titleLogoUrl
+        let logo: String? = OrbitStudioLogos.url(forTitle: folder.title) ?? folder.titleLogoUrl
         return OrbitStudioRoute(name: folder.title,
                                 companies: OrbitStudioFilmsModel.companies(forTitle: folder.title),
                                 isNetwork: false,

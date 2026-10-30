@@ -319,6 +319,7 @@ struct OrbitStudiosPage: View {
     }
 
     static func logoURL(_ folder: CollectionFolder?) -> String? {
+        if let own = OrbitStudioLogos.url(forTitle: folder?.title) { return own }
         let url = folder?.titleLogoUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (url?.isEmpty ?? true) ? nil : url
     }
@@ -431,7 +432,8 @@ struct OrbitBalancedLogo: View {
     /// Steven's grey logos (unreadable on a colour).
     static func isGrey(_ raw: String) -> Bool {
         let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-        return t.contains("ghibli") || t.contains("pixar")
+        // (Pixar's new logo — Steven's, 2026-10-31 — is solid white: balanced as the others.)
+        return t.contains("ghibli")
     }
 
     var body: some View {
@@ -829,5 +831,23 @@ private struct OrbitStudiosBackdrop: View {
         .clipped()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+
+/// Steven (2026-10-31: "Walt Disney" and "Pixar Animation Studios" read small on the tiles — "je suis
+/// ton conseil"): their short logos, his files (white, transparent), kept with Orbit's code, in place
+/// of the folders' own wherever a studio's logo shows (the tiles, the banner, the studio's page,
+/// Disney+'s brands).
+enum OrbitStudioLogos {
+    private static let base = "https://raw.githubusercontent.com/mrStevenx3/NuvioMobile/detail-apple-style/orbit-assets/logos/"
+
+    static func url(forTitle title: String?) -> String? {
+        guard let title else { return nil }
+        let key = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        if key.contains("pixar") { return base + "pixar.png" }
+        // (Disney's studio — not Disney+, the platform.)
+        if key.contains("disney"), !key.contains("+"), !key.contains("plus") { return base + "disney.png" }
+        return nil
     }
 }

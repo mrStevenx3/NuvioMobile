@@ -1483,6 +1483,7 @@ struct OrbitDisneyBrand {
     }
 
     var logoURL: String? {
+        if let own = OrbitStudioLogos.url(forTitle: folder?.folder.title ?? name) { return own }
         let logo = folder?.folder.titleLogoUrl?.trimmingCharacters(in: .whitespaces) ?? ""
         return logo.isEmpty ? nil : logo
     }
