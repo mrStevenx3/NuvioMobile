@@ -101,7 +101,6 @@ struct OrbitNetflixPage: View {
         return t.contains("netflix")
     }
 
-    @State private var sweepVeil: Double = 0
     @StateObject private var model: FolderDetailViewModel
     @StateObject private var extras = OrbitPlatformExtrasModel()
     @StateObject private var trailer = OrbitNativeTrailerHost()
@@ -274,12 +273,6 @@ struct OrbitNetflixPage: View {
                     // Steven: Films / Séries came up on the Top 10 — each filter its own page, from its top.
                     .id(typeFilter ?? "all")
                     .disabled(search != nil)
-                    // Steven (2026-10-30, slow-motion video: Retour from the bottom of the catalog, the
-                    // page missed three frames on its way up — every row it crossed came back at once):
-                    // the way up is a short dip to black, the page put at its top meanwhile, then back.
-                    // (A black layer over it, not the page faded: fading the whole page would redraw
-                    // it off screen at every frame.)
-                    .overlay { Color.black.opacity(sweepVeil).allowsHitTesting(false) }
             
 
             // Under the bar: black, so the row above never shows through.
@@ -475,23 +468,8 @@ struct OrbitNetflixPage: View {
     private func exitAction() -> (() -> Void)? {
         guard current > 0 else { return nil }
         return {
-            // From the first rows: the page's own slide up (nothing much to cross).
-            guard current > 2, !reduceMotion else {
-                withAnimation(reduceMotion ? nil : OrbitNetflixLayout.vertical) { current = 0 }
-                refreshAfterMove()
-                return
-            }
-            withAnimation(.easeIn(duration: 0.14)) { sweepVeil = 1 }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                var still = Transaction()
-                still.disablesAnimations = true
-                withTransaction(still) { current = 0 }
-                refreshAfterMove()
-                // (The page's own move to the top, unseen, is 0.4 s.)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
-                    withAnimation(.easeOut(duration: 0.24)) { sweepVeil = 0 }
-                }
-            }
+            withAnimation(reduceMotion ? nil : OrbitNetflixLayout.vertical) { current = 0 }
+            refreshAfterMove()
         }
     }
 
