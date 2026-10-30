@@ -138,7 +138,7 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         super.viewDidLoad()
         view.backgroundColor = .clear
         view.clipsToBounds = false
-        let layout = OrbitWideFlowLayout()
+        let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -406,10 +406,14 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
 
     /// (Steven, 2026-10-30: frame by frame it stuttered again — one animation, as when it was smooth;
     /// the titles leaving are kept by the layout, which lays out a screen's width either side.)
+    private let leaving = OrbitLeavingTiles()
+
     private func slide(to x: CGFloat) {
+        let generation = leaving.keep(collectionView, goingTo: x)
         UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
             self.collectionView.contentOffset = CGPoint(x: x, y: 0)
         } completion: { [weak self] _ in
+            self?.leaving.done(generation)
             if self?.aimedOffset == x { self?.aimedOffset = nil }
         }
     }

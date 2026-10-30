@@ -56,12 +56,35 @@ extension EnvironmentValues {
     }
 }
 
-/// Steven (2026-10-30: "les affiches à gauche et à droite disparaissent d'un coup sec"): a row slid
-/// in one animation is at its end at once for the collection view, which took away the titles leaving
-/// at the start. The layout gives a screen's width more either side, so they stay drawn as they go.
-final class OrbitWideFlowLayout: UICollectionViewFlowLayout {
-    override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
-        super.layoutAttributesForElements(in: rect.insetBy(dx: -max(rect.width, OrbitHomeLayout.screenWidth), dy: 0))
+/// Steven (2026-10-30: "les affiches à gauche et à droite disparaissent d'un coup sec"): a row slid in
+/// one animation is at its end at once for the collection view, which takes away at the start the
+/// titles that will be off screen. Their pictures stand in for them, sliding out with the row, and go
+/// when the row comes to rest.
+@MainActor
+final class OrbitLeavingTiles {
+    private var views: [UIView] = []
+    private var generation = 0
+
+    /// Before sliding `collectionView` to `x`: the titles on screen that will be off it.
+    func keep(_ collectionView: UICollectionView, goingTo x: CGFloat) -> Int {
+        let now = collectionView.bounds
+        let then = CGRect(x: x, y: now.minY, width: now.width, height: now.height)
+        for cell in collectionView.visibleCells where cell.frame.intersects(now) && !cell.frame.intersects(then) {
+            guard let picture = cell.snapshotView(afterScreenUpdates: false) else { continue }
+            picture.frame = cell.frame
+            picture.isUserInteractionEnabled = false
+            collectionView.addSubview(picture)
+            views.append(picture)
+        }
+        generation &+= 1
+        return generation
+    }
+
+    /// The slide `generation` ended: the pictures go if no newer slide began.
+    func done(_ generation: Int) {
+        guard generation == self.generation else { return }
+        views.forEach { $0.removeFromSuperview() }
+        views.removeAll()
     }
 }
 
@@ -206,7 +229,7 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         super.viewDidLoad()
         view.backgroundColor = .clear
         view.clipsToBounds = false
-        let layout = OrbitWideFlowLayout()
+        let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -592,10 +615,14 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
 
     /// (Steven, 2026-10-30: frame by frame it stuttered again — one animation, as when it was smooth;
     /// the titles leaving are kept by the layout, which lays out a screen's width either side.)
+    private let leaving = OrbitLeavingTiles()
+
     private func slide(to x: CGFloat) {
+        let generation = leaving.keep(collectionView, goingTo: x)
         UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
             self.collectionView.contentOffset = CGPoint(x: x, y: 0)
         } completion: { [weak self] _ in
+            self?.leaving.done(generation)
             if self?.aimedOffset == x { self?.aimedOffset = nil }
         }
     }

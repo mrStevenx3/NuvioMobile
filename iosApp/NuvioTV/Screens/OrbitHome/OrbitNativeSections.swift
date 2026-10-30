@@ -418,7 +418,10 @@ struct OrbitNativeTileStrip<Tile: View>: View {
                        pinned: keepsLeadAtMargin, lead: min(box.lead, max(0, count - 1)),
                        // (Without the page's widths: every title as wide as the last — the rows' own rule.)
                        width: width ?? { _ in lastWidth },
-                       redrawKey: redrawKey.map { AnyHashable([AnyHashable(box.lead), AnyHashable(OrbitMetaStore.shared.revision), $0]) },
+                       // Steven (2026-10-30: Apple TV and HBO Max still jerky down and across — their rows scroll
+                       // freely): the lead in the key redrew every tile on screen at each step and as the
+                       // focus came into the row. Only a row holding its lead at the margin draws by it.
+                       redrawKey: redrawKey.map { AnyHashable([AnyHashable(keepsLeadAtMargin ? box.lead : 0), AnyHashable(OrbitMetaStore.shared.revision), $0]) },
                        openDelta: keepsLeadAtMargin ? openDelta : nil,
                        ref: strip,
                        tile: { i, focused in AnyView(tile(i, focused)) },
