@@ -182,7 +182,7 @@ struct OrbitEpisodesSection: View {
                                     hidesSynopsis: shown.map { EpisodeSpoilerRules.hidesSpoilers(settingOn: hideSpoilers,
                                                                                                  isWatched: isWatched($0)) } ?? false)
             }
-            .frame(width: Self.detailsWidth, height: 110, alignment: .topLeading)
+            .frame(width: Self.detailsWidth, height: 136, alignment: .topLeading)
             .clipped()
             .padding(.leading, OrbitDetailLayout.margin)
         }
@@ -334,7 +334,7 @@ private struct OrbitEpisodeDetails: View {
                 }
             }
         }
-        .frame(width: OrbitEpisodesSection.detailsWidth, height: 110, alignment: .topLeading)
+        .frame(width: OrbitEpisodesSection.detailsWidth, height: 136, alignment: .topLeading)
         // Swapped at once: two texts cross-fading overlapped into an unreadable mix.
     }
 }

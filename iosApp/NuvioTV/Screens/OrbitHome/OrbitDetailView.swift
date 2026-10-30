@@ -65,7 +65,7 @@ enum OrbitDetailLayout {
     static let episodesRest: CGFloat = 100
     /// The line the system aligns a focused section's top on (the page's top margin).
     // (Steven, 2026-10-30: the cast too close under the title at the top — the sections a little lower.)
-    static let pageTop: CGFloat = 170
+    static let pageTop: CGFloat = 190
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
@@ -130,6 +130,8 @@ struct OrbitDetailView: View {
     @State private var topTone: Color?
     /// The first step down: the sections under the first one wait, then rise into place.
     @State private var entering = false
+    /// The hero's picture rides with the page (off the hero, and while the page comes back to it).
+    @State private var artInScroll = false
     /// The section the page is aligned on (the system scrolls to it, on its own curve).
     @State private var pagePosition: OrbitDetailSection? = .hero
     /// Steven (2026-10-29, device: "un peu de tremblement à la verticale… par rapport à l'accueil
@@ -339,6 +341,7 @@ struct OrbitDetailView: View {
                                   trailerURL: cinema || (heroTrailerOn && section == .hero && !coverUp) ? model.trailerVideoURL : nil,
                                   zoomKey: model.trailerZoomKey,
                                   dimmed: section != .hero && !cinema,
+                                  artAway: artInScroll,
                                   cinema: cinema,
                                   holdArt: holdArt,
                                   tint: platform?.theme.tint ?? .black,
@@ -358,6 +361,17 @@ struct OrbitDetailView: View {
                     hero
                         // (The page's top margin is above it: the hero ends where it always did.)
                         .frame(height: L.heroHeight - L.pageTop, alignment: .bottomLeading)
+                        // Steven (2026-10-30: "l'effet est absolument raté" — the picture moved on its own
+                        // curve beside the page): the hero's picture is part of the page now, so it goes up
+                        // and comes down with the page exactly, as on Apple TV. Shown while the page moves
+                        // (the fixed one, under the trailer, takes over at rest on the hero).
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(alignment: .topLeading) {
+                            OrbitDetailHeroPicture(url: backdropURL, quickURL: quickBackdropURL)
+                                .offset(y: -L.pageTop)
+                                .opacity(artInScroll ? 1 : 0)
+                                .allowsHitTesting(false)
+                        }
                         // Cinema: the interface sinks a little and fades away.
                         .opacity(cinema ? 0 : 1)
                         .offset(y: cinema ? 50 : 0)
@@ -448,6 +462,17 @@ struct OrbitDetailView: View {
             // page itself now; Up / Down are the system's one move, aligned on the sections.
             .onChange(of: section) { old, target in
                 if target == .hero { go(to: .hero) }
+                // The picture handed from the fixed one to the page's own at the very start of the move
+                // (same place, unseen), and back once the page is home.
+                var still = Transaction()
+                still.disablesAnimations = true
+                if target != .hero {
+                    withTransaction(still) { artInScroll = true }
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                        if section == .hero { withTransaction(still) { artInScroll = false } }
+                    }
+                }
                 // Steven (2026-10-30, Apple TV's own: "les éléments du bas arrivent un peu après"): on
                 // the first step down, what comes under the first section arrives a beat later.
                 // (Steven, 2026-10-30, option A: the delayed rows taken off — Apple's page moves as one.)
@@ -1659,6 +1684,8 @@ private struct OrbitDetailBackground: View {
     let trailerURL: String?
     let zoomKey: String
     let dimmed: Bool
+    /// The hero's picture is riding with the page (`OrbitDetailHeroPicture`): this fixed one is off.
+    var artAway: Bool = false
     /// The trailer plays full screen with sound: the art pushes in, the shades lift.
     var cinema: Bool = false
     /// The art held over a trailer that has just started (its black opening frames).
@@ -1709,8 +1736,8 @@ private struct OrbitDetailBackground: View {
             }
             // (On the hero, not drawn under its picture: there at once on the way down, gone once
             // the picture is back on the way up.)
-            .opacity(dimmed ? 1 : 0)
-            .animation(dimmed ? nil : .linear(duration: 0.01).delay(0.5), value: dimmed)
+            .opacity(dimmed || artAway ? 1 : 0)
+            .animation(nil, value: dimmed || artAway)
 
             // The hero's picture. Steven (2026-10-30, option A, Apple TV's own first step down): it goes
             // up with the page — blurring and fading as it goes — uncovering the sections' ground; it
@@ -1723,9 +1750,6 @@ private struct OrbitDetailBackground: View {
                         OrbitImage(url: quickURL, mode: .fill, size: size)
                     }
                     OrbitSwapImage(url: url, fallback: nil, size: size)
-                    // Blurring as it goes up (a pre-blurred copy cross-faded in: no live blur).
-                    OrbitPreBlurred(url: url, radius: 44)
-                        .opacity(dimmed ? 1 : 0)
                 }
                 .scaleEffect(cinema ? 1.05 : 1)
                 // Steven: the bottom of the art melts into a blur (Apple TV style), under the
@@ -1784,13 +1808,9 @@ private struct OrbitDetailBackground: View {
                 .opacity(cinema ? 0.35 : 1)
             }
             .frame(width: size.width, height: size.height)
-            // Up with the page, on the page's own move (its first section comes from under the hero to
-            // the top), back down with it.
-            .offset(y: dimmed ? -Self.pageLift : 0)
-            .animation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.5), value: dimmed)
-            // Fading as it goes (late going up, early coming back); off once gone (nothing drawn).
-            .opacity(dimmed ? 0 : 1)
-            .animation(dimmed ? .easeIn(duration: 0.45) : .easeOut(duration: 0.35), value: dimmed)
+            // (Off while the page's own copy rides with the page — swapped in place, unseen.)
+            .opacity(artAway ? 0 : 1)
+            .animation(nil, value: artAway)
         }
         .frame(width: size.width, height: size.height)
         .clipped()
@@ -2559,9 +2579,10 @@ struct OrbitDetailHeaderTitle: View {
     var body: some View {
         // Steven (2026-10-30, option A, Apple TV's own): small, centred, it fades in once the hero's
         // logo has gone up out of the screen (never two titles at once), no glow.
-        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 340, height: 80), textSize: 40, hugsLogo: true)
+        // (Steven, 2026-10-30, photos side by side: smaller than Apple's — Apple's size now.)
+        OrbitTitleMark(name: name, logo: logo, maxSize: CGSize(width: 560, height: 120), textSize: 56, hugsLogo: true)
             .fixedSize()
-            .frame(width: 340, height: 80, alignment: .center)
+            .frame(width: 560, height: 120, alignment: .center)
             .opacity(shown ? 1 : 0)
             .animation(shown ? .easeOut(duration: 0.35).delay(0.35) : .easeIn(duration: 0.12), value: shown)
     }
@@ -2649,5 +2670,43 @@ struct OrbitThickBlur: View {
               let rendered = CIContext(options: [.useSoftwareRenderer: false]).createCGImage(out, from: extent)
         else { return nil }
         return UIImage(cgImage: rendered)
+    }
+}
+
+
+/// The hero's picture as the page's own (it rides with the page, Apple TV's first step down): the art,
+/// its blurred foot and its shades, as the fixed one draws them.
+struct OrbitDetailHeroPicture: View {
+    let url: String?
+    var quickURL: String? = nil
+
+    var body: some View {
+        let size = CGSize(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+        ZStack {
+            if let quickURL, quickURL != url {
+                OrbitImage(url: quickURL, mode: .fill, size: size)
+            }
+            OrbitSwapImage(url: url, fallback: nil, size: size)
+            OrbitPreBlurred(url: url, radius: 34)
+                .saturation(0.75)
+                .overlay(Color.black.opacity(0.3))
+                .mask(LinearGradient(stops: [
+                    .init(color: .clear, location: 0.7),
+                    .init(color: .black.opacity(0.7), location: 0.86),
+                    .init(color: .black, location: 0.97),
+                ], startPoint: .top, endPoint: .bottom))
+            LinearGradient(stops: [
+                .init(color: OrbitHomeLayout.background.opacity(0.6), location: 0),
+                .init(color: OrbitHomeLayout.background.opacity(0.3), location: 0.38),
+                .init(color: .clear, location: 0.64),
+            ], startPoint: .leading, endPoint: .trailing)
+            LinearGradient(stops: [
+                .init(color: .clear, location: 0.35),
+                .init(color: .black.opacity(0.75), location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+        }
+        .frame(width: size.width, height: size.height)
+        .clipped()
+        .accessibilityHidden(true)
     }
 }
