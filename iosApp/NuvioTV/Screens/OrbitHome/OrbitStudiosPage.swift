@@ -145,7 +145,8 @@ struct OrbitStudiosPage: View {
         .animation(.easeInOut(duration: 0.3), value: shownId)
         .onChange(of: shownId, initial: true) { _, id in
             guard groundId != nil else { groundId = id; return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(OrbitRowsBackdrop.wait) / 1000) {
+            // (The row's rest is already waited for before the studio is shown.)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 if shownId == id { groundId = id }
             }
         }
@@ -244,15 +245,28 @@ struct OrbitStudiosPage: View {
         tilesHaveFocus = true
         withAnimation(.easeOut(duration: 0.2)) { lit = id }
         Self.lastFocused = id
-        if let from = folders.firstIndex(where: { $0.id == shownId }),
-           let to = folders.firstIndex(where: { $0.id == id }), from != to {
-            forward = to > from
+        // Steven (2026-10-30: the studios' row not smooth when pressed quickly, fine slowly): each
+        // press switched the page to the studio at once — its films' row swapped and the whole page
+        // animated for it — while the row was still sliding. That waits for the row to rest (as on
+        // Plateformes and Home).
+        shownWork?.cancel()
+        let work = DispatchWorkItem {
+            guard Self.lastFocused == id, tilesHaveFocus else { return }
+            if let from = folders.firstIndex(where: { $0.id == shownId }),
+               let to = folders.firstIndex(where: { $0.id == id }), from != to {
+                forward = to > from
+            }
+            shownId = id
+            if let folder = folders.first(where: { $0.id == id }) {
+                films.focus(title: folder.title)
+            }
         }
-        shownId = id
-        if let folder = folders.first(where: { $0.id == id }) {
-            films.focus(title: folder.title)
-        }
+        shownWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42, execute: work)
     }
+
+    /// The studio's page switch, once the row rests.
+    @State private var shownWork: DispatchWorkItem?
 
     static func backdropURL(_ folder: CollectionFolder?) -> String? {
         let url = folder?.heroBackdropUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
