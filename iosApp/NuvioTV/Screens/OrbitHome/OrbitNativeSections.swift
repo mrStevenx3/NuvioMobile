@@ -185,7 +185,14 @@ struct OrbitNativeSections<SectionContent: View>: View {
         }
     }
     @State private var heroLocked = false
-    @State private var builtAll = false
+    /// Steven (2026-10-30, slow-motion video, Disney+: the first Down froze the page half a second,
+    /// then it jumped): every row was built in one go 3 s after the opening — just when the first
+    /// presses came — and the rows near the focus were built (and dropped) as it moved. The rows
+    /// built now only grow, one at a time, while the page rests; a row is built at once only when
+    /// the focus is about to reach it.
+    @State private var builtLo = 0
+    @State private var builtHi = 3
+    private func isBuilt(_ s: Int) -> Bool { s >= builtLo && s <= builtHi }
     /// The section last asked to take the focus (read live by the retries below).
     @State private var wanted: Int?
 
@@ -211,7 +218,7 @@ struct OrbitNativeSections<SectionContent: View>: View {
                             // Every row built once settled in (as Home's: none built during a slide);
                             // at the opening, only those near the focus (Steven: the platform's opening
                             // hitched while every row was built under it).
-                            if builtAll || abs(s - current) <= 3 { content(s, false) } else { Color.clear }
+                            if isBuilt(s) { content(s, false) } else { Color.clear }
                         }
                         .frame(width: W, height: height(s), alignment: .topLeading)
                         // Back from a title, only the row it was opened from can take the focus a
@@ -300,12 +307,26 @@ struct OrbitNativeSections<SectionContent: View>: View {
         // The section changed (the focus moved, Menu back to the top, a filter reset): the page
         // slides to it, and a section the focus is not in yet takes it.
         .onChange(of: current) { _, c in
+            // (The row the focus is going to, and the next, must be there to take it.)
+            if c + 2 > builtHi { builtHi = c + 2 }
+            if c - 2 < builtLo { builtLo = max(0, c - 2) }
             go(to: c)
             take(c)
         }
+        // The other rows, one at a time, only while the page rests (none built during a move).
+        .task(id: count) {
+            // (Again when rows arrive later: they too are built while the page rests.)
+            do { try await Task.sleep(for: .seconds(2.0)) } catch { return }  // (after a platform's opening)
+            while builtLo > 0 || builtHi < count - 1 {
+                do { try await Task.sleep(for: .milliseconds(220)) } catch { return }
+                guard ProcessInfo.processInfo.systemUptime - lastGo > 0.6 else { continue }
+                if builtHi < count - 1 { builtHi += 1 } else if builtLo > 0 { builtLo -= 1 }
+            }
+        }
         .onAppear {
             go(to: current, animated: false)
-            if !builtAll { DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { builtAll = true } }  // (after a platform’s opening glide)
+            if current - 3 < builtLo { builtLo = max(0, current - 3) }
+            if current + 3 > builtHi { builtHi = current + 3 }
             // Back to a row (from a title): the hero out of the focus's reach a moment.
             if current >= heroCount, heroCount > 0 {
                 heroLocked = true

@@ -448,6 +448,7 @@ struct OrbitParamountPage: View {
                                       metaStore: metaStore,
                                 onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
                                 onLeadChange: { refreshAfterMove() })
+                    .equatable()  // (Only the rows that changed are drawn again — as every smooth page.)
             }
         }
     }
@@ -722,6 +723,12 @@ private struct OrbitParamountTop: View {
 }
 
 /// A row: its heading, then its titles from the focused one (at the margin).
+extension OrbitParamountRowView: Equatable {
+    static func == (a: OrbitParamountRowView, b: OrbitParamountRowView) -> Bool {
+        a.row == b.row && a.box === b.box && a.isCurrent == b.isCurrent && a.focused == b.focused && a.news == b.news
+    }
+}
+
 private struct OrbitParamountRowView: View {
     let row: OrbitParamountRow
     @ObservedObject var box: OrbitLeadBox

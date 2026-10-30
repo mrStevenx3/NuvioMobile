@@ -538,6 +538,10 @@ struct OrbitHBOPage: View {
                                 trailerURL: s == current && row.featured ? trailerURL(for: focusedItem) : nil,
                                 onTrailerFailure: { trailer.playbackFailed($0) },
                                 onTrailerEnded: { trailer.playbackFinished() })
+                    // Steven (2026-10-30, slow-motion video: HBO Max's page moved down in two or three
+                    // jumps): every row was drawn again at each row change — Prime Video, Netflix and
+                    // Disney+, smooth, redraw only the rows whose content changed.
+                    .equatable()
             }
         }
     }
@@ -867,6 +871,13 @@ private struct OrbitHBOHero: View {
 }
 
 /// A row: its heading, then its titles from the focused one (at the margin).
+extension OrbitHBORowView: Equatable {
+    static func == (a: OrbitHBORowView, b: OrbitHBORowView) -> Bool {
+        a.row == b.row && a.box === b.box && a.isCurrent == b.isCurrent && a.focused == b.focused
+            && a.news == b.news && a.trailerURL == b.trailerURL
+    }
+}
+
 private struct OrbitHBORowView: View {
     let row: OrbitHBORow
     @ObservedObject var box: OrbitLeadBox

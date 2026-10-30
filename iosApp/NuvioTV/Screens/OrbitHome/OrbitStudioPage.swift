@@ -833,7 +833,7 @@ private struct OrbitNativeStudioHeroPage: View {
                                     onTrailerFailure: { trailers.model.playbackFailed($0) },
                                     onTrailerEnded: { trailers.model.playbackFinished() })
                 }
-                    .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight)
+                    .frame(width: OrbitHomeLayout.screenWidth, height: OrbitStudioLayout.heroHeight, alignment: .top)
                     .offset(y: -top)
             } else {
                 Color.clear
@@ -1318,7 +1318,10 @@ private struct OrbitStudioHero: View {
 
     var body: some View {
         let L = OrbitStudioLayout.self
-        let size = CGSize(width: OrbitHomeLayout.screenWidth, height: L.heroHeight)
+        // Steven (2026-10-30, photo: "on ne peut pas garder cette ligne de brouillard dessous"): the
+        // art reaches down to the first row's posters (under its heading), fading out just there —
+        // no band of the page's colour between them.
+        let size = CGSize(width: OrbitHomeLayout.screenWidth, height: L.heroHeight + 150)
         let banner: String? = item?.banner
         ZStack(alignment: .topLeading) {
             // Steven (device: a sharp line between the banner and the rows): the art itself fades
@@ -1346,8 +1349,8 @@ private struct OrbitStudioHero: View {
             // its middle; now whole down to three quarters, then a short fade into the page.)
             .mask(LinearGradient(stops: [
                 .init(color: .black, location: 0),
-                .init(color: .black, location: 0.76),
-                .init(color: .black.opacity(0.55), location: 0.9),
+                .init(color: .black, location: 0.72),
+                .init(color: .black.opacity(0.6), location: 0.86),
                 .init(color: .clear, location: 1),
             ], startPoint: .top, endPoint: .bottom))
 

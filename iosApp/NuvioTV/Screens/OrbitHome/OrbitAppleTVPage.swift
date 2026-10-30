@@ -452,6 +452,9 @@ struct OrbitAppleTVPage: View {
                                     metaStore: metaStore,
                                     onEnter: { nativeEnter(s) }, onLeave: nativeLeave, onSelect: select,
                                     onLeadChange: { refreshAfterMove() })
+                    // Steven (2026-10-30: Apple TV jerky down and across): every row was drawn again at
+                    // each change of the page — the smooth platforms redraw only the rows that changed.
+                    .equatable()
             }
         }
     }
@@ -871,6 +874,13 @@ private struct OrbitAppleTVHero: View {
 }
 
 /// A row: its heading, then its titles from the focused one (at the margin).
+extension OrbitAppleTVRowView: Equatable {
+    static func == (a: OrbitAppleTVRowView, b: OrbitAppleTVRowView) -> Bool {
+        a.row == b.row && a.box === b.box && a.isCurrent == b.isCurrent && a.focused == b.focused
+            && a.newIDs == b.newIDs && a.trailerURL == b.trailerURL && a.zoomSpace == b.zoomSpace
+    }
+}
+
 private struct OrbitAppleTVRowView: View {
     let row: OrbitAppleTVRow
     @ObservedObject var box: OrbitLeadBox
