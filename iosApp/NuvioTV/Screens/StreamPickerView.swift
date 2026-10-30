@@ -769,6 +769,7 @@ struct StreamPickerView: View {
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, 30)
                 .padding(.vertical, 18)
+                .background(Capsule().fill(OrbitGlass.tint))
                 .background(Capsule().fill(.ultraThinMaterial))
                 .padding(.bottom, 60)
                 .transition(.move(edge: .bottom).combined(with: .opacity))

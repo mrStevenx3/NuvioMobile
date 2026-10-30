@@ -640,7 +640,18 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     /// The system's own scroll to the focus: a pinned row aims at its title at the margin.
     func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
                                    targetContentOffset: UnsafeMutablePointer<CGPoint>) {
-        if !pinned, let aimedOffset { targetContentOffset.pointee.x = aimedOffset; return }
+        // Steven (2026-10-30, Plateformes and Studios: "pas naturel", the first or last tile not staying
+        // at its end but going towards the middle, presses that seemed to skip): with nothing to reveal
+        // (the focused tile already whole on screen), the system went on with its own aim — the focused
+        // tile towards the middle. A free row now never moves further than needed to show it whole.
+        if !pinned {
+            if let aimedOffset {
+                targetContentOffset.pointee.x = aimedOffset
+            } else if let index = focusedIndex {
+                targetContentOffset.pointee.x = revealOffset(for: index) ?? scrollView.contentOffset.x
+            }
+            return
+        }
         guard pinned, let index = focusedIndex,
               let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return }
         targetContentOffset.pointee.x = max(0, frame.minX - margin)

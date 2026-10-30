@@ -271,9 +271,9 @@ struct OrbitTopBar: View {
             }
         }
         .padding(OrbitBarMetrics.pillPadding)
-        // Steven: slightly lighter (a white veil over the glass).
+        // (Steven, 2026-10-30: Orbit's one glass, a little dark — was a white veil over the glass.)
+        .background(Capsule(style: .continuous).fill(OrbitGlass.tint))
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
         .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
     }
 
@@ -877,8 +877,8 @@ struct CollectionFilterBar: View {
             }
         }
         .padding(OrbitBarMetrics.pillPadding)
+        .background(Capsule(style: .continuous).fill(OrbitGlass.tint))
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
         .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
         // Steven: Disney+ / Hulu switch on focus, no press (after a short rest: passing over opens nothing).
         .onChange(of: switchFocused) { _, index in
@@ -938,8 +938,8 @@ struct CollectionFilterBar: View {
     private func pill(for group: [OrbitBarItem]) -> some View {
         HStack(spacing: 4) { barButtons(group) }
         .padding(OrbitBarMetrics.pillPadding)
+        .background(Capsule(style: .continuous).fill(OrbitGlass.tint))
         .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.10)))
         .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
     }
 

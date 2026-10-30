@@ -85,7 +85,7 @@ struct OrbitHomeHeroView: View {
                             .foregroundStyle(focused ? Color.black : Color.white)
                             .padding(.horizontal, 44)
                             .frame(height: 76)
-                            .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.22)))
+                            .background(Capsule().fill(focused ? Color.white : OrbitGlass.tint))
                             .scaleEffect(focused ? 1.05 : 1, anchor: .leading)
                             .animation(.easeOut(duration: 0.16), value: focused)
                             .padding(.top, 30)

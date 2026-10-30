@@ -131,7 +131,7 @@ struct OrbitHomeButton: View {
                 .font(.system(size: 28, weight: .medium))
                 .foregroundStyle(focused ? Color.black : Color.white)
                 .frame(width: 62, height: 62)
-                .background(Circle().fill(focused ? Color.white : Color.white.opacity(0.10)))
+                .background(Circle().fill(focused ? Color.white : OrbitGlass.tint))
                 .background(Circle().fill(.ultraThinMaterial))
                 .overlay(Circle().strokeBorder(Color.white.opacity(focused ? 0 : 0.24), lineWidth: 1))
                 .scaleEffect(focused ? 1.08 : 1)

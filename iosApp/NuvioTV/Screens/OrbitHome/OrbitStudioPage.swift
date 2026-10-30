@@ -1414,7 +1414,7 @@ private struct OrbitStudioHero: View {
                             .foregroundStyle(focused ? Color.black : Color.white)
                             .padding(.horizontal, 40)
                             .frame(height: 70)
-                            .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.22)))
+                            .background(Capsule().fill(focused ? Color.white : OrbitGlass.tint))
                         if count > 1 {
                             HStack(spacing: 10) {
                                 ForEach(0..<count, id: \.self) { i in
@@ -1580,7 +1580,7 @@ private struct OrbitSagaPanel: View {
                 .foregroundStyle(focused ? Color.black : Color.white)
                 .padding(.horizontal, 30)
                 .padding(.vertical, 14)
-                .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.white : Color.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.white : OrbitGlass.tint))
                 .scaleEffect(focused ? 1.06 : 1, anchor: .leading)
                 .animation(.easeOut(duration: 0.18), value: focused)
         }

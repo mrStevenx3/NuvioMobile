@@ -371,7 +371,7 @@ private struct OrbitSearchChip: View {
             .foregroundStyle(focused ? Color.black : Color.white)
             .padding(.horizontal, 24)
             .frame(height: 60)
-            .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.14)))
+            .background(Capsule().fill(focused ? Color.white : OrbitGlass.tint))
             .scaleEffect(focused ? 1.06 : 1)
             .animation(.easeOut(duration: 0.15), value: focused)
     }

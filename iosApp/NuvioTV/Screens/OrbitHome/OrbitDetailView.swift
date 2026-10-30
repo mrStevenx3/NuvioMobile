@@ -2009,7 +2009,7 @@ private struct OrbitActionButton: View {
             .foregroundStyle(focused ? Color.black : Color.white)
             .padding(.horizontal, focused ? 30 : 0)
             .frame(minWidth: 84, minHeight: 84)
-            .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.2)))
+            .background(Capsule().fill(focused ? Color.white : OrbitGlass.tint))
             .scaleEffect(focused ? 1.04 : 1)
             .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 16, y: 8)
         }
@@ -2078,7 +2078,7 @@ private struct OrbitSynopsisArrow: View {
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(focused ? Color.black : Color.white)
                 .frame(width: 104, height: 68)
-                .background(Capsule().fill(focused ? Color.white : Color.white.opacity(0.2)))
+                .background(Capsule().fill(focused ? Color.white : OrbitGlass.tint))
                 .scaleEffect(focused ? 1.06 : 1)
                 .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 16, y: 8)
                 .animation(.easeOut(duration: 0.18), value: focused)
@@ -2115,7 +2115,7 @@ private struct OrbitSynopsisPanel: View {
                 .padding(60)
                 .frame(width: 1240, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(.ultraThinMaterial))
-                .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(Color.black.opacity(0.4)))
+                .background(RoundedRectangle(cornerRadius: 34, style: .continuous).fill(OrbitGlass.tint))
             }
             .buttonStyle(OrbitPlainStyle())
             .focused($focused)
