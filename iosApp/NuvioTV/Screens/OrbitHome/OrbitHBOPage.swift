@@ -981,8 +981,9 @@ private struct OrbitHBOGlassText: View {
         }
         let rim = LinearGradient(colors: [Color(white: 0.97), Color(white: 0.55), Color(white: 0.3), Color(white: 0.85)],
                                  startPoint: .bottomLeading, endPoint: .topTrailing)
-        let glass = LinearGradient(colors: bright ? [Color(red: 0.03, green: 0.04, blue: 0.06), Color(red: 0.15, green: 0.17, blue: 0.24)]
-                                          : [Color(red: 0.03, green: 0.04, blue: 0.06), Color(red: 0.15, green: 0.17, blue: 0.24)],
+        // (Steven, 2026-10-30, photo: the figures and TOP 10 too dark inside, the top above all —
+        // the glass lighter, its top no longer near black.)
+        let glass = LinearGradient(colors: [Color(red: 0.13, green: 0.15, blue: 0.21), Color(red: 0.22, green: 0.25, blue: 0.33)],
                                    startPoint: .top, endPoint: .bottom)
         let lit = LinearGradient(colors: [Color.white, Color(white: 0.78)], startPoint: .top, endPoint: .bottom)
         ZStack {

@@ -627,52 +627,14 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     /// the titles leaving are kept by the layout, which lays out a screen's width either side.)
     private let leaving = OrbitLeavingTiles()
 
-    private var slideFrom: CGFloat = 0
-    private var slideTo: CGFloat = 0
-    private var slideStart: CFTimeInterval = 0
-
-    /// Steven (2026-10-30, video of Plateformes measured frame by frame: at each press of a quick run
-    /// the row jumped, two or three times its speed on the first frame): each new slide began at full
-    /// speed whatever the row's own speed then. Pressed again mid-slide, the row now carries on at
-    /// the speed it has (a spring started at it); from rest, the same curve as before.
     private func slide(to x: CGFloat) {
         let generation = leaving.keep(collectionView, goingTo: x)
-        let now = CACurrentMediaTime()
-        let elapsed = now - slideStart
-        let current = collectionView.layer.presentation()?.bounds.origin.x ?? collectionView.contentOffset.x
-        let finish: (Bool) -> Void = { [weak self] _ in
-            self?.leaving.done(generation)
-            if self?.aimedOffset == x { self?.aimedOffset = nil }
-        }
-        if elapsed < 0.4, abs(slideTo - slideFrom) > 1, abs(x - current) > 1 {
-            let speed = (slideTo - slideFrom) * Self.easeOutSlope(elapsed / 0.4) / 0.4
-            let initial = max(0, speed / (x - current))
-            slideFrom = current; slideTo = x; slideStart = now
-            UIView.animate(withDuration: 0.45, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: initial,
-                           options: [.beginFromCurrentState, .allowUserInteraction],
-                           animations: { self.collectionView.contentOffset = CGPoint(x: x, y: 0) },
-                           completion: finish)
-        } else {
-            slideFrom = current; slideTo = x; slideStart = now
-            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
-                           animations: { self.collectionView.contentOffset = CGPoint(x: x, y: 0) },
-                           completion: finish)
-        }
-    }
-
-    /// UIKit's ease-out (cubic Bézier 0, 0, 0.58, 1): its slope (progress per unit of time) at `t`.
-    private static func easeOutSlope(_ t: Double) -> Double {
-        // x(u) = 3(1-u)u²·0.58 + u³ ; y(u) = 3(1-u)u² + u³ (P1 = (0, 0), P2 = (0.58, 1)).
-        var u = t
-        for _ in 0..<8 {
-            let x = 3 * (1 - u) * u * u * 0.58 + u * u * u
-            let dx = 0.58 * (6 * u - 9 * u * u) + 3 * u * u
-            guard abs(dx) > 1e-6 else { break }
-            u = min(1, max(0, u - (x - t) / dx))
-        }
-        let dx = 0.58 * (6 * u - 9 * u * u) + 3 * u * u
-        let dy = 6 * u - 9 * u * u + 3 * u * u
-        return abs(dx) < 1e-6 ? 0 : dy / dx
+        UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
+                       animations: { self.collectionView.contentOffset = CGPoint(x: x, y: 0) },
+                       completion: { [weak self] _ in
+                           self?.leaving.done(generation)
+                           if self?.aimedOffset == x { self?.aimedOffset = nil }
+                       })
     }
 
     /// The system's own scroll to the focus: a pinned row aims at its title at the margin.

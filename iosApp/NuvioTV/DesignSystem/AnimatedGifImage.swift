@@ -1128,8 +1128,6 @@ private struct StreamingGifView: UIViewRepresentable {
         /// (the cover under it shows) until a frame has real content, then fades in.
         var revealed = false
         var startedAt: TimeInterval = 0
-        /// The start waiting for the row to rest.
-        var pending: DispatchWorkItem?
     }
 
     /// Whether a frame has visible content: at least 3 % of a 16 × 16 sample brighter than dark.
@@ -1183,36 +1181,7 @@ private struct StreamingGifView: UIViewRepresentable {
             coordinator.running = false
             coordinator.generation += 1
         }
-        // Steven (2026-10-30, video of Plateformes: a frame or two missed in each slide along the
-        // row): the newly focused tile's GIF began decoding at the very press, during the slide.
-        // It starts once the row has come to rest (the slide lasts 0.4 s).
-        if isAnimating, !coordinator.running, coordinator.pending == nil {
-            let work = DispatchWorkItem { [weak view, weak coordinator] in
-                guard let view, let coordinator else { return }
-                coordinator.pending = nil
-                guard !coordinator.running else { return }
-                start(view, coordinator)
-            }
-            coordinator.pending = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.42, execute: work)
-        } else if !isAnimating, let pending = coordinator.pending {
-            pending.cancel()
-            coordinator.pending = nil
-        }
-        if !isAnimating, coordinator.running {
-            coordinator.running = false
-        }
-        // Steven (device pass): a tile that is not playing shows nothing from the stream — the
-        // cover under it shows, never the GIF's last frame (Netflix / Apple TV / Paramount+ ended on
-        // a frame without their cover's border, or zoomed in). Hidden at the UIKit level too.
-        if !isAnimating {
-            view.image = nil
-        }
-        view.isHidden = !isAnimating
-    }
-
-    private func start(_ view: UIImageView, _ coordinator: Coordinator) {
-        do {
+        if isAnimating, !coordinator.running {
             view.image = nil
             view.alpha = 0
             coordinator.revealed = false
@@ -1247,7 +1216,16 @@ private struct StreamingGifView: UIViewRepresentable {
                 coordinator.running = false
                 DispatchQueue.main.async { onFailure() }
             }
+        } else if !isAnimating, coordinator.running {
+            coordinator.running = false
         }
+        // Steven (device pass): a tile that is not playing shows nothing from the stream — the
+        // cover under it shows, never the GIF's last frame (Netflix / Apple TV / Paramount+ ended on
+        // a frame without their cover's border, or zoomed in). Hidden at the UIKit level too.
+        if !isAnimating {
+            view.image = nil
+        }
+        view.isHidden = !isAnimating
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIImageView, context: Context) -> CGSize? {

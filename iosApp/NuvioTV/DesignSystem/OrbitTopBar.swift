@@ -473,6 +473,8 @@ struct OrbitCollectionGrid: View {
     @State private var haloColor: Color?
     /// The platform whose Top 20 is shown (marked while the focus is in its rows).
     @State private var selectedId: String?
+    /// The platform's page work, once the row rests.
+    @State private var focusWork: DispatchWorkItem?
     @Environment(\.orbitPushFolder) private var pushFolder
     /// The focus is down in the Top 20 (Steven: up on the bar, the platform stayed marked).
     @State private var inRows = false
@@ -573,11 +575,21 @@ struct OrbitCollectionGrid: View {
             // Steven (2026-10-28): coming down from the bar, the focus lands where the system takes it
             // (the tile under the bar's button), as everywhere in the app — no jump to the first one.
             Self.lastFocused = id
-            selectedId = id
             scrollLine = "grid-top"
-            onFolderFocus(entry.collection, entry.folder)
-            updateHalo(entry)
-            OrbitPlatformTrendingModel.shared.focus(title: entry.folder.title)
+            // Steven (2026-10-30, video of Plateformes measured: frames missed early in every slide,
+            // then a jump): the platform's Top 20 below was swapped (a whole row of posters built) and
+            // the page redrawn for it at the very press, while the row slid. That work now waits for
+            // the row to rest, as Home's colour does.
+            focusWork?.cancel()
+            let work = DispatchWorkItem {
+                guard focused == id else { return }
+                selectedId = id
+                onFolderFocus(entry.collection, entry.folder)
+                updateHalo(entry)
+                OrbitPlatformTrendingModel.shared.focus(title: entry.folder.title)
+            }
+            focusWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.42, execute: work)
         }
         // Only a return from a folder (the grid had focus when it went away), never an arrival
         // from the bar, which keeps focus where the viewer is.
@@ -623,7 +635,7 @@ struct OrbitCollectionGrid: View {
         // Steven (2026-10-29): Home's timing everywhere — the colour follows once the remote rests
         // (`OrbitRowsBackdrop.wait`), on Home's fade (`.animation` on `haloColor` above).
         let id = entry.id
-        let rest = Double(OrbitRowsBackdrop.wait) / 1000
+        let rest = 0.03  // (The row's rest is already waited for, before this is called.)
         if let brand = Self.brandColor(entry.folder.title) {
             DispatchQueue.main.asyncAfter(deadline: .now() + rest) {
                 guard focused == id || haloColor == nil else { return }

@@ -1345,16 +1345,17 @@ private struct OrbitStudioHero: View {
                 // Steven (2026-10-30: "un brouillard de la couleur du fond du studio sur la gauche et le
                 // bas"): the art no longer turns see-through over the studio's colour — it is shaded
                 // as Home's hero is, into the page's own dark, on the left and at the bottom.
+                // (Steven, 2026-10-30: the shade too strong on the left and at the bottom — lighter.)
                 LinearGradient(stops: [
-                    .init(color: OrbitHomeLayout.background.opacity(0.88), location: 0),
-                    .init(color: OrbitHomeLayout.background.opacity(0.45), location: 0.38),
-                    .init(color: .clear, location: 0.64),
+                    .init(color: OrbitHomeLayout.background.opacity(0.6), location: 0),
+                    .init(color: OrbitHomeLayout.background.opacity(0.25), location: 0.34),
+                    .init(color: .clear, location: 0.55),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [
-                    .init(color: .black.opacity(0.45), location: 0),
-                    .init(color: .clear, location: 0.16),
-                    .init(color: .clear, location: 0.62),
-                    .init(color: OrbitHomeLayout.background, location: 0.97),
+                    .init(color: .black.opacity(0.35), location: 0),
+                    .init(color: .clear, location: 0.14),
+                    .init(color: .clear, location: 0.72),
+                    .init(color: OrbitHomeLayout.background.opacity(0.85), location: 1),
                 ], startPoint: .top, endPoint: .bottom)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
