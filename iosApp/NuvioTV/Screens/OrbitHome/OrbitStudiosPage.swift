@@ -28,6 +28,7 @@ struct OrbitStudiosPage: View {
     /// `OrbitRowsBackdrop.wait`, on Home's fade).
     @State private var groundId: String?
     @ObservedObject private var films = OrbitStudioFilmsModel.shared
+    @ObservedObject private var banners = OrbitStudioBanners.shared
     /// Each studio's colour, sampled from its backdrop (a known brand colour first).
     @State private var tints: [String: Color] = [:]
     /// The way the focus went along the tiles (right: true): the studio's name slides that way.
@@ -89,7 +90,7 @@ struct OrbitStudiosPage: View {
 
             // Steven (2026-10-24): a panoramic frame across the page, centred; the studio's name
             // on it, bottom left (a soft shade in that corner only).
-            OrbitStudioFrame(url: Self.backdropURL(shown), forward: forward,
+            OrbitStudioFrame(url: bannerURL(shown), forward: forward,
                              lift: OrbitStudioFrame.lift(title: shown?.title ?? ""))
                 .overlay(alignment: .bottomLeading) {
                     hero(shown)
@@ -201,8 +202,14 @@ struct OrbitStudiosPage: View {
         }
     }
 
+    /// The banner: the studio's chosen film's backdrop (TMDB), else its own configured image.
+    private func bannerURL(_ folder: CollectionFolder?) -> String? {
+        folder.flatMap { banners.url(forTitle: $0.title) } ?? Self.backdropURL(folder)
+    }
+
     /// Every studio's backdrop fetched as the page opens (a change is instant), then its colour.
     private func prefetchBackdrops() {
+        banners.load(titles: folders.map(\.title))
         let request = ArtworkDecodeRequest(size: .points(width: OrbitHomeLayout.screenWidth,
                                                          height: OrbitHomeLayout.screenWidth * 9 / 16),
                                            fill: true, scale: displayScale)
