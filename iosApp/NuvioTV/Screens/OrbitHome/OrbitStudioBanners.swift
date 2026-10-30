@@ -31,15 +31,33 @@ final class OrbitStudioBanners: ObservableObject {
     @Published private(set) var urls: [Int: String] = [:]
     private var asked = Set<Int>()
 
+    /// Steven's own choice of image for a studio (2026-10-30), fixed for good.
+    static func pinnedURL(forTitle raw: String) -> String? {
+        let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .replacingOccurrences(of: " ", with: "")
+        let base = "https://image.tmdb.org/t/p/original/"
+        if t.contains("pixar") { return base + "pBhZUIXrtwqcztVuiP39d5dHjJb.jpg" }
+        if t.contains("ghibli") { return base + "r1Y5atOqXMiuwHHWV0vOKnxYaJD.jpg" }
+        if t.contains("marvel") { return base + "r0jfRKIIKl34kZCeTxInYu5bVPf.jpg" }
+        if t.hasPrefix("dc") || t.contains("dcstudios") || t.contains("dccomics") { return base + "tRS6jvPM9qPrrnx2KRp3ew96Yot.jpg" }
+        if t.contains("lucas") || t.contains("starwars") { return base + "zqkmTXzjkAgXmEWLRsY4UpTWCeo.jpg" }
+        if t.contains("illumination") { return base + "xQ3UtAgWbOfwXBBsBmJTimac8Ku.jpg" }
+        if t.contains("universal") { return base + "yDouuYvRwt1Z8oAyi2ZplngPDrZ.jpg" }
+        if t.contains("warner") { return base + "geApSZDagp7679GPkrK4cq7dfxI.jpg" }
+        if t.contains("pathe") { return base + "bxT8jFcWNuWK5LmVo1oGhAm4dnZ.jpg" }
+        if t.contains("disney") { return base + "3nZcBNylPokL1QwvTu1PaIaetun.jpg" }
+        return nil
+    }
+
     func url(forTitle title: String) -> String? {
-        Self.movieId(forTitle: title).flatMap { urls[$0] }
+        Self.pinnedURL(forTitle: title) ?? Self.movieId(forTitle: title).flatMap { urls[$0] }
     }
 
     /// Each studio's film backdrop asked once (cached for the session).
     func load(titles: [String]) {
         let key = TmdbSettingsRepository.shared.effectiveApiKey()
         guard !key.isEmpty else { return }
-        for id in titles.compactMap(Self.movieId(forTitle:)) where !asked.contains(id) {
+        for id in titles.filter({ Self.pinnedURL(forTitle: $0) == nil }).compactMap(Self.movieId(forTitle:)) where !asked.contains(id) {
             asked.insert(id)
             Task { [weak self] in
                 guard let path = await Self.backdropPath(movie: id, apiKey: key) else { return }
