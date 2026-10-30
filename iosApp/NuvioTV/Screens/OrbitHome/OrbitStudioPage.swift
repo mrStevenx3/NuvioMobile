@@ -2181,13 +2181,15 @@ struct OrbitSlowDrift<Content: View>: UIViewRepresentable {
             layer.removeAnimation(forKey: "drift")
             let drift = CABasicAnimation(keyPath: "transform")
             drift.fromValue = CATransform3DIdentity
-            var to = CATransform3DMakeScale(1.08, 1.08, 1)
-            to = CATransform3DTranslate(to, -28, -6, 0)
+            // (Steven, 2026-10-30: "ça bouge pas" — eased in, it hardly moved in the seconds before the
+            // trailer came. Even now, from the first second.)
+            var to = CATransform3DMakeScale(1.12, 1.12, 1)
+            to = CATransform3DTranslate(to, -40, -10, 0)
             drift.toValue = to
-            drift.duration = 15
+            drift.duration = 16
             drift.autoreverses = true
             drift.repeatCount = .infinity
-            drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            drift.timingFunction = CAMediaTimingFunction(name: .linear)
             layer.add(drift, forKey: "drift")
             c.running = true
         } else if !active, c.running {

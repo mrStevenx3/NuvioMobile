@@ -355,7 +355,9 @@ struct OrbitDetailView: View {
                         .offset(y: cinema ? 50 : 0)
                         .disabled(returningElsewhere(.hero))
                         .id(OrbitDetailSection.hero)
-                    if isSeries, let meta {
+                    // Steven (2026-10-30: a series without seasons — a large empty gap): no episodes
+                    // known, no "Épisodes" section (its title over an empty row and an empty text).
+                    if isSeries, let meta, !meta.videos.isEmpty {
                         OrbitEpisodesSection(meta: meta,
                                              episodeRatings: model.episodeRatings,
                                              watchedEpisodeKeys: model.watchedEpisodeKeys,
@@ -1157,6 +1159,7 @@ struct OrbitDetailView: View {
             // A fixed height: the age box (taller than the text) arrives with the details and
             // made the line, so the whole block, move.
             OrbitDetailMetaLine(meta: meta, preview: preview)
+                .modifier(OrbitHeroTextShade())
                 .frame(height: 44, alignment: .leading)
                 .padding(.top, 34)
             // On their own line under it (beside it, they cut the genres short).
@@ -1575,7 +1578,7 @@ private struct OrbitDetailBackground: View {
 
     /// The poster's colour, known (at once when it was seen before).
     private var sectionTone: Color? {
-        (tone ?? OrbitDominantColor.cached(toneURL)).map(OrbitToneBackdrop.deepen)
+        tone ?? OrbitDominantColor.cached(toneURL)
     }
 
     var body: some View {
@@ -1595,7 +1598,8 @@ private struct OrbitDetailBackground: View {
                 OrbitPreBlurred(url: url, radius: 44)
                     .opacity(dimmed && sectionTone == nil ? 1 : 0)
             }
-            .scaleEffect(dimmed ? 1.06 : (cinema ? 1.05 : 1))
+            // (Hidden under the film's colour: not pushed in for nothing.)
+            .scaleEffect(dimmed && sectionTone == nil ? 1.06 : (cinema ? 1.05 : 1))
             // Steven: the bottom of the art melts into a blur (Apple TV style), under the
             // synopsis and the credits. On the still art only (a live blur over the trailer costs
             // the Apple TV too much): the trailer covers it as it fades in, and it is back when
@@ -2354,37 +2358,19 @@ private struct OrbitLaunchVeil: View {
 }
 
 
-/// Under a title's sections: its poster's colour — deepened and calmed, never light enough to fight
-/// white text — from the top left, melting into the page's colour at the bottom right, with a soft
-/// glow of the same colour in the corner.
+/// Under a title's sections: Steven (2026-10-30: "le même que sur l'accueil, un dégradé qui va
+/// vers le bas") — Home's wash: the poster's colour lighting the screen from the top's middle,
+/// fading towards the bottom, over the page's colour.
 struct OrbitToneBackdrop: View {
     let tone: Color
 
-    /// A poster's (lively) colour made deep: a grey poster a deep neutral, a coloured one its hue,
-    /// a little calmer, dark.
-    static func deepen(_ color: Color) -> Color {
-        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        UIColor(color).getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
-        let calm = sat < 0.12 ? min(sat, 0.08) : min(sat * 0.8, 0.62)
-        return Color(hue: Double(h), saturation: Double(calm), brightness: 0.3)
-    }
-
     var body: some View {
         ZStack {
-            LinearGradient(stops: [
-                .init(color: tone, location: 0),
-                .init(color: tone.opacity(0.55), location: 0.45),
-                .init(color: .clear, location: 1),
-            ], startPoint: .topLeading, endPoint: .bottomTrailing)
-            .background(OrbitHomeLayout.background)
-            RadialGradient(colors: [tone.opacity(0.6), .clear],
-                           center: .topLeading, startRadius: 0, endRadius: 1100)
-            // The bottom always ends in the page's colour.
-            LinearGradient(stops: [
-                .init(color: .clear, location: 0.55),
-                .init(color: OrbitHomeLayout.background.opacity(0.85), location: 1),
-            ], startPoint: .top, endPoint: .bottom)
+            OrbitHomeLayout.background
+            RadialGradient(colors: [tone.opacity(0.38), tone.opacity(0.22), tone.opacity(0.08)],
+                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
         }
+        // (Drawn once into its own texture: its fade only fades a picture.)
         .drawingGroup()
     }
 }

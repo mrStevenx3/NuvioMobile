@@ -86,6 +86,15 @@ struct OrbitStudiosPage: View {
                                center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
                 // (Steven, 2026-10-30, DC Studios: a dark band too strong at the bottom — lighter, lower.)
                 LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
+                // Steven (2026-10-30: "en bas ce soit la couleur de l'affiche et pas d'un studio,
+                // avec un dégradé flou"): under the banner, its own picture, blurred, fills the page —
+                // the banner's bottom melts into its own colours (Apple TV style). A little darker
+                // and calmer, for the tiles; the studio's colour stays only until it has come.
+                OrbitPreBlurred(url: bannerURL(shown), radius: 60)
+                    .saturation(0.85)
+                    .overlay(Color.black.opacity(0.32))
+                    .overlay(LinearGradient(colors: [.clear, .black.opacity(0.3)],
+                                            startPoint: UnitPoint(x: 0.5, y: 0.55), endPoint: .bottom))
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: groundId)
@@ -463,9 +472,6 @@ private struct OrbitStudioTile: View {
         let radius: CGFloat = 14
         let lift: CGFloat = focused ? 1 : (selected ? 0.6 : 0)
         ZStack {
-            Color(white: 0.08)
-            LinearGradient(colors: [tint, tint.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .opacity(0.55 + 0.45 * lift)
             if let logo = OrbitStudiosPage.logoURL(folder) {
                 // The thin logos (Pixar, Ghibli) a little larger, to read as well as the others.
                 OrbitBalancedLogo(url: logo, area: OrbitBalancedLogo.isGrey(folder.title) ? 10_500 : 7_600,
@@ -473,19 +479,29 @@ private struct OrbitStudioTile: View {
                                   whiten: OrbitBalancedLogo.isGrey(folder.title), alignment: .center)
                     // The logos are white or light: kept white on the colour.
                     .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
+                    // The logo and its shadow drawn once into a picture (room for the shadow).
+                    .padding(12).drawingGroup().padding(-12)
             } else {
                 name
             }
         }
         .frame(width: size.width, height: size.height)
+        // Steven (2026-10-30, video again: dark slivers inside the frame on each side, the focused
+        // tile): the colour was part of the picture below, whose edge pixels blend with nothing
+        // once scaled. Only the logo is a picture now; the colour is drawn as a shape, under it.
+        .background {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(Color(white: 0.08))
+                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(LinearGradient(colors: [tint, tint.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .opacity(0.55 + 0.45 * lift))
+        }
         // Steven (2026-10-30: the studios' row jerky when pressed quickly or swiped): every tile's
         // logo shadow and soft tile shadow were worked out again at every frame of a slide (as on
         // HBO Max and Apple TV). The tile is drawn once into a picture (its logo's shadow in it), and
         // only the focused or chosen tile casts a shadow.
         // (Steven, video: dark slivers inside the frame on each side — the rounded edge drawn into the
         // picture came out with a dark fringe. The whole tile drawn, then rounded.)
-        .drawingGroup()
-        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(Color.white.opacity(focused ? 1 : (selected ? 0.5 : 0.12)),
