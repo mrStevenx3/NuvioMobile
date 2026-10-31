@@ -500,14 +500,11 @@ struct OrbitCollectionGrid: View {
             // The halo: the focused platform's colour, soft, from the top left.
             // Steven (2026-10-29: black for a moment before the colour, the left too dark): one halo
             // whose colour changes in place (no fade out and in through black).
-            let halo = haloColor ?? .clear
             // (Steven: the left was too dark — the halo now from the top's middle, even across the
             // screen's width.)
-            let on: Double = haloColor == nil ? 0 : 1
-            RadialGradient(colors: [halo.opacity(0.55 * on), halo.opacity(0.30 * on), halo.opacity(0.10 * on)],
-                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
+            OrbitToneHalo(color: haloColor)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             // (Steven, trying it: a little darker towards the bottom, as Home's.)
             LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
                 .ignoresSafeArea()

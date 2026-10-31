@@ -426,6 +426,10 @@ struct OrbitWashTone: Equatable {
 /// One wash, its colour animatable (drawn afresh at each frame of a change only).
 struct OrbitToneWash: View, Animatable {
     var tone: OrbitWashTone
+    /// The colour's strength at the gradient's three stops (the Plateformes page's halo is stronger).
+    var stops: (Double, Double, Double) = (0.38, 0.22, 0.08)
+    /// The page's ground drawn under it (opaque).
+    var ground = true
 
     var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
         get { AnimatablePair(AnimatablePair(tone.l, tone.a), AnimatablePair(tone.b, tone.presence)) }
@@ -441,10 +445,10 @@ struct OrbitToneWash: View, Animatable {
         let color = tone.color
         let p = min(1, max(0, tone.presence))
         return ZStack {
-            OrbitHomeLayout.background
+            if ground { OrbitHomeLayout.background }
             // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
             // screen in the title's colour, evenly.
-            RadialGradient(colors: [color.opacity(0.38 * p), color.opacity(0.22 * p), color.opacity(0.08 * p)],
+            RadialGradient(colors: [color.opacity(stops.0 * p), color.opacity(stops.1 * p), color.opacity(stops.2 * p)],
                            center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
         }
     }
@@ -719,4 +723,30 @@ struct OrbitGrain: View {
         else { return nil }
         return UIImage(cgImage: cg, scale: UIScreen.main.scale, orientation: .up)
     }()
+}
+
+
+/// The Plateformes page's halo: the focused platform's colour, travelling as the washes do (OKLab).
+/// Steven (2026-10-31, video: "ça passe par une couleur gris-blanc avant la bonne couleur").
+struct OrbitToneHalo: View {
+    let color: Color?
+    @State private var tone = OrbitWashTone()
+
+    var body: some View {
+        OrbitToneWash(tone: tone, stops: (0.55, 0.30, 0.10), ground: false)
+            .onChange(of: color.map { OrbitWashTone($0) }, initial: true) { _, next in
+                if let next {
+                    if tone.presence < 0.01 {
+                        var still = Transaction()
+                        still.disablesAnimations = true
+                        var start = next
+                        start.presence = 0
+                        withTransaction(still) { tone = start }
+                    }
+                    withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { tone = next }
+                } else {
+                    withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { tone.presence = 0 }
+                }
+            }
+    }
 }
