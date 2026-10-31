@@ -480,6 +480,10 @@ struct OrbitAppleTVPage: View {
                                                  trailer.playbackFinished()
                                                  advanceHero()
                                              })
+                                // Steven (2026-10-31: "un bégaiement dans le hero… pas sur l'accueil"): as
+                                // Home's, a hero page is drawn again only when what it shows changes —
+                                // not at every change of the page (a row's move, a detail arriving).
+                                .equatable()
                         }
                     }
                     .buttonStyle(OrbitPlainStyle())
@@ -491,6 +495,15 @@ struct OrbitAppleTVPage: View {
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollClipDisabled()
+        // (As Home's: the page dots drawn once over the pages, in place — not in each sliding page.)
+        .overlay(alignment: .topLeading) {
+            if items.count > 1 {
+                OrbitAppleTVHeroDots(count: items.count, index: min(heroIndex, items.count - 1))
+                    .frame(width: OrbitHomeLayout.screenWidth)
+                    .offset(y: OrbitAppleTVLayout.rowsTopOnArrival - 64 - line)
+                    .allowsHitTesting(false)
+            }
+        }
         .onChange(of: heroFocus) { _, page in
             guard let page else {
                 nativeHeroFocused = false
@@ -766,6 +779,35 @@ private struct OrbitAppleTVCapsule: View {
 
 /// The carousel: the art full screen (its trailer on a rest), the details on the left, the white
 /// capsule button, the dots in the middle.
+/// The hero's page dots (the TV app's glass pill), drawn once over the carousel.
+private struct OrbitAppleTVHeroDots: View {
+    let count: Int
+    let index: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(0..<count, id: \.self) { i in
+                Capsule()
+                    .fill(Color.white.opacity(i == index ? 1 : 0.4))
+                    .frame(width: i == index ? 22 : 8, height: 8)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(.ultraThinMaterial))
+        .overlay(Capsule().strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
+        .animation(.easeInOut(duration: 0.3), value: index)
+    }
+}
+
+extension OrbitAppleTVHero: Equatable {
+    static func == (a: OrbitAppleTVHero, b: OrbitAppleTVHero) -> Bool {
+        a.item.id == b.item.id && a.item.banner == b.item.banner && a.meta == b.meta && a.isNew == b.isNew
+            && a.line == b.line && a.buttonLit == b.buttonLit && a.count == b.count && a.index == b.index
+            && a.trailerURL == b.trailerURL
+    }
+}
+
 private struct OrbitAppleTVHero: View {
     let item: MetaPreview
     let meta: OrbitMeta?
@@ -856,22 +898,6 @@ private struct OrbitAppleTVHero: View {
             .id("\(item.type):\(item.id)-info")
             .transition(.opacity.animation(.easeInOut(duration: 0.3)))
 
-            if count > 1 {
-                HStack(spacing: 10) {
-                    ForEach(0..<count, id: \.self) { i in
-                        Capsule()
-                            .fill(Color.white.opacity(i == index ? 1 : 0.4))
-                            .frame(width: i == index ? 22 : 8, height: 8)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(.ultraThinMaterial))
-                .overlay(Capsule().strokeBorder(OrbitGlass.rim, lineWidth: 1.5))
-                .animation(.easeInOut(duration: 0.3), value: index)
-                .frame(width: size.width)
-                .offset(y: L.rowsTopOnArrival - 64)
-            }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
