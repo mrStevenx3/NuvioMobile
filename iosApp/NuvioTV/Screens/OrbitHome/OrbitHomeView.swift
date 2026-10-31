@@ -374,35 +374,53 @@ final class OrbitWashMirror: ObservableObject {
     @Published var tone = OrbitWashTone()
 }
 
-/// The wash's colour as hue, saturation, brightness, and how present it is (0: none yet).
-/// Steven (2026-10-31, simulator videos, several times: "ça passe au noir avant de se mettre sur la
-/// bonne couleur" during the change): a cross-fade between two colours mixes them — red and blue
-/// meet in a dull grey-brown half-way, read as going through black. The colour itself now travels,
-/// by its hue (red → purple → blue), staying as lively all the way.
+/// The wash's colour in OKLab (perceptual lightness L, green–red a, blue–yellow b), and how present
+/// it is (0: none yet).
+/// Steven (2026-10-31, videos): a cross-fade of two colours went through a dull, near-black middle;
+/// travelling round the hue wheel instead went through other colours ("comme si elle se trompait de
+/// couleur et passait vite à la bonne": blue → magenta → red → yellow). The colour now goes straight
+/// from one to the other in a perceptual space: no other colour on the way, its lightness even.
 struct OrbitWashTone: Equatable {
-    var hue: Double = 0
-    var saturation: Double = 0
-    var brightness: Double = 0
+    var l: Double = 0
+    var a: Double = 0
+    var b: Double = 0
     var presence: Double = 0
 
-    /// `color` as the next tone, its hue taken the short way round from this one's.
-    func heading(to color: Color) -> OrbitWashTone {
-        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        UIColor(color).getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
-        var next = OrbitWashTone(hue: Double(h), saturation: Double(sat), brightness: Double(b), presence: 1)
-        if presence < 0.01 || saturation < 0.12 {
-            // Nothing shown yet, or a grey: no hue to travel from.
-            return next
+    init() {}
+
+    init(_ color: Color, presence: Double = 1) {
+        var r: CGFloat = 0, g: CGFloat = 0, bl: CGFloat = 0, al: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &bl, alpha: &al)
+        func lin(_ c: CGFloat) -> Double {
+            let c = Double(min(1, max(0, c)))
+            return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
         }
-        if next.saturation < 0.12 {
-            // To a grey: keep the hue, only the colour fades out of it.
-            next.hue = hue
-            return next
-        }
-        while next.hue - hue > 0.5 { next.hue -= 1 }
-        while hue - next.hue > 0.5 { next.hue += 1 }
-        return next
+        let (lr, lg, lb) = (lin(r), lin(g), lin(bl))
+        let l_ = cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb)
+        let m_ = cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb)
+        let s_ = cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb)
+        l = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
+        a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+        b = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+        self.presence = presence
     }
+
+    var color: Color {
+        let l_ = l + 0.3963377774 * a + 0.2158037573 * b
+        let m_ = l - 0.1055613458 * a - 0.0638541728 * b
+        let s_ = l - 0.0894841775 * a - 1.2914855480 * b
+        let (L, M, S) = (l_ * l_ * l_, m_ * m_ * m_, s_ * s_ * s_)
+        func gam(_ c: Double) -> Double {
+            let c = min(1, max(0, c))
+            return c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1 / 2.4) - 0.055
+        }
+        return Color(.sRGB,
+                     red: gam(4.0767416621 * L - 3.3077115913 * M + 0.2309699292 * S),
+                     green: gam(-1.2684380046 * L + 2.6097574011 * M - 0.3413193965 * S),
+                     blue: gam(-0.0041960863 * L - 0.7034186147 * M + 1.7076147010 * S))
+    }
+
+    func heading(to color: Color) -> OrbitWashTone { OrbitWashTone(color) }
 }
 
 /// One wash, its colour animatable (drawn afresh at each frame of a change only).
@@ -410,19 +428,17 @@ struct OrbitToneWash: View, Animatable {
     var tone: OrbitWashTone
 
     var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
-        get { AnimatablePair(AnimatablePair(tone.hue, tone.saturation), AnimatablePair(tone.brightness, tone.presence)) }
+        get { AnimatablePair(AnimatablePair(tone.l, tone.a), AnimatablePair(tone.b, tone.presence)) }
         set {
-            tone.hue = newValue.first.first
-            tone.saturation = newValue.first.second
-            tone.brightness = newValue.second.first
+            tone.l = newValue.first.first
+            tone.a = newValue.first.second
+            tone.b = newValue.second.first
             tone.presence = newValue.second.second
         }
     }
 
     var body: some View {
-        var h = tone.hue.truncatingRemainder(dividingBy: 1)
-        if h < 0 { h += 1 }
-        let color = Color(hue: h, saturation: min(1, max(0, tone.saturation)), brightness: min(1, max(0, tone.brightness)))
+        let color = tone.color
         let p = min(1, max(0, tone.presence))
         return ZStack {
             OrbitHomeLayout.background
@@ -580,7 +596,7 @@ struct OrbitRowsBackdrop: View {
 
     private func show(_ color: Color) {
         let next = tone.heading(to: color)
-        OrbitTrace.log("wash show \(color.description) from h=\(tone.hue) to h=\(next.hue)")
+        OrbitTrace.log("wash show \(color.description)")
         if next == tone { return }
         // (A grey reached from nothing, or a first colour: its hue set at once, only its presence fades.)
         if tone.presence < 0.01 {
