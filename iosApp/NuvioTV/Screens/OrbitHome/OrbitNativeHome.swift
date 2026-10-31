@@ -463,7 +463,10 @@ private struct OrbitNativeBackdrop: View {
         // (Steven, 2026-10-30: the thick blur tried on Home — back to the wash.)
         // (Steven, 2026-10-31: "le bégaiement est pire… remets comme c'était avant" — the colour waits
         // for the rest again: changing straight after the row's slide, it fell on the next slow step.)
-        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
+        // (Steven, 2026-10-31, trial: "essaie le réglage intermédiaire" — the second wait 0.2 s instead
+        // of 0.45 s. If it stammers again: back to no `rest:` here, the smooth setting he validated,
+        // commit 8b81393.)
+        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil, rest: 200)
             .opacity(visible ? 1 : 0)
             .animation(.easeInOut(duration: 0.35), value: visible)
             .ignoresSafeArea()
