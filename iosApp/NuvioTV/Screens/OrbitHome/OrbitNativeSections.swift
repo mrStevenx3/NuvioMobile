@@ -53,6 +53,9 @@ final class OrbitLeadBox: ObservableObject {
     /// From the opening of a title until just after the way back (kept by the box: the row may be
     /// rebuilt meanwhile): only the reopened tile can take the focus.
     @Published var restoreLock = false
+    /// One of the row's titles holds the focus (told by the row itself, as the focus moves — not
+    /// the page's idea of its current row).
+    @Published var hasFocus = false
 }
 
 /// The rows' leads, read by the page (never observed by it: a lead change redraws only its row).
@@ -484,10 +487,14 @@ struct OrbitNativeTileStrip<Tile: View>: View {
     private func stripFocus(_ new: Int?) {
         guard let new else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                if strip.controller?.focusedIndex == nil, holds { holds = false; onLeave() }
+                if strip.controller?.focusedIndex == nil {
+                    if box.hasFocus { box.hasFocus = false }
+                    if holds { holds = false; onLeave() }
+                }
             }
             return
         }
+        if !box.hasFocus { box.hasFocus = true }
         if !holds {
             holds = true
             onEnter()

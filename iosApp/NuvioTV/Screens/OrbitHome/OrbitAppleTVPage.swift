@@ -974,8 +974,11 @@ private struct OrbitAppleTVRowView: View {
                 // As in the app (Steven): the focused title under the heading grows, the heading
                 // steps up out of its way, quickly, and comes back once it is no longer focused.
                 // Only when the focused title is the first on screen, right under the heading.
-                .offset(y: isCurrent && lead == 0 ? -headingLift : 0)
-                .animation(.easeOut(duration: 0.16), value: isCurrent && lead == 0)
+                // Steven (2026-10-31, video: now and then a Top 10's heading stayed down, its first
+                // title grown into it): the row's own focus decides, as the focus moves — the page's
+                // current row could lag behind it.
+                .offset(y: (box.hasFocus || isCurrent) && lead == 0 ? -headingLift : 0)
+                .animation(.easeOut(duration: 0.16), value: (box.hasFocus || isCurrent) && lead == 0)
             // As in Apple's app (Steven): the row scrolls only once the focus would leave the screen.
             OrbitNativeTileStrip(count: row.items.count, spacing: row.slot - (row.kind == .cards ? L.card.width : L.poster.width),
                                  height: row.cardHeight, lastWidth: row.kind == .cards ? L.card.width : L.poster.width,
