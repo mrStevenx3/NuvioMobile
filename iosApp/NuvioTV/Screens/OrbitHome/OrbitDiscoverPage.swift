@@ -445,6 +445,19 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         onOpen(indexPath.item)
     }
 
+    /// Steven (2026-10-31, video: back from a title in Découvrir, the focus went up to the first
+    /// tile): the grid's own memory of its last tile was lost when its titles were refreshed under
+    /// the title's page — the tile a title was opened from is asked for by name now (as Search does).
+    func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+        guard let opened = OrbitDiscoverReturn.opened, items.indices.contains(opened) else { return nil }
+        let path = IndexPath(item: opened, section: 0)
+        if collectionView.cellForItem(at: path) == nil {
+            collectionView.scrollToItem(at: path, at: .centeredVertically, animated: false)
+            collectionView.layoutIfNeeded()
+        }
+        return path
+    }
+
     func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                         with coordinator: UIFocusAnimationCoordinator) {
         // The focused tile grows over its neighbours.
@@ -459,6 +472,8 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
                 if abs(collectionView.contentOffset.y - top.y) > 0.5 { collectionView.setContentOffset(top, animated: true) }
             }
         }
+        // (Once the grid has the focus back, the way back is over.)
+        if context.nextFocusedIndexPath != nil { OrbitDiscoverReturn.opened = nil }
         onFocus(context.nextFocusedIndexPath?.item)
     }
 
