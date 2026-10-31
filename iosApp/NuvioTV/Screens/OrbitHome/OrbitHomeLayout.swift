@@ -28,7 +28,10 @@ enum OrbitHomeLayout {
     static let heroRadius: CGFloat = 0
     static var heroWidth: CGFloat { screenWidth }
     /// Where the hero's details end (their bottom); the dots under them.
-    static let heroInfoBottom: CGFloat = 900
+    /// (Steven, 2026-10-31: the hero full screen — its details lower, 65 points.)
+    static let heroInfoBottom: CGFloat = 965
+    /// The page dots' line (under the details, near the screen's foot).
+    static let heroDotsY: CGFloat = 1022
     /// From the hero's top to the first row's heading centre (the heading peeks at the bottom).
     static let heroPitch: CGFloat = 1000
 

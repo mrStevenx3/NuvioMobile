@@ -339,7 +339,7 @@ struct OrbitNativeHome: View {
                 }
                 .animation(.easeInOut(duration: 0.3), value: heroPage)
                 .frame(width: OrbitHomeLayout.screenWidth)
-                .offset(y: OrbitHomeLayout.heroInfoBottom + 110 - Self.topLine)
+                .offset(y: OrbitHomeLayout.heroDotsY - Self.topLine)
                 .opacity(onHero ? 1 : 0)
                 .animation(.easeInOut(duration: onHero ? 0.3 : 0.22), value: onHero)
                 .allowsHitTesting(false)
@@ -1450,7 +1450,10 @@ struct OrbitNativeOpenRow: View {
                     ForEach(places, id: \.self) { v in
                         tile(v, open: v == lead)
                             .environment(\.orbitFocusHidden, focusHidden || v != lead)
-                            .environment(\.orbitRankGlowHidden, sliding)
+                            // (Only the Top 10 has a rank's glow: elsewhere the slide's start and
+                            // end no longer redraw every tile of the row — Steven, 2026-10-31, slow
+                            // motion: a stammer early in each slow step and another mid-slide.)
+                            .environment(\.orbitRankGlowHidden, ranked && sliding)
                             .offset(x: x(v, lead: lead, first: first))
                             .zIndex(v == lead ? 1 : 0)
                             .transition(.identity)
@@ -1567,12 +1570,14 @@ struct OrbitNativeOpenRow: View {
             lead = next
             first = nextFirst
         }
-        sliding = true
-        slideGeneration &+= 1
-        let generation = slideGeneration
-        // (Steven: the glow came back late — now as the slide ends.)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-            if generation == slideGeneration { sliding = false }
+        if ranked {
+            sliding = true
+            slideGeneration &+= 1
+            let generation = slideGeneration
+            // (Steven: the glow came back late — now as the slide ends.)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                if generation == slideGeneration { sliding = false }
+            }
         }
         leadChanged()
     }

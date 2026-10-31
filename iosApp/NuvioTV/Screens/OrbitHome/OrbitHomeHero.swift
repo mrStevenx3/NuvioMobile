@@ -109,7 +109,7 @@ struct OrbitHomeHeroView: View {
                 .animation(.easeInOut(duration: 0.3), value: index)
                 .frame(width: size.width)
                 // (Steven, 2026-10-30: lower, with the hero full screen again.)
-                .offset(y: L.heroInfoBottom + 110)
+                .offset(y: L.heroDotsY)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
