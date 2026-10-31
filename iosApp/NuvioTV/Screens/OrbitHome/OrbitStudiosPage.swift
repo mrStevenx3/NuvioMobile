@@ -248,6 +248,7 @@ struct OrbitStudiosPage: View {
             // Each studio's banner pictures made ahead too (a change only fades two pictures).
             for (raw, lift) in lifts {
                 await OrbitStudioBake.make(raw, lift: lift, scale: scale)
+                await OrbitThickBlur.prepare(raw)
             }
         }
     }
@@ -863,7 +864,7 @@ private struct OrbitStudiosBackdrop: View {
                           removal: .opacity.animation(.linear(duration: 0.01).delay(0.26)))
         ZStack(alignment: .top) {
             // Under everything, the picture's own colours (the description page's thick blur).
-            OrbitThickBlur(url: url)
+            OrbitThickBlur(url: url, withSharp: true)
             ZStack {
                 if let shown {
                     Image(uiImage: shown.blurred)

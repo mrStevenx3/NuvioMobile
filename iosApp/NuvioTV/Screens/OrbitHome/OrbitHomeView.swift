@@ -499,8 +499,31 @@ struct OrbitRowsBackdrop: View {
     // 0.45 s so it still starts once the row has stopped.)
     static let fade: Double = 0.3
 
+    /// Until when the last cross-fade runs (a new colour waits for it: see `show`).
+    @State private var fadingUntil: TimeInterval = 0
+    @State private var waiting: Color?
+
     private func show(_ color: Color) {
+        // (Steven, 2026-10-31: "il se trompe parfois de couleur et se remet sur la bonne" — a colour
+        // arriving while the last cross-fade still ran repainted the wash that was fading out, at
+        // once, in the new colour, and the fade turned back: a wrong colour a moment. It now waits
+        // for the fade to end — only the latest colour kept.)
+        let now = ProcessInfo.processInfo.systemUptime
+        if now < fadingUntil {
+            let first = waiting == nil
+            waiting = color
+            if first {
+                DispatchQueue.main.asyncAfter(deadline: .now() + (fadingUntil - now) + 0.02) {
+                    guard let next = waiting else { return }
+                    waiting = nil
+                    show(next)
+                }
+            }
+            return
+        }
+        waiting = nil
         if (showsB ? colourB : colourA) == color { return }
+        fadingUntil = now + Self.fade + 0.05
         // The hidden wash takes the new colour (no animation), then the two swap on one curve.
         var still = Transaction()
         still.disablesAnimations = true

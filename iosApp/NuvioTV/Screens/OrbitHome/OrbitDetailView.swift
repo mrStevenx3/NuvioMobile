@@ -2784,8 +2784,12 @@ struct OrbitThickBlur: View {
     let url: String?
     /// A wait before a new picture (Home: once the row rests).
     var settle: Double = 0
+    /// Changing on the Studios banner's own curve (the new picture over the old one, which goes
+    /// once covered) — Steven, 2026-10-31: the change ended jerky, this one still fading after.
+    var withSharp = false
     @State private var image: UIImage?
     @State private var shown: String?
+    @State private var generation = 0
 
     var body: some View {
         ZStack {
@@ -2795,16 +2799,21 @@ struct OrbitThickBlur: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .id(shown ?? "-")
-                    .transition(.opacity)
+                    .id(withSharp ? "\(generation)" : (shown ?? "-"))
+                    .zIndex(withSharp ? Double(generation) : 0)
+                    .transition(withSharp
+                                ? .asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
+                                              removal: .opacity.animation(.linear(duration: 0.01).delay(0.26)))
+                                : .opacity)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         .clipped()
-        .animation(.easeInOut(duration: 0.35), value: shown)
+        .animation(withSharp ? nil : .easeInOut(duration: 0.35), value: shown)
         .task(id: url ?? "-") {
             guard let url, let address = URL(string: url) else { return }
             if let ready = Self.made.object(forKey: url as NSString) {
+                generation &+= 1
                 image = ready
                 shown = url
                 return
@@ -2820,10 +2829,20 @@ struct OrbitThickBlur: View {
             guard let soft else { return }
             Self.made.setObject(soft, forKey: url as NSString)
             guard !Task.isCancelled else { return }
+            generation &+= 1
             image = soft
             shown = url
         }
         .accessibilityHidden(true)
+    }
+
+    /// Made ahead (the Studios page, for each studio's banner).
+    static func prepare(_ url: String) async {
+        guard Self.made.object(forKey: url as NSString) == nil, let address = URL(string: url),
+              let small = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(48), fill: true, scale: 1)),
+              let cg = small.cgImage else { return }
+        let soft = await Task.detached(priority: .utility) { () -> UIImage? in OrbitThickBlur.thick(cg) }.value
+        if let soft { Self.made.setObject(soft, forKey: url as NSString) }
     }
 
     /// The thick pictures made (by url).

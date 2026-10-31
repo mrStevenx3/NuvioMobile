@@ -252,7 +252,7 @@ private struct OrbitNativeDiscover<Header: View>: View {
             // counted as the viewer's own move — "since" was set half a second before now, so every
             // ask stopped at once. Only a press from 0.3 s after the page's return ends the way back,
             // as in Library.)
-            let appeared = ProcessInfo.processInfo.systemUptime + 0.5
+            let appeared = ProcessInfo.processInfo.systemUptime + 0.2
             for delay in [0.05, 0.2, 0.4, 0.7, 1.1, 1.6, 2.2] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     NotificationCenter.default.post(name: .orbitDiscoverRestore, object: appeared)
@@ -417,6 +417,14 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
             }
         }
         collectionView.setContentOffset(CGPoint(x: 0, y: -topInset), animated: false)
+        // The viewer's own press ends the way back at once (the other tiles in reach again before
+        // that press is handled).
+        NotificationCenter.default.addObserver(forName: ViewerInputClock.didRecord, object: nil, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let since = self.restoreSince, ViewerInputClock.shared.hasInput(since: since) else { return }
+                self.endReturn()
+            }
+        }
         NotificationCenter.default.addObserver(forName: .orbitDiscoverRestore, object: nil, queue: .main) { [weak self] note in
             let appeared = note.object as? TimeInterval ?? 0
             MainActor.assumeIsolated { self?.restoreOpened(since: appeared) }
@@ -464,6 +472,15 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
 
     // MARK: Delegate
 
+    /// Steven (2026-10-31: "c'est mieux, mais ça monte pendant une seconde et redescend, et parfois ça
+    /// bouge vers le haut"): the system's own landing on another tile scrolled the grid before the
+    /// tile was given back. During the way back, only that tile can take the focus (as Home's rows
+    /// do), until the viewer's own first press.
+    func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
+        guard let opened = OrbitDiscoverReturn.place(in: items) else { return true }
+        return indexPath.item == opened
+    }
+
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         onAppear(indexPath.item)
     }
@@ -484,7 +501,7 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         super.viewDidAppear(animated)
         // (On screen again after a title: asked from here too, the window being there now.)
         if OrbitDiscoverReturn.openedId != nil {
-            let appeared = ProcessInfo.processInfo.systemUptime + 0.5
+            let appeared = ProcessInfo.processInfo.systemUptime + 0.2
             for delay in [0.0, 0.15, 0.4] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.restoreOpened(since: appeared) }
             }
