@@ -153,9 +153,14 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIViewController {
         let coordinator = context.coordinator
+        let host = OrbitPlatformSearchHost()
         let results = OrbitSearchResultsController(feed: model.feed, landscape: model.landscape,
                                                    spotlight: model.spotlight,
-                                                   onPick: { coordinator.setQuery($0) }, onOpen: onOpen)
+                                                   onPick: { coordinator.setQuery($0) },
+                                                   onOpen: { [weak host] item in
+                                                       host?.openedAt = ProcessInfo.processInfo.systemUptime
+                                                       onOpen(item)
+                                                   })
         let search = UISearchController(searchResultsController: results)
         coordinator.search = search
         search.searchResultsUpdater = context.coordinator
@@ -163,7 +168,6 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
         search.searchBar.placeholder = placeholder
 
         let container = UISearchContainerViewController(searchController: search)
-        let host = OrbitPlatformSearchHost()
         host.searchBar = search.searchBar
         host.results = results
         host.onClose = onClose
@@ -171,11 +175,13 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
         container.view.translatesAutoresizingMaskIntoConstraints = false
         host.view.addSubview(container.view)
         NSLayoutConstraint.activate([
-            container.view.topAnchor.constraint(equalTo: host.view.topAnchor, constant: 40),
+            container.view.topAnchor.constraint(equalTo: host.view.topAnchor),
             container.view.leadingAnchor.constraint(equalTo: host.view.leadingAnchor),
             container.view.trailingAnchor.constraint(equalTo: host.view.trailingAnchor),
             container.view.bottomAnchor.constraint(equalTo: host.view.bottomAnchor),
         ])
+        // (As the general Search: the whole screen, its contents a little lower.)
+        container.additionalSafeAreaInsets.top = 40
         container.didMove(toParent: host)
         return host
     }
@@ -208,15 +214,21 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
     }
 }
 
-/// The remote, as on the general Search: Menu in the results goes to their first line (same
-/// column), then to the keyboard; Menu from the keyboard closes the search. Back from a
-/// title, the poster it was opened from.
-private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecognizerDelegate {
-    private weak var upRecognizer: UIGestureRecognizer?
+/// Steven (2026-10-31: "le focus va sur le a et revient… applique les mêmes réglages que la
+/// recherche d'Orbit, elle fonctionne bien"): the general Search's own host, line for line — the
+/// system's grey grounds hidden, the keyboard taking the focus as it opens, the way back from a
+/// title kept on its poster (the keyboard out of reach meanwhile), Menu from the results to their
+/// first line then the keyboard, Menu from the keyboard closing the search. Up is the keyboard's
+/// own; the focus leaving the search (Up from its top, to the page behind) closes it.
+private final class OrbitPlatformSearchHost: UIViewController {
     weak var searchBar: UISearchBar?
     weak var results: OrbitSearchResultsController?
     var onClose: (() -> Void)?
     private var focusTarget: UIFocusEnvironment?
+    private var returning = false
+    private var closed = false
+    /// A title was opened from the results (the focus going to its page is not a leaving).
+    var openedAt: TimeInterval = 0
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -224,23 +236,92 @@ private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecogniz
         let menu = UITapGestureRecognizer(target: self, action: #selector(menuPressed))
         menu.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
         view.addGestureRecognizer(menu)
-        // (No Up recognizer any more: Up is the keyboard's own — see `upPressed`.)
+        NotificationCenter.default.addObserver(self, selector: #selector(focusMoved(_:)),
+                                               name: UIFocusSystem.didUpdateNotification, object: nil)
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        hideFullScreenFrost(in: view)
+    }
+
+    /// (As the general Search: the system's frosted and grey full-screen grounds hidden — the page's
+    /// own ground and the result's colour show.)
+    private func hideFullScreenFrost(in root: UIView) {
+        let screen = view.bounds.size
+        for sub in root.subviews {
+            let large = sub.bounds.width >= screen.width * 0.9 && sub.bounds.height >= screen.height * 0.5
+            if large, let frost = sub as? UIVisualEffectView {
+                if !frost.isHidden { frost.isHidden = true }
+                continue
+            }
+            if large, let ground = sub.backgroundColor, ground != .clear,
+               !(sub is UICollectionView), sub !== view {
+                sub.backgroundColor = .clear
+            }
+            hideFullScreenFrost(in: sub)
+        }
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        closed = false
+        if results?.hasRestore == true, let target = results?.prepareRestore() {
+            returning = true
+            focusTarget = target
+            // (The keyboard took the focus first on the way back: out of reach until the poster has it.)
+            searchBar?.isUserInteractionEnabled = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                self?.searchBar?.isUserInteractionEnabled = true
+            }
+            setNeedsFocusUpdate()
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        restoreOpenedTitle(attempt: 0)
+        if results?.hasRestore == true {
+            restoreOpenedTitle(attempt: 0)
+        } else {
+            focusKeyboard(attempt: 0)
+        }
     }
 
+    /// The keyboard has the focus as the search opens (asked a few times: the system's own landing
+    /// can come after).
+    private func focusKeyboard(attempt: Int) {
+        guard let searchBar else { return }
+        let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+        if let focused, focused.isDescendant(of: view), !(results.map { focused.isDescendant(of: $0.view) } ?? false) { return }
+        move(to: searchBar)
+        guard attempt < 3 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.focusKeyboard(attempt: attempt + 1) }
+    }
+
+    /// Back from a title: the poster it was opened from, asked again a few times.
     private func restoreOpenedTitle(attempt: Int) {
         guard let results, let target = results.prepareRestore() else { return }
         let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
         if let cell = results.restoredCell, let focused, focused.isDescendant(of: cell) {
             results.restoreDone()
+            searchBar?.isUserInteractionEnabled = true
+            returning = false
+            focusTarget = nil
             return
         }
-        move(to: target)
-        guard attempt < 4 else { results.restoreDone(); return }
+        returning = true
+        focusTarget = target
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        guard attempt < 6 else {
+            results.restoreDone()
+            returning = false
+            focusTarget = nil
+            searchBar?.isUserInteractionEnabled = true
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             self?.restoreOpenedTitle(attempt: attempt + 1)
         }
@@ -260,19 +341,30 @@ private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecogniz
                 move(to: searchBar)
             }
         } else {
-            onClose?()
+            close()
         }
     }
 
-    /// Steven (2026-10-31: "la fenêtre de recherche se ferme toute seule au bout d'un moment quand
-    /// je tape du texte", still so once Up closed it only from the keyboard's top): the keyboard is
-    /// the system's — Up inside it could not be told from Up at its top. Up no longer closes the
-    /// search: Menu does (from the keyboard; from the results, Menu goes back to the keyboard first).
-    @objc private func upPressed() {}
+    /// The focus left the search for something behind it (Up from the keyboard's top): closed.
+    @objc private func focusMoved(_ note: Notification) {
+        guard !returning, view.window != nil, ProcessInfo.processInfo.systemUptime - openedAt > 2,
+              let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey] as? UIFocusUpdateContext,
+              let previous = context.previouslyFocusedItem as? UIView, previous.isDescendant(of: view),
+              let next = context.nextFocusedItem as? UIView, !next.isDescendant(of: view) else { return }
+        // (A title opened from the results is a push, not a leaving.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self, self.view.window != nil, !self.returning,
+                  ProcessInfo.processInfo.systemUptime - self.openedAt > 2 else { return }
+            let now = self.view.window?.windowScene?.focusSystem?.focusedItem as? UIView
+            if let now, now.isDescendant(of: self.view) { return }
+            self.close()
+        }
+    }
 
-    func gestureRecognizer(_ recognizer: UIGestureRecognizer,
-                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-        recognizer === upRecognizer
+    private func close() {
+        guard !closed else { return }
+        closed = true
+        onClose?()
     }
 
     private func move(to target: UIFocusEnvironment) {
@@ -280,13 +372,5 @@ private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecogniz
         setNeedsFocusUpdate()
         updateFocusIfNeeded()
         focusTarget = nil
-    }
-
-    // Up is taken only while the focus is NOT in the results (the keyboard or the field).
-    func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive press: UIPress) -> Bool {
-        guard recognizer === upRecognizer else { return true }
-        let focused = view.window?.windowScene?.focusSystem?.focusedItem as? UIView
-        guard let focused, let results else { return true }
-        return !focused.isDescendant(of: results.view)
     }
 }
