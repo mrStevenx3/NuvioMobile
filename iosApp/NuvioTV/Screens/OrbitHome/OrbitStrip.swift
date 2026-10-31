@@ -622,7 +622,9 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             focusAtMargin = true
         } else if let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: next, section: 0))?.frame {
             let rest = revealOffset(for: next) ?? (aimedOffset ?? collectionView.contentOffset.x)
-            focusAtMargin = frame.minX - rest <= margin + 2
+            // (The first title on screen: at the margin, or the row resting a little past it — the
+            // one before mostly out of sight. Simulator trace: 4 at 132 with 72's margin, 3 cut.)
+            focusAtMargin = frame.minX - rest < margin + frame.width * 0.5
             OrbitTrace.log("strip focus \(previous.map(String.init) ?? "nil")->\(next) x=\(Int(frame.minX)) offset=\(Int(collectionView.contentOffset.x)) rest=\(Int(rest)) margin=\(Int(margin)) atMargin=\(focusAtMargin)")
             // Steven (2026-10-31, simulator: in the middle of a row, the heading rose only after a
             // press Left): coming in from another row, the system scrolls the row itself, after this —
@@ -631,7 +633,7 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
                 guard let self, self.focusedIndex == next,
                       let now = self.collectionView.layoutAttributesForItem(at: IndexPath(item: next, section: 0))?.frame else { return }
-                let atMargin = now.minX - self.collectionView.contentOffset.x <= self.margin + 2
+                let atMargin = now.minX - self.collectionView.contentOffset.x < self.margin + now.width * 0.5
                 OrbitTrace.log("strip rest \(next) x=\(Int(now.minX)) offset=\(Int(self.collectionView.contentOffset.x)) atMargin=\(atMargin) told=\(told)")
                 guard atMargin != self.focusAtMargin else { return }
                 self.focusAtMargin = atMargin
