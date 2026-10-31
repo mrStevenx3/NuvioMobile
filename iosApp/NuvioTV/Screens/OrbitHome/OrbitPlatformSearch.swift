@@ -218,6 +218,8 @@ private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecogniz
         let up = UITapGestureRecognizer(target: self, action: #selector(upPressed))
         up.allowedPressTypes = [NSNumber(value: UIPress.PressType.upArrow.rawValue)]
         up.delegate = self
+        // (The focus engine still gets the press: Up moves within the keyboard as usual.)
+        up.cancelsTouchesInView = false
         view.addGestureRecognizer(up)
         upRecognizer = up
     }
@@ -259,8 +261,25 @@ private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecogniz
         }
     }
 
+    /// Steven (2026-10-31: "la fenêtre de recherche se ferme toute seule quand je tape du texte"):
+    /// every Up outside the results closed the search — Up from the keyboard's lower lines too, while
+    /// typing. Now Up closes it only when it moves nothing: from the keyboard's (or the field's) top.
     @objc private func upPressed() {
-        onClose?()
+        let before = view.window?.windowScene?.focusSystem?.focusedItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            let now = self.view.window?.windowScene?.focusSystem?.focusedItem
+            // (Up that took the focus out of the search, behind it: closed too.)
+            if let moved = now as? UIView, !moved.isDescendant(of: self.view) { self.onClose?(); return }
+            guard let before, let now, before === now else { return }
+            if let results = self.results, let focused = now as? UIView, focused.isDescendant(of: results.view) { return }
+            self.onClose?()
+        }
+    }
+
+    func gestureRecognizer(_ recognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        recognizer === upRecognizer
     }
 
     private func move(to target: UIFocusEnvironment) {
