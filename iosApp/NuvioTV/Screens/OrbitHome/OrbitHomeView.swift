@@ -798,11 +798,17 @@ private struct OrbitWaveLayer: View {
 
     /// Past the screen's far corners (from the top's middle) with the soft edge.
     static let full: CGFloat = 1850
-    static let edge: CGFloat = 380
+    /// (A narrow front: only there do the two colours meet.)
+    static let edge: CGFloat = 200
 
     var body: some View {
-        RadialGradient(colors: [color.opacity(0.55), color.opacity(0.30), color.opacity(0.10)],
-                       center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+        // Opaque (the page's ground under its colour): Steven's video (IMG_9307) — see-through, the
+        // new colour only veiled the old one, the screen went purple until the old one went.
+        ZStack {
+            OrbitHomeLayout.background
+            RadialGradient(colors: [color.opacity(0.55), color.opacity(0.30), color.opacity(0.10)],
+                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+        }
             .mask { OrbitWaveMask(reach: wave ? reach : Self.full) }
             .onAppear {
                 guard wave else { return }
