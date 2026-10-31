@@ -1320,8 +1320,12 @@ struct OrbitDetailView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    // Steven (2026-10-31: what the details bring comes in fading): the synopsis too,
+                    // when the page opened without one.
+                    .transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.35), value: overview != nil)
             .padding(.top, 36)
             .focusSection()
             // The cast and the direction, small, bottom right.
@@ -1362,6 +1366,9 @@ struct OrbitDetailView: View {
         .lineLimit(1)
         .multilineTextAlignment(.trailing)
         // (Steven, 2026-10-30: no shadow on the synopsis nor the cast here — "pas fan".)
+        // Steven (2026-10-31: "Avec…" came in at once, as the genre line did): it fades in as the
+        // details bring it, as the meta line.
+        .animation(.easeOut(duration: 0.35), value: actors.joined() + "|" + directors.joined())
     }
 
     @ViewBuilder
