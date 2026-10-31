@@ -291,6 +291,7 @@ struct OrbitNativeHome: View {
             // 2026-10-29: Continue Watching's menu closing showed Home a moment, the card was
             // forgotten while the title's page was up, and the way back came to the hero).
             onScreen = true
+            OrbitPlatformLogoPrefetch.schedule()
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { if onScreen { OrbitNativeRow.reopen = nil } }
             trailers.suspended = !active
             if active { OrbitBarLock.shared.set(!onHero) }

@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Plateformes — inside a platform (Steven, 2026-10-24): the page a platform (or a studio)
 // folder opens on, rebuilt from scratch in the Orbit style, laid out like the platforms' own apps:
@@ -957,6 +958,49 @@ struct OrbitPlatformLook {
             return .init(title: t, logoUrl: logo, brand: Color(white: 0.6), white: true, assetLogo: "AppleTVMark")
         }
         return .init(title: t, logoUrl: logo, brand: OrbitPlatformBrand.color(title: t))
+    }
+}
+
+/// Steven (2026-10-31: at the first opening after an install, a platform's opening showed no logo —
+/// it was still being fetched): every platform's opening logo fetched a few seconds after Home is
+/// up, at the very size the opening draws it (small files: nothing felt).
+@MainActor
+enum OrbitPlatformLogoPrefetch {
+    private static var done = Set<String>()
+    private static var scheduled = false
+
+    static func schedule() {
+        guard !scheduled else { return }
+        scheduled = true
+        Task { @MainActor in
+            // After Home's own first pictures; again later if the collections were not there yet.
+            for wait in [4.0, 10.0, 30.0] {
+                try? await Task.sleep(for: .seconds(wait))
+                if run() { return }
+            }
+        }
+    }
+
+    /// Fetches what is not yet; true once the collections were there.
+    @discardableResult
+    private static func run() -> Bool {
+        guard let collections = CollectionRepository.shared.collections.value_ as? [NuvioCollection],
+              !collections.isEmpty else { return false }
+        let request = ArtworkDecodeRequest(size: .points(width: OrbitPlatformIntro.logoSize.width * OrbitPlatformIntro.splashScale,
+                                                         height: OrbitPlatformIntro.logoSize.height * OrbitPlatformIntro.splashScale),
+                                           fill: false, scale: UIScreen.main.scale)
+        let urls = collections.flatMap(\.folders).compactMap { folder -> URL? in
+            guard let raw = folder.titleLogoUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
+                  !done.contains(raw) else { return nil }
+            done.insert(raw)
+            return URL(string: raw)
+        }
+        Task(priority: .utility) {
+            for url in urls where ArtworkStore.cached(url, decode: request) == nil {
+                _ = try? await ArtworkStore.fetch(url, decode: request)
+            }
+        }
+        return true
     }
 }
 
