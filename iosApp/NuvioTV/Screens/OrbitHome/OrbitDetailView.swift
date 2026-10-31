@@ -1276,8 +1276,11 @@ struct OrbitDetailView: View {
             // The synopsis starts at one place (about under the logo's end), whatever the buttons:
             // close to them, and still when the focused one opens to say its name.
             HStack(alignment: .center, spacing: 40) {
+                // Steven (2026-10-31: "la synopsis est obligée de se décaler quand je passe sur les
+                // boutons"): the buttons' room is held for the widest of them open — the synopsis
+                // never moves as one opens to say its name.
                 actions
-                    .frame(minWidth: 680, alignment: .leading)
+                    .frame(width: max(680, actionsRoom), alignment: .leading)
                     .layoutPriority(1)
                 if let overview {
                     // Steven: the arrow at the right margin, on the credits' edge; the text runs
@@ -1376,10 +1379,30 @@ struct OrbitDetailView: View {
         // (Steven, 2026-10-31: "Avec…" came in at once — each line fades in where it lands.)
     }
 
+    /// The Lecture button's width (its words; measured as drawn).
+    @State private var playWidth: CGFloat = 0
+
+    /// The room the buttons take with the widest round one open: Lecture, the round buttons (the
+    /// Bande-annonce one counted even before it comes, so its arrival moves nothing either), and the
+    /// widest name any of them can show.
+    private var actionsRoom: CGFloat {
+        let font = UIFont.systemFont(ofSize: 28, weight: .semibold)
+        var labels = [String(localized: "Bande-annonce"), String(localized: "Marquer comme vu"), String(localized: "Vu"),
+                      String(localized: "Ajouter à ma liste"), String(localized: "Dans ma liste")]
+        let restart = !isSeries && model.hasResumableProgress
+        if restart { labels.append(String(localized: "Recommencer")) }
+        let widest = labels.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0
+        // Open: 30 on each side, the icon (~34), 12 between, the words; shut: 84.
+        let opened = max(0, 30 * 2 + 34 + 12 + widest - 84)
+        let rounds = CGFloat((restart ? 1 : 0) + 3)
+        return playWidth + rounds * (84 + 18) + opened + 8
+    }
+
     @ViewBuilder
     private var actions: some View {
         HStack(spacing: 18) {
             primaryButton
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { playWidth = $0 }
             if !isSeries, model.hasResumableProgress {
                 OrbitActionButton(icon: "arrow.counterclockwise", label: String(localized: "Recommencer"),
                                   focused: focus == .restart) {
