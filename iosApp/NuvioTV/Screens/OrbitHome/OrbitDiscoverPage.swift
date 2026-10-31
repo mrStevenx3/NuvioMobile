@@ -200,6 +200,10 @@ private struct OrbitNativeDiscover<Header: View>: View {
     @State private var shown: Int?
     @State private var scrolled = false
     @State private var headerHeight: CGFloat = 70
+    /// Steven (2026-10-31: back from a title with the Genre / Type pills on screen, the focus went on
+    /// them): while the way back lasts, the pills are out of the focus's reach — only the tile.
+    @State private var headerLocked = false
+    @State private var returnAppeared: TimeInterval = 0
 
     var body: some View {
         let D = OrbitDiscoverLayout.self
@@ -235,6 +239,7 @@ private struct OrbitNativeDiscover<Header: View>: View {
             }
             .padding(.horizontal, L.margin)
             .padding(.top, D.headerTop)
+            .disabled(headerLocked)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .ignoresSafeArea()
@@ -246,8 +251,15 @@ private struct OrbitNativeDiscover<Header: View>: View {
             shown = nil
         }
         .onDisappear { OrbitBarLock.shared.set(false) }
+        .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
+            // (The viewer's own press after the way back began: the pills in reach again.)
+            if headerLocked, ProcessInfo.processInfo.systemUptime > returnAppeared { headerLocked = false }
+        }
         .onAppear {
             guard OrbitDiscoverReturn.openedId != nil else { return }
+            returnAppeared = ProcessInfo.processInfo.systemUptime + 0.3
+            headerLocked = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { headerLocked = false }
             // (Steven, 2026-10-31, still going up: the Back press that brought the page back was
             // counted as the viewer's own move — "since" was set half a second before now, so every
             // ask stopped at once. Only a press from 0.3 s after the page's return ends the way back,
