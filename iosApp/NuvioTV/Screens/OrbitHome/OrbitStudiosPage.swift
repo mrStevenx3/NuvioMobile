@@ -553,17 +553,19 @@ struct OrbitBalancedLogo: View {
 /// a studio without a brand colour takes its backdrop's, worked out after the page's pictures —
 /// the colour found is kept (from one visit, and one launch, to the next) and shown at once.
 enum OrbitStudioTints {
-    /// Steven (2026-10-31: "pas moyen que tout soit direct ?"): Lucasfilm, DC and Ghibli get a colour
+    /// Steven (2026-10-31: "pas moyen que tout soit direct ?"): Lucasfilm, DC, Ghibli and Illumination get a colour
     /// of their own, as Disney, Pixar, DreamWorks and Marvel — at once, from the very first visit
     /// (in the range of the colours worked out from their pictures: Home's wash brightness).
     static func fixed(_ title: String) -> Color? {
         let t = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .replacingOccurrences(of: " ", with: "")
-        if t.contains("lucasfilm") { return Color(red: 0.30, green: 0.40, blue: 0.55) }
+        // (Steven's photo of the page, 2026-10-31: the colours they had, measured.)
+        if t.contains("lucasfilm") { return Color(red: 0.14, green: 0.28, blue: 0.55) }
         if t == "dc" || t.hasPrefix("dccomics") || t.hasPrefix("dcstudios") || t.hasPrefix("dcfilms") {
-            return Color(red: 0.08, green: 0.30, blue: 0.55)
+            return Color(red: 0.55, green: 0.50, blue: 0.30)
         }
-        if t.contains("ghibli") { return Color(red: 0.22, green: 0.44, blue: 0.55) }
+        if t.contains("ghibli") { return Color(red: 0.43, green: 0.55, blue: 0.30) }
+        if t.contains("illumination") { return Color(red: 0.55, green: 0.43, blue: 0.22) }
         return nil
     }
 
