@@ -4,6 +4,16 @@ import AVFoundation
 import AVKit
 import SharedCore
 
+#if targetEnvironment(simulator)
+import Foundation
+/// Simulator only: the trailer probe's lines also go to Orbit's trace file (focus.log).
+nonisolated fileprivate func NSLog(_ format: String, _ args: CVarArg...) {
+    let text = String(format: format, arguments: args)
+    Foundation.NSLogv("%@", getVaList([text]))
+    OrbitTrace.log(text)
+}
+#endif
+
 /// A looping, controls-free trailer surface behind the Detail hero, backed by **AVPlayer**. Starts
 /// muted and follows the shared `HeroTrailerAudioState` (same singleton the mobile app's hero
 /// trailer uses) from then on, so the user's mute/unmute choice persists across titles for the

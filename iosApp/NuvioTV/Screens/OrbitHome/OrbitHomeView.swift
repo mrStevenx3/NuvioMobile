@@ -757,6 +757,9 @@ struct OrbitToneHalo: View {
                     while target.hue - lch.hue > .pi { target.hue -= 2 * .pi }
                     while lch.hue - target.hue > .pi { target.hue += 2 * .pi }
                 }
+                OrbitTrace.log(String(format: "halo lch from L%.2f C%.3f h%.2f p%.2f to L%.2f C%.3f h%.2f p%.2f",
+                                      lch.lightness, lch.chroma, lch.hue, lch.presence,
+                                      target.lightness, target.chroma, target.hue, target.presence))
                 withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { lch = target }
             }
     }

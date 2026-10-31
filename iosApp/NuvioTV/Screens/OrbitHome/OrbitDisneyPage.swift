@@ -804,6 +804,7 @@ struct OrbitDisneyPage: View {
 
         trailer.reset()
         trailerKey = nil
+        OrbitTrace.log("disney trailer arm? on=\(trailersOn) covered=\(covered) focused=\(pageFocused) search=\(search != nil) auto=\(UIAccessibility.isVideoAutoplayEnabled) item=\(focusedItem?.id ?? "nil") current=\(current)")
         guard trailersOn, !covered, pageFocused, search == nil, UIAccessibility.isVideoAutoplayEnabled,
               let item = focusedItem else { return }
         trailer.prefersReducedMotion = reduceMotion
@@ -1460,7 +1461,7 @@ struct OrbitDisneyBrand {
         // (Steven, 2026-10-31: Star Wars opened his Lucasfilm folder — "je veux une vraie page Star Wars":
         // its own page from TMDB's Star Wars keyword, films and series; his own Star Wars folder first
         // if he makes one.)
-        .init(name: "Star Wars", keys: ["star wars"], company: "kw:star wars",
+        .init(name: "Star Wars", keys: ["star wars"], company: OrbitStudioCurated.starWars,
               // (Steven: the band read as gone on Star Wars — a deep space blue, no longer near black.)
               colours: [Color(red: 0.16, green: 0.22, blue: 0.40), Color(red: 0.03, green: 0.05, blue: 0.13)],
               tagline: String(localized: "Il y a bien longtemps, dans une galaxie lointaine…"), asset: "StarWarsLogo"),
@@ -1912,6 +1913,11 @@ private struct OrbitDisneyBrandsHub: View {
     /// The brand it was opened from (the system's landing on the first pill on the way back
     /// switched the band to Disney — Steven's video).
     @State private var reopenBrand: Int?
+    /// Steven (2026-10-31: back from a brand's page the focus landed on TOUT PARCOURIR, and back
+    /// from TOUT PARCOURIR's on the house): on the way back, only what was pressed can take the
+    /// focus — the pill pressed, or TOUT PARCOURIR.
+    @State private var pillBack = false
+    @State private var browseBack = false
 
     var body: some View {
         let L = OrbitDisneyLayout.self
@@ -1935,13 +1941,18 @@ private struct OrbitDisneyBrandsHub: View {
                 OrbitNativeTileStrip(count: brands.count, spacing: 18, height: L.pill.height * 1.12,
                                      lastWidth: L.pill.width, box: box, margin: max(L.margin, (W - pillsWidth) / 2),
                                      alignment: .center,
-                                     onEnter: onEnter, onLeave: onLeave, onSelect: onSelect,
+                                     onEnter: onEnter, onLeave: onLeave,
+                                     onSelect: {
+                                         pillBack = true
+                                         browseBack = false
+                                         onSelect()
+                                     },
                                      onLeadChange: { i in films.focus(title: brands[i].name) }) { i, lit in
                     OrbitDisneyBrandPill(brand: brands[i], focused: lit)
                 }
                 // Back from a title of the band: the pills out of reach until its poster has the
                 // focus again (Steven's video: the system landed on Walt Disney a beat — its band).
-                .disabled(reopenFilm != nil)
+                .disabled(reopenFilm != nil || browseBack)
                 .frame(width: W, height: L.pill.height * 1.12, alignment: .topLeading)
                 .padding(.top, 26)
                 HStack(alignment: .center, spacing: 0) {
@@ -1960,7 +1971,9 @@ private struct OrbitDisneyBrandsHub: View {
                         }
                         // Steven: TOUT PARCOURIR can be pressed (Down from the pills): the brand's page.
                         Button {
-                            box.reopen = box.lead
+                            box.reopen = nil
+                            browseBack = true
+                            pillBack = false
                             onSelect()
                         } label: {
                             Text(String(localized: "TOUT PARCOURIR"))
@@ -1975,7 +1988,7 @@ private struct OrbitDisneyBrandsHub: View {
                         .buttonStyle(OrbitPlainStyle())
                         .focused($browseFocused)
                         // (Steven: Up from the row below took two presses — it stopped here first.)
-                        .disabled(!isCurrent || reopenFilm != nil)
+                        .disabled(!isCurrent || reopenFilm != nil || pillBack)
                     }
                     .frame(width: 720)
                     // Steven: the band's titles scroll (Right from TOUT PARCOURIR), each opens its page.
@@ -2003,7 +2016,7 @@ private struct OrbitDisneyBrandsHub: View {
                                            onOpen(shelf[i])
                                        })
                             .frame(height: 440)
-                            .disabled(!isCurrent && reopenFilm == nil)
+                            .disabled((!isCurrent && reopenFilm == nil) || pillBack || browseBack)
                         // (Steven: scrolled, the titles ran over the brand's logo and TOUT PARCOURIR:
                         // cut at the column's edge, free above and below for the focused one.)
                         .mask(Rectangle().padding(.vertical, -40))
@@ -2024,6 +2037,33 @@ private struct OrbitDisneyBrandsHub: View {
         .clipped()
         .onAppear {
             films.focus(title: brand.name)
+            OrbitTrace.log("disney hub appear pillBack=\(pillBack) browseBack=\(browseBack) lead=\(box.lead) reopen=\(box.reopen.map(String.init) ?? "nil")")
+            if pillBack || browseBack {
+                let appeared = ProcessInfo.processInfo.systemUptime
+                if browseBack {
+                    for delay in [0.05, 0.2, 0.4, 0.7, 1.0, 1.4] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            guard browseBack, !browseFocused, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                            OrbitTrace.log("disney hub browse back: focus asked (\(delay))")
+                            browseFocused = true
+                        }
+                    }
+                } else {
+                    let pill = box.lead
+                    box.reopen = pill
+                    for delay in [0.05, 0.3, 0.7, 1.1] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            guard pillBack, !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                            OrbitTrace.log("disney hub pill back: focus asked on \(pill) (\(delay))")
+                            box.focusRequest &+= 1
+                        }
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                    pillBack = false
+                    browseBack = false
+                }
+            }
             // Back from a title of the band: its poster takes the focus again (after the row's own
             // restore on the brand).
             if let back = reopenFilm {

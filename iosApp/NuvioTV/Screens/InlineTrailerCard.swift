@@ -3,6 +3,16 @@ import SwiftUI
 import UIKit
 import SharedCore
 
+#if targetEnvironment(simulator)
+import Foundation
+/// Simulator only: the trailer probe's lines also go to Orbit's trace file (focus.log).
+nonisolated fileprivate func NSLog(_ format: String, _ args: CVarArg...) {
+    let text = String(format: format, arguments: args)
+    Foundation.NSLogv("%@", getVaList([text]))
+    OrbitTrace.log(text)
+}
+#endif
+
 /// "Trailers in thumbnails": hold focus on a catalog card for a beat and it blooms into a 16:9
 /// landscape tile that plays the title's trailer, muted, in place.
 ///

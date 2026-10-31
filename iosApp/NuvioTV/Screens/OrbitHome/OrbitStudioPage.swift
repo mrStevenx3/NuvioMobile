@@ -1741,7 +1741,7 @@ final class OrbitStudioModel: ObservableObject {
                 return
             }
             // The logo first, on its own (the opening waits for it; the rows take longer).
-            if route.logo == nil, self?.logo == nil, !ids.hasPrefix("kw:") {
+            if route.logo == nil, self?.logo == nil, !ids.hasPrefix("kw:"), !ids.hasPrefix("list:") {
                 let firstId = ids.split(whereSeparator: { $0 == "|" || $0 == "," }).first.map(String.init) ?? ids
                 let entity: EntityResponse? = await Self.decode(
                     "https://api.themoviedb.org/3/\(route.isNetwork ? "network" : "company")/\(firstId)?api_key=\(key)")
@@ -1843,8 +1843,15 @@ final class OrbitStudioModel: ObservableObject {
         let next = mine + shown
         if next != rows { rows = next }
         // The banner: the newest films with art (his Nouveautés first), else the most popular.
-        let source = (mine.first { !$0.title.lowercased().contains("top") }?.items ?? [])
+        var source = (mine.first { !$0.title.lowercased().contains("top") }?.items ?? [])
             + (tmdbRows.first { $0.id == "popular" }?.items ?? [])
+        // Star Wars's own page (curated): its banner takes turns between the series and the films.
+        if route.companies == OrbitStudioCurated.starWars, source.isEmpty {
+            let lists = tmdbRows.map(\.items)
+            for i in 0..<(lists.map(\.count).max() ?? 0) {
+                for list in lists where list.indices.contains(i) { source.append(list[i]) }
+            }
+        }
         var seen = Set<String>()
         let featured = source.filter { item in
             let banner: String? = item.banner
@@ -1943,6 +1950,10 @@ final class OrbitStudioModel: ObservableObject {
         -> (logo: String?, count: Int, since: String?, rows: [(id: String, title: String, items: [MetaPreview])],
             sagaFilms: [String: MetaPreview]) {
         let lang = language.isEmpty ? "fr-FR" : language
+        if ids == OrbitStudioCurated.starWars {
+            let found = await curatedStarWars(apiKey: apiKey, lang: lang)
+            return (nil, found.count, "1977", found.rows, [:])
+        }
         let media = network ? "tv" : "movie"
         let dateField = network ? "first_air_date" : "primary_release_date"
         let keyword = ids.hasPrefix("kw:") ? String(ids.dropFirst(3)) : nil
@@ -2110,6 +2121,109 @@ final class OrbitStudioModel: ObservableObject {
                 popularValue.total, since, rows, sagaFilms)
     }
 
+    /// One title found by its original name and year (TMDB's search; the exact original name first).
+    nonisolated private struct SearchMediaResponse: Decodable {
+        nonisolated struct Result: Decodable {
+            let id: Int
+            let title: String?
+            let name: String?
+            let original_title: String?
+            let original_name: String?
+            let overview: String?
+            let poster_path: String?
+            let backdrop_path: String?
+            let release_date: String?
+            let first_air_date: String?
+            let vote_average: Double?
+        }
+        let results: [Result]?
+    }
+
+    nonisolated private static func preview(_ r: SearchMediaResponse.Result, tv: Bool) -> MetaPreview? {
+        guard let name = r.title ?? r.name, !name.isEmpty, let poster = r.poster_path else { return nil }
+        let date = r.release_date ?? r.first_air_date
+        return MetaPreview(id: "tmdb:\(r.id)", type: tv ? "series" : "movie", name: name,
+                           poster: "https://image.tmdb.org/t/p/w780\(poster)",
+                           banner: r.backdrop_path.map { "https://image.tmdb.org/t/p/w1280\($0)" },
+                           logo: nil, posterShape: .landscape,
+                           description: r.overview, releaseInfo: date.map { String($0.prefix(4)) },
+                           rawReleaseDate: date, popularity: nil, voteCount: nil,
+                           imdbRating: r.vote_average.flatMap { $0 > 0 ? String(format: "%.1f", $0) : nil },
+                           genres: [], rawPosterUrl: nil, landscapePoster: nil,
+                           rawLandscapePosterUrl: nil, customPosterApplied: false)
+    }
+
+    nonisolated private static func find(_ original: String, year: Int, tv: Bool, apiKey: String, lang: String) async -> MetaPreview? {
+        let query = original.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? original
+        let yearField = tv ? "first_air_date_year" : "year"
+        guard let found: SearchMediaResponse = await decode(
+            "https://api.themoviedb.org/3/search/\(tv ? "tv" : "movie")?api_key=\(apiKey)&language=\(lang)&query=\(query)&\(yearField)=\(year)"),
+              let results = found.results, !results.isEmpty else { return nil }
+        let key = original.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let exact = results.first {
+            ($0.original_title ?? $0.original_name ?? "").folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) == key
+        }
+        return preview(exact ?? results[0], tv: tv)
+    }
+
+    /// Steven (2026-10-31: "je veux une vraie page Star Wars sur Disney+"): TMDB has no Star Wars
+    /// company and its keyword brings podcasts and specials — the page is the saga's own list: the
+    /// Skywalker saga (TMDB's Star Wars collection, in the episodes' order), the other films, the
+    /// series, the animated series.
+    nonisolated private static func curatedStarWars(apiKey: String, lang: String)
+        async -> (count: Int, rows: [(id: String, title: String, items: [MetaPreview])]) {
+        let others: [(String, Int)] = [("Rogue One: A Star Wars Story", 2016), ("Solo: A Star Wars Story", 2018),
+                                       ("Star Wars: The Clone Wars", 2008)]
+        let series: [(String, Int)] = [("The Mandalorian", 2019), ("Andor", 2022), ("Ahsoka", 2023),
+                                       ("Star Wars: Skeleton Crew", 2024), ("The Book of Boba Fett", 2021),
+                                       ("Obi-Wan Kenobi", 2022), ("The Acolyte", 2024)]
+        let animated: [(String, Int)] = [("Star Wars: The Clone Wars", 2008), ("Star Wars: The Bad Batch", 2021),
+                                         ("Star Wars Rebels", 2014), ("Star Wars: Tales of the Jedi", 2022),
+                                         ("Star Wars: Tales of the Empire", 2024), ("Star Wars: Visions", 2021),
+                                         ("Star Wars Resistance", 2018)]
+        func all(_ list: [(String, Int)], tv: Bool) async -> [MetaPreview] {
+            await withTaskGroup(of: (Int, MetaPreview?).self) { group in
+                for (index, entry) in list.enumerated() {
+                    group.addTask { (index, await find(entry.0, year: entry.1, tv: tv, apiKey: apiKey, lang: lang)) }
+                }
+                var out: [(Int, MetaPreview)] = []
+                for await (index, item) in group { if let item { out.append((index, item)) } }
+                var seen = Set<String>()
+                return out.sorted { $0.0 < $1.0 }.map(\.1).filter { seen.insert($0.id).inserted }
+            }
+        }
+        async let collection: CollectionResponse? = decode("https://api.themoviedb.org/3/collection/10?api_key=\(apiKey)&language=\(lang)")
+        async let otherFilms = all(others, tv: false)
+        async let liveSeries = all(series, tv: true)
+        async let animatedSeries = all(animated, tv: true)
+        let (sagaValue, othersValue, seriesValue, animatedValue) = await (collection, otherFilms, liveSeries, animatedSeries)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let today = formatter.string(from: Date())
+        let released = (sagaValue?.parts ?? [])
+            .filter { !($0.release_date ?? "").isEmpty && ($0.release_date ?? "") <= today && $0.poster_path != nil }
+            .sorted { ($0.release_date ?? "") < ($1.release_date ?? "") }
+        // The episodes' order: the prequels (1999–2005), then the trilogy of 1977, then the rest.
+        let ordered = released.filter { ($0.release_date ?? "") >= "1999" && ($0.release_date ?? "") < "2006" }
+            + released.filter { ($0.release_date ?? "") < "1999" }
+            + released.filter { ($0.release_date ?? "") >= "2006" }
+        let saga = ordered.compactMap { part -> MetaPreview? in
+            preview(SearchMediaResponse.Result(id: part.id, title: part.title, name: nil, original_title: nil,
+                                               original_name: nil, overview: part.overview,
+                                               poster_path: part.poster_path, backdrop_path: part.backdrop_path,
+                                               release_date: part.release_date, first_air_date: nil,
+                                               vote_average: part.vote_average), tv: false)
+        }
+        var rows: [(id: String, title: String, items: [MetaPreview])] = []
+        if !seriesValue.isEmpty { rows.append(("sw-series", String(localized: "Les séries"), seriesValue)) }
+        if !saga.isEmpty { rows.append(("sw-saga", String(localized: "La saga Skywalker"), saga)) }
+        if !othersValue.isEmpty { rows.append(("sw-films", String(localized: "Les autres films"), othersValue)) }
+        if !animatedValue.isEmpty { rows.append(("sw-animation", String(localized: "Les séries animées"), animatedValue)) }
+        return (saga.count + othersValue.count, rows)
+    }
+
     nonisolated private static func decode<T: Decodable>(_ address: String) async -> T? {
         guard let url = URL(string: address),
               let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
@@ -2136,6 +2250,11 @@ final class OrbitStudioModel: ObservableObject {
     }
 }
 
+
+/// Studio pages built from Orbit's own list rather than a TMDB company.
+enum OrbitStudioCurated {
+    static let starWars = "list:starwars"
+}
 
 /// A studio's logo as its opening draws it.
 struct OrbitStudioIntroLogo: View {

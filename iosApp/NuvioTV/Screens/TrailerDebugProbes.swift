@@ -23,7 +23,11 @@ import AVFoundation
 /// sideloads, there is no automated input path to the physical Apple TV, and the console (`log
 /// show`) is the only diagnostic that comes back from a device pass.
 enum TrailerProbe {
+    #if targetEnvironment(simulator)
+    nonisolated static let enabled = true
+    #else
     nonisolated static let enabled = UserDefaults.standard.bool(forKey: "debug.trailerProbe")
+    #endif
 
     /// `debug.trailerSmokeVideoId` — forces every trailer onto one videoId for deterministic
     /// `[TrailerRepack]`/`[TrailerZoom]` logs. BUG-59 (beta.13): read once, logged once, and the

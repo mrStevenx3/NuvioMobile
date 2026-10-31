@@ -5,6 +5,16 @@ import Network
 import SharedCore
 import UIKit
 
+#if targetEnvironment(simulator)
+import Foundation
+/// Simulator only: the trailer probe's lines also go to Orbit's trace file (focus.log).
+nonisolated fileprivate func NSLog(_ format: String, _ args: CVarArg...) {
+    let text = String(format: format, arguments: args)
+    Foundation.NSLogv("%@", getVaList([text]))
+    OrbitTrace.log(text)
+}
+#endif
+
 // UX-4c SABR follow-up: YouTube's SABR rollout means many videos (recent uploads especially) come
 // back from innertube with NO hlsManifestUrl and NO muxed formats beyond the 360p progressive —
 // only demuxed adaptiveFormats with direct URLs + initRange/indexRange. AVPlayer can't consume bare

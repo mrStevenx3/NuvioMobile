@@ -656,6 +656,7 @@ struct OrbitCollectionGrid: View {
         if let brand = Self.brandColor(entry.folder.title) {
             DispatchQueue.main.asyncAfter(deadline: .now() + rest) {
                 guard focused == id || haloColor == nil else { return }
+                OrbitTrace.log("halo brand \(entry.folder.title) \(brand)")
                 haloColor = brand
             }
             return
@@ -664,12 +665,14 @@ struct OrbitCollectionGrid: View {
         if let cached = ArtworkColorStore.shared.cachedColor(for: [url], use: .wash) {
             DispatchQueue.main.asyncAfter(deadline: .now() + rest) {
                 guard focused == id || haloColor == nil else { return }
+                OrbitTrace.log("halo cached \(entry.folder.title) \(cached)")
                 haloColor = cached
             }
             return
         }
         ArtworkColorStore.shared.color(for: [url], use: .wash) { color in
             guard focused == id || (focused == nil && Self.lastFocused == id) || haloColor == nil else { return }
+            OrbitTrace.log("halo sampled \(entry.folder.title) \(color)")
             haloColor = color
         }
     }
