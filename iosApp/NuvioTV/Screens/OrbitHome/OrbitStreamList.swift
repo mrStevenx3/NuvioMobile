@@ -535,17 +535,23 @@ struct OrbitStreamCard: View {
             .padding(.horizontal, 36)
             .padding(.vertical, 22)
             .frame(maxWidth: .infinity, minHeight: Self.height, maxHeight: Self.height)
-            .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(Color.white.opacity(focused ? 0.2 : 0.07))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(Color.white.opacity(focused ? 0.55 : 0), lineWidth: 2)
-            )
-            .scaleEffect(focused ? 1.015 : 1)
-            .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 22, y: 10)
-            .animation(.easeOut(duration: 0.18), value: focused)
+            // Steven (2026-10-31, video: cards over each other while scrolling, their text doubled):
+            // the focus animation was set on the whole card — a card redrawn in a reused line during
+            // the scroll slid its text in from where the line's last card had it. Only the focus's
+            // own look is animated now (its plate, rim, growth and shadow), never the card's layout.
+            .animation(.easeOut(duration: 0.18)) { card in
+                card
+                    .background(
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .fill(Color.white.opacity(focused ? 0.2 : 0.07))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .strokeBorder(Color.white.opacity(focused ? 0.55 : 0), lineWidth: 2)
+                    )
+                    .scaleEffect(focused ? 1.015 : 1)
+                    .shadow(color: .black.opacity(focused ? 0.4 : 0), radius: 22, y: 10)
+            }
     }
 
     /// Source · codec · sound · channels · languages, as small outlined tags.
