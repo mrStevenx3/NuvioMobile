@@ -606,8 +606,6 @@ struct OrbitMdbListListsPage: View {
 // MARK: - À propos
 
 struct OrbitAboutSection: View {
-    @AppStorage("debug.streamProbe") private var streamDiagnostics = false
-    @State private var cacheCleared = false
 
     var body: some View {
         OrbitSettingsGroup(title: String(localized: "Orbit")) {
@@ -633,35 +631,9 @@ struct OrbitAboutSection: View {
         .frame(width: OrbitSettingsLayout.rowWidth)
         .padding(.vertical, 6)
 
-        OrbitSettingsGroup(title: String(localized: "Diagnostic")) {
-            OrbitSettingsToggle(title: String(localized: "Diagnostic des sources"),
-                                subtitle: String(localized: "Note ce qui se passe quand un titre ne trouve aucune source : active-le, lance le titre, puis reviens ici."),
-                                isOn: $streamDiagnostics)
-            if streamDiagnostics {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    VStack(alignment: .leading, spacing: 4) {
-                        if StreamProbe.lines.isEmpty {
-                            Text("Aucune recherche de source pour l'instant.")
-                        } else {
-                            ForEach(Array(StreamProbe.lines.enumerated()), id: \.offset) { _, line in
-                                Text(line).lineLimit(1).truncationMode(.middle)
-                            }
-                        }
-                    }
-                    .font(.system(size: 19, design: .monospaced))
-                    .foregroundStyle(Color.white.opacity(0.6))
-                    .frame(width: OrbitSettingsLayout.rowWidth, alignment: .leading)
-                }
-            }
-            OrbitSettingsAction(title: cacheCleared ? String(localized: "Cadrage des bandes-annonces réinitialisé")
-                                                    : String(localized: "Réinitialiser le cadrage des bandes-annonces"),
-                                subtitle: String(localized: "Si une bande-annonce s'affiche mal cadrée."),
-                                icon: cacheCleared ? "checkmark" : "arrow.counterclockwise") {
-                TrailerZoomCache.shared.removeAll()
-                cacheCleared = true
-            }
-        }
-        .onChange(of: streamDiagnostics) { _, _ in StreamProbe.syncSink() }
+        // (Steven, 2026-10-31: "ça fait pas application genre Netflix, ça me plaît pas que ce soit
+        // visible" — the sources' diagnostic and the trailers' framing reset are no longer shown.
+        // Their code stays: the diagnostic can be turned on again for a fault, if ever needed.)
     }
 
     private static func info(_ key: String) -> String? {
