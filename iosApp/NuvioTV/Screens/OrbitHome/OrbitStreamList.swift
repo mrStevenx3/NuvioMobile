@@ -696,8 +696,14 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
             cell.backgroundConfiguration = .clear()
             cell.configurationUpdateHandler = { [weak self] cell, state in
                 guard let self, let row = self.rows.first(where: { $0.key == key }) else { return }
-                cell.contentConfiguration = UIHostingConfiguration { self.card(row, state.isFocused) }
-                    .margins(.all, 0)
+                // Steven (2026-10-31: sources still over each other at the top and the bottom while
+                // scrolling): the lines coming in at the edges were filled inside the scroll's own
+                // animation — the new card animated in over the old one. Filled at once now.
+                UIView.performWithoutAnimation {
+                    cell.contentConfiguration = UIHostingConfiguration { self.card(row, state.isFocused) }
+                        .margins(.all, 0)
+                    cell.layoutIfNeeded()
+                }
             }
         }
     }
@@ -743,7 +749,11 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { rows.count }
 
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        collectionView.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: rows[indexPath.item].key)
+        var cell: UICollectionViewCell!
+        UIView.performWithoutAnimation {
+            cell = collectionView.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: rows[indexPath.item].key)
+        }
+        return cell
     }
 
     // MARK: Delegate

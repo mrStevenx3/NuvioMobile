@@ -241,7 +241,7 @@ struct OrbitStudiosPage: View {
                 if ArtworkStore.cached(best, decode: request) == nil {
                     _ = try? await ArtworkStore.fetch(best, decode: request)
                 }
-                await OrbitPreBlurred.prepare(raw, radius: 24)
+                await OrbitPreBlurred.prepare(raw, radius: 16)
             }
         }
     }
@@ -812,20 +812,26 @@ private struct OrbitStudiosBackdrop: View {
         // hosting delayed it. Back at the screen's width, drawn in place.)
         let full = CGSize(width: W, height: W * 9 / 16)
         let spare = max(0, W * 9 / 16 - band) / 2
-        // Where the sharp image melts into the blurred one.
-        let seam = band * 0.96
         Group {
             ZStack(alignment: .top) {
                 // The same image blurred, at the very place of the sharp one (its centre on the
                 // banner's), stretched down from the seam to reach the screen's bottom.
                 // (Steven, 2026-10-30: a bar at the bottom — drawn a little larger again, and
                 // stretched enough to reach the screen's foot.)
-                OrbitPreBlurred(url: url, radius: 24)
-                    .scaleEffect(1.1)
-                    .offset(y: band / 2 - H / 2)
+                // Steven (2026-10-31: "le flou décale l'image du dessous, elle n'est pas alignée" and
+                // "beaucoup trop épais"): the blurred copy was drawn larger and stretched while the
+                // sharp one was not — now at exactly the sharp one's size and place (its centre and
+                // its own lift), lighter, and melting into the page's colour at its own foot instead
+                // of being stretched down to the screen's bottom.
+                let imageBottom = band / 2 + H / 2 + spare * lift
+                OrbitPreBlurred(url: url, radius: 16)
+                    .offset(y: band / 2 - H / 2 + spare * lift)
                     .frame(width: W, height: H)
-                    .scaleEffect(x: 1, y: 1.55, anchor: UnitPoint(x: 0.5, y: seam / H))
                     .overlay(Color.black.opacity(0.22))
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0),
+                                                 .init(color: .black, location: max(0, (imageBottom - 170) / H)),
+                                                 .init(color: .clear, location: min(1, imageBottom / H))],
+                                         startPoint: .top, endPoint: .bottom))
                 OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
                     .frame(width: full.width, height: full.height)
                     .frame(width: full.width, height: band)
