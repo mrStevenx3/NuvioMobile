@@ -349,10 +349,10 @@ struct OrbitRowHeading: View {
     var body: some View {
         let colour = prefersTone ? (tone.color ?? accent) : (accent ?? tone.color)
         HStack(spacing: size * 0.4) {
-            Capsule()
-                .fill(colour ?? Color.white.opacity(0.8))
+            // (Steven, 2026-10-31: every colour change goes straight from one colour to the next, in
+            // OKLab — the bar too, as the page's wash and the platforms' halo.)
+            OrbitToneCapsule(tone: colour.map { OrbitWashTone($0) } ?? OrbitWashTone(.white, presence: 0.8))
                 .frame(width: max(5, size * 0.18), height: size * 0.88)
-                .shadow(color: (colour ?? .white).opacity(0.6), radius: 6)
             Text(title)
                 .font(.system(size: size, weight: .heavy))
                 .foregroundStyle(LinearGradient(colors: [.white, .white.opacity(0.78)],
@@ -748,5 +748,28 @@ struct OrbitToneHalo: View {
                     withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { tone.presence = 0 }
                 }
             }
+    }
+}
+
+
+/// The headings' bar, its colour travelling in OKLab (`OrbitWashTone`).
+struct OrbitToneCapsule: View, Animatable {
+    var tone: OrbitWashTone
+
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
+        get { AnimatablePair(AnimatablePair(tone.l, tone.a), AnimatablePair(tone.b, tone.presence)) }
+        set {
+            tone.l = newValue.first.first
+            tone.a = newValue.first.second
+            tone.b = newValue.second.first
+            tone.presence = newValue.second.second
+        }
+    }
+
+    var body: some View {
+        let c = tone.color.opacity(min(1, max(0, tone.presence)))
+        Capsule()
+            .fill(c)
+            .shadow(color: tone.color.opacity(0.6), radius: 6)
     }
 }
