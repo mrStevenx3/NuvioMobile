@@ -622,7 +622,7 @@ final class OrbitRowsMemo<Value> {
 /// the screen's own pixels, drawn as it is (no filter, no blending pass).
 struct OrbitGrain: View {
     /// Off: no grain anywhere (Steven's trial).
-    static let enabled = true
+    static let enabled = false  // (Steven, 2026-10-31: "c'est même plus marqué" — off.)
 
     var body: some View {
         if Self.enabled, let tile = Self.tile {
