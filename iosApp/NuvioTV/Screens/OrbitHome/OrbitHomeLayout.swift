@@ -86,6 +86,7 @@ enum OrbitHomeLayout {
     /// me plaît pas, j'aurai une autre solution"): a more even ground behind the rows. The darkening
     /// towards the bottom lighter (was 0.55), and the blacks lifted a little (was none). Back to
     /// 0.55 and 0 to undo.
-    static let footShade: Double = 0.3
-    static let floorLift: Double = 0.035
+    // (Steven, 2026-10-31: "toujours visible, tu peux enlever" — back to the values before the trial.)
+    static let footShade: Double = 0.55
+    static let floorLift: Double = 0
 }

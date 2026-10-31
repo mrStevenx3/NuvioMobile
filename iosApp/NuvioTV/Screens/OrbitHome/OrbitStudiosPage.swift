@@ -348,9 +348,12 @@ struct OrbitStudiosPage: View {
     /// (Steven, 2026-10-31, slow motion: the old studio's logo and the new one were seen over each
     /// other a moment, the new picture already there — the old one now goes at once, the new one
     /// comes as it has gone, with the picture.)
+    /// (Steven, 2026-10-31: then "le logo se charge plus vite que l'image de fond" — the picture now
+    /// starts its fade a few frames late, once drawn: the logos follow its time — the old one goes as
+    /// the new picture starts, the new one comes as it is half in.)
     private var slide: AnyTransition {
-        .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.08)),
-                    removal: .opacity.animation(.easeIn(duration: 0.08)))
+        .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.25).delay(0.18)),
+                    removal: .opacity.animation(.easeIn(duration: 0.1).delay(0.07)))
     }
 
     /// Fixed places (Steven: from Disney to Pixar the logo moved, the block was centred and its
