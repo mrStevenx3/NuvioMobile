@@ -66,6 +66,9 @@ enum OrbitDetailLayout {
     /// The line the system aligns a focused section's top on (the page's top margin).
     // (Steven, 2026-10-30: the cast too close under the title at the top — the sections a little lower.)
     static let pageTop: CGFloat = 190
+    /// Steven (2026-10-31, photo: on a series' cast, a large empty band above it): past the first
+    /// section under the hero (where the title shows at the top), the sections come up higher.
+    static let pageTopDeep: CGFloat = 130
 }
 
 /// Every route to a title opens the Orbit page (Steven: the old page is retired).
@@ -139,6 +142,8 @@ struct OrbitDetailView: View {
     /// at the press, easing to rest in 0.4 s), alongside the system's; no scroll binding the
     /// system rewrites at each step of its own move.
     @State private var detailScroll = ScrollPosition(idType: OrbitDetailSection.self)
+    /// The page's top margin: `pageTop`, or `pageTopDeep` past the first section.
+    @State private var topMargin = OrbitDetailLayout.pageTop
     @State private var lastGo: TimeInterval = 0
     @State private var systemScrollOff = false
     /// The page's sections, in order (those it shows).
@@ -160,13 +165,21 @@ struct OrbitDetailView: View {
         // (As Home: one mover — past the first section under the hero the system's own scroll is
         // off, no nudge after the page rests; nothing redrawn mid-move by details arriving.)
         systemScrollOff = (sectionOrder.firstIndex(of: target) ?? 0) >= 2
+        // (Past the first section, the title no longer at the top: the margin comes down with the move.)
+        let margin = systemScrollOff ? OrbitDetailLayout.pageTopDeep : OrbitDetailLayout.pageTop
         OrbitMetaStore.shared.holdPublishing(for: 0.6)
         if animated && !reduceMotion {
-            withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) { detailScroll.scrollTo(id: target, anchor: .top) }
+            withAnimation(.timingCurve(0.25, 0.46, 0.45, 0.94, duration: 0.4)) {
+                topMargin = margin
+                detailScroll.scrollTo(id: target, anchor: .top)
+            }
         } else {
             var still = Transaction()
             still.disablesAnimations = true
-            withTransaction(still) { detailScroll.scrollTo(id: target, anchor: .top) }
+            withTransaction(still) {
+                topMargin = margin
+                detailScroll.scrollTo(id: target, anchor: .top)
+            }
         }
     }
     /// Bumped on every focus move inside a section (the page is held at its place again).
@@ -463,7 +476,7 @@ struct OrbitDetailView: View {
             // off screen on every frame of a move) are gone.
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition($detailScroll)
-            .contentMargins(.top, L.pageTop, for: .scrollContent)
+            .contentMargins(.top, topMargin, for: .scrollContent)
             .scrollClipDisabled()
             // Steven (the season row bounced): on a season poster the page does not scroll on its
             // own — the system nudged it a few points at each season change and the hold pulled it
