@@ -1586,6 +1586,14 @@ struct OrbitNativeOpenRow: View {
                 if generation == slideGeneration { sliding = false }
             }
         }
+        // Steven (2026-10-31: "Nouveaux films" changed colour later than every other row — it told
+        // the page its title only after its slide, and the wash waited its 0.45 s again): the title
+        // is told at once, as the poster rows do, so the colour comes at the same time everywhere.
+        // Only that: the trailer and the look-ahead still wait for the slide's end.
+        if count > 0 {
+            let told = self.card(next)
+            OrbitNativeHomeState.shared.art = told.landscape ?? metaStore.meta(for: told.preview)?.backdrop
+        }
         leadChanged()
     }
 
