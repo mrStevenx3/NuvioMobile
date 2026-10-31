@@ -733,10 +733,10 @@ struct OrbitPlatformTile: View {
                     .multilineTextAlignment(.center)
                     .padding(20)
             }
-            // (Steven: not Paramount+'s — its animation ends on a blurred reflection of its name;
-            // its still cover instead.)
-            if folder.focusGifEnabled, let gif, !gif.isEmpty,
-               !folder.title.lowercased().contains("paramount") {
+            // (Steven, 2026-10-27: Paramount+'s was left out — its animation ended on a blurred
+            // reflection. 2026-10-31: his new one, cleaned — no black start, no reflection, held on
+            // its logo at the end — plays again.)
+            if folder.focusGifEnabled, let gif, !gif.isEmpty {
                 // Fitted, not filled (Steven: Paramount+'s animation was cropped to a zoomed
                 // mountain); its bars take the GIF's own edge colour.
                 AnimatedGifImage(string: gif, fallback: nil, contentMode: .fit, isAnimating: focused, targetSize: size)
