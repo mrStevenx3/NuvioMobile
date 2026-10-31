@@ -502,7 +502,9 @@ struct OrbitRowsBackdrop: View {
     static let wait = 450
     // (Steven, 2026-10-30: the colours too slow to change — the fade shorter; the wait stays at
     // 0.45 s so it still starts once the row has stopped.)
-    static let fade: Double = 0.3
+    // (Steven, 2026-10-31: "rendre la transition du changement de couleur moins brutale" — 0.3 →
+    // 0.55 s, on a softer curve; the wait unchanged, so the colour still starts at the same moment.)
+    static let fade: Double = 0.55
 
     /// Until when the last cross-fade runs (a new colour waits for it: see `show`).
     @State private var fadingUntil: TimeInterval = 0
