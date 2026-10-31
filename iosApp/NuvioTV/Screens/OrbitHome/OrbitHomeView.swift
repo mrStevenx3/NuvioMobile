@@ -373,7 +373,31 @@ final class OrbitWashMirror: ObservableObject {
     static let home = OrbitWashMirror()
     @Published var colourA: Color?
     @Published var colourB: Color?
-    @Published var showsB = false
+    @Published var opacityA: Double = 1
+    @Published var opacityB: Double = 0
+    @Published var topIsB = false
+}
+
+/// One wash, opaque: the page's ground and the title's colour drawn together into one picture.
+/// Steven (2026-10-31, simulator video: "le changement de couleur se fait en deux fois" — measured: the
+/// colour dimmed half-way, then rose again): two see-through washes cross-fading each stood at half
+/// at the middle — the ground showing through both. Opaque, the new one simply covers the old one.
+struct OrbitWashPicture: View {
+    let color: Color?
+
+    var body: some View {
+        ZStack {
+            OrbitHomeLayout.background
+            // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
+            // screen in the title's colour, evenly.
+            RadialGradient(colors: [(color ?? .clear).opacity(color == nil ? 0 : 0.38),
+                                    (color ?? .clear).opacity(color == nil ? 0 : 0.22),
+                                    (color ?? .clear).opacity(color == nil ? 0 : 0.08)],
+                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+        }
+        // (Drawn once into its own texture: its fade only fades a picture.)
+        .drawingGroup()
+    }
 }
 
 /// A wash drawn from a mirror (it computes nothing itself).
@@ -395,9 +419,8 @@ struct OrbitMirroredWash: View {
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack {
-            if opaque { L.background }
-            wash(mirror.colourA).opacity(mirror.showsB ? 0 : 1)
-            wash(mirror.colourB).opacity(mirror.showsB ? 1 : 0)
+            OrbitWashPicture(color: mirror.colourA).opacity(mirror.opacityA).zIndex(mirror.topIsB ? 0 : 1)
+            OrbitWashPicture(color: mirror.colourB).opacity(mirror.opacityB).zIndex(mirror.topIsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
@@ -427,7 +450,9 @@ struct OrbitRowsBackdrop: View {
     /// then one) — the two now always add up to one.
     @State private var colourA: Color?
     @State private var colourB: Color?
-    @State private var showsB = false
+    @State private var opacityA: Double = 1
+    @State private var opacityB: Double = 0
+    @State private var topIsB = false
 
     private func wash(_ color: Color?) -> some View {
         // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
@@ -443,9 +468,8 @@ struct OrbitRowsBackdrop: View {
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack {
-            if opaque { L.background }
-            wash(colourA).opacity(showsB ? 0 : 1)
-            wash(colourB).opacity(showsB ? 1 : 0)
+            OrbitWashPicture(color: colourA).opacity(opacityA).zIndex(topIsB ? 0 : 1)
+            OrbitWashPicture(color: colourB).opacity(opacityB).zIndex(topIsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
@@ -493,7 +517,9 @@ struct OrbitRowsBackdrop: View {
             withTransaction(still) {
                 mirror.colourA = colourA
                 mirror.colourB = colourB
-                mirror.showsB = showsB
+                mirror.opacityA = opacityA
+                mirror.opacityB = opacityB
+                mirror.topIsB = topIsB
             }
         }
     }
@@ -518,7 +544,7 @@ struct OrbitRowsBackdrop: View {
         // once, in the new colour, and the fade turned back: a wrong colour a moment. It now waits
         // for the fade to end — only the latest colour kept.)
         let now = ProcessInfo.processInfo.systemUptime
-        OrbitTrace.log("wash show \(color.description) showsB=\(showsB) busy=\(now < fadingUntil) mirror=\(mirror != nil)")
+        OrbitTrace.log("wash show \(color.description) topIsB=\(topIsB) busy=\(now < fadingUntil) mirror=\(mirror != nil)")
         if now < fadingUntil {
             let first = waiting == nil
             waiting = color
@@ -532,25 +558,40 @@ struct OrbitRowsBackdrop: View {
             return
         }
         waiting = nil
-        if (showsB ? colourB : colourA) == color { return }
+        if (topIsB ? colourB : colourA) == color { return }
         fadingUntil = now + Self.fade + 0.05
-        // The hidden wash takes the new colour (no animation), then the two swap on one curve.
+        // The new colour goes into the wash underneath, made the one on top at nothing (no
+        // animation), then it fades in over the old one, which stays whole until covered.
+        let intoB = !topIsB
         var still = Transaction()
         still.disablesAnimations = true
         withTransaction(still) {
-            if showsB { colourA = color } else { colourB = color }
+            if intoB { colourB = color; opacityB = 0 } else { colourA = color; opacityA = 0 }
+            topIsB = intoB
             if let mirror {
                 mirror.colourA = colourA
                 mirror.colourB = colourB
-                if showsB { mirror.colourA = color } else { mirror.colourB = color }
+                mirror.opacityA = opacityA
+                mirror.opacityB = opacityB
+                mirror.topIsB = topIsB
             }
         }
         // (Steven, 2026-10-31: a colour sometimes came in dark, then lit at once — the hidden wash,
-        // drawn into its own picture, was not drawn yet as the swap began. The swap waits one beat.)
+        // drawn into its own picture, was not drawn yet as the fade began. The fade waits one beat.)
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: Self.fade)) {
-                showsB.toggle()
-                mirror?.showsB = showsB
+                if intoB { opacityB = 1 } else { opacityA = 1 }
+                if intoB { mirror?.opacityB = 1 } else { mirror?.opacityA = 1 }
+            }
+            // The old one, covered, put away.
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.fade + 0.03) {
+                guard topIsB == intoB else { return }
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) {
+                    if intoB { opacityA = 0 } else { opacityB = 0 }
+                    if intoB { mirror?.opacityA = 0 } else { mirror?.opacityB = 0 }
+                }
             }
         }
     }
