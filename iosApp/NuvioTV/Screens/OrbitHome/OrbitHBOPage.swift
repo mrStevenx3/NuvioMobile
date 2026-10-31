@@ -1318,17 +1318,20 @@ private struct OrbitHBOFocus: ViewModifier {
     let focused: Bool
 
     func body(content: Content) -> some View {
+        // Steven (2026-10-31: "dans HBO la sélection est sèche… il faut que ce soit smooth"): eased in
+        // and out (0.18 s), as Paramount+'s, Prime's and Disney+'s.
         content
-            .overlay {
-                RoundedRectangle(cornerRadius: OrbitHBOLayout.radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 4)
+            .animation(.easeOut(duration: 0.18)) { view in
+                view
+                    .overlay {
+                        RoundedRectangle(cornerRadius: OrbitHBOLayout.radius, style: .continuous)
+                            .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 4)
+                    }
+                    // Steven (2026-10-30: HBO Max lagged from the Top 10 down, Apple TV past its first
+                    // row): only the focused tile keeps its shadow (as Apple's own tiles).
+                    .shadow(color: .black.opacity(focused ? 0.6 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
+                    .scaleEffect(focused ? OrbitHBOLayout.focusScale : 1)
             }
-            // Steven (2026-10-30: HBO Max lagged from the Top 10 down, Apple TV past its first row):
-            // a soft shadow under every tile, worked out again at every frame of a move for each one
-            // on screen. Only the focused tile keeps its shadow (as Apple's own tiles).
-            .shadow(color: .black.opacity(focused ? 0.6 : 0), radius: focused ? 18 : 0, y: focused ? 10 : 0)
-            .scaleEffect(focused ? OrbitHBOLayout.focusScale : 1)
-            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 
