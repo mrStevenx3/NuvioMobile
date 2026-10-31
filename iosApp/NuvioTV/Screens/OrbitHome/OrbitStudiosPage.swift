@@ -910,7 +910,14 @@ struct OrbitStudiosBlurFoot: View {
     @discardableResult
     static func prepare(_ url: String) async -> UIImage? {
         if let ready = made.object(forKey: url as NSString) { return ready }
-        guard let blurred = await OrbitPreBlurred.prepare(url, radius: 24), let cg = blurred.cgImage else { return nil }
+        // Steven (2026-10-31, photo of Pixar's Up: "bizarre au niveau du flou" — under the banner the
+        // house's dark foot went on as a blurred dark block, stretched): the continuation is now the
+        // description page's thick blur — the picture down to its colour fields, no shape left.
+        guard let address = URL(string: url),
+              let small = try? await ArtworkStore.fetch(address, decode: .init(size: .pixels(48), fill: true, scale: 1)),
+              let smallCG = small.cgImage else { return nil }
+        let thick = await Task.detached(priority: .userInitiated) { () -> UIImage? in OrbitThickBlur.thick(smallCG) }.value
+        guard let cg = thick?.cgImage else { return nil }
         let H = OrbitHomeLayout.screenHeight
         let band = OrbitStudioFrame.bannerSize.height
         let seam = band * 0.96
@@ -922,7 +929,8 @@ struct OrbitStudiosBlurFoot: View {
             let y0 = H / 2 + (y1 - H / 2) / grow
             return min(1, max(0, y0 / H))
         }
-        let from = picture(band * 0.88), to = picture(band)
+        // (A longer melt than before: the sharp picture into the colours.)
+        let from = picture(band * 0.74), to = picture(band)
         let finished = await Task.detached(priority: .userInitiated) { () -> UIImage? in
             finish(cg, clearAbove: from, wholeFrom: to)
         }.value
@@ -938,10 +946,8 @@ struct OrbitStudiosBlurFoot: View {
         return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
             let c = ctx.cgContext
             let rect = CGRect(origin: .zero, size: size)
+            // (The thick picture has its veil already.)
             UIImage(cgImage: cg).draw(in: rect)
-            // The veil.
-            c.setFillColor(UIColor.black.withAlphaComponent(0.22).cgColor)
-            c.fill(rect)
             // See-through above the seam.
             c.setBlendMode(.destinationIn)
             let space = CGColorSpaceCreateDeviceGray()
