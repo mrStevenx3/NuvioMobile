@@ -331,6 +331,9 @@ struct OrbitSwapImage: View {
     let size: CGSize
     /// A vertical shift belonging to this image (it cross-fades with it, never jumps on the old one).
     var shiftY: CGFloat = 0
+    /// Shown (from memory only) while this image has nothing yet: Home's hero at launch, the art
+    /// shown there last time (`OrbitLaunchArt`), the real one fading in over it.
+    var standIn: String? = nil
 
     @Environment(\.displayScale) private var displayScale
     @State private var shown: UIImage?
@@ -351,8 +354,29 @@ struct OrbitSwapImage: View {
         return nil
     }
 
+    /// The stand-in, if memory holds it at this frame's size.
+    private var standInImage: UIImage? {
+        guard let standIn, let main = URL(string: standIn) else { return nil }
+        let frame = ArtworkDecodeRequest(size: .points(width: size.width, height: size.height), fill: true, scale: displayScale)
+        if let best = ArtworkURLUpgrade.upgraded(main, role: .backdrop), let image = ArtworkStore.cached(best, decode: frame) {
+            return image
+        }
+        return ArtworkStore.cached(main, decode: frame)
+    }
+
     var body: some View {
         ZStack {
+            if shown == nil, seed == nil, let standInImage {
+                Image(uiImage: standInImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .zIndex(-1)
+                    // (It stays until the real one has faded in over it.)
+                    .transition(.asymmetric(insertion: .identity,
+                                            removal: .opacity.animation(.linear(duration: 0.01).delay(0.26))))
+            }
             if shown == nil, let seed {
                 Image(uiImage: seed)
                     .resizable()

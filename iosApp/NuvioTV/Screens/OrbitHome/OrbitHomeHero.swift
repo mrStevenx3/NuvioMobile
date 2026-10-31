@@ -8,6 +8,58 @@ import SwiftUI
 // it is on, the logo or the name, the meta line, three lines of synopsis, the "Voir la fiche" pill,
 // the dots; the first row's heading peeks at the bottom. Left / Right go to the previous / next title.
 
+/// Steven (2026-10-31: at launch Home's art stayed black 2–3 s — its catalogues load first): the
+/// art of Home's first title, kept from one launch to the next, shown at once while they load.
+enum OrbitLaunchArt {
+    private static let key = "orbit.home.launchArt"
+    /// Read once per launch (what last time left).
+    static let url: String? = {
+        let value = UserDefaults.standard.string(forKey: key)
+        return (value ?? "").isEmpty ? nil : value
+    }()
+
+    static func remember(_ art: String?) {
+        guard let art, !art.isEmpty, UserDefaults.standard.string(forKey: key) != art else { return }
+        UserDefaults.standard.set(art, forKey: key)
+    }
+}
+
+/// Home at launch, until its titles are there: last time's art under the hero's own shades.
+struct OrbitHomeLaunchArt: View {
+    let url: String
+
+    var body: some View {
+        let L = OrbitHomeLayout.self
+        let size = CGSize(width: L.heroWidth, height: L.heroHeight)
+        ZStack(alignment: .topLeading) {
+            L.background
+            OrbitSwapImage(url: url, fallback: nil, size: size)
+            // (The hero's shades, as `OrbitHomeHeroView` draws them.)
+            LinearGradient(stops: [
+                .init(color: L.background.opacity(0.6), location: 0),
+                .init(color: L.background.opacity(0.3), location: 0.38),
+                .init(color: .clear, location: 0.64),
+            ], startPoint: .leading, endPoint: .trailing)
+            LinearGradient(stops: [
+                .init(color: .black.opacity(0.45), location: 0),
+                .init(color: .clear, location: 0.16),
+                .init(color: .clear, location: 0.6),
+                .init(color: L.background, location: 0.97),
+            ], startPoint: .top, endPoint: .bottom)
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .allowsHitTesting(false)
+        // (Home without titles at all — offline, no hero: it does not stay behind the rows.)
+        .opacity(expired ? 0 : 1)
+        .task {
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            withAnimation(.easeInOut(duration: 0.4)) { expired = true }
+        }
+    }
+
+    @State private var expired = false
+}
+
 struct OrbitHomeHeroView: View {
     let item: MetaPreview?
     let focused: Bool
@@ -27,7 +79,12 @@ struct OrbitHomeHeroView: View {
             // Steven's video: changing titles went through black. The art stays and swaps once the
             // next one is ready (no fade through the page); only the details cross-fade.
             if let item {
-                OrbitSwapImage(url: item.banner ?? metaStore.meta(for: item)?.backdrop, fallback: item.poster, size: size)
+                // (The first page, at launch: last time's art stands in until its own is there.)
+                OrbitSwapImage(url: item.banner ?? metaStore.meta(for: item)?.backdrop, fallback: item.poster, size: size,
+                               standIn: index == 0 ? OrbitLaunchArt.url : nil)
+                    .onChange(of: item.banner ?? metaStore.meta(for: item)?.backdrop, initial: true) { _, art in
+                        if index == 0 { OrbitLaunchArt.remember(art) }
+                    }
             }
             if let item, let trailerURL {
                 TrailerHeroPlayer(urlString: trailerURL,

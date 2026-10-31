@@ -140,6 +140,12 @@ struct OrbitNativeHome: View {
         let L = OrbitHomeLayout.self
         ZStack(alignment: .topLeading) {
             OrbitNativeBackdrop(visible: !onHero, active: active)
+            // At launch, until the titles are there: last time's art at once (no black screen).
+            if heroItems.isEmpty, let art = OrbitLaunchArt.url {
+                OrbitHomeLaunchArt(url: art)
+                    .ignoresSafeArea()
+                    .transition(.identity)
+            }
             // The clickpad's swipes, for the open row holding the focus (`OrbitSwipeHub`).
             OrbitSwipeCatcher(active: true) { step in OrbitSwipeHub.shared.onStep?(step) }
                 .frame(width: 0, height: 0)
