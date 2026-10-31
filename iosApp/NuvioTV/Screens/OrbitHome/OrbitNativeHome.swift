@@ -218,7 +218,11 @@ struct OrbitNativeHome: View {
             // slide under it; Steven: no dark band, the wash reaches the top, no hero left showing).
             OrbitNativeTopCover()
                 .opacity(onHero ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: onHero)
+                // Steven (2026-10-31, video: "la barre qui se met au-dessus du hero quand je défile"):
+                // it faded in at once, a band of the page's colour over the hero's art still sliding
+                // up under the bar. Now it comes once the hero has gone (the slide's end); back up, it
+                // goes at once.
+                .animation(onHero ? .easeOut(duration: 0.15) : .easeInOut(duration: 0.2).delay(0.38), value: onHero)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
