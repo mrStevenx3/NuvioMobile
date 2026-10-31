@@ -373,9 +373,7 @@ final class OrbitWashMirror: ObservableObject {
     static let home = OrbitWashMirror()
     @Published var colourA: Color?
     @Published var colourB: Color?
-    @Published var opacityA: Double = 1
     @Published var opacityB: Double = 0
-    @Published var topIsB = false
 }
 
 /// One wash, opaque: the page's ground and the title's colour drawn together into one picture.
@@ -419,8 +417,8 @@ struct OrbitMirroredWash: View {
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack {
-            OrbitWashPicture(color: mirror.colourA).opacity(mirror.opacityA).zIndex(mirror.topIsB ? 0 : 1)
-            OrbitWashPicture(color: mirror.colourB).opacity(mirror.opacityB).zIndex(mirror.topIsB ? 1 : 0)
+            OrbitWashPicture(color: mirror.colourA)
+            OrbitWashPicture(color: mirror.colourB).opacity(mirror.opacityB)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
@@ -450,9 +448,8 @@ struct OrbitRowsBackdrop: View {
     /// then one) — the two now always add up to one.
     @State private var colourA: Color?
     @State private var colourB: Color?
-    @State private var opacityA: Double = 1
+    /// B over A, always in that order: B fades in over A, or out to show A (each opaque).
     @State private var opacityB: Double = 0
-    @State private var topIsB = false
 
     private func wash(_ color: Color?) -> some View {
         // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
@@ -468,8 +465,8 @@ struct OrbitRowsBackdrop: View {
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack {
-            OrbitWashPicture(color: colourA).opacity(opacityA).zIndex(topIsB ? 0 : 1)
-            OrbitWashPicture(color: colourB).opacity(opacityB).zIndex(topIsB ? 1 : 0)
+            OrbitWashPicture(color: colourA)
+            OrbitWashPicture(color: colourB).opacity(opacityB)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
@@ -517,9 +514,7 @@ struct OrbitRowsBackdrop: View {
             withTransaction(still) {
                 mirror.colourA = colourA
                 mirror.colourB = colourB
-                mirror.opacityA = opacityA
                 mirror.opacityB = opacityB
-                mirror.topIsB = topIsB
             }
         }
     }
@@ -544,7 +539,7 @@ struct OrbitRowsBackdrop: View {
         // once, in the new colour, and the fade turned back: a wrong colour a moment. It now waits
         // for the fade to end — only the latest colour kept.)
         let now = ProcessInfo.processInfo.systemUptime
-        OrbitTrace.log("wash show \(color.description) topIsB=\(topIsB) busy=\(now < fadingUntil) mirror=\(mirror != nil)")
+        OrbitTrace.log("wash show \(color.description) B=\(opacityB) busy=\(now < fadingUntil) mirror=\(mirror != nil)")
         if now < fadingUntil {
             let first = waiting == nil
             waiting = color
@@ -558,41 +553,28 @@ struct OrbitRowsBackdrop: View {
             return
         }
         waiting = nil
-        if (topIsB ? colourB : colourA) == color { return }
+        let showingB = opacityB > 0.5
+        if (showingB ? colourB : colourA) == color { return }
         fadingUntil = now + Self.fade + 0.1
-        // The new colour goes into the wash underneath, made the one on top at nothing (no
-        // animation), then it fades in over the old one, which stays whole until covered.
-        let intoB = !topIsB
+        // (Steven, 2026-10-31, simulator: "ça clignote noir en bas à chaque changement" — the two
+        // washes swapped places at each change, and the one underneath was not drawn a frame or two.)
+        // Now never reordered: B always over A. B shown → the new colour goes into A, hidden under B,
+        // and B fades out; A shown → the new colour goes into B, at nothing, and B fades in.
         var still = Transaction()
         still.disablesAnimations = true
         withTransaction(still) {
-            if intoB { colourB = color; opacityB = 0 } else { colourA = color; opacityA = 0 }
-            topIsB = intoB
+            if showingB { colourA = color } else { colourB = color }
             if let mirror {
                 mirror.colourA = colourA
                 mirror.colourB = colourB
-                mirror.opacityA = opacityA
                 mirror.opacityB = opacityB
-                mirror.topIsB = topIsB
             }
         }
-        // (Steven, 2026-10-31: a colour sometimes came in dark, then lit at once — the hidden wash,
-        // drawn into its own picture, was not drawn yet as the fade began. The fade waits a few frames
-        // — one beat was not always enough: its first frame jumped a third of the way.)
+        // (The colour just put in drawn a few frames before the fade.)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             withAnimation(.easeInOut(duration: Self.fade)) {
-                if intoB { opacityB = 1 } else { opacityA = 1 }
-                if intoB { mirror?.opacityB = 1 } else { mirror?.opacityA = 1 }
-            }
-            // The old one, covered, put away.
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.fade + 0.03) {
-                guard topIsB == intoB else { return }
-                var still = Transaction()
-                still.disablesAnimations = true
-                withTransaction(still) {
-                    if intoB { opacityA = 0 } else { opacityB = 0 }
-                    if intoB { mirror?.opacityA = 0 } else { mirror?.opacityB = 0 }
-                }
+                opacityB = showingB ? 0 : 1
+                mirror?.opacityB = opacityB
             }
         }
     }
