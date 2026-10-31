@@ -495,7 +495,7 @@ struct OrbitRowsBackdrop: View {
     /// (Steven, 2026-10-31: "le temps de changement du fond identique sur toutes les pages": one
     /// time from the focus's rest to the colour, everywhere — Home's rows wait 0.45 s for their slide,
     /// then `homeRest`; Search, Découvrir and the studios' rows wait this whole time at once.)
-    static let wait = 750
+    static let wait = 600
     static let homeRest = 300
     // (Steven, 2026-10-30: the colours too slow to change — the fade shorter; the wait stays at
     // 0.45 s so it still starts once the row has stopped.)
@@ -514,9 +514,13 @@ struct OrbitRowsBackdrop: View {
                 if showsB { mirror.colourA = color } else { mirror.colourB = color }
             }
         }
-        withAnimation(.easeInOut(duration: Self.fade)) {
-            showsB.toggle()
-            mirror?.showsB = showsB
+        // (Steven, 2026-10-31: a colour sometimes came in dark, then lit at once — the hidden wash,
+        // drawn into its own picture, was not drawn yet as the swap began. The swap waits one beat.)
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: Self.fade)) {
+                showsB.toggle()
+                mirror?.showsB = showsB
+            }
         }
     }
 }

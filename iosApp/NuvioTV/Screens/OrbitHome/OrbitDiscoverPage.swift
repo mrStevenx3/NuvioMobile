@@ -215,6 +215,7 @@ private struct OrbitNativeDiscover<Header: View>: View {
                               onOpen: { i in
                                   guard items.indices.contains(i) else { return }
                                   OrbitDiscoverReturn.opened = i
+                                  OrbitDiscoverReturn.openedId = items[i].id
                                   onOpen(items[i])
                               },
                               onFocus: { i in focusChanged(i) },
@@ -241,19 +242,25 @@ private struct OrbitNativeDiscover<Header: View>: View {
         .onExitCommand { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }
         .onChange(of: model.gridKey) { _, _ in
             OrbitDiscoverReturn.opened = nil
+            OrbitDiscoverReturn.openedId = nil
             shown = nil
         }
         .onDisappear { OrbitBarLock.shared.set(false) }
         .onAppear {
-            guard OrbitDiscoverReturn.opened != nil else { return }
-            let appeared = ProcessInfo.processInfo.systemUptime
-            for delay in [0.05, 0.2, 0.4, 0.7, 1.1, 1.6] {
+            guard OrbitDiscoverReturn.openedId != nil else { return }
+            // (A little before now: the Back press that brought the page back is not the viewer's
+            // own move.)
+            let appeared = ProcessInfo.processInfo.systemUptime - 0.5
+            for delay in [0.05, 0.2, 0.4, 0.7, 1.1, 1.6, 2.2] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     NotificationCenter.default.post(name: .orbitDiscoverRestore, object: appeared)
                 }
             }
             // (Never kept beyond this return.)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { OrbitDiscoverReturn.opened = nil }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
+                OrbitDiscoverReturn.opened = nil
+                OrbitDiscoverReturn.openedId = nil
+            }
         }
     }
 
@@ -464,8 +471,19 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
     /// tile): the grid's own memory of its last tile was lost when its titles were refreshed under
     /// the title's page — the tile a title was opened from is asked for by name now (as Search does).
     func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
-        guard let opened = OrbitDiscoverReturn.opened, items.indices.contains(opened) else { return nil }
+        guard let opened = OrbitDiscoverReturn.place(in: items) else { return nil }
         return IndexPath(item: opened, section: 0)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // (On screen again after a title: asked from here too, the window being there now.)
+        if OrbitDiscoverReturn.openedId != nil {
+            let appeared = ProcessInfo.processInfo.systemUptime - 0.5
+            for delay in [0.0, 0.15, 0.4] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.restoreOpened(since: appeared) }
+            }
+        }
     }
 
     /// The tile being given the focus back.
@@ -481,12 +499,13 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
     /// anything. (Steven, 2026-10-31: my first fix let the system's landing on the first tile end the
     /// way back before the tile was asked for.)
     func restoreOpened(since appeared: TimeInterval) {
-        guard let opened = OrbitDiscoverReturn.opened, items.indices.contains(opened),
+        guard let opened = OrbitDiscoverReturn.place(in: items),
               !ViewerInputClock.shared.hasInput(since: appeared) else { return }
         let path = IndexPath(item: opened, section: 0)
         if let cell = collectionView.cellForItem(at: path), cell.isFocused {
             restoreTarget = nil
             OrbitDiscoverReturn.opened = nil
+            OrbitDiscoverReturn.openedId = nil
             return
         }
         restoreTarget = path
@@ -519,6 +538,7 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         if let next = context.nextFocusedIndexPath, next == restoreTarget {
             restoreTarget = nil
             OrbitDiscoverReturn.opened = nil
+            OrbitDiscoverReturn.openedId = nil
         }
         onFocus(context.nextFocusedIndexPath?.item)
     }
@@ -572,6 +592,15 @@ private struct OrbitNativeDiscoverBackdrop: View {
 @MainActor
 enum OrbitDiscoverReturn {
     static var opened: Int?
+    /// The title itself (its place may have changed if the grid was refreshed meanwhile).
+    static var openedId: String?
+
+    /// Where the title opened from is now in `items`.
+    static func place(in items: [MetaPreview]) -> Int? {
+        if let id = openedId, let i = items.firstIndex(where: { $0.id == id }) { return i }
+        if let opened, items.indices.contains(opened) { return opened }
+        return nil
+    }
 }
 
 

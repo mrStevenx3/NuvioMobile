@@ -826,9 +826,14 @@ private struct OrbitStudiosBackdrop: View {
                 // · over it, the blurred copy at exactly the sharp picture's size and place, fading
                 //   into those colours at one fixed line for every studio (the same foot always).
                 OrbitThickBlur(url: url)
+                // (Steven, 2026-10-31: on Lucasfilm a picture went down at the bottom — its lift moved
+                // the blurred copy, the old studio's one with it as it faded. Each picture's copy now
+                // keeps its own place and fades in or out where it is.)
                 OrbitPreBlurred(url: url, radius: 16)
                     .offset(y: band / 2 - H / 2 + spare * lift)
                     .frame(width: W, height: H)
+                    .id(url ?? "-")
+                    .transition(.opacity)
                     .overlay(Color.black.opacity(0.22))
                     .mask(LinearGradient(stops: [.init(color: .black, location: 0),
                                                  .init(color: .black, location: band / H),
