@@ -730,13 +730,27 @@ struct OrbitGrain: View {
 /// Steven (2026-10-31: "applique la même chose que dans l'accueil qui fonctionne bien"): Home's own
 /// change of colour — one wash whose colour goes straight to the next one in OKLab, on Home's fade
 /// (`OrbitRowsBackdrop.show`), drawn by Home's `OrbitToneWash` (without its ground: the page draws it).
+/// Steven (2026-10-31, video: still a grey-white half-way; "trouve une solution définitive"):
+/// measured — Home's colours are its washes' (brightness 0.55, strength at most 0.85, at 38 %), the
+/// platforms' were their brands' own at full strength (55 %): half-way between Netflix's red and
+/// Disney+'s blue, the strong pair crossed a pale mauve, Home's a dark one. The halo now takes
+/// Home's washes exactly: the same colour (`ArtworkColorStore.washLifted`) at the same strength.
 struct OrbitToneHalo: View {
     let color: Color?
     @State private var tone = OrbitWashTone()
 
+    /// A platform's colour as Home's wash would be (a grey stays grey).
+    static func washed(_ color: Color) -> Color {
+        var h: CGFloat = 0, s: CGFloat = 0, v: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).getHue(&h, saturation: &s, brightness: &v, alpha: &a)
+        let lifted = s < 0.08 ? (h: h, s: CGFloat(0), v: ArtworkColorStore.washBrightness)
+            : ArtworkColorStore.washLifted(h: h, s: s, v: v)
+        return Color(hue: Double(lifted.h), saturation: Double(lifted.s), brightness: Double(lifted.v))
+    }
+
     var body: some View {
-        OrbitToneWash(tone: tone, stops: (0.55, 0.30, 0.10), ground: false)
-            .onChange(of: color.map { OrbitWashTone($0) }, initial: true) { _, next in
+        OrbitToneWash(tone: tone, ground: false)
+            .onChange(of: color.map { OrbitWashTone(Self.washed($0)) }, initial: true) { _, next in
                 guard let next else {
                     withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { tone.presence = 0 }
                     return
