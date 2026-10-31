@@ -24,7 +24,7 @@ extension OrbitEpisodesSection: Equatable {
     static func == (a: OrbitEpisodesSection, b: OrbitEpisodesSection) -> Bool {
         a.meta.id == b.meta.id && a.meta.videos.count == b.meta.videos.count
             && a.episodeRatings == b.episodeRatings && a.watchedEpisodeKeys == b.watchedEpisodeKeys
-            && a.startSeason == b.startSeason && a.returning == b.returning
+            && a.startSeason == b.startSeason && a.returning == b.returning && a.passed == b.passed
     }
 }
 
@@ -57,6 +57,10 @@ struct OrbitEpisodesSection: View {
     /// Back from a page or the player: the card the focus is going back to. Steven (2026-10-29: the
     /// focus landed a second on the row above or below first) — the other row cannot take it meanwhile.
     var returning: OrbitDetailFocus? = nil
+    /// The focus has gone on below the episodes (the cast and further): the episode's text above
+    /// the next row fades. Steven (2026-10-31: "quand je passe au casting, je ne dois plus voir la
+    /// synopsis de l'épisode en haut").
+    var passed = false
     @State private var ownSeasonsRef = OrbitStripRef()
     @State private var ownEpisodesRef = OrbitStripRef()
     /// The focus in the strips (the page's own focus no longer sees it).
@@ -201,6 +205,8 @@ struct OrbitEpisodesSection: View {
             }
             .frame(width: Self.detailsWidth, height: Self.detailsHeight, alignment: .topLeading)
             .clipped()
+            .opacity(passed ? 0 : 1)
+            .animation(.easeOut(duration: 0.18), value: passed)
             .padding(.leading, OrbitDetailLayout.margin)
             // (Steven, 2026-10-31, photo: a series without seasons — too much room between the
             // episodes and the cast. The text's room held for two lines, closer to the next row.)

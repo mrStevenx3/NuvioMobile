@@ -391,7 +391,8 @@ struct OrbitDetailView: View {
                                              },
                                              seasonsRef: seasonsStrip, episodesRef: episodesStrip,
                                              onStripFocus: { stripFocused($0) },
-                                             returning: returningTo)
+                                             returning: returningTo,
+                                             passed: Self.rank(section) > Self.rank(.episodes))
                             .equatable()
                             .focusSection()
                             .modifier(OrbitAboveFade(above: isAbove(.episodes)))
@@ -1366,6 +1367,9 @@ struct OrbitDetailView: View {
                     startCinema()
                 }
                 .focused($focus, equals: .trailer)
+                // (Steven, 2026-10-31: the button came in at once — "brutal, pas fluide". It now fades
+                // and grows in, the buttons after it sliding over on the same curve.)
+                .transition(.opacity.combined(with: .scale(scale: 0.85)))
             }
             OrbitActionButton(icon: model.isWatched ? "checkmark.circle.fill" : "checkmark.circle",
                               label: model.isWatched ? String(localized: "Vu") : String(localized: "Marquer comme vu"),
@@ -1377,6 +1381,7 @@ struct OrbitDetailView: View {
                 .focused($focus, equals: .library)
         }
         .animation(.easeOut(duration: 0.18), value: focus)
+        .animation(.easeInOut(duration: 0.35), value: model.trailerVideoURL != nil)
     }
 
     @ViewBuilder
