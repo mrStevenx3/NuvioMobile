@@ -823,13 +823,17 @@ private struct OrbitParamountPoster: View {
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(focused ? 0.35 : 0), lineWidth: 1.5)
+        // Steven (2026-10-31: "la sélection des affiches se fait de façon saccadée"): the focus grew
+        // and shrank in one frame — it now eases in and out, as Disney+'s (0.18 s).
+        .animation(.easeOut(duration: 0.18)) { view in
+            view
+                .overlay {
+                    RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(focused ? 0.35 : 0), lineWidth: 1.5)
+                }
+                .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
+                .scaleEffect(focused ? L.focusScale : 1, anchor: .leading)
         }
-        .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
-        .scaleEffect(focused ? L.focusScale : 1, anchor: .leading)
-        // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 
@@ -852,13 +856,17 @@ private struct OrbitParamountTop10Image: View {
         }
             .frame(width: L.top10Image.width, height: L.top10Image.height, alignment: .topLeading)
             // Steven (the focused title hardly stood out): a white frame around its poster only.
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 14 * k, style: .continuous)
-                    .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
-                    .frame(width: 500 * k, height: 750 * k)
-                    .offset(x: 140 * k, y: 170 * k)
+            // (Steven, 2026-10-31: the selection moved in jerks — its frame and shadow ease, 0.18 s.)
+            .animation(.easeOut(duration: 0.18)) { view in
+                view
+                    .overlay(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: 14 * k, style: .continuous)
+                            .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
+                            .frame(width: 500 * k, height: 750 * k)
+                            .offset(x: 140 * k, y: 170 * k)
+                    }
+                    .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
             }
-            .shadow(color: .black.opacity(focused ? 0.7 : 0.3), radius: focused ? 20 : 6, y: focused ? 10 : 3)
             // No growth (Steven: the focused rank rose above the others): the frame shows it.
             // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
