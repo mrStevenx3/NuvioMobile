@@ -1845,8 +1845,8 @@ final class OrbitStudioModel: ObservableObject {
         // The banner: the newest films with art (his Nouveautés first), else the most popular.
         var source = (mine.first { !$0.title.lowercased().contains("top") }?.items ?? [])
             + (tmdbRows.first { $0.id == "popular" }?.items ?? [])
-        // Star Wars's own page (curated): its banner takes turns between the series and the films.
-        if route.companies == OrbitStudioCurated.starWars, source.isEmpty {
+        // Disney+'s brand pages (curated): the banner takes turns between their rows.
+        if route.companies?.hasPrefix("list:") == true, source.isEmpty {
             let lists = tmdbRows.map(\.items)
             for i in 0..<(lists.map(\.count).max() ?? 0) {
                 for list in lists where list.indices.contains(i) { source.append(list[i]) }
@@ -1950,9 +1950,14 @@ final class OrbitStudioModel: ObservableObject {
         -> (logo: String?, count: Int, since: String?, rows: [(id: String, title: String, items: [MetaPreview])],
             sagaFilms: [String: MetaPreview]) {
         let lang = language.isEmpty ? "fr-FR" : language
-        if ids == OrbitStudioCurated.starWars {
-            let found = await curatedStarWars(apiKey: apiKey, lang: lang)
-            return (nil, found.count, "1977", found.rows, [:])
+        if ids.hasPrefix("list:") {
+            let company = OrbitStudioCurated.logoCompany(ids)
+            async let found = curated(ids, apiKey: apiKey, lang: lang)
+            async let entity: EntityResponse? = company == nil ? nil
+                : decode("https://api.themoviedb.org/3/company/\(company ?? "")?api_key=\(apiKey)")
+            let (value, logoEntity) = await (found, entity)
+            return (logoEntity?.logo_path.map { "https://image.tmdb.org/t/p/w500\(OrbitMetaStore.decodable($0))" },
+                    value.count, nil, value.rows, [:])
         }
         let media = network ? "tv" : "movie"
         let dateField = network ? "first_air_date" : "primary_release_date"
@@ -2156,9 +2161,11 @@ final class OrbitStudioModel: ObservableObject {
     nonisolated private static func find(_ original: String, year: Int, tv: Bool, apiKey: String, lang: String) async -> MetaPreview? {
         let query = original.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? original
         let yearField = tv ? "first_air_date_year" : "year"
-        guard let found: SearchMediaResponse = await decode(
-            "https://api.themoviedb.org/3/search/\(tv ? "tv" : "movie")?api_key=\(apiKey)&language=\(lang)&query=\(query)&\(yearField)=\(year)"),
-              let results = found.results, !results.isEmpty else { return nil }
+        let address = "https://api.themoviedb.org/3/search/\(tv ? "tv" : "movie")?api_key=\(apiKey)&language=\(lang)&query=\(query)"
+        // (TMDB's year can differ by one from the one listed: then the name alone.)
+        var found: SearchMediaResponse? = await decode(address + "&\(yearField)=\(year)")
+        if (found?.results ?? []).isEmpty { found = await decode(address) }
+        guard let results = found?.results, !results.isEmpty else { return nil }
         let key = original.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         let exact = results.first {
             ($0.original_title ?? $0.original_name ?? "").folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) == key
@@ -2166,62 +2173,73 @@ final class OrbitStudioModel: ObservableObject {
         return preview(exact ?? results[0], tv: tv)
     }
 
-    /// Steven (2026-10-31: "je veux une vraie page Star Wars sur Disney+"): TMDB has no Star Wars
-    /// company and its keyword brings podcasts and specials — the page is the saga's own list: the
-    /// Skywalker saga (TMDB's Star Wars collection, in the episodes' order), the other films, the
-    /// series, the animated series.
-    nonisolated private static func curatedStarWars(apiKey: String, lang: String)
+    /// Steven (2026-10-31: "je veux une vraie page Star Wars sur Disney+", then "la même chose pour
+    /// Disney, Pixar, Marvel et National Geographic"): Disney+'s brand pages are Orbit's own lists
+    /// (`OrbitStudioCurated`), each title found on TMDB by its original name and year.
+    nonisolated private static func curated(_ list: String, apiKey: String, lang: String)
         async -> (count: Int, rows: [(id: String, title: String, items: [MetaPreview])]) {
-        let others: [(String, Int)] = [("Rogue One: A Star Wars Story", 2016), ("Solo: A Star Wars Story", 2018),
-                                       ("Star Wars: The Clone Wars", 2008)]
-        let series: [(String, Int)] = [("The Mandalorian", 2019), ("Andor", 2022), ("Ahsoka", 2023),
-                                       ("Star Wars: Skeleton Crew", 2024), ("The Book of Boba Fett", 2021),
-                                       ("Obi-Wan Kenobi", 2022), ("The Acolyte", 2024)]
-        let animated: [(String, Int)] = [("Star Wars: The Clone Wars", 2008), ("Star Wars: The Bad Batch", 2021),
-                                         ("Star Wars Rebels", 2014), ("Star Wars: Tales of the Jedi", 2022),
-                                         ("Star Wars: Tales of the Empire", 2024), ("Star Wars: Visions", 2021),
-                                         ("Star Wars Resistance", 2018)]
-        func all(_ list: [(String, Int)], tv: Bool) async -> [MetaPreview] {
-            await withTaskGroup(of: (Int, MetaPreview?).self) { group in
-                for (index, entry) in list.enumerated() {
-                    group.addTask { (index, await find(entry.0, year: entry.1, tv: tv, apiKey: apiKey, lang: lang)) }
+        let specs = OrbitStudioCurated.rows(list)
+        let built = await withTaskGroup(of: (Int, [MetaPreview]).self) { group in
+            for (index, spec) in specs.enumerated() {
+                group.addTask {
+                    if let collection = spec.collection {
+                        return (index, await collectionFilms(collection, episodeOrder: spec.episodeOrder, apiKey: apiKey, lang: lang))
+                    }
+                    return (index, await findAll(spec.titles, tv: spec.tv, apiKey: apiKey, lang: lang))
                 }
-                var out: [(Int, MetaPreview)] = []
-                for await (index, item) in group { if let item { out.append((index, item)) } }
-                var seen = Set<String>()
-                return out.sorted { $0.0 < $1.0 }.map(\.1).filter { seen.insert($0.id).inserted }
             }
+            var out: [Int: [MetaPreview]] = [:]
+            for await (index, items) in group { out[index] = items }
+            return out
         }
-        async let collection: CollectionResponse? = decode("https://api.themoviedb.org/3/collection/10?api_key=\(apiKey)&language=\(lang)")
-        async let otherFilms = all(others, tv: false)
-        async let liveSeries = all(series, tv: true)
-        async let animatedSeries = all(animated, tv: true)
-        let (sagaValue, othersValue, seriesValue, animatedValue) = await (collection, otherFilms, liveSeries, animatedSeries)
+        var rows: [(id: String, title: String, items: [MetaPreview])] = []
+        var films = Set<String>()
+        for (index, spec) in specs.enumerated() {
+            let items = built[index] ?? []
+            guard !items.isEmpty else { continue }
+            if !spec.tv { items.forEach { films.insert($0.id) } }
+            rows.append((spec.id, spec.title, items))
+        }
+        return (films.count, rows)
+    }
 
+    /// The titles of a list, in its order (one each; a title TMDB doesn't know is left out).
+    nonisolated private static func findAll(_ list: [(String, Int)], tv: Bool, apiKey: String, lang: String) async -> [MetaPreview] {
+        await withTaskGroup(of: (Int, MetaPreview?).self) { group in
+            for (index, entry) in list.enumerated() {
+                group.addTask { (index, await find(entry.0, year: entry.1, tv: tv, apiKey: apiKey, lang: lang)) }
+            }
+            var out: [(Int, MetaPreview)] = []
+            for await (index, item) in group { if let item { out.append((index, item)) } }
+            var seen = Set<String>()
+            return out.sorted { $0.0 < $1.0 }.map(\.1).filter { seen.insert($0.id).inserted }
+        }
+    }
+
+    /// A TMDB collection's released films (Star Wars: in the episodes' order — the prequels of
+    /// 1999–2005, then the trilogy of 1977, then the rest).
+    nonisolated private static func collectionFilms(_ id: Int, episodeOrder: Bool, apiKey: String, lang: String) async -> [MetaPreview] {
+        guard let collection: CollectionResponse = await decode("https://api.themoviedb.org/3/collection/\(id)?api_key=\(apiKey)&language=\(lang)") else {
+            return []
+        }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         let today = formatter.string(from: Date())
-        let released = (sagaValue?.parts ?? [])
+        let released = (collection.parts ?? [])
             .filter { !($0.release_date ?? "").isEmpty && ($0.release_date ?? "") <= today && $0.poster_path != nil }
             .sorted { ($0.release_date ?? "") < ($1.release_date ?? "") }
-        // The episodes' order: the prequels (1999–2005), then the trilogy of 1977, then the rest.
-        let ordered = released.filter { ($0.release_date ?? "") >= "1999" && ($0.release_date ?? "") < "2006" }
-            + released.filter { ($0.release_date ?? "") < "1999" }
-            + released.filter { ($0.release_date ?? "") >= "2006" }
-        let saga = ordered.compactMap { part -> MetaPreview? in
+        let ordered = !episodeOrder ? released
+            : released.filter { ($0.release_date ?? "") >= "1999" && ($0.release_date ?? "") < "2006" }
+                + released.filter { ($0.release_date ?? "") < "1999" }
+                + released.filter { ($0.release_date ?? "") >= "2006" }
+        return ordered.compactMap { part -> MetaPreview? in
             preview(SearchMediaResponse.Result(id: part.id, title: part.title, name: nil, original_title: nil,
                                                original_name: nil, overview: part.overview,
                                                poster_path: part.poster_path, backdrop_path: part.backdrop_path,
                                                release_date: part.release_date, first_air_date: nil,
                                                vote_average: part.vote_average), tv: false)
         }
-        var rows: [(id: String, title: String, items: [MetaPreview])] = []
-        if !seriesValue.isEmpty { rows.append(("sw-series", String(localized: "Les séries"), seriesValue)) }
-        if !saga.isEmpty { rows.append(("sw-saga", String(localized: "La saga Skywalker"), saga)) }
-        if !othersValue.isEmpty { rows.append(("sw-films", String(localized: "Les autres films"), othersValue)) }
-        if !animatedValue.isEmpty { rows.append(("sw-animation", String(localized: "Les séries animées"), animatedValue)) }
-        return (saga.count + othersValue.count, rows)
     }
 
     nonisolated private static func decode<T: Decodable>(_ address: String) async -> T? {
@@ -2251,9 +2269,142 @@ final class OrbitStudioModel: ObservableObject {
 }
 
 
-/// Studio pages built from Orbit's own list rather than a TMDB company.
-enum OrbitStudioCurated {
+/// Disney+'s brand pages (Steven, 2026-10-31: "une page propre à Disney+ comme tu as fait pour
+/// Star Wars"): Orbit's own lists, by original name and year (TMDB's search), never a studio page.
+nonisolated enum OrbitStudioCurated {
     static let starWars = "list:starwars"
+    static let disney = "list:disney"
+    static let pixar = "list:pixar"
+    static let marvel = "list:marvel"
+    static let natGeo = "list:natgeo"
+
+    struct Row {
+        let id: String
+        let title: String
+        var tv = false
+        var titles: [(String, Int)] = []
+        /// A TMDB collection instead of titles (Star Wars's Skywalker saga).
+        var collection: Int? = nil
+        var episodeOrder = false
+    }
+
+    /// The company whose TMDB logo the page shows (the others have Orbit's own files).
+    static func logoCompany(_ list: String) -> String? {
+        list == marvel ? "420" : nil
+    }
+
+    static func rows(_ list: String) -> [Row] {
+        switch list {
+        case starWars:
+            return [
+                Row(id: "sw-series", title: String(localized: "Les séries"), tv: true, titles: [
+                    ("The Mandalorian", 2019), ("Andor", 2022), ("Ahsoka", 2023), ("Star Wars: Skeleton Crew", 2024),
+                    ("The Book of Boba Fett", 2021), ("Obi-Wan Kenobi", 2022), ("The Acolyte", 2024)]),
+                Row(id: "sw-saga", title: String(localized: "La saga Skywalker"), collection: 10, episodeOrder: true),
+                Row(id: "sw-films", title: String(localized: "Les autres films"), titles: [
+                    ("Rogue One: A Star Wars Story", 2016), ("Solo: A Star Wars Story", 2018), ("Star Wars: The Clone Wars", 2008)]),
+                Row(id: "sw-animation", title: String(localized: "Les séries animées"), tv: true, titles: [
+                    ("Star Wars: The Clone Wars", 2008), ("Star Wars: The Bad Batch", 2021), ("Star Wars Rebels", 2014),
+                    ("Star Wars: Tales of the Jedi", 2022), ("Star Wars: Tales of the Empire", 2024),
+                    ("Star Wars: Visions", 2021), ("Star Wars Resistance", 2018)]),
+            ]
+        case disney:
+            return [
+                Row(id: "dis-new", title: String(localized: "L'animation Disney"), titles: [
+                    ("Zootopia 2", 2025), ("Moana 2", 2024), ("Wish", 2023), ("Encanto", 2021),
+                    ("Raya and the Last Dragon", 2021), ("Frozen II", 2019), ("Ralph Breaks the Internet", 2018),
+                    ("Moana", 2016), ("Zootopia", 2016), ("Big Hero 6", 2014), ("Frozen", 2013),
+                    ("Wreck-It Ralph", 2012), ("Tangled", 2010), ("The Princess and the Frog", 2009)]),
+                Row(id: "dis-classics", title: String(localized: "Les grands classiques"), titles: [
+                    ("Snow White and the Seven Dwarfs", 1937), ("Pinocchio", 1940), ("Dumbo", 1941), ("Bambi", 1942),
+                    ("Cinderella", 1950), ("Alice in Wonderland", 1951), ("Peter Pan", 1953), ("Lady and the Tramp", 1955),
+                    ("Sleeping Beauty", 1959), ("One Hundred and One Dalmatians", 1961), ("The Jungle Book", 1967),
+                    ("The Aristocats", 1970), ("Robin Hood", 1973)]),
+                Row(id: "dis-renaissance", title: String(localized: "Les années 90"), titles: [
+                    ("The Little Mermaid", 1989), ("Beauty and the Beast", 1991), ("Aladdin", 1992), ("The Lion King", 1994),
+                    ("Pocahontas", 1995), ("The Hunchback of Notre Dame", 1996), ("Hercules", 1997), ("Mulan", 1998),
+                    ("Tarzan", 1999), ("The Emperor's New Groove", 2000), ("Lilo & Stitch", 2002)]),
+                Row(id: "dis-live", title: String(localized: "En prises de vues réelles"), titles: [
+                    ("Lilo & Stitch", 2025), ("Mufasa: The Lion King", 2024), ("The Little Mermaid", 2023),
+                    ("Cruella", 2021), ("Mulan", 2020), ("The Lion King", 2019), ("Aladdin", 2019),
+                    ("Beauty and the Beast", 2017), ("The Jungle Book", 2016), ("Cinderella", 2015), ("Maleficent", 2014)]),
+                Row(id: "dis-adventure", title: String(localized: "Aventures"), titles: [
+                    ("Pirates of the Caribbean: The Curse of the Black Pearl", 2003),
+                    ("Pirates of the Caribbean: Dead Man's Chest", 2006), ("Pirates of the Caribbean: At World's End", 2007),
+                    ("Jungle Cruise", 2021), ("Enchanted", 2007), ("Mary Poppins", 1964), ("Mary Poppins Returns", 2018),
+                    ("Hocus Pocus", 1993), ("Freaky Friday", 2003)]),
+                Row(id: "dis-series", title: String(localized: "Les séries"), tv: true, titles: [
+                    ("Percy Jackson and the Olympians", 2023), ("Gravity Falls", 2012), ("DuckTales", 2017),
+                    ("Hannah Montana", 2006), ("Wizards of Waverly Place", 2007), ("High School Musical: The Musical: The Series", 2019),
+                    ("Phineas and Ferb", 2007), ("Kiff", 2023)]),
+            ]
+        case pixar:
+            return [
+                Row(id: "px-best", title: String(localized: "Les incontournables"), titles: [
+                    ("Toy Story", 1995), ("Finding Nemo", 2003), ("Up", 2009), ("Coco", 2017), ("Inside Out", 2015),
+                    ("Ratatouille", 2007), ("WALL·E", 2008), ("Monsters, Inc.", 2001), ("The Incredibles", 2004), ("Soul", 2020)]),
+                Row(id: "px-new", title: String(localized: "Les derniers films"), titles: [
+                    ("Elio", 2025), ("Inside Out 2", 2024), ("Elemental", 2023), ("Lightyear", 2022),
+                    ("Turning Red", 2022), ("Luca", 2021), ("Soul", 2020), ("Onward", 2020)]),
+                Row(id: "px-all", title: String(localized: "Tous les films Pixar"), titles: [
+                    ("Toy Story", 1995), ("A Bug's Life", 1998), ("Toy Story 2", 1999), ("Monsters, Inc.", 2001),
+                    ("Finding Nemo", 2003), ("The Incredibles", 2004), ("Cars", 2006), ("Ratatouille", 2007),
+                    ("WALL·E", 2008), ("Up", 2009), ("Toy Story 3", 2010), ("Cars 2", 2011), ("Brave", 2012),
+                    ("Monsters University", 2013), ("Inside Out", 2015), ("The Good Dinosaur", 2015),
+                    ("Finding Dory", 2016), ("Cars 3", 2017), ("Coco", 2017), ("Incredibles 2", 2018),
+                    ("Toy Story 4", 2019), ("Onward", 2020), ("Soul", 2020), ("Luca", 2021), ("Turning Red", 2022),
+                    ("Lightyear", 2022), ("Elemental", 2023), ("Inside Out 2", 2024), ("Elio", 2025)]),
+                Row(id: "px-series", title: String(localized: "Les séries"), tv: true, titles: [
+                    ("Win or Lose", 2025), ("Dream Productions", 2024), ("Monsters at Work", 2021),
+                    ("Cars on the Road", 2022), ("Dug Days", 2021), ("Pixar Popcorn", 2021)]),
+            ]
+        case marvel:
+            return [
+                Row(id: "mv-series", title: String(localized: "Les séries"), tv: true, titles: [
+                    ("Daredevil: Born Again", 2025), ("Agatha All Along", 2024), ("Loki", 2021), ("WandaVision", 2021),
+                    ("The Falcon and the Winter Soldier", 2021), ("Hawkeye", 2021), ("Moon Knight", 2022),
+                    ("Ms. Marvel", 2022), ("She-Hulk: Attorney at Law", 2022), ("Secret Invasion", 2023),
+                    ("Echo", 2024), ("Ironheart", 2025), ("Daredevil", 2015)]),
+                Row(id: "mv-infinity", title: String(localized: "La saga de l'Infini"), titles: [
+                    ("Iron Man", 2008), ("The Incredible Hulk", 2008), ("Iron Man 2", 2010), ("Thor", 2011),
+                    ("Captain America: The First Avenger", 2011), ("The Avengers", 2012), ("Iron Man 3", 2013),
+                    ("Thor: The Dark World", 2013), ("Captain America: The Winter Soldier", 2014),
+                    ("Guardians of the Galaxy", 2014), ("Avengers: Age of Ultron", 2015), ("Ant-Man", 2015),
+                    ("Captain America: Civil War", 2016), ("Doctor Strange", 2016), ("Guardians of the Galaxy Vol. 2", 2017),
+                    ("Spider-Man: Homecoming", 2017), ("Thor: Ragnarok", 2017), ("Black Panther", 2018),
+                    ("Avengers: Infinity War", 2018), ("Ant-Man and the Wasp", 2018), ("Captain Marvel", 2019),
+                    ("Avengers: Endgame", 2019), ("Spider-Man: Far From Home", 2019)]),
+                Row(id: "mv-multiverse", title: String(localized: "La saga du Multivers"), titles: [
+                    ("Black Widow", 2021), ("Shang-Chi and the Legend of the Ten Rings", 2021), ("Eternals", 2021),
+                    ("Spider-Man: No Way Home", 2021), ("Doctor Strange in the Multiverse of Madness", 2022),
+                    ("Thor: Love and Thunder", 2022), ("Black Panther: Wakanda Forever", 2022),
+                    ("Ant-Man and the Wasp: Quantumania", 2023), ("Guardians of the Galaxy Vol. 3", 2023),
+                    ("The Marvels", 2023), ("Deadpool & Wolverine", 2024), ("Captain America: Brave New World", 2025),
+                    ("Thunderbolts*", 2025), ("The Fantastic Four: First Steps", 2025)]),
+                Row(id: "mv-animation", title: String(localized: "L'animation"), tv: true, titles: [
+                    ("X-Men '97", 2024), ("What If...?", 2021), ("Your Friendly Neighborhood Spider-Man", 2025),
+                    ("Eyes of Wakanda", 2025), ("I Am Groot", 2022)]),
+            ]
+        case natGeo:
+            return [
+                Row(id: "ng-series", title: String(localized: "Les séries"), tv: true, titles: [
+                    ("Limitless with Chris Hemsworth", 2022), ("Welcome to Earth", 2021), ("Secrets of the Whales", 2021),
+                    ("Secrets of the Elephants", 2023), ("Secrets of the Octopus", 2024), ("One Strange Rock", 2018),
+                    ("Cosmos: A Spacetime Odyssey", 2014), ("Cosmos: Possible Worlds", 2020),
+                    ("America's National Parks", 2022), ("Gordon Ramsay: Uncharted", 2019)]),
+                Row(id: "ng-films", title: String(localized: "Les documentaires"), titles: [
+                    ("Free Solo", 2018), ("The Rescue", 2021), ("Fire of Love", 2022), ("Jane", 2017),
+                    ("Return to Space", 2022), ("Science Fair", 2018), ("The Territory", 2022)]),
+                Row(id: "ng-adventure", title: String(localized: "Aventure et survie"), tv: true, titles: [
+                    ("Life Below Zero", 2013), ("Running Wild with Bear Grylls", 2014), ("Wicked Tuna", 2012),
+                    ("Brain Games", 2011), ("Explorer", 2015)]),
+                Row(id: "ng-drama", title: String(localized: "Les fictions"), tv: true, titles: [
+                    ("Genius", 2017), ("The Hot Zone", 2019), ("The Right Stuff", 2020), ("Mars", 2016)]),
+            ]
+        default:
+            return []
+        }
+    }
 }
 
 /// A studio's logo as its opening draws it.

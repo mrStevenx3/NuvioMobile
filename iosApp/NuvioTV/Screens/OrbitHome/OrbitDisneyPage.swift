@@ -1446,13 +1446,13 @@ struct OrbitDisneyBrand {
     var logoInColour = false
 
     static let all: [OrbitDisneyBrand] = [
-        .init(name: "Disney", keys: ["walt disney", "disney"], company: "2",
+        .init(name: "Disney", keys: ["walt disney", "disney"], company: OrbitStudioCurated.disney,
               colours: [Color(red: 0.05, green: 0.27, blue: 0.70), Color(red: 0.03, green: 0.12, blue: 0.38)],
               tagline: String(localized: "Découvrez la magie de Disney")),
-        .init(name: "Pixar", keys: ["pixar"], company: "3",
+        .init(name: "Pixar", keys: ["pixar"], company: OrbitStudioCurated.pixar,
               colours: [Color(red: 0.16, green: 0.30, blue: 0.48), Color(red: 0.07, green: 0.12, blue: 0.22)],
               tagline: String(localized: "Des histoires pour tous les âges")),
-        .init(name: "Marvel", keys: ["marvel"], company: "420",
+        .init(name: "Marvel", keys: ["marvel"], company: OrbitStudioCurated.marvel,
               colours: [Color(red: 0.62, green: 0.06, blue: 0.08), Color(red: 0.22, green: 0.02, blue: 0.04)],
               tagline: String(localized: "L'univers Marvel"), logoInColour: true),
         // (Steven, 2026-10-31: Star Wars opened his Lucasfilm folder — "je veux une vraie page Star Wars":
@@ -1462,7 +1462,7 @@ struct OrbitDisneyBrand {
               // (Steven: the band read as gone on Star Wars — a deep space blue, no longer near black.)
               colours: [Color(red: 0.16, green: 0.22, blue: 0.40), Color(red: 0.03, green: 0.05, blue: 0.13)],
               tagline: String(localized: "Il y a bien longtemps, dans une galaxie lointaine…"), asset: "StarWarsLogo"),
-        .init(name: "National Geographic", keys: ["national geographic", "nat geo"], company: "7521",
+        .init(name: "National Geographic", keys: ["national geographic", "nat geo"], company: OrbitStudioCurated.natGeo,
               colours: [Color(red: 0.55, green: 0.45, blue: 0.05), Color(red: 0.16, green: 0.13, blue: 0.03)],
               tagline: String(localized: "Explorez notre monde"), asset: "NatGeoLogo", assetInColour: true),
     ]
@@ -1490,6 +1490,12 @@ struct OrbitDisneyBrand {
     }
 
     func route() -> OrbitStudioRoute {
+        // Steven (2026-10-31): Disney+'s brands open Disney+'s own pages (Orbit's lists), never the
+        // studio's page from his folders.
+        if company.hasPrefix("list:") {
+            return OrbitStudioRoute(name: name, companies: company, isNetwork: false,
+                                    logo: OrbitStudioLogos.url(forTitle: name), collectionId: nil, folderId: nil)
+        }
         if let found = folder { return .folder(collectionId: found.collectionId, folder: found.folder) }
         return OrbitStudioRoute(name: name, companies: company, isNetwork: false,
                                 logo: OrbitStudioLogos.url(forTitle: name), collectionId: nil, folderId: nil)
