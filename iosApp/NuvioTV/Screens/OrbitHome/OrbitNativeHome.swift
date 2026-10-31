@@ -270,8 +270,16 @@ struct OrbitNativeHome: View {
                 returnTarget = back.row
                 returnSince = ProcessInfo.processInfo.systemUptime
                 go(to: back.row, animated: false)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { heroLocked = false; returnRow = nil }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { returnTarget = nil }
+                // (Steven, 2026-10-31, video: "parfois ça marche, parfois non" — from Les grandes sagas,
+                // at the page's foot: the system's own landing sometimes came after 1.2 s, when the
+                // hero was in reach again, and a hero is no row to be sent back from. The hero stays
+                // out of reach for the whole way back now, until the viewer's own first press.)
+                let since = returnSince
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    returnRow = nil
+                    if ViewerInputClock.shared.hasInput(since: since + 0.3) { heroLocked = false }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { returnTarget = nil; heroLocked = false }
             } else {
                 OrbitNativeRow.reopen = nil
                 heroDefaultStrong = true
@@ -284,6 +292,10 @@ struct OrbitNativeHome: View {
             trailers.suspended = !active
             if active { OrbitBarLock.shared.set(!onHero) }
             OrbitMetaStore.shared.request(Array(heroItems.prefix(3)))
+        }
+        // The viewer's own press during a way back: the hero in reach again at once.
+        .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
+            if heroLocked, returnRow == nil, ProcessInfo.processInfo.systemUptime - returnSince > 0.3 { heroLocked = false }
         }
         .onDisappear {
             onScreen = false

@@ -268,13 +268,14 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         onlyIndex = index
         onlyUntil = start + 1.2
         lastFocusedIndex = index
-        for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3] {
+        // (Steven, 2026-10-31: the system's landing can come as late as 2 s — asked until then.)
+        for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3, 1.8, 2.4] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, !ViewerInputClock.shared.hasInput(since: start), self.focusedIndex != index else { return }
                 self.requestFocus()
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
             guard let self else { return }
             if self.preferredIndex == index { self.preferredIndex = nil }
             if self.onlyIndex == index { self.onlyIndex = nil }
