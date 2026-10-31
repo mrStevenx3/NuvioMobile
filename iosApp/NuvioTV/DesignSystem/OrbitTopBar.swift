@@ -712,6 +712,8 @@ struct OrbitPlatformTile: View {
     var tint: Color? = nil
     let size: CGSize
 
+    static let paramountGif = "https://raw.githubusercontent.com/mrStevenx3/NuvioMobile/detail-apple-style/orbit-assets/gifs/paramount.gif"
+
     static func coverURL(_ folder: CollectionFolder, collectionBackdropUrl: String?) -> String? {
         for raw in [folder.coverImageUrl, folder.heroBackdropUrl, collectionBackdropUrl] {
             if let url = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty { return url }
@@ -721,7 +723,9 @@ struct OrbitPlatformTile: View {
 
     var body: some View {
         let radius: CGFloat = 16
-        let gif = folder.focusGifUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Paramount+: Orbit's own cleaned GIF (Steven, 2026-10-31), whatever his collection says.
+        let paramount = folder.title.lowercased().contains("paramount")
+        let gif = paramount ? Self.paramountGif : folder.focusGifUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
         ZStack {
             Color(white: 0.12)
             if let cover = Self.coverURL(folder, collectionBackdropUrl: collectionBackdropUrl) {
@@ -736,7 +740,7 @@ struct OrbitPlatformTile: View {
             // (Steven, 2026-10-27: Paramount+'s was left out — its animation ended on a blurred
             // reflection. 2026-10-31: his new one, cleaned — no black start, no reflection, held on
             // its logo at the end — plays again.)
-            if folder.focusGifEnabled, let gif, !gif.isEmpty {
+            if folder.focusGifEnabled || paramount, let gif, !gif.isEmpty {
                 // Fitted, not filled (Steven: Paramount+'s animation was cropped to a zoomed
                 // mountain); its bars take the GIF's own edge colour.
                 AnimatedGifImage(string: gif, fallback: nil, contentMode: .fit, isAnimating: focused, targetSize: size)
