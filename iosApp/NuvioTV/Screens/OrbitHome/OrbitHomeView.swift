@@ -797,9 +797,12 @@ private struct OrbitWaveLayer: View {
     @State private var reach: CGFloat = 0
 
     /// Past the screen's far corners (from the top's middle) with the soft edge.
-    static let full: CGFloat = 1850
+    /// (Past the screen's far corners from the top's middle — 1 445 points — by the whole front.)
+    static let full: CGFloat = 1450 + 640
     /// (A narrow front: only there do the two colours meet.)
-    static let edge: CGFloat = 200
+    /// Steven (2026-10-31, after the side sweep: "il était bien comme ça, moins saccadé, plus doux"):
+    /// the sweep's wide soft front and its 0.6 s, from the top's middle.
+    static let edge: CGFloat = 640
 
     var body: some View {
         // Opaque (the page's ground under its colour): Steven's video (IMG_9307) — see-through, the
@@ -812,7 +815,7 @@ private struct OrbitWaveLayer: View {
             .mask { OrbitWaveMask(reach: wave ? reach : Self.full) }
             .onAppear {
                 guard wave else { return }
-                withAnimation(.easeInOut(duration: 0.45)) { reach = Self.full } completion: { onDone() }
+                withAnimation(.easeInOut(duration: 0.6)) { reach = Self.full } completion: { onDone() }
             }
     }
 }
