@@ -727,89 +727,33 @@ struct OrbitGrain: View {
 
 
 /// The Plateformes page's halo: the focused platform's colour.
-/// Steven (2026-10-31, video: "ça passe par une couleur gris-blanc avant la bonne couleur"; still so
-/// in OKLab): the platforms' colours are strong and far apart (Netflix's red, Disney+'s blue) — a
-/// straight line between them crosses a pale lavender. Here the colour keeps its strength and turns
-/// round by its hue the short way (red → crimson → purple → blue), its lightness even (OKLCh).
+/// Steven (2026-10-31: "applique la même chose que dans l'accueil qui fonctionne bien"): Home's own
+/// change of colour — one wash whose colour goes straight to the next one in OKLab, on Home's fade
+/// (`OrbitRowsBackdrop.show`), drawn by Home's `OrbitToneWash` (without its ground: the page draws it).
 struct OrbitToneHalo: View {
     let color: Color?
-    @State private var lch = OrbitLchTone()
+    @State private var tone = OrbitWashTone()
 
     var body: some View {
-        OrbitLchHaloView(tone: lch)
+        OrbitToneWash(tone: tone, stops: (0.55, 0.30, 0.10), ground: false)
             .onChange(of: color.map { OrbitWashTone($0) }, initial: true) { _, next in
                 guard let next else {
-                    withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { lch.presence = 0 }
+                    withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { tone.presence = 0 }
                     return
                 }
-                var target = OrbitLchTone(next)
-                if lch.presence < 0.01 || lch.chroma < 0.02 {
-                    // Nothing (or a grey) before: its hue set at once, only its presence fades.
-                    var start = target
-                    start.presence = lch.presence
-                    if lch.presence >= 0.01 { start.chroma = lch.chroma; start.lightness = lch.lightness }
+                if next == tone { return }
+                // (A first colour: set at once, only its presence fades — as Home's.)
+                if tone.presence < 0.01 {
                     var still = Transaction()
                     still.disablesAnimations = true
-                    withTransaction(still) { lch = start }
-                } else if target.chroma < 0.02 {
-                    target.hue = lch.hue    // to a grey: no hue to turn to
-                } else {
-                    while target.hue - lch.hue > .pi { target.hue -= 2 * .pi }
-                    while lch.hue - target.hue > .pi { target.hue += 2 * .pi }
+                    var start = next
+                    start.presence = 0
+                    withTransaction(still) { tone = start }
                 }
-                OrbitTrace.log(String(format: "halo lch from L%.2f C%.3f h%.2f p%.2f to L%.2f C%.3f h%.2f p%.2f",
-                                      lch.lightness, lch.chroma, lch.hue, lch.presence,
-                                      target.lightness, target.chroma, target.hue, target.presence))
-                withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { lch = target }
+                OrbitTrace.log(String(format: "halo lab from L%.2f a%.3f b%.3f p%.2f to L%.2f a%.3f b%.3f",
+                                      tone.l, tone.a, tone.b, tone.presence, next.l, next.a, next.b))
+                withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { tone = next }
             }
-    }
-}
-
-/// OKLCh: lightness, chroma (strength), hue angle (radians, unwrapped while travelling).
-struct OrbitLchTone: Equatable {
-    var lightness: Double = 0
-    var chroma: Double = 0
-    var hue: Double = 0
-    var presence: Double = 0
-
-    init() {}
-    init(_ lab: OrbitWashTone) {
-        lightness = lab.l
-        chroma = (lab.a * lab.a + lab.b * lab.b).squareRoot()
-        hue = atan2(lab.b, lab.a)
-        presence = lab.presence
-    }
-
-    var lab: OrbitWashTone {
-        var t = OrbitWashTone()
-        t.l = lightness
-        t.a = chroma * cos(hue)
-        t.b = chroma * sin(hue)
-        t.presence = presence
-        return t
-    }
-}
-
-struct OrbitLchHaloView: View, Animatable {
-    var tone: OrbitLchTone
-
-    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
-        get { AnimatablePair(AnimatablePair(tone.lightness, tone.chroma), AnimatablePair(tone.hue, tone.presence)) }
-        set {
-            tone.lightness = newValue.first.first
-            tone.chroma = newValue.first.second
-            tone.hue = newValue.second.first
-            tone.presence = newValue.second.second
-        }
-    }
-
-    var body: some View {
-        // (Drawn here, not through `OrbitToneWash`: that one would animate the values again.)
-        let lab = tone.lab
-        let color = lab.color
-        let p = min(1, max(0, lab.presence))
-        return RadialGradient(colors: [color.opacity(0.55 * p), color.opacity(0.30 * p), color.opacity(0.10 * p)],
-                              center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
     }
 }
 
