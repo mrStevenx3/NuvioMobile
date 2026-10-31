@@ -638,6 +638,7 @@ struct OrbitNativeRow: View {
         shown = card.id
         trailers.stop()
         OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
+        OrbitTrace.log("wash art[row.focus] \(row.id) → \(OrbitNativeHomeState.shared.art ?? "nil")")
         if let index = row.cards.firstIndex(where: { $0.id == card.id }) {
             let ahead = row.cards[index..<min(row.cards.count, index + 6)].map(\.preview)
             OrbitMetaStore.shared.request(Array(ahead))
@@ -898,6 +899,7 @@ struct OrbitNativeRow: View {
                 trailers.stop()
             }
             OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
+            OrbitTrace.log("wash art[row.slide] \(row.id) → \(OrbitNativeHomeState.shared.art ?? "nil")")
             let ahead = row.cards[index..<min(row.cards.count, index + 6)].map(\.preview)
             OrbitMetaStore.shared.request(Array(ahead))
         }
@@ -1610,6 +1612,7 @@ struct OrbitNativeOpenRow: View {
         if count > 0 {
             let told = self.card(next)
             OrbitNativeHomeState.shared.art = told.landscape ?? metaStore.meta(for: told.preview)?.backdrop
+            OrbitTrace.log("wash art[open.move] \(row.id) → \(OrbitNativeHomeState.shared.art ?? "nil")")
         }
         leadChanged()
     }
@@ -1638,6 +1641,7 @@ struct OrbitNativeOpenRow: View {
         let card = card(lead)
         trailers.arm("\(row.id)|\(card.id)", item: card.preview)
         OrbitNativeHomeState.shared.art = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop
+        OrbitTrace.log("wash art[open.rest] \(row.id) → \(OrbitNativeHomeState.shared.art ?? "nil")")
         let around = ranked ? Array(max(0, lead - 2)..<min(count, lead + 8)) : Array((lead - 2)..<(lead + 8))
         OrbitMetaStore.shared.request(around.map { self.card($0).preview })
         // Steven (2026-10-28: the frame came up empty a moment, on the last titles above all): the

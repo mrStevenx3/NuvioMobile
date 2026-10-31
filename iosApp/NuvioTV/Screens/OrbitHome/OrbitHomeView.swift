@@ -457,6 +457,7 @@ struct OrbitRowsBackdrop: View {
         .frame(width: L.screenWidth, height: L.screenHeight)
         .task(id: url ?? "-") {
             guard let url else { return }
+            OrbitTrace.log("wash task start mirror=\(mirror != nil) url=\(url)")
             // Steven (device: still a hitch Left / Right): the wash follows the title once the
             // remote rests — a full-screen colour change animating under every step was part of it.
             // (Steven, 2026-10-29: smoother as it was — 300 ms and 0.6 s again.)
@@ -475,6 +476,7 @@ struct OrbitRowsBackdrop: View {
                 do { try await Task.sleep(for: .milliseconds(rest)) } catch { return }
             }
             if let color = await worked, !Task.isCancelled {
+                OrbitTrace.log("wash colour ready mirror=\(mirror != nil) \(color.description) url=\(url)")
                 show(color)
                 // (Only the Home on screen: the hidden one's colour no longer reaches the headings.)
                 if opaque, mirror != nil {
@@ -516,6 +518,7 @@ struct OrbitRowsBackdrop: View {
         // once, in the new colour, and the fade turned back: a wrong colour a moment. It now waits
         // for the fade to end — only the latest colour kept.)
         let now = ProcessInfo.processInfo.systemUptime
+        OrbitTrace.log("wash show \(color.description) showsB=\(showsB) busy=\(now < fadingUntil) mirror=\(mirror != nil)")
         if now < fadingUntil {
             let first = waiting == nil
             waiting = color

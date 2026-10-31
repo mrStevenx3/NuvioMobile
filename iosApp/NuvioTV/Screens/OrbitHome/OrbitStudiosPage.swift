@@ -104,7 +104,8 @@ struct OrbitStudiosPage: View {
             // Steven (2026-10-24): a panoramic frame across the page, centred; the studio's name
             // on it, bottom left (a soft shade in that corner only).
             OrbitStudioFrame(url: bannerURL(shown), forward: forward,
-                             lift: OrbitStudioFrame.lift(title: shown?.title ?? ""))
+                             lift: OrbitStudioFrame.lift(title: shown?.title ?? ""),
+                             shade: OrbitStudioFrame.shade(title: shown?.title ?? ""))
                 .overlay(alignment: .bottomLeading) {
                     hero(shown)
                         .padding(.leading, L.margin + 36)
@@ -398,6 +399,16 @@ private struct OrbitStudioFrame: View {
     /// How far the image is lowered in the frame from its centre (0…1 of what the frame cuts):
     /// the panorama crops the top and bottom of a 16:9 image, a head may be cut.
     var lift: CGFloat = 0
+    /// The shade in the bottom left corner, under the studio's name.
+    var shade: Double = 0.55
+
+    /// Steven (2026-10-31, Pixar's sky: "une grosse ombre foncée sur la gauche"): on a light, plain
+    /// picture the corner's shade showed as a dark patch — lighter there (the name keeps its shadow).
+    static func shade(title raw: String) -> Double {
+        let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        if t.contains("pixar") { return 0.18 }
+        return 0.55
+    }
 
     /// Steven: Darth Vader's head was cut (Lucasfilm).
     static func lift(title raw: String) -> CGFloat {
@@ -424,8 +435,9 @@ private struct OrbitStudioFrame: View {
             // as one; the frame keeps its shades.)
             Color.clear
             // The name reads at the bottom left; the rest of the image stays clean.
-            RadialGradient(colors: [.black.opacity(0.55), .black.opacity(0.2), .clear],
+            RadialGradient(colors: [.black.opacity(shade), .black.opacity(shade * 0.36), .clear],
                            center: .bottomLeading, startRadius: 0, endRadius: 900)
+                .animation(.easeInOut(duration: 0.3), value: shade)
             // Under the bar: a light shade, as on Home's hero.
             LinearGradient(stops: [.init(color: .black.opacity(0.4), location: 0),
                                    .init(color: .clear, location: 0.2)],
