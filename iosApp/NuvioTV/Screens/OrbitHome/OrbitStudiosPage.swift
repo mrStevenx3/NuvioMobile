@@ -204,7 +204,8 @@ struct OrbitStudiosPage: View {
                 shownId = folders.first?.id
             }
             if let folder = shownFolder { films.focus(title: folder.title) }
-            prefetchBackdrops()
+            // (After the tabs' cross-fade, as the banners: not decoded while it plays.)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { prefetchBackdrops() }
         }
         // (Once the chosen films are known, and whenever they change.)
         .task(id: folders.map { bannerURL($0) ?? "-" }.joined(separator: "|")) { prefetchBanners() }
@@ -227,6 +228,10 @@ struct OrbitStudiosPage: View {
                                            fill: true, scale: displayScale)
         let raws = folders.compactMap { bannerURL($0) }
         Task(priority: .utility) {
+            // Steven (2026-10-31, slow motion of the tabs: the cross-fade to Studios jerky all along):
+            // a dozen large pictures were decoded and blurred at the very moment the page came in.
+            // They now wait for the cross-fade to be over (the banner shown loads its own at once).
+            try? await Task.sleep(for: .seconds(1.2))
             for raw in raws {
                 guard let url = URL(string: raw) else { continue }
                 // (Steven, 2026-10-30: still slow, two fades — the banner draws TMDB's original
