@@ -931,7 +931,7 @@ enum OrbitStudioBake {
         return (sharp, blurred)
     }
 
-    /// The sharp banner (the screen's width, the banner's height, its foot faded from 70 %) and the
+    /// The sharp banner (the screen's width, the banner's height, its foot faded from 80 %) and the
     /// blurred continuation (the screen, darkened, faded out 135 pt under the banner), each at the
     /// very place the page showed them.
     @MainActor
@@ -954,7 +954,7 @@ enum OrbitStudioBake {
         guard let soft = await OrbitPreBlurred.prepare(url, radius: 16) else { return nil }
         let pair: (UIImage, UIImage) = await Task.detached(priority: .userInitiated) {
             // The sharp banner: the 16:9 picture centred on the banner, lowered by its lift, cut to
-            // the banner, its foot fading from 70 % to nothing.
+            // the banner, its foot fading from 80 % to nothing.
             let sharpFormat = UIGraphicsImageRendererFormat()
             sharpFormat.scale = scale
             sharpFormat.opaque = false
@@ -963,7 +963,8 @@ enum OrbitStudioBake {
                 // (Steven, 2026-10-31: "le flou en bas trop marqué, on dirait pas l'image qui continue"
                 // — the sharp picture now melts into its own blurred copy from 70 % of the banner, not
                 // its last 12 %. The blurred copy under it is unchanged, at the very same place.)
-                Self.fade(ctx.cgContext, from: band * 0.70, to: band)
+                // (Then "c'est mieux, même si je descendrais encore": from 80 %.)
+                Self.fade(ctx.cgContext, from: band * 0.80, to: band)
             }
             // The blurred copy: the screen, the picture centred where the sharp one is, darkened,
             // fading out under the banner. (Half the screen's pixels: it is a blur.)
