@@ -1249,7 +1249,9 @@ struct OrbitDetailView: View {
                 .frame(height: 44, alignment: .leading)
                 .padding(.top, 34)
             // On their own line under it (beside it, they cut the genres short).
+            // Steven (2026-10-31: "ça apparaît d'un coup sec"): the badges fade in as the sources tell them.
             OrbitQualityBadges(quality: quality.found)
+                .animation(.easeOut(duration: 0.35), value: quality.found)
                 .frame(height: 30, alignment: .leading)
                 .padding(.top, 8)
             // Steven (Apple TV style): the synopsis on the buttons' line, its arrow opens it in
@@ -1896,9 +1898,11 @@ private struct OrbitDetailMetaLine: View {
         if let year { parts.append(year) }
         if let runtime { parts.append(runtime) }
         if !genres.isEmpty { parts.append(genres.joined(separator: ", ")) }
+        let signature = parts.joined(separator: " · ") + "|" + (age ?? "") + "|" + (rating ?? "")
         return HStack(spacing: 14) {
             if !parts.isEmpty {
                 Text(parts.joined(separator: " · "))
+                    .contentTransition(.opacity)
             }
             if let age, !age.isEmpty {
                 Text(age)
@@ -1917,7 +1921,15 @@ private struct OrbitDetailMetaLine: View {
         .font(.system(size: 28, weight: .semibold))
         .foregroundStyle(Color.white.opacity(0.92))
         .lineLimit(1)
+        // Steven (2026-10-31: the genre, the rating… "apparaît d'un coup sec"): the line fades in as
+        // the page opens, and what the details add later (runtime, age, rating) fades in too.
+        .opacity(appeared ? 1 : 0)
+        .animation(.easeOut(duration: 0.35), value: appeared)
+        .animation(.easeOut(duration: 0.35), value: signature)
+        .onAppear { DispatchQueue.main.async { appeared = true } }
     }
+
+    @State private var appeared = false
 }
 
 enum OrbitDetailFormat {
