@@ -522,16 +522,9 @@ struct OrbitDisneyPage: View {
             covered = false
             // Back from a franchise: the focus put back on its brand (the system's own landing in
             // the bar overruled). The bar itself never locked (Steven: the house out of reach).
-            if studioOpened {
-                studioOpened = false
-                let appeared = ProcessInfo.processInfo.systemUptime
-                for delay in [0.1, 0.3, 0.6, 0.9] {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                        guard !ViewerInputClock.shared.hasInput(since: appeared) else { return }
-                        leads.box(Self.brandsRow.id).focusRequest &+= 1
-                    }
-                }
-            }
+            // (The way back to the pill or to TOUT PARCOURIR is the hub's own — Steven, 2026-10-31:
+            // this page's asks for the pills sent the focus to the house on TOUT PARCOURIR's way back.)
+            if studioOpened { studioOpened = false }
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -650,7 +643,11 @@ struct OrbitDisneyPage: View {
     private func nativeLeave() {
         let left = ProcessInfo.processInfo.systemUptime
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            guard nativeFocusStamp < left, !nativeHeroFocused, nativeHasFocus else { return }
+            // Steven (2026-10-31, trace: the platforms' auto trailers never started): a move down
+            // gives the focus to the next section BEFORE the old one says it let it go — the page
+            // read that as the focus gone, and no trailer armed. Gone only if no section took it
+            // just before either.
+            guard nativeFocusStamp < left - 0.25, !nativeHeroFocused, nativeHasFocus else { return }
             nativeHasFocus = false
             refreshAfterMove()
         }
@@ -2035,6 +2032,13 @@ private struct OrbitDisneyBrandsHub: View {
         }
         .frame(width: W, height: L.hubHeight, alignment: .topLeading)
         .clipped()
+        // TOUT PARCOURIR's way back: the page's own ask for this row (its pills) goes to it instead.
+        .onChange(of: box.focusRequest) { _, _ in
+            guard browseBack else { return }
+            OrbitTrace.log("disney hub browse back: row asked, focus kept on TOUT PARCOURIR")
+            browseFocused = true
+            DispatchQueue.main.async { if browseBack { browseFocused = true } }
+        }
         .onAppear {
             films.focus(title: brand.name)
             OrbitTrace.log("disney hub appear pillBack=\(pillBack) browseBack=\(browseBack) lead=\(box.lead) reopen=\(box.reopen.map(String.init) ?? "nil")")

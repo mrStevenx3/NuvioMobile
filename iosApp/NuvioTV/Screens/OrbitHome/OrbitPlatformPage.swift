@@ -328,7 +328,11 @@ struct OrbitPlatformPage: View {
     private func nativeLeave() {
         let left = ProcessInfo.processInfo.systemUptime
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            guard nativeFocusStamp < left, !nativeHeroFocused, nativeHasFocus else { return }
+            // Steven (2026-10-31, trace: the platforms' auto trailers never started): a move down
+            // gives the focus to the next section BEFORE the old one says it let it go — the page
+            // read that as the focus gone, and no trailer armed. Gone only if no section took it
+            // just before either.
+            guard nativeFocusStamp < left - 0.25, !nativeHeroFocused, nativeHasFocus else { return }
             nativeHasFocus = false
             refreshAfterMove()
         }
