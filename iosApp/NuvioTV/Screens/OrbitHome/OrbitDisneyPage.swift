@@ -1528,6 +1528,17 @@ extension OrbitDisneyOpenRow: Equatable {
     }
 }
 
+private extension OrbitDisneyOpenRow {
+    /// The Top 10's open title: year • length • genre (its age box before it).
+    static func top10Line(_ item: MetaPreview, _ meta: OrbitMeta?) -> String {
+        var parts: [String] = []
+        if let year = meta?.year ?? item.releaseInfo.flatMap({ $0.isEmpty ? nil : String($0.prefix(4)) }) { parts.append(year) }
+        if let runtime = meta?.runtime { parts.append(runtime) }
+        if let genre = meta?.genre ?? item.genres.first { parts.append(genre) }
+        return parts.joined(separator: " • ")
+    }
+}
+
 private struct OrbitDisneyOpenRow: View {
     let row: OrbitDisneyRow
     @ObservedObject var box: OrbitLeadBox
@@ -1617,8 +1628,8 @@ private struct OrbitDisneyOpenRow: View {
                 let info = OrbitInfo.make(item, meta: meta)
                 HStack(spacing: 12) {
                     if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 15) }
-                    // (Steven: the Top 10 says its genre only, under the open title.)
-                    Text(row.top10 ? (meta?.genre ?? item.genres.first ?? "") : info.parts.joined(separator: " • "))
+                    // Steven (2026-10-31): under the Top 10's open title, its age, year, length and genre.
+                    Text(row.top10 ? Self.top10Line(item, meta) : info.parts.joined(separator: " • "))
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.75))
                         .lineLimit(1)
@@ -1869,7 +1880,6 @@ private struct OrbitDisneyTop10Poster: View {
     var body: some View {
         let L = OrbitDisneyLayout.self
         let size = L.posterNew
-        let genre: String? = meta?.genre ?? item.genres.first
         // (Steven: some posters came up empty — TMDB's when the catalog has none.)
         let poster: String? = meta?.localPoster ?? meta?.titledPoster ?? item.poster ?? meta?.cleanPoster
         ZStack(alignment: .topLeading) {
@@ -1889,23 +1899,8 @@ private struct OrbitDisneyTop10Poster: View {
             OrbitDisneyTop10Corner.rankText(rank, size: 66)
                 .padding(.leading, size.width * 0.055)
                 .padding(.top, 4)
-            // Steven: on the poster (its foot), the rating and the genre only.
-            VStack {
-                Spacer(minLength: 0)
-                HStack(spacing: 10) {
-                    if let certification = meta?.certification { OrbitDisneyRating(text: certification, size: 15) }
-                    if let genre {
-                        Text(genre)
-                            .font(.system(size: 19, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.92))
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-                .padding(.top, 40)
-            }
+            // Steven (2026-10-31): nothing at the foot of the closed posters (the age and the genre
+            // are the open title's, under it).
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: L.radius, style: .continuous))
