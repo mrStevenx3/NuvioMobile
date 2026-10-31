@@ -248,9 +248,11 @@ private struct OrbitNativeDiscover<Header: View>: View {
         .onDisappear { OrbitBarLock.shared.set(false) }
         .onAppear {
             guard OrbitDiscoverReturn.openedId != nil else { return }
-            // (A little before now: the Back press that brought the page back is not the viewer's
-            // own move.)
-            let appeared = ProcessInfo.processInfo.systemUptime - 0.5
+            // (Steven, 2026-10-31, still going up: the Back press that brought the page back was
+            // counted as the viewer's own move — "since" was set half a second before now, so every
+            // ask stopped at once. Only a press from 0.3 s after the page's return ends the way back,
+            // as in Library.)
+            let appeared = ProcessInfo.processInfo.systemUptime + 0.3
             for delay in [0.05, 0.2, 0.4, 0.7, 1.1, 1.6, 2.2] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     NotificationCenter.default.post(name: .orbitDiscoverRestore, object: appeared)
@@ -479,7 +481,7 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         super.viewDidAppear(animated)
         // (On screen again after a title: asked from here too, the window being there now.)
         if OrbitDiscoverReturn.openedId != nil {
-            let appeared = ProcessInfo.processInfo.systemUptime - 0.5
+            let appeared = ProcessInfo.processInfo.systemUptime + 0.3
             for delay in [0.0, 0.15, 0.4] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.restoreOpened(since: appeared) }
             }
@@ -527,7 +529,9 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         if let path = context.nextFocusedIndexPath { collectionView.cellForItem(at: path)?.layer.zPosition = 1 }
         // On the first line, the grid back at its top: the title and the pills in view above it
         // (Up goes to them, then to the bar).
-        if let path = context.nextFocusedIndexPath, path.item < OrbitDiscoverLayout.columns {
+        // (Not during a way back: the system's own landing on the first tile scrolled the grid up.)
+        if let path = context.nextFocusedIndexPath, path.item < OrbitDiscoverLayout.columns,
+           OrbitDiscoverReturn.place(in: items) == nil || path == restoreTarget {
             let top = CGPoint(x: 0, y: -topInset)
             // (Steven: up into the first line the page jumped — now slid, as every other line.)
             DispatchQueue.main.async {

@@ -492,11 +492,9 @@ struct OrbitRowsBackdrop: View {
     }
 
     /// The wait once the focus rests, and the cross-fade (the headings' bar on the same curve).
-    /// (Steven, 2026-10-31: "le temps de changement du fond identique sur toutes les pages": one
-    /// time from the focus's rest to the colour, everywhere — Home's rows wait 0.45 s for their slide,
-    /// then `homeRest`; Search, Découvrir and the studios' rows wait this whole time at once.)
-    static let wait = 600
-    static let homeRest = 300
+    /// (Steven, 2026-10-31: "remets le réglage d'avant, celui qui était nickel, et fais pareil pour
+    /// Rechercher et Découvrir": the validated 0.45 s of commit 8b81393, the same on every page.)
+    static let wait = 450
     // (Steven, 2026-10-30: the colours too slow to change — the fade shorter; the wait stays at
     // 0.45 s so it still starts once the row has stopped.)
     static let fade: Double = 0.3

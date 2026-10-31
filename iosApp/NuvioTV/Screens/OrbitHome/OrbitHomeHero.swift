@@ -149,9 +149,16 @@ nonisolated struct OrbitGenre: Identifiable, Hashable, Sendable {
 struct OrbitPreBlurred: View {
     let url: String?
     let radius: CGFloat
+    /// A vertical shift belonging to each picture (kept by it as it fades out: never moved after).
+    var shiftY: CGFloat = 0
+    /// Changing on the sharp picture's own curve (`OrbitSwapImage`: the new one over the old one,
+    /// which goes once it is covered) — the Studios banner's blurred copy under it.
+    var withSharp = false
 
     @State private var image: UIImage?
     @State private var shown: String?
+    @State private var shownShift: CGFloat = 0
+    @State private var generation = 0
 
     /// The small copy's width: blurring it at radius / scale gives the same look full screen.
     private static let width: CGFloat = 480
@@ -162,27 +169,37 @@ struct OrbitPreBlurred: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .id(shown ?? "-")
-                    .transition(.opacity)
+                    .offset(y: shownShift)
+                    .id(withSharp ? "\(generation)" : (shown ?? "-"))
+                    .zIndex(withSharp ? Double(generation) : 0)
+                    .transition(withSharp
+                                ? .asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
+                                              removal: .opacity.animation(.linear(duration: 0.01).delay(0.26)))
+                                : .opacity)
             }
         }
         .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
         .clipped()
-        .animation(.easeInOut(duration: 0.35), value: shown)
+        .animation(withSharp ? nil : .easeInOut(duration: 0.35), value: shown)
         .task(id: "\(url ?? "-")|\(radius)") {
             guard let url else { image = nil; shown = nil; return }
             // (Blurred before — a studio's banner prepared ahead: at once.)
             if let ready = Self.made.object(forKey: "\(url)|\(radius)" as NSString) {
-                image = ready
-                shown = url
+                put(ready, url)
                 return
             }
             guard let blurred = await Self.prepare(url, radius: radius), !Task.isCancelled else { return }
-            image = blurred
-            shown = url
+            put(blurred, url)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    private func put(_ picture: UIImage, _ url: String) {
+        generation &+= 1
+        shownShift = shiftY
+        image = picture
+        shown = url
     }
 
     /// The blurred copies made (by url and radius).

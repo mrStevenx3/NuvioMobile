@@ -828,12 +828,13 @@ private struct OrbitStudiosBackdrop: View {
                 OrbitThickBlur(url: url)
                 // (Steven, 2026-10-31: on Lucasfilm a picture went down at the bottom — its lift moved
                 // the blurred copy, the old studio's one with it as it faded. Each picture's copy now
-                // keeps its own place and fades in or out where it is.)
-                OrbitPreBlurred(url: url, radius: 16)
-                    .offset(y: band / 2 - H / 2 + spare * lift)
+                // keeps its own place.)
+                // (Steven, 2026-10-31, video: then something at the icons on each change — the copy,
+                // made anew for each studio, came a beat after the old one had gone. It now changes
+                // in place, on the sharp picture's very curve, the old one kept until covered.)
+                OrbitPreBlurred(url: url, radius: 16, shiftY: spare * lift, withSharp: true)
+                    .offset(y: band / 2 - H / 2)
                     .frame(width: W, height: H)
-                    .id(url ?? "-")
-                    .transition(.opacity)
                     .overlay(Color.black.opacity(0.22))
                     .mask(LinearGradient(stops: [.init(color: .black, location: 0),
                                                  .init(color: .black, location: band / H),
