@@ -1752,7 +1752,11 @@ private struct OrbitDetailBackground: View {
         // The hero's picture shown (1) or melted into the ground (0). Steven (2026-10-30, still
         // jerky): set on each of its layers, not on the whole — a whole group fading is drawn apart
         // into a buffer at every frame of the move.
-        let art: Double = dimmed ? 0 : 1
+        // (Steven, 2026-10-31: going back up to the hero, a fraction of a second where the small
+        // title seemed stuck — the page missed frames as the picture came back: at 0 its layers were
+        // dropped and had to be drawn again on the way up. Kept a hair above nothing below the hero:
+        // unseen, ready.)
+        let art: Double = dimmed ? 0.002 : 1
         return ZStack {
             OrbitHomeLayout.background
             // The sections' ground, always under the hero's picture (the picture covers it on the hero):
