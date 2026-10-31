@@ -482,6 +482,8 @@ struct OrbitCollectionGrid: View {
 
     /// The focused platform's colour (the halo), nil for a grey cover.
     @State private var haloColor: Color?
+    /// The halo's next colour comes in from the left (the focus went right), else from the right.
+    @State private var haloFromLeft = true
     /// The platform whose Top 20 is shown (marked while the focus is in its rows).
     @State private var selectedId: String?
     /// The platform's page work, once the row rests.
@@ -502,7 +504,7 @@ struct OrbitCollectionGrid: View {
             // whose colour changes in place (no fade out and in through black).
             // (Steven: the left was too dark — the halo now from the top's middle, even across the
             // screen's width.)
-            OrbitToneHalo(color: haloColor)
+            OrbitToneHalo(color: haloColor, fromLeft: haloFromLeft)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
             // (Steven, trying it: a little darker towards the bottom, as Home's.)
@@ -591,6 +593,11 @@ struct OrbitCollectionGrid: View {
             if OrbitPlatformTrendingRow.restorePending { return }
             // Steven (2026-10-28): coming down from the bar, the focus lands where the system takes it
             // (the tile under the bar's button), as everywhere in the app — no jump to the first one.
+            // (The side the next colour comes in from: the way the focus went.)
+            if let old, let from = entries.firstIndex(where: { $0.id == old }),
+               let to = entries.firstIndex(where: { $0.id == id }), from != to {
+                haloFromLeft = to > from
+            }
             Self.lastFocused = id
             scrollLine = "grid-top"
             // Steven (2026-10-30, video of Plateformes measured: frames missed early in every slide,
