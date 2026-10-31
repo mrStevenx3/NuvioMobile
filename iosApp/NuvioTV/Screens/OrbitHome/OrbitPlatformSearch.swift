@@ -17,6 +17,9 @@ import UIKit
 
 @MainActor
 final class OrbitPlatformSearchModel: ObservableObject {
+    /// The focused result, for the art behind the whole page (Steven, 2026-10-31: drawn behind the
+    /// results only, it left a black band at the top of the screen).
+    let spotlight = OrbitSearchSpotlight()
     @Published private(set) var titles: [MetaPreview] = []
     @Published private(set) var queryIsEmpty = true
     @Published private(set) var searching = false
@@ -116,6 +119,11 @@ struct OrbitPlatformSearchLayer: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.black.opacity(0.94).ignoresSafeArea()
+            // The focused result's colour over the whole screen, from its very top.
+            OrbitSearchBackdrop(spotlight: model.spotlight)
+                .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             OrbitPlatformSearchContainer(model: model, placeholder: String(localized: "Rechercher sur \(platform)"),
                                          onOpen: { item in
                                              model.recordSearch()
@@ -146,6 +154,7 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         let coordinator = context.coordinator
         let results = OrbitSearchResultsController(feed: model.feed, landscape: model.landscape,
+                                                   spotlight: model.spotlight,
                                                    onPick: { coordinator.setQuery($0) }, onOpen: onOpen)
         let search = UISearchController(searchResultsController: results)
         coordinator.search = search

@@ -75,7 +75,9 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     private var titles: [String: MetaPreview] = [:]
     private var cancellables = Set<AnyCancellable>()
     /// Steven (2026-10-25): the focused result's art behind the results, as on Home.
-    private let spotlight = OrbitSearchSpotlight()
+    private let spotlight: OrbitSearchSpotlight
+    /// The art drawn here, behind the results (off: the page draws it, over the whole screen).
+    private let drawsBackdrop: Bool
 
     static let columns = 7
     static let landscapeColumns = 4
@@ -86,10 +88,12 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
         self.init(feed: .search(model), onPick: onPick, onOpen: onOpen)
     }
 
-    init(feed: OrbitSearchFeed, landscape: Bool = false,
+    init(feed: OrbitSearchFeed, landscape: Bool = false, spotlight: OrbitSearchSpotlight? = nil,
          onPick: @escaping (String) -> Void, onOpen: @escaping (MetaPreview) -> Void) {
         self.feed = feed
         self.landscape = landscape
+        self.spotlight = spotlight ?? OrbitSearchSpotlight()
+        self.drawsBackdrop = spotlight == nil
         self.onPick = onPick
         self.onOpen = onOpen
         super.init(nibName: nil, bundle: nil)
@@ -107,14 +111,16 @@ final class OrbitSearchResultsController: UIViewController, UICollectionViewDele
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        let backdrop = UIHostingController(rootView: OrbitSearchBackdrop(spotlight: spotlight))
-        backdrop.view.backgroundColor = .clear
-        backdrop.view.frame = view.bounds
-        backdrop.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        backdrop.view.isUserInteractionEnabled = false
-        addChild(backdrop)
-        view.addSubview(backdrop.view)
-        backdrop.didMove(toParent: self)
+        if drawsBackdrop {
+            let backdrop = UIHostingController(rootView: OrbitSearchBackdrop(spotlight: spotlight))
+            backdrop.view.backgroundColor = .clear
+            backdrop.view.frame = view.bounds
+            backdrop.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            backdrop.view.isUserInteractionEnabled = false
+            addChild(backdrop)
+            view.addSubview(backdrop.view)
+            backdrop.didMove(toParent: self)
+        }
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: Self.layout(landscape: landscape))
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.backgroundColor = .clear
@@ -434,7 +440,7 @@ final class OrbitSearchSpotlight: ObservableObject {
     @Published var item: MetaPreview?
 }
 
-private struct OrbitSearchBackdrop: View {
+struct OrbitSearchBackdrop: View {
     @ObservedObject var spotlight: OrbitSearchSpotlight
 
     var body: some View {
