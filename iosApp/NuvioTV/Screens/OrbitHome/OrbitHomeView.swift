@@ -371,9 +371,67 @@ struct OrbitRowHeading: View {
 @MainActor
 final class OrbitWashMirror: ObservableObject {
     static let home = OrbitWashMirror()
-    @Published var colourA: Color?
-    @Published var colourB: Color?
-    @Published var opacityB: Double = 0
+    @Published var tone = OrbitWashTone()
+}
+
+/// The wash's colour as hue, saturation, brightness, and how present it is (0: none yet).
+/// Steven (2026-10-31, simulator videos, several times: "ça passe au noir avant de se mettre sur la
+/// bonne couleur" during the change): a cross-fade between two colours mixes them — red and blue
+/// meet in a dull grey-brown half-way, read as going through black. The colour itself now travels,
+/// by its hue (red → purple → blue), staying as lively all the way.
+struct OrbitWashTone: Equatable {
+    var hue: Double = 0
+    var saturation: Double = 0
+    var brightness: Double = 0
+    var presence: Double = 0
+
+    /// `color` as the next tone, its hue taken the short way round from this one's.
+    func heading(to color: Color) -> OrbitWashTone {
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        var next = OrbitWashTone(hue: Double(h), saturation: Double(sat), brightness: Double(b), presence: 1)
+        if presence < 0.01 || saturation < 0.12 {
+            // Nothing shown yet, or a grey: no hue to travel from.
+            return next
+        }
+        if next.saturation < 0.12 {
+            // To a grey: keep the hue, only the colour fades out of it.
+            next.hue = hue
+            return next
+        }
+        while next.hue - hue > 0.5 { next.hue -= 1 }
+        while hue - next.hue > 0.5 { next.hue += 1 }
+        return next
+    }
+}
+
+/// One wash, its colour animatable (drawn afresh at each frame of a change only).
+struct OrbitToneWash: View, Animatable {
+    var tone: OrbitWashTone
+
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
+        get { AnimatablePair(AnimatablePair(tone.hue, tone.saturation), AnimatablePair(tone.brightness, tone.presence)) }
+        set {
+            tone.hue = newValue.first.first
+            tone.saturation = newValue.first.second
+            tone.brightness = newValue.second.first
+            tone.presence = newValue.second.second
+        }
+    }
+
+    var body: some View {
+        var h = tone.hue.truncatingRemainder(dividingBy: 1)
+        if h < 0 { h += 1 }
+        let color = Color(hue: h, saturation: min(1, max(0, tone.saturation)), brightness: min(1, max(0, tone.brightness)))
+        let p = min(1, max(0, tone.presence))
+        return ZStack {
+            OrbitHomeLayout.background
+            // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
+            // screen in the title's colour, evenly.
+            RadialGradient(colors: [color.opacity(0.38 * p), color.opacity(0.22 * p), color.opacity(0.08 * p)],
+                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
+        }
+    }
 }
 
 /// One wash, opaque: the page's ground and the title's colour drawn together into one picture.
@@ -417,8 +475,7 @@ struct OrbitMirroredWash: View {
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack {
-            OrbitWashPicture(color: mirror.colourA)
-            OrbitWashPicture(color: mirror.colourB).opacity(mirror.opacityB)
+            OrbitToneWash(tone: mirror.tone)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
@@ -446,10 +503,7 @@ struct OrbitRowsBackdrop: View {
     /// Two washes cross-fading (one in, the other out, on the same curve). Steven: the colour went
     /// through black (none under the new one), then rose and suddenly darkened (two washes stacked,
     /// then one) — the two now always add up to one.
-    @State private var colourA: Color?
-    @State private var colourB: Color?
-    /// B over A, always in that order: B fades in over A, or out to show A (each opaque).
-    @State private var opacityB: Double = 0
+    @State private var tone = OrbitWashTone()
 
     private func wash(_ color: Color?) -> some View {
         // Steven (2026-10-29: the left too dark): the light from the top's middle, wider — the whole
@@ -465,8 +519,7 @@ struct OrbitRowsBackdrop: View {
     var body: some View {
         let L = OrbitHomeLayout.self
         ZStack {
-            OrbitWashPicture(color: colourA)
-            OrbitWashPicture(color: colourB).opacity(opacityB)
+            OrbitToneWash(tone: tone)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
@@ -511,11 +564,7 @@ struct OrbitRowsBackdrop: View {
             guard id != nil, let mirror else { return }
             var still = Transaction()
             still.disablesAnimations = true
-            withTransaction(still) {
-                mirror.colourA = colourA
-                mirror.colourB = colourB
-                mirror.opacityB = opacityB
-            }
+            withTransaction(still) { mirror.tone = tone }
         }
     }
 
@@ -529,53 +578,22 @@ struct OrbitRowsBackdrop: View {
     // (two see-through washes), now gone — back to his validated 0.3 s.)
     static let fade: Double = 0.3
 
-    /// Until when the last cross-fade runs (a new colour waits for it: see `show`).
-    @State private var fadingUntil: TimeInterval = 0
-    @State private var waiting: Color?
-
     private func show(_ color: Color) {
-        // (Steven, 2026-10-31: "il se trompe parfois de couleur et se remet sur la bonne" — a colour
-        // arriving while the last cross-fade still ran repainted the wash that was fading out, at
-        // once, in the new colour, and the fade turned back: a wrong colour a moment. It now waits
-        // for the fade to end — only the latest colour kept.)
-        let now = ProcessInfo.processInfo.systemUptime
-        OrbitTrace.log("wash show \(color.description) B=\(opacityB) busy=\(now < fadingUntil) mirror=\(mirror != nil)")
-        if now < fadingUntil {
-            let first = waiting == nil
-            waiting = color
-            if first {
-                DispatchQueue.main.asyncAfter(deadline: .now() + (fadingUntil - now) + 0.02) {
-                    guard let next = waiting else { return }
-                    waiting = nil
-                    show(next)
-                }
-            }
-            return
+        let next = tone.heading(to: color)
+        OrbitTrace.log("wash show \(color.description) from h=\(tone.hue) to h=\(next.hue)")
+        if next == tone { return }
+        // (A grey reached from nothing, or a first colour: its hue set at once, only its presence fades.)
+        if tone.presence < 0.01 {
+            var still = Transaction()
+            still.disablesAnimations = true
+            var start = next
+            start.presence = 0
+            withTransaction(still) { tone = start; mirror?.tone = start }
         }
-        waiting = nil
-        let showingB = opacityB > 0.5
-        if (showingB ? colourB : colourA) == color { return }
-        fadingUntil = now + Self.fade + 0.1
-        // (Steven, 2026-10-31, simulator: "ça clignote noir en bas à chaque changement" — the two
-        // washes swapped places at each change, and the one underneath was not drawn a frame or two.)
-        // Now never reordered: B always over A. B shown → the new colour goes into A, hidden under B,
-        // and B fades out; A shown → the new colour goes into B, at nothing, and B fades in.
-        var still = Transaction()
-        still.disablesAnimations = true
-        withTransaction(still) {
-            if showingB { colourA = color } else { colourB = color }
-            if let mirror {
-                mirror.colourA = colourA
-                mirror.colourB = colourB
-                mirror.opacityB = opacityB
-            }
-        }
-        // (The colour just put in drawn a few frames before the fade.)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            withAnimation(.easeInOut(duration: Self.fade)) {
-                opacityB = showingB ? 0 : 1
-                mirror?.opacityB = opacityB
-            }
+        // One wash whose colour travels — a new colour mid-way simply turns it towards the new one.
+        withAnimation(.easeInOut(duration: Self.fade)) {
+            tone = next
+            mirror?.tone = next
         }
     }
 }
