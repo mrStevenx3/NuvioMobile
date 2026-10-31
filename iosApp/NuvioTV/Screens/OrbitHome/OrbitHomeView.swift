@@ -801,7 +801,12 @@ struct OrbitLchHaloView: View, Animatable {
     }
 
     var body: some View {
-        OrbitToneWash(tone: tone.lab, stops: (0.55, 0.30, 0.10), ground: false)
+        // (Drawn here, not through `OrbitToneWash`: that one would animate the values again.)
+        let lab = tone.lab
+        let color = lab.color
+        let p = min(1, max(0, lab.presence))
+        return RadialGradient(colors: [color.opacity(0.55 * p), color.opacity(0.30 * p), color.opacity(0.10 * p)],
+                              center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
     }
 }
 
