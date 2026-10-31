@@ -131,6 +131,8 @@ struct OrbitPlatformSearchLayer: View {
                                          },
                                          onClose: onClose)
                 .ignoresSafeArea()
+            Color.clear.frame(width: 0, height: 0)
+                .onAppear { NotificationCenter.default.post(name: .orbitPlatformSearchAppeared, object: model) }
             if !model.queryIsEmpty, !model.searching, model.titles.isEmpty {
                 Text(String(localized: "Aucun titre sur \(platform) ne correspond."))
                     .font(.system(size: 28, weight: .semibold))
@@ -158,7 +160,7 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
                                                    spotlight: model.spotlight,
                                                    onPick: { coordinator.setQuery($0) },
                                                    onOpen: { [weak host] item in
-                                                       host?.openedAt = ProcessInfo.processInfo.systemUptime
+                                                       host?.titleOpened()
                                                        onOpen(item)
                                                    })
         let search = UISearchController(searchResultsController: results)
@@ -169,6 +171,7 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
 
         let container = UISearchContainerViewController(searchController: search)
         host.searchBar = search.searchBar
+        host.model = model
         host.results = results
         host.onClose = onClose
         host.addChild(container)
@@ -229,6 +232,35 @@ private final class OrbitPlatformSearchHost: UIViewController {
     private var closed = false
     /// A title was opened from the results (the focus going to its page is not a leaving).
     var openedAt: TimeInterval = 0
+    /// The page's search model: its layer says when it is on screen again (`orbitPlatformSearchAppeared`).
+    weak var model: OrbitPlatformSearchModel?
+
+    /// Steven (2026-10-31, again: "il repasse par le a quand je sors d'une affiche"): the search is a
+    /// layer of the platform's page, not a page of its own — on the way back from a title the
+    /// system's views never told this host they appeared again, so nothing kept the keyboard away:
+    /// the system's landing went to it first. The keyboard is now put out of reach as the title
+    /// opens, and given back once its poster has the focus again.
+    func titleOpened() {
+        openedAt = ProcessInfo.processInfo.systemUptime
+        searchBar?.isUserInteractionEnabled = false
+    }
+
+    /// The layer is on screen again: back from a title, its poster gets the focus.
+    @objc private func layerAppeared(_ note: Notification) {
+        guard note.object as AnyObject? === model else { return }
+        guard results?.hasRestore == true, let target = results?.prepareRestore() else {
+            searchBar?.isUserInteractionEnabled = true
+            return
+        }
+        returning = true
+        focusTarget = target
+        setNeedsFocusUpdate()
+        restoreOpenedTitle(attempt: 0)
+        // (Never left out of reach: the keyboard comes back whatever happened.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+            self?.searchBar?.isUserInteractionEnabled = true
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -238,6 +270,8 @@ private final class OrbitPlatformSearchHost: UIViewController {
         view.addGestureRecognizer(menu)
         NotificationCenter.default.addObserver(self, selector: #selector(focusMoved(_:)),
                                                name: UIFocusSystem.didUpdateNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(layerAppeared(_:)),
+                                               name: .orbitPlatformSearchAppeared, object: nil)
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -373,4 +407,10 @@ private final class OrbitPlatformSearchHost: UIViewController {
         updateFocusIfNeeded()
         focusTarget = nil
     }
+}
+
+
+extension Notification.Name {
+    /// A platform's search layer is on screen (again, back from a title).
+    static let orbitPlatformSearchAppeared = Notification.Name("orbitPlatformSearchAppeared")
 }
