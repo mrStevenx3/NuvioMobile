@@ -31,6 +31,9 @@ struct OrbitStudioRoute: Hashable {
     let logo: String?
     let collectionId: String?
     let folderId: String?
+    /// Steven (2026-10-31): one of Disney+'s brand pages (Disney, Pixar, Marvel, Star Wars, National
+    /// Geographic) — Disney+'s ground and bar, no studio logo in the corner. Not part of the identity.
+    var disneyPlus = false
     /// Each opening is its own page (see `FolderRoute.openedAt`); not part of the identity.
     var openedAt: TimeInterval = ProcessInfo.processInfo.systemUptime
 
@@ -298,14 +301,37 @@ struct OrbitStudioPage: View {
         let scroll: CGFloat = count == 0 || onHero || (!hasHero && index == 0) ? 0 : L.rowLine - anchors[index]
 
         ZStack(alignment: .topLeading) {
-            OrbitStudioBackground(brand: brand)
+            if route.disneyPlus {
+                // Steven (2026-10-31: "il faut qu'ils reprennent la couleur de fond Disney+"): Disney+'s
+                // own ground, as its page draws it.
+                OrbitDisneyGround()
+            } else {
+                OrbitStudioBackground(brand: brand)
+            }
             // Steven (2026-10-29: "intérieur studio comme accueil"): in the rows, the focused title's
             // colour washes the page as on Home (same wash, same 250 ms rest and 0.45 s fade); the
             // banner keeps the studio's own colour.
             // (Steven, 2026-10-29, after trying it: a studio keeps its own colour — no title wash.)
 
                             nativeContent
-            
+
+            // Disney+'s bar stays (Steven: "pour montrer qu'on est toujours sur l'application"):
+            // Accueil, Disney+ or Hulu goes back to Disney+'s page on that tab, Search to its search.
+            if route.disneyPlus {
+                CollectionFilterBar(filter: Binding(get: { nil }, set: { _ in leaveForDisney(mode: 0) }),
+                                    onSearch: { leaveForDisney(search: true) },
+                                    showsTypes: false, showsAll: true,
+                                    switchItems: ["Disney+", "Hulu"],
+                                    switchSelection: Binding(get: { -1 }, set: { leaveForDisney(mode: $0 + 1) }),
+                                    switchLogo: { index, lit in
+                                        AnyView(OrbitDisneyBrandLogo(hulu: index == 1, logoURL: OrbitDisneyBridge.shared.logoURL,
+                                                                     height: 46, dark: lit, alignment: .center))
+                                    }, centreLeads: true,
+                                    searchTrailing: OrbitPlatformIntro.searchInCorner,
+                                    placesEntryFocus: false)
+                    // (Reached from the banner only, as on Disney+'s page.)
+                    .disabled(!nativeOnHero)
+            }
 
             // The studio's opening, over everything from the first frame (the catalogue never
             // shows before it).
@@ -324,7 +350,7 @@ struct OrbitStudioPage: View {
         }
         .onAppear {
             tabBarVisibility.pushImmersive()
-            OrbitHomeButtonHost.shared.enter(.onRequest)
+            OrbitHomeButtonHost.shared.enter(route.disneyPlus ? .ownBar : .onRequest)
             model.start()
             trailer.restSource = .custom(motion)
             nativeTrailers.suspended = false
@@ -341,7 +367,7 @@ struct OrbitStudioPage: View {
         }
         .onDisappear {
             tabBarVisibility.popImmersive()
-            OrbitHomeButtonHost.shared.leave(.onRequest)
+            OrbitHomeButtonHost.shared.leave(route.disneyPlus ? .ownBar : .onRequest)
             trailer.reset(abortStages: true)
             nativeTrailers.stop(abort: true)
             nativeTrailers.suspended = true
@@ -373,6 +399,15 @@ struct OrbitStudioPage: View {
     private func trailerURL(for item: MetaPreview?) -> String? {
         guard let item, trailerKey == "\(item.type):\(item.id)" else { return nil }
         return trailer.playingURL
+    }
+
+    @Environment(\.dismiss) private var dismiss
+
+    /// Disney+'s brand page: back to Disney+'s page, on the tab chosen in its bar (or its search).
+    private func leaveForDisney(mode: Int? = nil, search: Bool = false) {
+        OrbitDisneyBridge.shared.pendingMode = mode
+        OrbitDisneyBridge.shared.pendingSearch = search
+        dismiss()
     }
 
     /// The studio's colour from its logo when no brand colour is known.
@@ -471,7 +506,7 @@ struct OrbitStudioPage: View {
             }
             .frame(width: OrbitStudioIntro.cornerBox.width, height: OrbitStudioIntro.cornerBox.height, alignment: .topTrailing)
             .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
-            .opacity(introDone && (hasHero || !nativeOnHero) ? 1 : 0)
+            .opacity(introDone && !route.disneyPlus && (hasHero || !nativeOnHero) ? 1 : 0)
             .offset(x: OrbitHomeLayout.screenWidth - OrbitStudioIntro.cornerTrailing - OrbitStudioIntro.cornerBox.width,
                     y: OrbitStudioIntro.cornerTop)
             .allowsHitTesting(false)

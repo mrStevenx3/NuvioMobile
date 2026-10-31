@@ -796,6 +796,8 @@ struct CollectionFilterBar: View {
     /// platform): its gap to the screen's right edge — left of the platform's corner logo.
     var searchTrailing: CGFloat? = nil
     private var searchApart: Bool { searchTrailing != nil }
+    /// The bar takes the focus as its page opens (off on Disney+'s brand pages: the page keeps it).
+    var placesEntryFocus = true
 
     @FocusState private var focused: OrbitBarItem?
     @FocusState private var switchFocused: Int?
@@ -922,7 +924,7 @@ struct CollectionFilterBar: View {
             }
         }
         .onAppear {
-            guard !placedEntryFocus else { return }
+            guard !placedEntryFocus, placesEntryFocus else { return }
             placedEntryFocus = true
             guard showsTypes else {
                 // No Films / Séries: the entry lands on the centre pill's selected item.

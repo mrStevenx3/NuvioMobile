@@ -1263,8 +1263,12 @@ struct OrbitDetailView: View {
                 .padding(.top, 34)
             // On their own line under it (beside it, they cut the genres short).
             // Steven (2026-10-31: "ça apparaît d'un coup sec"): the badges fade in as the sources tell them.
-            OrbitQualityBadges(quality: quality.found)
-                .animation(.easeOut(duration: 0.35), value: quality.found)
+            // (Nothing slides: the row fades from one set of badges to the next.)
+            ZStack(alignment: .leading) {
+                OrbitQualityBadges(quality: quality.found)
+                    .id(quality.found.rawValue)
+                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
+            }
                 .frame(height: 30, alignment: .leading)
                 .padding(.top, 8)
             // Steven (Apple TV style): the synopsis on the buttons' line, its arrow opens it in
@@ -1322,10 +1326,9 @@ struct OrbitDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     // Steven (2026-10-31: what the details bring comes in fading): the synopsis too,
                     // when the page opened without one.
-                    .transition(.opacity)
+                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
                 }
             }
-            .animation(.easeOut(duration: 0.35), value: overview != nil)
             .padding(.top, 36)
             .focusSection()
             // The cast and the direction, small, bottom right.
@@ -1356,19 +1359,21 @@ struct OrbitDetailView: View {
             if !actors.isEmpty {
                 (Text(String(localized: "Avec ")).foregroundStyle(Color.white.opacity(0.6))
                  + Text(actors.joined(separator: ", ")).foregroundStyle(Color.white))
+                    .id("cast-" + actors.joined())
+                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
             }
             if !directors.isEmpty {
                 (Text(String(localized: "Réalisé par ")).foregroundStyle(Color.white.opacity(0.6))
                  + Text(directors.joined(separator: ", ")).foregroundStyle(Color.white))
+                    .id("direction-" + directors.joined())
+                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
             }
         }
         .font(.system(size: 23, weight: .medium))
         .lineLimit(1)
         .multilineTextAlignment(.trailing)
         // (Steven, 2026-10-30: no shadow on the synopsis nor the cast here — "pas fan".)
-        // Steven (2026-10-31: "Avec…" came in at once, as the genre line did): it fades in as the
-        // details bring it, as the meta line.
-        .animation(.easeOut(duration: 0.35), value: actors.joined() + "|" + directors.joined())
+        // (Steven, 2026-10-31: "Avec…" came in at once — each line fades in where it lands.)
     }
 
     @ViewBuilder
@@ -1918,11 +1923,14 @@ private struct OrbitDetailMetaLine: View {
         if let year { parts.append(year) }
         if let runtime { parts.append(runtime) }
         if !genres.isEmpty { parts.append(genres.joined(separator: ", ")) }
-        let signature = parts.joined(separator: " · ") + "|" + (age ?? "") + "|" + (rating ?? "")
+        // Steven (2026-10-31: "l'étoile de la note arrive par la gauche au lieu d'arriver en fondu"):
+        // each piece fades in where it lands — nothing slides (the line's layout is never animated).
+        let fade = AnyTransition.opacity.animation(.easeOut(duration: 0.35))
         return HStack(spacing: 14) {
             if !parts.isEmpty {
                 Text(parts.joined(separator: " · "))
-                    .contentTransition(.opacity)
+                    .id(parts.joined(separator: " · "))
+                    .transition(fade)
             }
             if let age, !age.isEmpty {
                 Text(age)
@@ -1930,12 +1938,16 @@ private struct OrbitDetailMetaLine: View {
                     .padding(.horizontal, 9)
                     .padding(.vertical, 2)
                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.8), lineWidth: 2))
+                    .id("age-" + age)
+                    .transition(fade)
             }
             if let rating {
                 HStack(spacing: 6) {
                     Image(systemName: "star.fill").foregroundStyle(Color(red: 1, green: 0.78, blue: 0.2))
                     Text(rating)
                 }
+                .id("rating-" + rating)
+                .transition(fade)
             }
         }
         .font(.system(size: 28, weight: .semibold))
@@ -1945,7 +1957,6 @@ private struct OrbitDetailMetaLine: View {
         // the page opens, and what the details add later (runtime, age, rating) fades in too.
         .opacity(appeared ? 1 : 0)
         .animation(.easeOut(duration: 0.35), value: appeared)
-        .animation(.easeOut(duration: 0.35), value: signature)
         .onAppear { DispatchQueue.main.async { appeared = true } }
     }
 

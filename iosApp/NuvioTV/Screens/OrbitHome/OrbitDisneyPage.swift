@@ -532,6 +532,18 @@ struct OrbitDisneyPage: View {
             // the bar overruled). The bar itself never locked (Steven: the house out of reach).
             // (The way back to the pill or to TOUT PARCOURIR is the hub's own — Steven, 2026-10-31:
             // this page's asks for the pills sent the focus to the house on TOUT PARCOURIR's way back.)
+            // Back from a brand page by its bar: Disney+'s page on the tab chosen there (or its search).
+            let bridge = OrbitDisneyBridge.shared
+            if let wanted = bridge.pendingMode {
+                bridge.pendingMode = nil
+                barLocked = false
+                if wanted != mode { mode = wanted }
+            }
+            if bridge.pendingSearch {
+                bridge.pendingSearch = false
+                barLocked = false
+                DispatchQueue.main.async { openSearch() }
+            }
             if studioOpened {
                 studioOpened = false
                 let appeared = ProcessInfo.processInfo.systemUptime
@@ -742,6 +754,7 @@ struct OrbitDisneyPage: View {
                 if let pushStudio {
                     studioOpened = true
                     barLocked = true
+                    OrbitDisneyBridge.shared.logoURL = brandLogoURL
                     OrbitStudioIntro.skipNext = true
                     OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
                     pushStudio(route)
@@ -1399,6 +1412,32 @@ func orbitIsHuluTitle(_ meta: OrbitMeta?) -> Bool {
 }
 
 /// Disney+'s or Hulu's logo in white (black on a focused white pill).
+/// Disney+'s brand pages and Disney+'s page: what the brand page's bar asked for on its way back.
+@MainActor
+final class OrbitDisneyBridge {
+    static let shared = OrbitDisneyBridge()
+    /// Disney+'s logo, for the brand page's bar.
+    var logoURL: String?
+    /// The tab chosen there (0 Accueil, 1 Disney+, 2 Hulu), or its search.
+    var pendingMode: Int?
+    var pendingSearch = false
+}
+
+/// Disney+'s ground (its page's and its brand pages').
+struct OrbitDisneyGround: View {
+    var body: some View {
+        ZStack {
+            OrbitDisneyLayout.background
+            // (Newest app: a lighter slate in the top left corner.)
+            RadialGradient(colors: [OrbitDisneyLayout.backgroundGlow.opacity(0.7), .clear],
+                           center: .topLeading, startRadius: 0, endRadius: 1400)
+        }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
 struct OrbitDisneyBrandLogo: View {
     let hulu: Bool
     let logoURL: String?
@@ -1510,7 +1549,8 @@ struct OrbitDisneyBrand {
         // studio's page from his folders.
         if company.hasPrefix("list:") {
             return OrbitStudioRoute(name: name, companies: company, isNetwork: false,
-                                    logo: OrbitStudioLogos.url(forTitle: name), collectionId: nil, folderId: nil)
+                                    logo: OrbitStudioLogos.url(forTitle: name), collectionId: nil, folderId: nil,
+                                    disneyPlus: true)
         }
         if let found = folder { return .folder(collectionId: found.collectionId, folder: found.folder) }
         return OrbitStudioRoute(name: name, companies: company, isNetwork: false,
