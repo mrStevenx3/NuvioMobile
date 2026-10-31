@@ -227,6 +227,8 @@ struct OrbitStudiosPage: View {
                                                          height: OrbitHomeLayout.screenWidth * 9 / 16),
                                            fill: true, scale: displayScale)
         let raws = folders.compactMap { bannerURL($0) }
+        let lifts = folders.compactMap { folder in bannerURL(folder).map { ($0, OrbitStudioFrame.lift(title: folder.title)) } }
+        let scale = displayScale
         Task(priority: .utility) {
             // Steven (2026-10-31, slow motion of the tabs: the cross-fade to Studios jerky all along):
             // a dozen large pictures were decoded and blurred at the very moment the page came in.
@@ -242,6 +244,10 @@ struct OrbitStudiosPage: View {
                     _ = try? await ArtworkStore.fetch(best, decode: request)
                 }
                 await OrbitPreBlurred.prepare(raw, radius: 16)
+            }
+            // Each studio's banner pictures made ahead too (a change only fades two pictures).
+            for (raw, lift) in lifts {
+                await OrbitStudioBake.make(raw, lift: lift, scale: scale)
             }
         }
     }
@@ -335,8 +341,12 @@ struct OrbitStudiosPage: View {
     /// Steven (2026-10-24): the name follows the focus — right on the tiles, it leaves to the right
     /// and the next one comes in from the left.
     /// Steven (2026-10-26): the logo in a plain fade, nothing else (no glide).
+    /// (Steven, 2026-10-31, slow motion: the old studio's logo and the new one were seen over each
+    /// other a moment, the new picture already there — the old one now goes at once, the new one
+    /// comes as it has gone, with the picture.)
     private var slide: AnyTransition {
-        .opacity.animation(.easeInOut(duration: 0.35))
+        .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.08)),
+                    removal: .opacity.animation(.easeIn(duration: 0.08)))
     }
 
     /// Fixed places (Steven: from Disney to Pixar the logo moved, the block was centred and its
@@ -422,6 +432,9 @@ private struct OrbitStudioFrame: View {
                                      .init(color: .black, location: 0.92),
                                      .init(color: .clear, location: 1)],
                              startPoint: .top, endPoint: .bottom))
+        // (Steven, 2026-10-31: drawn once into one plain picture with its mask — the mask was worked
+        // out again at every frame of a banner's change.)
+        .drawingGroup()
         // (Steven, 2026-10-26: the image in a plain fade — no glide, no zoom.)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -452,18 +465,9 @@ struct OrbitBalancedLogo: View {
             if let image, image.size.width > 0, image.size.height > 0 {
                 let fitted = Self.size(aspect: image.size.width / image.size.height, area: area, max: maxSize)
                 let picture = Image(uiImage: image).resizable().aspectRatio(contentMode: .fit)
-                Group {
-                    if whiten {
-                        // Steven: Pixar's and Ghibli's thin, half-transparent lines read pale even
-                        // whitened — drawn three times over, they come out solid white.
-                        ZStack {
-                            ForEach(0..<3, id: \.self) { _ in picture.colorMultiply(.black).colorInvert() }
-                        }
-                    } else {
-                        picture
-                    }
-                }
-                .frame(width: fitted.width, height: fitted.height)
+                // (A grey logo comes whitened in its picture itself — see `load`.)
+                picture
+                    .frame(width: fitted.width, height: fitted.height)
             }
         }
         .frame(width: maxSize.width, height: maxSize.height, alignment: alignment)
@@ -482,8 +486,40 @@ struct OrbitBalancedLogo: View {
         guard let address = URL(string: url) else { image = nil; return }
         let request = ArtworkDecodeRequest(size: .points(width: maxSize.width, height: maxSize.height),
                                            fill: false, scale: displayScale)
-        if let hit = ArtworkStore.cached(address, decode: request) { image = hit; return }
-        image = try? await ArtworkStore.fetch(address, decode: request)
+        let key = "\(url)|\(maxSize.width)x\(maxSize.height)|\(displayScale)" as NSString
+        if whiten, let ready = Self.white.object(forKey: key) { image = ready; return }
+        var found = ArtworkStore.cached(address, decode: request)
+        if found == nil { found = try? await ArtworkStore.fetch(address, decode: request) }
+        guard let found else { image = nil; return }
+        guard whiten else { image = found; return }
+        // Steven: Pixar's and Ghibli's thin, half-transparent lines read pale even whitened — drawn
+        // three times over, they come out solid white. (Steven, 2026-10-31: made once into the
+        // picture — three filtered copies were worked out again at every frame of a change.)
+        let whitened = Self.whitened(found)
+        Self.white.setObject(whitened, forKey: key)
+        image = whitened
+    }
+
+    nonisolated(unsafe) private static let white: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 20
+        return cache
+    }()
+
+    /// The logo in white, its lines laid three times over (as three white copies stacked).
+    private static func whitened(_ logo: UIImage) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = logo.scale
+        format.opaque = false
+        let rect = CGRect(origin: .zero, size: logo.size)
+        let silhouette = UIGraphicsImageRenderer(size: logo.size, format: format).image { ctx in
+            logo.draw(in: rect)
+            UIColor.white.setFill()
+            ctx.fill(rect, blendMode: .sourceIn)
+        }
+        return UIGraphicsImageRenderer(size: logo.size, format: format).image { _ in
+            for _ in 0..<3 { silhouette.draw(in: rect) }
+        }
     }
 }
 
@@ -801,61 +837,162 @@ private struct OrbitStudioFilmPoster: View {
 private struct OrbitStudiosBackdrop: View {
     let url: String?
     var lift: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
+
+    /// One studio's two pictures, made once: the sharp banner with its foot already faded, the
+    /// blurred continuation already darkened and faded (no mask left to work out at each frame).
+    private struct Shown {
+        let generation: Int
+        let sharp: UIImage
+        let blurred: UIImage
+    }
+    @State private var shown: Shown?
+    @State private var generation = 0
+    @State private var instant = false
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
         let band = OrbitStudioFrame.bannerSize.height
-        // (Steven, 2026-10-30: "une latence pour que l'image se change, le fondu pas fluide — je
-        // n'avais pas ce problème avant": drawn larger for the glide, the image was decoded anew at
-        // each change (the page fetches it ahead at the screen's width), and the still glide's
-        // hosting delayed it. Back at the screen's width, drawn in place.)
-        let full = CGSize(width: W, height: W * 9 / 16)
-        let spare = max(0, W * 9 / 16 - band) / 2
-        Group {
-            ZStack(alignment: .top) {
-                // The same image blurred, at the very place of the sharp one (its centre on the
-                // banner's), stretched down from the seam to reach the screen's bottom.
-                // (Steven, 2026-10-30: a bar at the bottom — drawn a little larger again, and
-                // stretched enough to reach the screen's foot.)
-                // Steven (2026-10-31: "le flou décale l'image du dessous" — the blurred copy was drawn
-                // larger and stretched; then "on voit l'image qui descend et remonte en bas" and "la
-                // couleur en fond… de l'affiche, pas de la pancarte du studio"):
-                // · under everything, the picture's own colours (the description page's thick blur:
-                //   no shape, so nothing can be seen moving);
-                // · over it, the blurred copy at exactly the sharp picture's size and place, fading
-                //   into those colours at one fixed line for every studio (the same foot always).
-                OrbitThickBlur(url: url)
-                // (Steven, 2026-10-31: on Lucasfilm a picture went down at the bottom — its lift moved
-                // the blurred copy, the old studio's one with it as it faded. Each picture's copy now
-                // keeps its own place.)
-                // (Steven, 2026-10-31, video: then something at the icons on each change — the copy,
-                // made anew for each studio, came a beat after the old one had gone. It now changes
-                // in place, on the sharp picture's very curve, the old one kept until covered.)
-                OrbitPreBlurred(url: url, radius: 16, shiftY: spare * lift, withSharp: true)
-                    .offset(y: band / 2 - H / 2)
-                    .frame(width: W, height: H)
-                    .overlay(Color.black.opacity(0.22))
-                    .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                                 .init(color: .black, location: band / H),
-                                                 .init(color: .clear, location: (band + 135) / H)],
-                                         startPoint: .top, endPoint: .bottom))
-                OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
-                    .frame(width: full.width, height: full.height)
-                    .frame(width: full.width, height: band)
-                    .clipped()
-                    .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                                 .init(color: .black, location: 0.88),
-                                                 .init(color: .clear, location: 1)],
-                                         startPoint: .top, endPoint: .bottom))
-                    .frame(width: W, height: band)
+        // Steven (2026-10-31, slow motion: "ton avis sur la transition") — the cross-fade showed only
+        // three or four steps: the masks over the full-screen sharp and blurred pictures were worked
+        // out again at every frame of it. Each studio's pictures now carry their fades themselves
+        // (made once, ahead, off the main thread), and the change is two plain pictures fading, the
+        // new one over the old one, the old one going once covered (as every banner here).
+        let swap: AnyTransition = instant ? .identity
+            : .asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
+                          removal: .opacity.animation(.linear(duration: 0.01).delay(0.26)))
+        ZStack(alignment: .top) {
+            // Under everything, the picture's own colours (the description page's thick blur).
+            OrbitThickBlur(url: url)
+            ZStack {
+                if let shown {
+                    Image(uiImage: shown.blurred)
+                        .resizable()
+                        .frame(width: W, height: H)
+                        .id(shown.generation)
+                        .zIndex(Double(shown.generation))
+                        .transition(swap)
+                }
             }
             .frame(width: W, height: H, alignment: .top)
+            ZStack {
+                if let shown {
+                    Image(uiImage: shown.sharp)
+                        .resizable()
+                        .frame(width: W, height: band)
+                        .id(shown.generation)
+                        .zIndex(Double(shown.generation))
+                        .transition(swap)
+                }
+            }
+            .frame(width: W, height: band)
         }
-        .frame(width: W, height: H)
+        .frame(width: W, height: H, alignment: .top)
         .clipped()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+        .task(id: "\(url ?? "-")|\(lift)") {
+            guard let url else { return }
+            let scale = displayScale
+            if let ready = OrbitStudioBake.ready(url, lift: lift, scale: scale) {
+                put(ready)
+                return
+            }
+            guard let made = await OrbitStudioBake.make(url, lift: lift, scale: scale), !Task.isCancelled else { return }
+            put(made)
+        }
+    }
+
+    private func put(_ pair: (sharp: UIImage, blurred: UIImage)) {
+        instant = shown == nil
+        generation &+= 1
+        shown = Shown(generation: generation, sharp: pair.sharp, blurred: pair.blurred)
+    }
+}
+
+/// The Studios banner's pictures, made once per studio (and ahead, as the page opens).
+enum OrbitStudioBake {
+    nonisolated(unsafe) private static let made: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        // (The sharp ones are 4K-wide pictures: kept by their weight, the oldest let go first.)
+        cache.totalCostLimit = 220 * 1024 * 1024
+        return cache
+    }()
+
+    private static func key(_ url: String, _ lift: CGFloat, _ kind: String) -> NSString {
+        "\(url)|\(lift)|\(kind)" as NSString
+    }
+
+    @MainActor
+    static func ready(_ url: String, lift: CGFloat, scale: CGFloat) -> (sharp: UIImage, blurred: UIImage)? {
+        guard let sharp = made.object(forKey: key(url, lift, "sharp\(scale)")),
+              let blurred = made.object(forKey: key(url, lift, "blurred")) else { return nil }
+        return (sharp, blurred)
+    }
+
+    /// The sharp banner (the screen's width, the banner's height, its foot faded from 88 %) and the
+    /// blurred continuation (the screen, darkened, faded out 135 pt under the banner), each at the
+    /// very place the page showed them.
+    @MainActor
+    @discardableResult
+    static func make(_ url: String, lift: CGFloat, scale: CGFloat) async -> (sharp: UIImage, blurred: UIImage)? {
+        if let ready = ready(url, lift: lift, scale: scale) { return ready }
+        let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
+        let band = OrbitStudioFrame.bannerSize.height
+        let fullH = W * 9 / 16
+        let shift = max(0, fullH - band) / 2 * lift
+        let request = ArtworkDecodeRequest(size: .points(width: W, height: fullH), fill: true, scale: scale)
+        guard let main = URL(string: url) else { return nil }
+        let best = ArtworkURLUpgrade.upgraded(main, role: .backdrop)
+        var source: UIImage?
+        for candidate in [best, main].compactMap({ $0 }) {
+            if let hit = ArtworkStore.cached(candidate, decode: request) { source = hit; break }
+            if let fetched = try? await ArtworkStore.fetch(candidate, decode: request) { source = fetched; break }
+        }
+        guard let source else { return nil }
+        guard let soft = await OrbitPreBlurred.prepare(url, radius: 16) else { return nil }
+        let pair: (UIImage, UIImage) = await Task.detached(priority: .userInitiated) {
+            // The sharp banner: the 16:9 picture centred on the banner, lowered by its lift, cut to
+            // the banner, its foot fading from 88 % to nothing.
+            let sharpFormat = UIGraphicsImageRendererFormat()
+            sharpFormat.scale = scale
+            sharpFormat.opaque = false
+            let sharp = UIGraphicsImageRenderer(size: CGSize(width: W, height: band), format: sharpFormat).image { ctx in
+                source.draw(in: CGRect(x: 0, y: (band - fullH) / 2 + shift, width: W, height: fullH))
+                Self.fade(ctx.cgContext, from: band * 0.88, to: band)
+            }
+            // The blurred copy: the screen, the picture centred where the sharp one is, darkened,
+            // fading out under the banner. (Half the screen's pixels: it is a blur.)
+            let softFormat = UIGraphicsImageRendererFormat()
+            softFormat.scale = 0.5
+            softFormat.opaque = false
+            let blurred = UIGraphicsImageRenderer(size: CGSize(width: W, height: H), format: softFormat).image { ctx in
+                soft.draw(in: CGRect(x: 0, y: band / 2 - H / 2 + shift, width: W, height: H))
+                UIColor.black.withAlphaComponent(0.22).setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: W, height: H), blendMode: .normal)
+                Self.fade(ctx.cgContext, from: band, to: band + 135)
+            }
+            return (sharp, blurred)
+        }.value
+        made.setObject(pair.0, forKey: key(url, lift, "sharp\(scale)"), cost: Self.weight(pair.0))
+        made.setObject(pair.1, forKey: key(url, lift, "blurred"), cost: Self.weight(pair.1))
+        return pair
+    }
+
+    private static func weight(_ image: UIImage) -> Int {
+        Int(image.size.width * image.scale * image.size.height * image.scale * 4)
+    }
+
+    /// Keeps what is drawn above `from`, fades it to nothing at `to`, clears what is below.
+    nonisolated private static func fade(_ context: CGContext, from: CGFloat, to: CGFloat) {
+        let space = CGColorSpaceCreateDeviceRGB()
+        let colors = [UIColor.black.cgColor, UIColor.black.withAlphaComponent(0).cgColor] as CFArray
+        guard let gradient = CGGradient(colorsSpace: space, colors: colors, locations: [0, 1]) else { return }
+        context.saveGState()
+        context.setBlendMode(.destinationIn)
+        context.drawLinearGradient(gradient, start: CGPoint(x: 0, y: from), end: CGPoint(x: 0, y: to),
+                                   options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        context.restoreGState()
     }
 }
 
