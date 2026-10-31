@@ -608,12 +608,6 @@ struct OrbitMdbListListsPage: View {
 struct OrbitAboutSection: View {
     @AppStorage("debug.streamProbe") private var streamDiagnostics = false
     @State private var cacheCleared = false
-    // (Temporary: the title page's smoothness diagnostic — `OrbitDiag`.)
-    @AppStorage(OrbitDiag.groundKey) private var diagGround = false
-    @AppStorage(OrbitDiag.artKey) private var diagArt = false
-    @AppStorage(OrbitDiag.titleKey) private var diagTitle = false
-    @AppStorage(OrbitDiag.shadowsKey) private var diagShadows = false
-    @AppStorage(OrbitDiag.heroKey) private var diagHero = false
 
     var body: some View {
         OrbitSettingsGroup(title: String(localized: "Orbit")) {
@@ -638,25 +632,6 @@ struct OrbitAboutSection: View {
         }
         .frame(width: OrbitSettingsLayout.rowWidth)
         .padding(.vertical, 6)
-
-        // Steven (2026-10-30): one switch at a time, then a title's page — which one makes it smooth.
-        OrbitSettingsGroup(title: "Diagnostic fluidité (page d'un titre)") {
-            OrbitSettingsToggle(title: "1 · Couper le fond flouté",
-                                subtitle: "Sous les rangées, un fond uni à la place du flou.",
-                                isOn: $diagGround)
-            OrbitSettingsToggle(title: "2 · Retirer l'image du film en descendant",
-                                subtitle: "L'image du haut enlevée au lieu d'être rendue invisible.",
-                                isOn: $diagArt)
-            OrbitSettingsToggle(title: "3 · Couper le petit titre",
-                                subtitle: "Le titre au-dessus de la première rangée.",
-                                isOn: $diagTitle)
-            OrbitSettingsToggle(title: "4 · Couper les ombres des vignettes",
-                                subtitle: "Saga, À voir aussi, épisodes…",
-                                isOn: $diagShadows)
-            OrbitSettingsToggle(title: "5 · Masquer le haut de page en descendant",
-                                subtitle: "Pour remonter, utilise le bouton Menu.",
-                                isOn: $diagHero)
-        }
 
         OrbitSettingsGroup(title: String(localized: "Diagnostic")) {
             OrbitSettingsToggle(title: String(localized: "Diagnostic des sources"),

@@ -3022,11 +3022,13 @@ enum OrbitDiag {
     static let titleKey = "diag.detail.noTitle"
     static let shadowsKey = "diag.detail.noShadows"
     static let heroKey = "diag.detail.noHero"
-    static var noGround: Bool { UserDefaults.standard.bool(forKey: groundKey) }
-    static var noArt: Bool { UserDefaults.standard.bool(forKey: artKey) }
-    static var noTitle: Bool { UserDefaults.standard.bool(forKey: titleKey) }
-    static var noShadows: Bool { UserDefaults.standard.bool(forKey: shadowsKey) }
-    static var noHero: Bool { UserDefaults.standard.bool(forKey: heroKey) }
+    // (Steven, 2026-10-31: the diagnostic is over — its switches gone from Réglages, the page always
+    // drawn whole, whatever a switch was left at.)
+    static let noGround = false
+    static let noArt = false
+    static let noTitle = false
+    static let noShadows = false
+    static let noHero = false
 }
 
 /// A card's shadow (a light one at rest, a deeper one focused) — none with the diagnostic's switch.
