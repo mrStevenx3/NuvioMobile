@@ -1887,15 +1887,8 @@ private struct OrbitDisneyTop10Poster: View {
             OrbitImage(url: poster, fallback: meta?.cleanPoster ?? item.rawPosterUrl, mode: .fill, size: size)
                 .frame(width: size.width, height: size.height)
                 .modifier(OrbitDisneyTop10Corner.Cut(extent: size.width * 0.47))
-            // Steven (side by side with the app: too even): the poster's foot goes to near black,
-            // as measured on the video (the art gone by two thirds of the height).
-            LinearGradient(stops: [
-                .init(color: .clear, location: 0.48),
-                .init(color: Color(red: 0.01, green: 0.01, blue: 0.03).opacity(0.85), location: 0.66),
-                .init(color: Color(red: 0.01, green: 0.01, blue: 0.03).opacity(0.97), location: 0.76),
-                .init(color: Color(red: 0.01, green: 0.01, blue: 0.03), location: 1),
-            ], startPoint: .top, endPoint: .bottom)
-                .frame(width: size.width, height: size.height)
+            // Steven (2026-10-31, photo: "un gros truc sombre en bout de vignette"): the poster whole —
+            // no dark foot (it was the room of the age and genre, gone from the closed posters).
             OrbitDisneyTop10Corner.rankText(rank, size: 66)
                 .padding(.leading, size.width * 0.055)
                 .padding(.top, 4)
