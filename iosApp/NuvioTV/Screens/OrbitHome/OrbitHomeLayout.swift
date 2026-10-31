@@ -82,4 +82,10 @@ enum OrbitHomeLayout {
 
     static let green = Color(red: 0.24, green: 0.86, blue: 0.40)
     static let background = Color(red: 0.03, green: 0.03, blue: 0.04)
+    /// Steven (2026-10-31, trying it: the TV's halos round bright posters on a dark ground — "si ça
+    /// me plaît pas, j'aurai une autre solution"): a more even ground behind the rows. The darkening
+    /// towards the bottom lighter (was 0.55), and the blacks lifted a little (was none). Back to
+    /// 0.55 and 0 to undo.
+    static let footShade: Double = 0.3
+    static let floorLift: Double = 0.035
 }

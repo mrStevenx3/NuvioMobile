@@ -509,10 +509,11 @@ struct OrbitCollectionGrid: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
             // (Steven, trying it: a little darker towards the bottom, as Home's.)
-            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
+            LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
             OrbitGrain().ignoresSafeArea()
+            Color.white.opacity(OrbitHomeLayout.floorLift).ignoresSafeArea().allowsHitTesting(false)
             // Steven (2026-10-24): no "Plateformes" title — the bar already says it, and the
             // Studios page has none.
             ScrollViewReader { proxy in

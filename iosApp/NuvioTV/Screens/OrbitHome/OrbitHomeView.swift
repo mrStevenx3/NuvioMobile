@@ -399,8 +399,9 @@ struct OrbitMirroredWash: View {
             wash(mirror.colourA).opacity(mirror.showsB ? 0 : 1)
             wash(mirror.colourB).opacity(mirror.showsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
-            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
+            LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
+            Color.white.opacity(OrbitHomeLayout.floorLift)
         }
         .compositingGroup()
         .frame(width: L.screenWidth, height: L.screenHeight)
@@ -446,8 +447,9 @@ struct OrbitRowsBackdrop: View {
             wash(colourA).opacity(showsB ? 0 : 1)
             wash(colourB).opacity(showsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
-            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
+            LinearGradient(colors: [.clear, .black.opacity(OrbitHomeLayout.footShade)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
             OrbitGrain()
+            Color.white.opacity(OrbitHomeLayout.floorLift)
         }
         // (Steven, 2026-10-30, slow-motion video: the TV still missed frames near the end of each
         // step, as the colour changed — the whole screen redrawn off-screen every frame of the fade.

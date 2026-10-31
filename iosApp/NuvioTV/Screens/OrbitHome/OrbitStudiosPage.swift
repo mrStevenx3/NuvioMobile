@@ -85,16 +85,18 @@ struct OrbitStudiosPage: View {
                 RadialGradient(colors: [ground.opacity(0.6), ground.opacity(0.34), ground.opacity(0.12)],
                                center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
                 // (Steven, 2026-10-30, DC Studios: a dark band too strong at the bottom — lighter, lower.)
-                LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
+                LinearGradient(colors: [.clear, .black.opacity(0.28 * OrbitHomeLayout.footShade / 0.55)], startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
                 // Steven (2026-10-30: "en bas ce soit la couleur de l'affiche et pas d'un studio, avec
                 // un dégradé flou"; then "le flou d'en bas ne défile pas avec l'image", "pas naturel"):
                 // the banner and its blurred continuation are one picture now — the same image, at the
                 // same place, sharp above and blurred below, gliding together.
                 OrbitStudiosBackdrop(url: bannerURL(shown), lift: OrbitStudioFrame.lift(title: shown?.title ?? ""))
                 // (Darker towards the bottom, for the tiles.)
-                LinearGradient(colors: [.clear, .black.opacity(0.32)],
+                LinearGradient(colors: [.clear, .black.opacity(0.32 * OrbitHomeLayout.footShade / 0.55)],
                                startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
                 OrbitGrain()
+                // (The trial's even ground, as Home's: see `OrbitHomeLayout.footShade`.)
+                Color.white.opacity(OrbitHomeLayout.floorLift)
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: groundId)
