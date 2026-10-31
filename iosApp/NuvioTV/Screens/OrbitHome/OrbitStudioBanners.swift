@@ -41,7 +41,7 @@ final class OrbitStudioBanners: ObservableObject {
         if t.contains("blum") { return base + "wwARk7hRIfHfh2n2ubN6N7lvTne.jpg" }        // Steven
         if t.contains("ghibli") { return base + "r1Y5atOqXMiuwHHWV0vOKnxYaJD.jpg" }
         if t.contains("marvel") { return base + "r0jfRKIIKl34kZCeTxInYu5bVPf.jpg" }
-        if t.hasPrefix("dc") || t.contains("dcstudios") || t.contains("dccomics") { return base + "tRS6jvPM9qPrrnx2KRp3ew96Yot.jpg" }
+        if t.hasPrefix("dc") || t.contains("dcstudios") || t.contains("dccomics") { return base + "uS35KqUfyVm44T15W04bnGUsf0.jpg" }  // (Steven, 2026-10-31)
         if t.contains("lucas") || t.contains("starwars") { return base + "zqkmTXzjkAgXmEWLRsY4UpTWCeo.jpg" }
         if t.contains("illumination") { return base + "xQ3UtAgWbOfwXBBsBmJTimac8Ku.jpg" }
         if t.contains("universal") { return base + "yDouuYvRwt1Z8oAyi2ZplngPDrZ.jpg" }
