@@ -36,7 +36,11 @@ final class OrbitStudioBanners: ObservableObject {
         let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .replacingOccurrences(of: " ", with: "")
         let base = "https://image.tmdb.org/t/p/original/"
-        if t.contains("pixar") { return base + "swP14HRj0byvrXiBsPvYm1saxz4.jpg" }  // (Steven, 2026-10-31)
+        // (Steven, 2026-10-31: Là-haut's house and balloons — his picture, "trop granuleuse": cleaned of its
+        // grain and enlarged smoothly to 4K once, kept with Orbit's assets.)
+        if t.contains("pixar") {
+            return "https://raw.githubusercontent.com/mrStevenx3/NuvioMobile/detail-apple-style/orbit-assets/banners/pixar-up.jpg"
+        }
         if t.contains("dreamworks") { return base + "1pmXyN3sKeYoUhu5VBZiDU4BX21.jpg" }  // Steven
         if t.contains("blum") { return base + "wwARk7hRIfHfh2n2ubN6N7lvTne.jpg" }        // Steven
         if t.contains("ghibli") { return base + "r1Y5atOqXMiuwHHWV0vOKnxYaJD.jpg" }
