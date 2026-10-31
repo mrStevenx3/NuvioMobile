@@ -191,8 +191,6 @@ struct OrbitPlatformTrendingRow: View {
     @State private var pushed: TitleRoute?
     /// The focused title's id in the rows ("row/title"), as `focused` was.
     @State private var stripFocused: String?
-    /// Bumped at each platform's Top 20 (the newest drawn over the one going).
-    @State private var generation = 0
     /// When the focus last left the rows (the platforms keep their own landing when coming back up).
     @MainActor static var lostAt: TimeInterval = 0
     /// Steven (device: back from a title opened in these rows, the focus went to the platform's
@@ -251,7 +249,6 @@ struct OrbitPlatformTrendingRow: View {
             }
         }
         .onAppear { restoreFocus() }
-        .onChange(of: model.title) { _, _ in generation &+= 1 }
         .navigationDestination(item: $pushed) { route in DetailView(preview: route.preview) }
         .onChange(of: focused) { old, id in
             guard let id else {
@@ -326,7 +323,30 @@ struct OrbitPlatformTrendingRow: View {
     private func row(heading: String, items: [MetaPreview], key: String, kind: Kind) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             // Steven: Home's headings here too, the bar in the platform's colour.
+            // (Steven, 2026-10-31, video: the old heading and the new one were seen over each other —
+            // the heading now stays, only its words change, at once.)
             OrbitRowHeading(title: heading, isCurrent: true, accent: accent, size: 32)
+                .transaction { $0.animation = nil }
+            ZStack(alignment: .topLeading) { topStrip(items: items, key: key, kind: kind).id(key)
+                // (Steven, 2026-10-31, videos: the two lists over each other — ghost posters; the old one
+                // gone before the new one — "brutal"; the new one over the old one — the old one seen
+                // through the ranks' gaps, then gone at once: a flicker. Now the old list fades out
+                // quickly as the new one fades in, both at once: no gap, no cut.)
+                .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.28)),
+                                        removal: .opacity.animation(.easeIn(duration: 0.14))))
+            }
+        }
+        // The row's line on the page: its heading this far under the screen's top once scrolled to.
+        .overlay(alignment: .top) {
+            Color.clear.frame(width: 1, height: 1)
+                .alignmentGuide(.top) { $0[.top] + Self.rowLine }
+                .id("\(key)-line")
+        }
+        .focusSection()
+    }
+
+    private func topStrip(items: [MetaPreview], key: String, kind: Kind) -> some View {
+        Group {
             // Steven (2026-10-29: "applique-le de PARTOUT"): a UIKit strip the focus engine scrolls.
             let rankScale = Self.posterHeight / OrbitTileLayout.rankedPoster.height
             let height: CGFloat = kind == .landscape ? OrbitTileLayout.landscape.height * Self.landscapeScale : Self.posterHeight
@@ -368,21 +388,6 @@ struct OrbitPlatformTrendingRow: View {
                            })
                 .frame(height: height)
         }
-        // The row's line on the page: its heading this far under the screen's top once scrolled to.
-        .overlay(alignment: .top) {
-            Color.clear.frame(width: 1, height: 1)
-                .alignmentGuide(.top) { $0[.top] + Self.rowLine }
-                .id("\(key)-line")
-        }
-        .id(key)
-        // (Steven, 2026-10-31, videos: changing platform, the two Top 20s were seen over each other a
-        // moment — ghost posters; then, the old one gone before the new one, "c'est brutal". The new
-        // one now fades in over the old one, which stays whole under it until covered — as the
-        // banners change: no ghost, nothing empty.)
-        .zIndex(Double(generation))
-        .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.3)),
-                                removal: .opacity.animation(.linear(duration: 0.01).delay(0.32))))
-        .focusSection()
     }
 }
 

@@ -841,56 +841,47 @@ private struct OrbitStudiosBackdrop: View {
     var lift: CGFloat = 0
     @Environment(\.displayScale) private var displayScale
 
-    /// One studio's two pictures, made once: the sharp banner with its foot already faded, the
-    /// blurred continuation already darkened and faded (no mask left to work out at each frame).
-    private struct Shown {
-        let generation: Int
-        let sharp: UIImage
+    /// One studio's three pictures, made once: its colours (the thick blur), the blurred continuation
+    /// already darkened and faded, the sharp banner with its foot already faded.
+    private struct Layer {
+        let thick: UIImage?
         let blurred: UIImage
+        let sharp: UIImage
     }
-    @State private var shown: Shown?
+    /// Two slots: the one shown, and the one the next studio is put in, unseen, before it fades in.
+    @State private var slotA: Layer?
+    @State private var slotB: Layer?
+    @State private var showsB = false
+    @State private var busyUntil: TimeInterval = 0
+    @State private var waiting: Layer?
     @State private var generation = 0
-    @State private var instant = false
+
+    /// A hidden slot is drawn at almost nothing, not at nothing: the TV loads its pictures then,
+    /// before the fade, not at its first frame.
+    private static let unseen: Double = 0.001
+    private static let fadeIn: Double = 0.3
+    private static let fadeOut: Double = 0.2
+    private static let outDelay: Double = 0.16
 
     var body: some View {
         let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
-        let band = OrbitStudioFrame.bannerSize.height
-        // Steven (2026-10-31, slow motion: "ton avis sur la transition") — the cross-fade showed only
-        // three or four steps: the masks over the full-screen sharp and blurred pictures were worked
-        // out again at every frame of it. Each studio's pictures now carry their fades themselves
-        // (made once, ahead, off the main thread), and the change is two plain pictures fading, the
-        // new one over the old one, the old one going once covered (as every banner here).
-        // (Steven, 2026-10-31: "l'ancienne image disparaît d'un coup sec à la fin" — it was taken away
-        // at once at 0.26 s, seen through the new one's faded foot, or before the new one was whole
-        // when a frame came late. It now fades out under the new one after its fade.)
-        let swap: AnyTransition = instant ? .identity
-            : .asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
-                          removal: .opacity.animation(.easeOut(duration: 0.15).delay(0.24)))
+        // Steven (2026-10-31, slow motion, several times: the change jerky at its start or its end,
+        // "l'ancienne image disparaît d'un coup sec"). Measured on his video: the new picture jumped
+        // from nothing to half in one frame — the TV loading a 4K picture at the fade's first frame —
+        // and the old one was taken away at once at the end, seen through the new one's faded foot.
+        // Now: the new studio's three pictures are put in the hidden slot first, drawn unseen; the
+        // fade starts a few frames later, the old studio fading out as the new one is nearly in.
         ZStack(alignment: .top) {
-            // Under everything, the picture's own colours (the description page's thick blur).
-            OrbitThickBlur(url: url, withSharp: true)
-            ZStack {
-                if let shown {
-                    Image(uiImage: shown.blurred)
-                        .resizable()
-                        .frame(width: W, height: H)
-                        .id(shown.generation)
-                        .zIndex(Double(shown.generation))
-                        .transition(swap)
-                }
-            }
-            .frame(width: W, height: H, alignment: .top)
-            ZStack {
-                if let shown {
-                    Image(uiImage: shown.sharp)
-                        .resizable()
-                        .frame(width: W, height: band)
-                        .id(shown.generation)
-                        .zIndex(Double(shown.generation))
-                        .transition(swap)
-                }
-            }
-            .frame(width: W, height: band)
+            layer(slotA)
+                .opacity(showsB ? Self.unseen : 1)
+                .animation(showsB ? .easeIn(duration: Self.fadeOut).delay(Self.outDelay)
+                                  : .easeOut(duration: Self.fadeIn), value: showsB)
+                .zIndex(showsB ? 0 : 1)
+            layer(slotB)
+                .opacity(showsB ? 1 : Self.unseen)
+                .animation(showsB ? .easeOut(duration: Self.fadeIn)
+                                  : .easeIn(duration: Self.fadeOut).delay(Self.outDelay), value: showsB)
+                .zIndex(showsB ? 1 : 0)
         }
         .frame(width: W, height: H, alignment: .top)
         .clipped()
@@ -899,19 +890,74 @@ private struct OrbitStudiosBackdrop: View {
         .task(id: "\(url ?? "-")|\(lift)") {
             guard let url else { return }
             let scale = displayScale
-            if let ready = OrbitStudioBake.ready(url, lift: lift, scale: scale) {
-                put(ready)
-                return
-            }
-            guard let made = await OrbitStudioBake.make(url, lift: lift, scale: scale), !Task.isCancelled else { return }
-            put(made)
+            var pair = OrbitStudioBake.ready(url, lift: lift, scale: scale)
+            if pair == nil { pair = await OrbitStudioBake.make(url, lift: lift, scale: scale) }
+            guard let pair, !Task.isCancelled else { return }
+            if OrbitThickBlur.made.object(forKey: url as NSString) == nil { await OrbitThickBlur.prepare(url) }
+            guard !Task.isCancelled else { return }
+            show(Layer(thick: OrbitThickBlur.made.object(forKey: url as NSString), blurred: pair.blurred, sharp: pair.sharp))
         }
     }
 
-    private func put(_ pair: (sharp: UIImage, blurred: UIImage)) {
-        instant = shown == nil
+    @ViewBuilder
+    private func layer(_ layer: Layer?) -> some View {
+        let W = OrbitHomeLayout.screenWidth, H = OrbitHomeLayout.screenHeight
+        let band = OrbitStudioFrame.bannerSize.height
+        ZStack(alignment: .top) {
+            if let layer {
+                if let thick = layer.thick {
+                    Image(uiImage: thick).resizable().aspectRatio(contentMode: .fill)
+                        .frame(width: W, height: H).clipped()
+                }
+                Image(uiImage: layer.blurred).resizable().frame(width: W, height: H)
+                Image(uiImage: layer.sharp).resizable().frame(width: W, height: band)
+            }
+        }
+        .frame(width: W, height: H, alignment: .top)
+    }
+
+    private func show(_ next: Layer) {
+        // The first studio: at once.
+        if slotA == nil && slotB == nil {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { slotA = next; showsB = false }
+            return
+        }
+        // A change still running: the latest studio waits for it (never put in the slot fading out).
+        let now = ProcessInfo.processInfo.systemUptime
+        if now < busyUntil {
+            let first = waiting == nil
+            waiting = next
+            if first {
+                DispatchQueue.main.asyncAfter(deadline: .now() + (busyUntil - now) + 0.02) {
+                    guard let queued = waiting else { return }
+                    waiting = nil
+                    show(queued)
+                }
+            }
+            return
+        }
+        waiting = nil
         generation &+= 1
-        shown = Shown(generation: generation, sharp: pair.sharp, blurred: pair.blurred)
+        let mine = generation
+        busyUntil = now + 0.07 + Self.outDelay + Self.fadeOut + 0.05
+        // Into the hidden slot, unseen…
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { if showsB { slotA = next } else { slotB = next } }
+        // …then, once the TV has drawn it, the fade.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) {
+            guard mine == generation else { return }
+            showsB.toggle()
+            // The old pictures let go once gone (memory: 4K pictures).
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.outDelay + Self.fadeOut + 0.1) {
+                guard mine == generation else { return }
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { if showsB { slotA = nil } else { slotB = nil } }
+            }
+        }
     }
 }
 
