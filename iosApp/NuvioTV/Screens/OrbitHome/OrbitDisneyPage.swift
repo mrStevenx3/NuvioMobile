@@ -144,6 +144,10 @@ struct OrbitDisneyPage: View {
     /// A franchise opened from the band: on the way back, the bar out of reach a moment (Steven:
     /// the focus did not come back on the brand).
     @State private var studioOpened = false
+    /// Steven (2026-10-31, trace: back from TOUT PARCOURIR the focus went to the house, then came
+    /// back): the page had lost the focus with the push, so its bar (and the house) was in reach
+    /// on the way back. Out of reach until the brand's band has the focus again, or the first press.
+    @State private var barLocked = false
     /// 0: the hero; then the rows.
     @State private var current = 0
     /// The page's scroll, followed by the hero alone (its fade).
@@ -497,7 +501,11 @@ struct OrbitDisneyPage: View {
                                                                  height: 46, dark: lit, alignment: .center))
                                 }, centreLeads: true,
                                 searchTrailing: OrbitPlatformIntro.searchInCorner)
-                .disabled(search != nil || (pageFocused && current > 0))
+                .disabled(search != nil || (pageFocused && current > 0) || barLocked)
+                .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
+                    // (Only a press on this page: the studio page above it is pressed too.)
+                    if barLocked, !covered { barLocked = false }
+                }
                 .opacity(search != nil ? 0 : 1)
 
             OrbitPlatformIntro(title: model.folderTitle, logoUrl: model.titleLogoUrl ?? route.titleLogoUrl,
@@ -524,7 +532,14 @@ struct OrbitDisneyPage: View {
             // the bar overruled). The bar itself never locked (Steven: the house out of reach).
             // (The way back to the pill or to TOUT PARCOURIR is the hub's own — Steven, 2026-10-31:
             // this page's asks for the pills sent the focus to the house on TOUT PARCOURIR's way back.)
-            if studioOpened { studioOpened = false }
+            if studioOpened {
+                studioOpened = false
+                let appeared = ProcessInfo.processInfo.systemUptime
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                    guard !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+                    barLocked = false
+                }
+            }
             tabBarVisibility.pushImmersive()
             OrbitHomeButtonHost.shared.enter(.ownBar)
             model.buildsStripState = true
@@ -726,6 +741,7 @@ struct OrbitDisneyPage: View {
                 // coming back (the way back counts as a title's).
                 if let pushStudio {
                     studioOpened = true
+                    barLocked = true
                     OrbitStudioIntro.skipNext = true
                     OrbitNavClock.titleOpenedAt = ProcessInfo.processInfo.systemUptime
                     pushStudio(route)
