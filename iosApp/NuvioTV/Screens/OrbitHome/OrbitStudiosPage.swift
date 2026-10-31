@@ -63,7 +63,8 @@ struct OrbitStudiosPage: View {
     }
 
     private func tint(_ folder: CollectionFolder) -> Color {
-        OrbitPlatformBrand.known(title: folder.title) ?? tints[folder.id] ?? OrbitPlatformBrand.color(title: folder.title)
+        OrbitPlatformBrand.known(title: folder.title) ?? tints[folder.id] ?? OrbitStudioTints.remembered(folder.id)
+            ?? OrbitPlatformBrand.color(title: folder.title)
     }
 
     @Environment(\.orbitPushStudio) private var pushStudio
@@ -281,10 +282,14 @@ struct OrbitStudiosPage: View {
         guard tints[id] == nil else { return }
         if let cached = ArtworkColorStore.shared.cachedColor(for: [raw], use: .wash) {
             tints[id] = cached
+            OrbitStudioTints.remember(cached, for: id)
             return
         }
         ArtworkColorStore.shared.color(for: [raw], use: .wash) { color in
-            if let color { tints[id] = color }
+            if let color {
+                tints[id] = color
+                OrbitStudioTints.remember(color, for: id)
+            }
         }
     }
 
@@ -541,6 +546,30 @@ struct OrbitBalancedLogo: View {
         return UIGraphicsImageRenderer(size: logo.size, format: format).image { _ in
             for _ in 0..<3 { silhouette.draw(in: rect) }
         }
+    }
+}
+
+/// Steven (2026-10-31: "Lucasfilm, DC et Ghibli en gris puis après avec leur couleur", each visit):
+/// a studio without a brand colour takes its backdrop's, worked out after the page's pictures —
+/// the colour found is kept (from one visit, and one launch, to the next) and shown at once.
+enum OrbitStudioTints {
+    private static let key = "orbit.studios.tints"
+    private static var memory: [String: Color] = {
+        guard let stored = UserDefaults.standard.dictionary(forKey: key) as? [String: [Double]] else { return [:] }
+        return stored.compactMapValues { c in c.count == 3 ? Color(.sRGB, red: c[0], green: c[1], blue: c[2]) : nil }
+    }()
+
+    static func remembered(_ id: String) -> Color? { memory[id] }
+
+    static func remember(_ color: Color, for id: String) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        memory[id] = color
+        var stored = UserDefaults.standard.dictionary(forKey: key) as? [String: [Double]] ?? [:]
+        let value = [Double(r), Double(g), Double(b)]
+        guard stored[id] != value else { return }
+        stored[id] = value
+        UserDefaults.standard.set(stored, forKey: key)
     }
 }
 
