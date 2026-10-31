@@ -400,8 +400,11 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         collectionView.insetsLayoutMarginsFromSafeArea = false
         collectionView.contentInset = UIEdgeInsets(top: topInset, left: 0, bottom: 200, right: 0)
         collectionView.showsVerticalScrollIndicator = false
-        // Back from a title (or down from the pills), the focus goes to the tile it left.
-        collectionView.remembersLastFocusedIndexPath = true
+        // (Steven, 2026-10-31: "pas de problème sur Rechercher, uniquement sur Découvrir" — Search's
+        // grid, whose way back holds, keeps no memory of its own: the system gives the focus back to
+        // the very tile it left. Discover's grid had its own memory on, which can point elsewhere
+        // after a title; now as Search's, the tile a title was opened from asked for by name on top.)
+        collectionView.remembersLastFocusedIndexPath = false
         collectionView.dataSource = self
         collectionView.delegate = self
         view.addSubview(collectionView)
