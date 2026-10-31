@@ -273,6 +273,8 @@ final class InlineTrailerCoordinator {
     /// issued, so a stranded extractor whose latch the watchdog force-cleared can't release a
     /// NEWER caller's latch when its deferred `endExtraction` finally fires (Codex round 12).
     private var extractionTicket = 0
+    /// An extraction holds the single slot now (the look-ahead never queues behind one).
+    var isExtracting: Bool { extracting }
 
     /// A ticket when this caller may extract (pass it to `endExtraction`); nil when refused.
     func beginExtraction() -> Int? {
@@ -616,6 +618,7 @@ final class InlineTrailerCardModel: ObservableObject {
             let delay = TrailerStartDelay.current()
             let focusAt = InlineTrailerCardModel.now
             var restBegan: TimeInterval?
+            var prewarmed = false
             while true {
                 guard !Task.isCancelled, let model = self, model.generation == generationAtStart else { return }
                 let now = InlineTrailerCardModel.now
@@ -625,6 +628,13 @@ final class InlineTrailerCardModel: ObservableObject {
                     restBegan = nil
                 }
                 let restAge = restBegan.map { now - $0 }
+                // Steven (2026-10-31: the auto trailer took long to start, the Bande-annonce button was
+                // instant): the trailer is looked up while the delay runs — once the focus has truly
+                // stopped here (0.4 s still), and only if no other lookup holds the single slot.
+                if !prewarmed, let restAge, restAge >= InlineTrailerCardModel.prewarmAfterRest {
+                    prewarmed = true
+                    model.prewarm(item, key: key)
+                }
                 // R2 (critique #6): the tile-art prefetch never starts at focus, so a horizontal
                 // scrub across a row fires no banner fetch per card it passes. beta.19-rc1 verdict
                 // (review r1, A-3): "the first at-rest reading" WAS focus whenever the rows were
@@ -1305,9 +1315,68 @@ final class InlineTrailerCardModel: ObservableObject {
                     return
                 }
             }
+            // The look-ahead is on this very title: wait for it (it holds the extraction slot), then
+            // go again from the cache.
+            if prewarmKey == key, let lookAhead = prewarmTask {
+                let generationAtWait = generation
+                await lookAhead.value
+                guard generation == generationAtWait else { return }
+                if TrailerResolutionCache.shared.entry(for: key) != nil {
+                    await expand(item)
+                    return
+                }
+            }
             if TrailerProbe.enabled { NSLog("[TrailerPipeline] expand branch=miss key=%@", key) }
             startResolution(item, key: key)
         }
+    }
+
+    /// The look-ahead's wait, after the focus came to rest.
+    static let prewarmAfterRest: TimeInterval = 0.4
+    private var prewarmKey: String?
+    private var prewarmTask: Task<Void, Never>?
+
+    /// Looks the trailer up ahead (into `TrailerResolutionCache` only — no phase, no morph, no
+    /// player): the dwell's own path then finds it resolved. One candidate only, and only when the
+    /// single extraction slot is free, so a look-ahead never makes the focused title wait long.
+    private func prewarm(_ item: MetaPreview, key: String) {
+        guard TrailerResolutionCache.shared.entry(for: key) == nil, resolvingKey == nil, prewarmKey == nil,
+              !InlineTrailerCoordinator.shared.isExtracting else { return }
+        prewarmKey = key
+        prewarmTask = Task { [weak self] in
+            await self?.runPrewarm(item, key: key)
+            if self?.prewarmKey == key {
+                self?.prewarmKey = nil
+                self?.prewarmTask = nil
+            }
+        }
+    }
+
+    private func runPrewarm(_ item: MetaPreview, key: String) async {
+        let language = TmdbSettingsRepository.shared.snapshot().language
+        var meta = MetaDetailsRepository.shared.peek(type: item.type, id: item.id)
+        if meta == nil { meta = await fetchMeta(type: item.type, id: item.id) }
+        guard let meta, TmdbSettingsRepository.shared.snapshot().language == language else { return }
+        let ranked = HeroTrailerSelectorKt.rankHeroTrailers(trailers: meta.trailers, preferredLanguage: language)
+        guard let first = ranked.first else {
+            TrailerResolutionCache.shared.store(.unavailable(Date()), for: key, causeSite: "noTrailerListedPrewarm")
+            return
+        }
+        guard TrailerResolutionCache.shared.entry(for: key) == nil, resolvingKey != key,
+              let ticket = InlineTrailerCoordinator.shared.beginExtraction() else { return }
+        var source: TrailerPlaybackSource?
+        do {
+            defer { InlineTrailerCoordinator.shared.endExtraction(ticket) }
+            InlineTrailerCoordinator.shared.touchExtraction(ticket)
+            source = await resolveYouTube(first.youtubePlaybackUrl())
+        }
+        guard let source else { return }   // nothing learnt: the dwell's own path decides
+        let outcome = await TrailerLocalHLS.shared.playbackOutcome(for: source)
+        guard TmdbSettingsRepository.shared.snapshot().language == language,
+              InlineTrailerResolveOutcome.action(for: outcome) == .storeResolvedAndPlay,
+              let playable = InlineTrailerResolveOutcome.playbackURL(for: outcome),
+              TrailerResolutionCache.shared.entry(for: key) == nil else { return }
+        TrailerResolutionCache.shared.store(.resolved(playable, Date()), for: key)
     }
 
     /// beta.19-rc1 verdict (review r2, P3-4): one more try of the cache-hit path while focus stays.
