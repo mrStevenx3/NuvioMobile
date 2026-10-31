@@ -180,6 +180,11 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     private var enabled = true
 
     private(set) var focusedIndex: Int?
+    /// Steven (2026-10-31, Paramount+, video: "le bord droit de la vignette vient d'abord se mettre
+    /// derrière, et après le reste"): a title grown from its left edge reaches over the next one. On
+    /// a move to the right, the title left behind shrinks back over the new one — kept above it
+    /// until it has (else its overhang went under at once, the rest shrinking after).
+    private var shrinkingOnTop: Int?
     /// When the focus last moved from one title of the row to another (only such a move slides a
     /// room open: arriving on the row or leaving it, the rooms are at once what they will be —
     /// Steven's video, Disney+: a room growing under a frame already open while the page moved).
@@ -508,7 +513,7 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         cell.configurationUpdateHandler = { [weak self] cell, state in
             guard let self, let cell = cell as? OrbitRowStripCell, index < self.count else { return }
             let focused = state.isFocused && !self.focusHidden
-            cell.layer.zPosition = state.isFocused ? 1 : 0
+            cell.layer.zPosition = state.isFocused ? 1 : (index == self.shrinkingOnTop ? 2 : 0)
             let alignment: Alignment = self.alignment == .top ? .topLeading
                 : (self.alignment == .center ? .leading : .bottomLeading)
             // (A reused cell must not keep the state of the title it showed before.)
@@ -547,6 +552,21 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         OrbitMetaStore.shared.holdPublishing(for: 0.5)
         let next = context.nextFocusedIndexPath?.item
         focusedIndex = next
+        if let previous, let next, previous < next {
+            shrinkingOnTop = previous
+            collectionView.cellForItem(at: IndexPath(item: previous, section: 0))?.layer.zPosition = 2
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                guard let self, self.shrinkingOnTop == previous else { return }
+                self.shrinkingOnTop = nil
+                if self.focusedIndex != previous {
+                    self.collectionView.cellForItem(at: IndexPath(item: previous, section: 0))?.layer.zPosition = 0
+                }
+            }
+        } else if next != nil, shrinkingOnTop != nil {
+            let old = shrinkingOnTop
+            shrinkingOnTop = nil
+            if let old, old != next { collectionView.cellForItem(at: IndexPath(item: old, section: 0))?.layer.zPosition = 0 }
+        }
         entryGuide.isEnabled = entersOnLead && next == nil
         if previous != nil, next != nil { movedWithinAt = ProcessInfo.processInfo.systemUptime }
         // A tile wider when focused: the row makes room on the focus's own move.
