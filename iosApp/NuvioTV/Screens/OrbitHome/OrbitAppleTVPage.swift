@@ -511,8 +511,18 @@ struct OrbitAppleTVPage: View {
                 return
             }
             nativeHeroFocused = true
+            let within = current == 0 && nativeHasFocus
             if heroIndex != page { heroIndex = page }
-            nativeEnter(0)
+            // Steven (2026-10-31: "un bégaiement vers la fin de l'animation" of the hero): Left / Right
+            // in the hero ran the whole page's work 0.45 s after the press — the look-ahead of every
+            // row, the trailer reset — redrawing the page as the slide ended. As Home's: the trailer
+            // armed at the press, the next title's details only.
+            if within {
+                nativeFocusStamp = ProcessInfo.processInfo.systemUptime
+                heroMoved(to: page)
+            } else {
+                nativeEnter(0)
+            }
         }
         // The carousel's own clock (or a trailer's end) moves the page: the focus follows.
         .onChange(of: heroIndex) { _, page in
@@ -629,8 +639,8 @@ struct OrbitAppleTVPage: View {
         let n = heroItems.count
         guard n > 1, current == 0 else { return }
         withAnimation(.easeInOut(duration: 0.6)) { heroIndex = (heroIndex + 1) % n }
-        motion.stamp()
-        refreshAfterMove()
+        // (The carousel moving on by itself: the hero's own light work, not the whole page's.)
+        heroMoved(to: heroIndex)
     }
 
     private func startHeroClock() {
@@ -657,6 +667,22 @@ struct OrbitAppleTVPage: View {
     private func closeSearch() {
         withAnimation(.easeInOut(duration: 0.25)) { search = nil }
         refreshAfterMove()
+    }
+
+    /// A move from one hero page to the next: its trailer armed, the next title's details asked.
+    private func heroMoved(to page: Int) {
+        let items = heroItems
+        motion.stamp()
+        if items.indices.contains(page + 1) { OrbitMetaStore.shared.request([items[page + 1]]) }
+        trailer.reset()
+        trailerKey = nil
+        guard trailersOn, !covered, search == nil, UIAccessibility.isVideoAutoplayEnabled,
+              items.indices.contains(page) else { return }
+        let item = items[page]
+        trailer.prefersReducedMotion = reduceMotion
+        trailer.restSource = .custom(motion)
+        trailerKey = "\(item.type):\(item.id)"
+        trailer.focusChanged(true, item: item)
     }
 
     private func refreshAfterMove() {
