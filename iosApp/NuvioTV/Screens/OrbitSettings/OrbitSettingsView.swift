@@ -89,6 +89,8 @@ struct OrbitSettingsView: View {
 
     @State private var selected: OrbitSettingsSection = .account
     @FocusState private var focusedSection: OrbitSettingsSection?
+    /// The section the cursor was last on in the list (its content follows once it rests).
+    @State private var lastListFocus: OrbitSettingsSection?
     @State private var confirm: OrbitSettingsConfirm?
 
     var body: some View {
@@ -184,7 +186,15 @@ struct OrbitSettingsView: View {
                 DispatchQueue.main.async { focusedSection = selected }
                 return
             }
-            if section != selected { selected = section }
+            // Steven (2026-10-31: pressed quickly, the cursor struggled to follow): each section
+            // shown rebuilt the whole right side at every press — it now waits for the cursor to rest.
+            lastListFocus = section
+            if section != selected {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    // (The last section the cursor was on, even if it has gone right since.)
+                    if lastListFocus == section, section != selected { selected = section }
+                }
+            }
         }
         // Menu on the list: up to the Orbit bar.
         .onExitCommand { NotificationCenter.default.post(name: .orbitBarFocusRequest, object: nil) }

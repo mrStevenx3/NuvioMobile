@@ -217,12 +217,15 @@ struct OrbitNativeHome: View {
             // Off the hero, the band under the bar is the page's own ground and wash (the rows above
             // slide under it; Steven: no dark band, the wash reaches the top, no hero left showing).
             OrbitNativeTopCover()
-                .opacity(onHero ? 0 : 1)
+                // Steven (2026-10-31: still "une barre fantôme qui s'affiche et disparaît" down from
+                // the hero): the band is only there for the rows sliding up under the bar — not on
+                // the first row (nothing above it but the hero, which fades away by itself).
+                .opacity(onHero || currentRow == rows.first?.id ? 0 : 1)
                 // Steven (2026-10-31, video: "la barre qui se met au-dessus du hero quand je défile"):
                 // it faded in at once, a band of the page's colour over the hero's art still sliding
                 // up under the bar. Now it comes once the hero has gone (the slide's end); back up, it
                 // goes at once.
-                .animation(onHero ? .easeOut(duration: 0.15) : .easeInOut(duration: 0.2).delay(0.38), value: onHero)
+                .animation(.easeInOut(duration: 0.25), value: onHero || currentRow == rows.first?.id)
         }
         .frame(width: L.screenWidth, height: L.screenHeight, alignment: .topLeading)
         .onExitCommand(perform: exitAction)
@@ -458,7 +461,9 @@ private struct OrbitNativeBackdrop: View {
 
     var body: some View {
         // (Steven, 2026-10-30: the thick blur tried on Home — back to the wash.)
-        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil, rest: 0)
+        // (Steven, 2026-10-31: "le bégaiement est pire… remets comme c'était avant" — the colour waits
+        // for the rest again: changing straight after the row's slide, it fell on the next slow step.)
+        OrbitRowsBackdrop(url: state.art, mirror: active ? OrbitWashMirror.home : nil)
             .opacity(visible ? 1 : 0)
             .animation(.easeInOut(duration: 0.35), value: visible)
             .ignoresSafeArea()
@@ -1377,13 +1382,13 @@ struct OrbitNativeOpenRow: View {
                                // Steven (2026-10-31: back from Les grandes sagas, the focus went up
                                // again): during a way back to a row, entering a row tells the page
                                // nothing at once (as before) — the return puts the focus back first.
-                               let returning = OrbitNativeRow.reopen != nil
+                               // (2026-10-31: as before — nothing at once on entering, the page's work
+                               // waits for the move to end, the vertical one too.)
                                if v != lead {
                                    lead = v
-                                   // (Entering from above: no slide to wait for — its colour at once.)
-                                   if entered && !returning { leadChangedNow() } else { leadChanged() }
-                               } else if entered && !returning {
-                                   leadChangedNow()
+                                   leadChanged()
+                               } else if entered {
+                                   leadChanged()
                                }
                            },
                            onSelect: { _ in if count > 0 { open(card(lead)) } })
@@ -1414,14 +1419,6 @@ struct OrbitNativeOpenRow: View {
         .onAppear {
             // A looping row starts in its middle copy (once).
             placeInLoop()
-            // (Its lead's colour worked out ahead: entering the row shows it at once — Steven: Home
-            // black a moment down from the hero.)
-            if count > 0 {
-                let card = card(lead)
-                if let raw = card.landscape ?? metaStore.meta(for: card.preview)?.backdrop {
-                    Task { _ = await OrbitDominantColor.color(for: raw) }
-                }
-            }
             // Back from a title opened here: its place takes the focus back.
             if let target = OrbitNativeRow.reopen, target.row == row.id,
                let i = row.cards.firstIndex(where: { $0.id == target.card }) {
@@ -1517,8 +1514,7 @@ struct OrbitNativeOpenRow: View {
         .onChange(of: rowFocused) { _, focused in
             if focused {
                 onEnter()
-                // (On a way back, as before: after the row's rest.)
-                if OrbitNativeRow.reopen != nil { leadChanged() } else { leadChangedNow() }
+                leadChanged()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .orbitHomeRowFocus)) { note in
@@ -1625,10 +1621,6 @@ struct OrbitNativeOpenRow: View {
             let neighbour = self.card(v)
             let raw: String? = neighbour.landscape ?? metaStore.meta(for: neighbour.preview)?.backdrop
             guard let raw, let url = URL(string: raw) else { continue }
-            // (Their colours too, ahead: the wash changes as soon as the slide ends.)
-            if OrbitDominantColor.cached(raw) == nil {
-                Task { _ = await OrbitDominantColor.color(for: raw) }
-            }
             let best = ArtworkURLUpgrade.upgraded(url, role: .backdrop) ?? url
             if ArtworkStore.cached(best, decode: request) == nil {
                 Task { _ = try? await ArtworkStore.fetch(best, decode: request) }

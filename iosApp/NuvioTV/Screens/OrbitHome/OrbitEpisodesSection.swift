@@ -331,8 +331,10 @@ private struct OrbitEpisodeDetails: View {
                     Text(OrbitEpisodeFormat.caption(episode, rating: nil))
                         .foregroundStyle(Color.white.opacity(0.85))
                     if let note = OrbitEpisodeFormat.note(rating) {
+                        // (Steven, 2026-10-31: only the star in yellow.)
                         Text(" · ").foregroundStyle(Color.white.opacity(0.85))
-                        Text(note).foregroundStyle(OrbitEpisodeFormat.noteColour)
+                        Text("★ ").foregroundStyle(OrbitEpisodeFormat.noteColour)
+                        Text(note).foregroundStyle(Color.white.opacity(0.85))
                     }
                 }
                 .font(.system(size: 24, weight: .semibold))
@@ -373,7 +375,7 @@ enum OrbitEpisodeFormat {
 
     static func note(_ rating: Double?) -> String? {
         guard let rating, rating > 0, let text = OrbitDetailFormat.rating(String(rating)) else { return nil }
-        return "★ \(text)"
+        return text
     }
 
     static func caption(_ episode: MetaVideo, rating: Double?) -> String {

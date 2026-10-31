@@ -337,7 +337,8 @@ struct OrbitStreamBackground: View {
                 // page's ground — the film's picture down to its colour fields, made once — a little
                 // darker for the sources' text.
                 OrbitThickBlur(url: url)
-                Color.black.opacity(0.3)
+                // (A bright film — Ali G's yellow — left the sources hard to read: darker.)
+                Color.black.opacity(0.5)
             }
             LinearGradient(colors: [.black.opacity(0.35), .clear, .black.opacity(0.45)],
                            startPoint: .top, endPoint: .bottom)
