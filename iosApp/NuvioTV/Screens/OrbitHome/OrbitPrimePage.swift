@@ -1063,14 +1063,18 @@ private struct OrbitPrimeTop10Image: View {
             OrbitImage(url: item.poster, fallback: item.rawPosterUrl, mode: .fit, size: size)
         }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: L.radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
-                    .frame(width: card.width, height: card.height)
-                    .offset(x: card.minX, y: card.minY)
+            // Steven (2026-10-31: "sur Prime c'est un coup sec… il faut faire pareil que Paramount"):
+            // the focus eases in and out (0.18 s), as Paramount+'s and Disney+'s.
+            .animation(.easeOut(duration: 0.18)) { view in
+                view
+                    .overlay(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: L.radius, style: .continuous)
+                            .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
+                            .frame(width: card.width, height: card.height)
+                            .offset(x: card.minX, y: card.minY)
+                    }
+                    .scaleEffect(focused ? L.focusScale : 1, anchor: .leading)
             }
-            .scaleEffect(focused ? L.focusScale : 1, anchor: .leading)
-            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }
 
@@ -1223,13 +1227,16 @@ private struct OrbitPrimeFocus: ViewModifier {
     let focused: Bool
 
     func body(content: Content) -> some View {
+        // Steven (2026-10-31: "un coup sec… faire pareil que Paramount"): eased, 0.18 s.
         content
-            .overlay {
-                RoundedRectangle(cornerRadius: OrbitPrimeLayout.radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
+            .animation(.easeOut(duration: 0.18)) { view in
+                view
+                    .overlay {
+                        RoundedRectangle(cornerRadius: OrbitPrimeLayout.radius, style: .continuous)
+                            .strokeBorder(Color.white.opacity(focused ? 0.95 : 0), lineWidth: 3)
+                    }
+                    .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 4)
+                    .scaleEffect(focused ? OrbitPrimeLayout.focusScale : 1, anchor: .leading)
             }
-            .shadow(color: .black.opacity(focused ? 0.55 : 0.2), radius: focused ? 18 : 6, y: focused ? 10 : 4)
-            .scaleEffect(focused ? OrbitPrimeLayout.focusScale : 1, anchor: .leading)
-            // (Steven, device: the focused tile rose before the others — its focus follows the move's own curve.)
     }
 }

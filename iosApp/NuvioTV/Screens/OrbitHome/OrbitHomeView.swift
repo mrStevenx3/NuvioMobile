@@ -727,116 +727,74 @@ struct OrbitGrain: View {
 
 
 /// The Plateformes page's halo: the focused platform's colour.
-/// Steven (2026-10-31, after OKLab, OKLCh and Home's washes: "ça passe toujours par le gris";
-/// "trouve-moi une solution définitive"): between two opposite colours (Netflix's red, Disney+'s blue)
-/// any fade crosses a colour of its own half-way — a grey-mauve straight across, a magenta round the
-/// wheel. So the colours never mix: the new one spreads from the top's middle over the old one, a
-/// soft-edged wave (0.45 s), each point of the screen going from the old colour to the new one alone.
-/// The brands' own colours, at the halo's strength (as before the trial of Home's washes).
+/// Steven (2026-10-31, after the wave: "je préférais comme c'était avant, c'est plus léger et plus
+/// agréable, mais sans la couleur claire qui vient se mettre entre les deux"): a plain fade again,
+/// in OKLab, on Home's 0.3 s. Between two opposite colours (Netflix's red, Disney+'s blue) the
+/// straight line loses its strength half-way and reads pale; that loss now darkens it instead —
+/// the lightness drops by the share of strength lost (`dim`), so half-way is a deep purple, never a
+/// light one. Two close colours (HBO, Disney+) lose nothing and fade as before.
 struct OrbitToneHalo: View {
     let color: Color?
 
-    private struct Layer: Identifiable {
-        let id: Int
-        let color: Color
-        let wave: Bool
-    }
-
-    @State private var layers: [Layer] = []
-    @State private var shown = false
-    @State private var nextId = 0
+    @State private var from = OrbitWashTone()
+    @State private var to = OrbitWashTone()
+    @State private var progress: Double = 1
 
     var body: some View {
-        ZStack {
-            ForEach(layers) { layer in
-                OrbitWaveLayer(color: layer.color, wave: layer.wave) { done(layer.id) }
-                    .transition(.identity)
-            }
-        }
-        .opacity(shown ? 1 : 0)
-        .onChange(of: color.map { OrbitWashTone($0) }, initial: true) { _, tone in
-            var still = Transaction()
-            still.disablesAnimations = true
-            guard let tone else {
-                withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { shown = false }
-                return
-            }
-            let next = tone.color
-            if layers.last.map({ OrbitWashTone($0.color) == tone }) == true { return }
-            OrbitTrace.log("halo wave to \(next.description) layers=\(layers.count) shown=\(shown)")
-            if layers.isEmpty || !shown {
-                // A first colour (or back from none): set at once, the halo fades in — as Home's.
+        OrbitDimFadeHalo(from: from, to: to, progress: progress)
+            .onChange(of: color.map { OrbitWashTone($0) }, initial: true) { _, next in
+                var target = next ?? to
+                if next == nil { target.presence = 0 }
+                if target == to { return }
+                var still = Transaction()
+                still.disablesAnimations = true
                 withTransaction(still) {
-                    layers = [Layer(id: nextId, color: next, wave: false)]
-                    nextId += 1
+                    // (From what shows: the last colour, or nothing with this one's hue.)
+                    var start = to
+                    if start.presence < 0.01 { start = target; start.presence = 0 }
+                    from = start
+                    to = target
+                    progress = 0
                 }
-                withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { shown = true }
-                return
-            }
-            withTransaction(still) {
-                layers.append(Layer(id: nextId, color: next, wave: true))
-                nextId += 1
-            }
-        }
-    }
-
-    /// A wave has covered the screen: the layers under it go.
-    private func done(_ id: Int) {
-        guard let index = layers.firstIndex(where: { $0.id == id }), index > 0 else { return }
-        var still = Transaction()
-        still.disablesAnimations = true
-        withTransaction(still) { layers.removeFirst(index) }
-    }
-}
-
-/// One colour of the halo, revealed by a wave from the top's middle (or there at once).
-private struct OrbitWaveLayer: View {
-    let color: Color
-    let wave: Bool
-    let onDone: () -> Void
-    @State private var reach: CGFloat = 0
-
-    /// Past the screen's far corners (from the top's middle) with the soft edge.
-    /// (Past the screen's far corners from the top's middle — 1 445 points — by the whole front.)
-    static let full: CGFloat = 1450 + 640
-    /// (A narrow front: only there do the two colours meet.)
-    /// Steven (2026-10-31, after the side sweep: "il était bien comme ça, moins saccadé, plus doux"):
-    /// the sweep's wide soft front and its 0.6 s, from the top's middle.
-    static let edge: CGFloat = 640
-
-    var body: some View {
-        // Opaque (the page's ground under its colour): Steven's video (IMG_9307) — see-through, the
-        // new colour only veiled the old one, the screen went purple until the old one went.
-        ZStack {
-            OrbitHomeLayout.background
-            RadialGradient(colors: [color.opacity(0.55), color.opacity(0.30), color.opacity(0.10)],
-                           center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
-        }
-            .mask { OrbitWaveMask(reach: wave ? reach : Self.full) }
-            .onAppear {
-                guard wave else { return }
-                withAnimation(.easeInOut(duration: 0.6)) { reach = Self.full } completion: { onDone() }
+                OrbitTrace.log(String(format: "halo fade L%.2f a%.3f b%.3f -> L%.2f a%.3f b%.3f",
+                                      from.l, from.a, from.b, target.l, target.a, target.b))
+                withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { progress = 1 }
             }
     }
 }
 
-/// The wave's front: whole inside `reach` (less its soft edge), nothing beyond it.
-private struct OrbitWaveMask: View, Animatable {
-    var reach: CGFloat
+/// The halo between two colours at `progress`, drawn afresh at each frame of the fade.
+private struct OrbitDimFadeHalo: View, Animatable {
+    var from: OrbitWashTone
+    var to: OrbitWashTone
+    var progress: Double
 
-    var animatableData: CGFloat {
-        get { reach }
-        set { reach = newValue }
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
     }
 
+    /// How much of the strength lost half-way comes off the lightness (0: the plain OKLab line).
+    static let dim = 0.6
+
     var body: some View {
-        let R = OrbitWaveLayer.full
-        let outer = min(1, max(0.0001, reach / R))
-        let inner = min(outer - 0.0001, max(0, (reach - OrbitWaveLayer.edge) / R))
-        return RadialGradient(stops: [.init(color: .black, location: 0),
-                                      .init(color: .black, location: max(0, inner)),
-                                      .init(color: .clear, location: outer)],
-                              center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: R)
+        let t = min(1, max(0, progress))
+        var tone = OrbitWashTone()
+        tone.l = from.l + (to.l - from.l) * t
+        tone.a = from.a + (to.a - from.a) * t
+        tone.b = from.b + (to.b - from.b) * t
+        tone.presence = from.presence + (to.presence - from.presence) * t
+        let strengthFrom = (from.a * from.a + from.b * from.b).squareRoot()
+        let strengthTo = (to.a * to.a + to.b * to.b).squareRoot()
+        let straight = strengthFrom + (strengthTo - strengthFrom) * t
+        if straight > 0.0001 {
+            let kept = min(1, (tone.a * tone.a + tone.b * tone.b).squareRoot() / straight)
+            tone.l *= 1 - Self.dim * (1 - kept)
+        }
+        let color = tone.color
+        let p = min(1, max(0, tone.presence))
+        return RadialGradient(colors: [color.opacity(0.55 * p), color.opacity(0.30 * p), color.opacity(0.10 * p)],
+                              center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
     }
 }
 
