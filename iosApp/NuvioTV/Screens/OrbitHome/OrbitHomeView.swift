@@ -735,14 +735,11 @@ struct OrbitGrain: View {
 /// The brands' own colours, at the halo's strength (as before the trial of Home's washes).
 struct OrbitToneHalo: View {
     let color: Color?
-    /// The colour comes in from the left (a press to the right), else from the right.
-    var fromLeft = true
 
     private struct Layer: Identifiable {
         let id: Int
         let color: Color
         let wave: Bool
-        let fromLeft: Bool
     }
 
     @State private var layers: [Layer] = []
@@ -752,7 +749,7 @@ struct OrbitToneHalo: View {
     var body: some View {
         ZStack {
             ForEach(layers) { layer in
-                OrbitWaveLayer(color: layer.color, wave: layer.wave, fromLeft: layer.fromLeft) { done(layer.id) }
+                OrbitWaveLayer(color: layer.color, wave: layer.wave) { done(layer.id) }
                     .transition(.identity)
             }
         }
@@ -770,14 +767,14 @@ struct OrbitToneHalo: View {
             if layers.isEmpty || !shown {
                 // A first colour (or back from none): set at once, the halo fades in — as Home's.
                 withTransaction(still) {
-                    layers = [Layer(id: nextId, color: next, wave: false, fromLeft: fromLeft)]
+                    layers = [Layer(id: nextId, color: next, wave: false)]
                     nextId += 1
                 }
                 withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { shown = true }
                 return
             }
             withTransaction(still) {
-                layers.append(Layer(id: nextId, color: next, wave: true, fromLeft: fromLeft))
+                layers.append(Layer(id: nextId, color: next, wave: true))
                 nextId += 1
             }
         }
@@ -792,21 +789,17 @@ struct OrbitToneHalo: View {
     }
 }
 
-/// One colour of the halo, swept in from one side of the screen (or there at once).
-/// Steven (2026-10-31: "si je clique à droite l'animation commence par la gauche et vice versa";
-/// the wave from the top read "brutal"): it follows the press — Right, the colour comes in from the
-/// left edge — on a wide soft front, a little slower.
+/// One colour of the halo, revealed by a wave from the top's middle (or there at once).
 private struct OrbitWaveLayer: View {
     let color: Color
     let wave: Bool
-    let fromLeft: Bool
     let onDone: () -> Void
     @State private var reach: CGFloat = 0
 
-    static let edge: CGFloat = 640
-    /// The screen's width and the front: the colour over the whole screen at the end.
-    static var full: CGFloat { OrbitHomeLayout.screenWidth + edge }
-    static let duration: Double = 0.6
+    /// Past the screen's far corners (from the top's middle) with the soft edge.
+    static let full: CGFloat = 1850
+    /// (A narrow front: only there do the two colours meet.)
+    static let edge: CGFloat = 200
 
     var body: some View {
         // Opaque (the page's ground under its colour): Steven's video (IMG_9307) — see-through, the
@@ -816,18 +809,17 @@ private struct OrbitWaveLayer: View {
             RadialGradient(colors: [color.opacity(0.55), color.opacity(0.30), color.opacity(0.10)],
                            center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: 1900)
         }
-            .mask { OrbitWaveMask(reach: wave ? reach : Self.full, fromLeft: fromLeft) }
+            .mask { OrbitWaveMask(reach: wave ? reach : Self.full) }
             .onAppear {
                 guard wave else { return }
-                withAnimation(.easeInOut(duration: Self.duration)) { reach = Self.full } completion: { onDone() }
+                withAnimation(.easeInOut(duration: 0.45)) { reach = Self.full } completion: { onDone() }
             }
     }
 }
 
-/// The sweep's front: whole behind `reach` (less its soft edge), nothing ahead of it.
+/// The wave's front: whole inside `reach` (less its soft edge), nothing beyond it.
 private struct OrbitWaveMask: View, Animatable {
     var reach: CGFloat
-    let fromLeft: Bool
 
     var animatableData: CGFloat {
         get { reach }
@@ -835,20 +827,13 @@ private struct OrbitWaveMask: View, Animatable {
     }
 
     var body: some View {
-        // Laid from one front's width before the screen to one after it: at 0 the front is just off
-        // screen on the near side, at `full` the colour covers the whole screen.
-        let e = OrbitWaveLayer.edge
-        let span = OrbitHomeLayout.screenWidth + 2 * e
-        let inner = min(1, max(0, reach / span))
-        let outer = min(1, max(inner + 0.0001, (reach + e) / span))
-        return LinearGradient(stops: [.init(color: .black, location: 0),
-                                      .init(color: .black, location: inner),
+        let R = OrbitWaveLayer.full
+        let outer = min(1, max(0.0001, reach / R))
+        let inner = min(outer - 0.0001, max(0, (reach - OrbitWaveLayer.edge) / R))
+        return RadialGradient(stops: [.init(color: .black, location: 0),
+                                      .init(color: .black, location: max(0, inner)),
                                       .init(color: .clear, location: outer)],
-                              startPoint: fromLeft ? .leading : .trailing,
-                              endPoint: fromLeft ? .trailing : .leading)
-            .frame(width: span, height: OrbitHomeLayout.screenHeight)
-            .offset(x: -e)
-            .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight, alignment: .leading)
+                              center: UnitPoint(x: 0.5, y: 0.0), startRadius: 0, endRadius: R)
     }
 }
 
