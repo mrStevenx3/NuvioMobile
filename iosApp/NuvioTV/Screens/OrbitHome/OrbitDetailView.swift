@@ -2704,7 +2704,20 @@ struct OrbitDetailHeaderTitle: View {
             }
             .offset(y: lift)
             .opacity(seen)
-            .onChange(of: shown, initial: true) { _, on in
+            // Steven (2026-10-31: back from an actor's page, the title's entrance played again —
+            // "j'en ai pas besoin"): coming back on screen, it is simply where it was; it plays only
+            // when the page really goes down from the hero.
+            .onAppear {
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) {
+                    lift = shown ? 0 : 120
+                    seen = shown ? 1 : 0
+                    light = shown ? 0 : -0.35
+                    halo = 0
+                }
+            }
+            .onChange(of: shown) { _, on in
                 var still = Transaction()
                 still.disablesAnimations = true
                 if on {
