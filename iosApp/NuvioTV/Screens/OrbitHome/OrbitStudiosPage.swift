@@ -414,6 +414,8 @@ private struct OrbitStudioFrame: View {
     static func lift(title raw: String) -> CGFloat {
         let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         if t.contains("lucasfilm") || t.contains("star wars") { return 0.75 }
+        // (Steven, 2026-10-31: Iron Man's hair cut at the top of Marvel's new picture.)
+        if t.contains("marvel") { return 0.35 }
         return 0
     }
 
