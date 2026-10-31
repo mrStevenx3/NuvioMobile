@@ -252,7 +252,7 @@ private struct OrbitNativeDiscover<Header: View>: View {
             // counted as the viewer's own move — "since" was set half a second before now, so every
             // ask stopped at once. Only a press from 0.3 s after the page's return ends the way back,
             // as in Library.)
-            let appeared = ProcessInfo.processInfo.systemUptime + 0.3
+            let appeared = ProcessInfo.processInfo.systemUptime + 0.5
             for delay in [0.05, 0.2, 0.4, 0.7, 1.1, 1.6, 2.2] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     NotificationCenter.default.post(name: .orbitDiscoverRestore, object: appeared)
@@ -481,7 +481,7 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
         super.viewDidAppear(animated)
         // (On screen again after a title: asked from here too, the window being there now.)
         if OrbitDiscoverReturn.openedId != nil {
-            let appeared = ProcessInfo.processInfo.systemUptime + 0.3
+            let appeared = ProcessInfo.processInfo.systemUptime + 0.5
             for delay in [0.0, 0.15, 0.4] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.restoreOpened(since: appeared) }
             }
@@ -490,9 +490,20 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
 
     /// The tile being given the focus back.
     private var restoreTarget: IndexPath?
+    /// When the way back began (a viewer press after it ends it).
+    private var restoreSince: TimeInterval?
+
+    /// The way back is over: the grid's own behaviour again.
+    func endReturn() {
+        restoreTarget = nil
+        restoreSince = nil
+        OrbitDiscoverReturn.opened = nil
+        OrbitDiscoverReturn.openedId = nil
+    }
 
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
-        if let restoreTarget, let cell = collectionView.cellForItem(at: restoreTarget) { return [cell] }
+        if let restoreTarget, OrbitDiscoverReturn.place(in: items) != nil,
+           let cell = collectionView.cellForItem(at: restoreTarget) { return [cell] }
         return super.preferredFocusEnvironments
     }
 
@@ -501,16 +512,19 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
     /// anything. (Steven, 2026-10-31: my first fix let the system's landing on the first tile end the
     /// way back before the tile was asked for.)
     func restoreOpened(since appeared: TimeInterval) {
-        guard let opened = OrbitDiscoverReturn.place(in: items),
-              !ViewerInputClock.shared.hasInput(since: appeared) else { return }
+        guard let opened = OrbitDiscoverReturn.place(in: items) else { return }
+        // (A way back of its own: one left from an earlier return is not kept.)
+        if let since = restoreSince, abs(appeared - since) < 4 { restoreSince = min(since, appeared) } else { restoreSince = appeared }
+        guard !ViewerInputClock.shared.hasInput(since: appeared) else { endReturn(); return }
         let path = IndexPath(item: opened, section: 0)
-        if let cell = collectionView.cellForItem(at: path), cell.isFocused {
-            restoreTarget = nil
-            OrbitDiscoverReturn.opened = nil
-            OrbitDiscoverReturn.openedId = nil
+        restoreTarget = path
+        // (Steven, 2026-10-31, the fourth time: the way back ended as soon as the tile looked focused —
+        // its cell still said so during the pop, or the focus reached it first — and the system's own
+        // landing on the first tile came after, with nothing left to send it back. As on Home and in
+        // Library, which hold: the tile is asked for at every beat of the way back, whatever it shows.)
+        if let cell = collectionView.cellForItem(at: path), cell.isFocused, (view.window?.windowScene?.focusSystem?.focusedItem as? UIView)?.isDescendant(of: cell) == true {
             return
         }
-        restoreTarget = path
         if collectionView.cellForItem(at: path) == nil {
             collectionView.scrollToItem(at: path, at: .centeredVertically, animated: false)
             collectionView.layoutIfNeeded()
@@ -538,12 +552,10 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
                 if abs(collectionView.contentOffset.y - top.y) > 0.5 { collectionView.setContentOffset(top, animated: true) }
             }
         }
-        // (The way back is over once the tile it was opened from has the focus again.)
-        if let next = context.nextFocusedIndexPath, next == restoreTarget {
-            restoreTarget = nil
-            OrbitDiscoverReturn.opened = nil
-            OrbitDiscoverReturn.openedId = nil
-        }
+        // (The way back is over at the viewer's own first press — not as the tile is reached: the
+        // system's landing can still come after.)
+        if OrbitDiscoverReturn.place(in: items) == nil { restoreTarget = nil; restoreSince = nil }
+        if let since = restoreSince, ViewerInputClock.shared.hasInput(since: since) { endReturn() }
         onFocus(context.nextFocusedIndexPath?.item)
     }
 
