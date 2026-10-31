@@ -2803,7 +2803,7 @@ struct OrbitThickBlur: View {
                     .zIndex(withSharp ? Double(generation) : 0)
                     .transition(withSharp
                                 ? .asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
-                                              removal: .opacity.animation(.linear(duration: 0.01).delay(0.26)))
+                                              removal: .opacity.animation(.easeOut(duration: 0.15).delay(0.24)))
                                 : .opacity)
             }
         }

@@ -860,9 +860,12 @@ private struct OrbitStudiosBackdrop: View {
         // out again at every frame of it. Each studio's pictures now carry their fades themselves
         // (made once, ahead, off the main thread), and the change is two plain pictures fading, the
         // new one over the old one, the old one going once covered (as every banner here).
+        // (Steven, 2026-10-31: "l'ancienne image disparaît d'un coup sec à la fin" — it was taken away
+        // at once at 0.26 s, seen through the new one's faded foot, or before the new one was whole
+        // when a frame came late. It now fades out under the new one after its fade.)
         let swap: AnyTransition = instant ? .identity
             : .asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
-                          removal: .opacity.animation(.linear(duration: 0.01).delay(0.26)))
+                          removal: .opacity.animation(.easeOut(duration: 0.15).delay(0.24)))
         ZStack(alignment: .top) {
             // Under everything, the picture's own colours (the description page's thick blur).
             OrbitThickBlur(url: url, withSharp: true)
