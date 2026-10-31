@@ -244,6 +244,17 @@ private struct OrbitNativeDiscover<Header: View>: View {
             shown = nil
         }
         .onDisappear { OrbitBarLock.shared.set(false) }
+        .onAppear {
+            guard OrbitDiscoverReturn.opened != nil else { return }
+            let appeared = ProcessInfo.processInfo.systemUptime
+            for delay in [0.05, 0.2, 0.4, 0.7, 1.1, 1.6] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    NotificationCenter.default.post(name: .orbitDiscoverRestore, object: appeared)
+                }
+            }
+            // (Never kept beyond this return.)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { OrbitDiscoverReturn.opened = nil }
+        }
     }
 
     private func focusChanged(_ new: Int?) {
@@ -394,6 +405,10 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
             }
         }
         collectionView.setContentOffset(CGPoint(x: 0, y: -topInset), animated: false)
+        NotificationCenter.default.addObserver(forName: .orbitDiscoverRestore, object: nil, queue: .main) { [weak self] note in
+            let appeared = note.object as? TimeInterval ?? 0
+            MainActor.assumeIsolated { self?.restoreOpened(since: appeared) }
+        }
     }
 
     func show(items new: [MetaPreview], gridKey key: String, topInset inset: CGFloat) {
@@ -450,12 +465,40 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
     /// the title's page — the tile a title was opened from is asked for by name now (as Search does).
     func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
         guard let opened = OrbitDiscoverReturn.opened, items.indices.contains(opened) else { return nil }
+        return IndexPath(item: opened, section: 0)
+    }
+
+    /// The tile being given the focus back.
+    private var restoreTarget: IndexPath?
+
+    override var preferredFocusEnvironments: [UIFocusEnvironment] {
+        if let restoreTarget, let cell = collectionView.cellForItem(at: restoreTarget) { return [cell] }
+        return super.preferredFocusEnvironments
+    }
+
+    /// Back from a title: the tile it was opened from is put in view and given the focus — asked a
+    /// few times (the system's own landing comes late, on the first tile), until the viewer presses
+    /// anything. (Steven, 2026-10-31: my first fix let the system's landing on the first tile end the
+    /// way back before the tile was asked for.)
+    func restoreOpened(since appeared: TimeInterval) {
+        guard let opened = OrbitDiscoverReturn.opened, items.indices.contains(opened),
+              !ViewerInputClock.shared.hasInput(since: appeared) else { return }
         let path = IndexPath(item: opened, section: 0)
+        if let cell = collectionView.cellForItem(at: path), cell.isFocused {
+            restoreTarget = nil
+            OrbitDiscoverReturn.opened = nil
+            return
+        }
+        restoreTarget = path
         if collectionView.cellForItem(at: path) == nil {
             collectionView.scrollToItem(at: path, at: .centeredVertically, animated: false)
             collectionView.layoutIfNeeded()
         }
-        return path
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        if let cell = collectionView.cellForItem(at: path) {
+            view.window?.windowScene?.focusSystem?.requestFocusUpdate(to: cell)
+        }
     }
 
     func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
@@ -472,8 +515,11 @@ final class OrbitDiscoverGridController: UIViewController, UICollectionViewDataS
                 if abs(collectionView.contentOffset.y - top.y) > 0.5 { collectionView.setContentOffset(top, animated: true) }
             }
         }
-        // (Once the grid has the focus back, the way back is over.)
-        if context.nextFocusedIndexPath != nil { OrbitDiscoverReturn.opened = nil }
+        // (The way back is over once the tile it was opened from has the focus again.)
+        if let next = context.nextFocusedIndexPath, next == restoreTarget {
+            restoreTarget = nil
+            OrbitDiscoverReturn.opened = nil
+        }
         onFocus(context.nextFocusedIndexPath?.item)
     }
 
@@ -526,4 +572,10 @@ private struct OrbitNativeDiscoverBackdrop: View {
 @MainActor
 enum OrbitDiscoverReturn {
     static var opened: Int?
+}
+
+
+extension Notification.Name {
+    /// Découvrir is back on screen after a title: its grid gives the focus back to the tile.
+    static let orbitDiscoverRestore = Notification.Name("orbitDiscoverRestore")
 }

@@ -818,19 +818,21 @@ private struct OrbitStudiosBackdrop: View {
                 // banner's), stretched down from the seam to reach the screen's bottom.
                 // (Steven, 2026-10-30: a bar at the bottom — drawn a little larger again, and
                 // stretched enough to reach the screen's foot.)
-                // Steven (2026-10-31: "le flou décale l'image du dessous, elle n'est pas alignée" and
-                // "beaucoup trop épais"): the blurred copy was drawn larger and stretched while the
-                // sharp one was not — now at exactly the sharp one's size and place (its centre and
-                // its own lift), lighter, and melting into the page's colour at its own foot instead
-                // of being stretched down to the screen's bottom.
-                let imageBottom = band / 2 + H / 2 + spare * lift
+                // Steven (2026-10-31: "le flou décale l'image du dessous" — the blurred copy was drawn
+                // larger and stretched; then "on voit l'image qui descend et remonte en bas" and "la
+                // couleur en fond… de l'affiche, pas de la pancarte du studio"):
+                // · under everything, the picture's own colours (the description page's thick blur:
+                //   no shape, so nothing can be seen moving);
+                // · over it, the blurred copy at exactly the sharp picture's size and place, fading
+                //   into those colours at one fixed line for every studio (the same foot always).
+                OrbitThickBlur(url: url)
                 OrbitPreBlurred(url: url, radius: 16)
                     .offset(y: band / 2 - H / 2 + spare * lift)
                     .frame(width: W, height: H)
                     .overlay(Color.black.opacity(0.22))
                     .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                                 .init(color: .black, location: max(0, (imageBottom - 170) / H)),
-                                                 .init(color: .clear, location: min(1, imageBottom / H))],
+                                                 .init(color: .black, location: band / H),
+                                                 .init(color: .clear, location: (band + 135) / H)],
                                          startPoint: .top, endPoint: .bottom))
                 OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
                     .frame(width: full.width, height: full.height)

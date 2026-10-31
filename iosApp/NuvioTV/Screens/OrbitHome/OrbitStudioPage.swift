@@ -876,9 +876,12 @@ private struct OrbitStudioWash: View {
 
     private func follow() async {
         guard inRows, let item = spot.item else { return }
-        do { try await Task.sleep(for: .milliseconds(OrbitRowsBackdrop.wait)) } catch { return }
+        // (The same time as everywhere; the colour worked out during the wait.)
         let raw = metaStore.meta(for: item)?.backdrop ?? item.banner ?? item.poster
-        guard let raw, let color = await OrbitDominantColor.color(for: raw), !Task.isCancelled else { return }
+        guard let raw else { return }
+        async let worked = OrbitDominantColor.color(for: raw)
+        do { try await Task.sleep(for: .milliseconds(OrbitRowsBackdrop.wait)) } catch { return }
+        guard let color = await worked, !Task.isCancelled else { return }
         withAnimation(.easeInOut(duration: OrbitRowsBackdrop.fade)) { OrbitHomeTone.studio.color = color }
     }
 }
