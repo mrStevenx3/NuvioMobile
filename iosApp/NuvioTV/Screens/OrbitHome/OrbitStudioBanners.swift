@@ -36,7 +36,7 @@ final class OrbitStudioBanners: ObservableObject {
         let t = raw.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .replacingOccurrences(of: " ", with: "")
         let base = "https://image.tmdb.org/t/p/original/"
-        if t.contains("pixar") { return base + "pBhZUIXrtwqcztVuiP39d5dHjJb.jpg" }
+        if t.contains("pixar") { return base + "swP14HRj0byvrXiBsPvYm1saxz4.jpg" }  // (Steven, 2026-10-31)
         if t.contains("dreamworks") { return base + "1pmXyN3sKeYoUhu5VBZiDU4BX21.jpg" }  // Steven
         if t.contains("blum") { return base + "wwARk7hRIfHfh2n2ubN6N7lvTne.jpg" }        // Steven
         if t.contains("ghibli") { return base + "r1Y5atOqXMiuwHHWV0vOKnxYaJD.jpg" }
