@@ -1387,7 +1387,11 @@ struct OrbitNativeOpenRow: View {
                                if v != lead {
                                    lead = v
                                    leadChanged()
-                               } else if entered {
+                               } else if entered, OrbitNativeRow.reopen == nil {
+                                   // (Steven, 2026-10-31: back from Nouveaux films / Films recommandés,
+                                   // the focus went up to the hero again — the row, given its title back,
+                                   // started its trailer and the page's colour in the middle of the way
+                                   // back. During a return it is as before this evening: nothing.)
                                    leadChanged()
                                }
                            },

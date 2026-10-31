@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Detail (Steven, 2026-10-23): a series' seasons and episodes, rebuilt from scratch for the
 // Orbit page (the legacy `EpisodesSection` is no longer used here).
@@ -46,6 +47,8 @@ struct OrbitEpisodesSection: View {
     let startSeason: Int?
     let focus: FocusState<OrbitDetailFocus?>.Binding
     let onPlay: (MetaVideo) -> Void
+    /// Held on an episode: play it choosing the source (Steven, 2026-10-31: the long press did nothing).
+    var onPlayManually: ((MetaVideo) -> Void)? = nil
     /// Steven (2026-10-29: "applique-le de PARTOUT"): the seasons and the episodes are UIKit strips
     /// the focus engine scrolls; the page restores its focus through them and hears it from them.
     var seasonsRef: OrbitStripRef? = nil
@@ -169,7 +172,17 @@ struct OrbitEpisodesSection: View {
                                    stripFocus = .episode(list[i].id)
                                    onStripFocus(.episode(list[i].id))
                                },
-                               onSelect: { i in onPlay(list[i]) })
+                               onSelect: { i in onPlay(list[i]) },
+                               menu: onPlayManually.map { manual in
+                                   { i in
+                                       guard list.indices.contains(i) else { return nil }
+                                       let episode = list[i]
+                                       return UIMenu(children: [
+                                           UIAction(title: String(localized: "Play Manually"),
+                                                    image: UIImage(systemName: "list.bullet")) { _ in manual(episode) }
+                                       ])
+                                   }
+                               })
                     .frame(height: still.height + 12 + 30)
                     .disabled(returningToSeason)
                     .id("season-\(season ?? -1)")

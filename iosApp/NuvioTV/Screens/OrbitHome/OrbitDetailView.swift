@@ -384,6 +384,11 @@ struct OrbitDetailView: View {
                                              onPlay: { episode in
                                                  seriesPlay = OrbitSeriesPlayRoute(meta: meta, episode: episode)
                                              },
+                                             onPlayManually: { episode in
+                                                 var route = OrbitSeriesPlayRoute(meta: meta, episode: episode)
+                                                 route.forceManual = true
+                                                 seriesPlay = route
+                                             },
                                              seasonsRef: seasonsStrip, episodesRef: episodesStrip,
                                              onStripFocus: { stripFocused($0) },
                                              returning: returningTo)

@@ -523,6 +523,13 @@ struct OrbitCollectionGrid: View {
                     OrbitStripView(count: entries.count, identity: entries.map(\.id).joined(separator: ","),
                                    spacing: Self.tileSpacing, height: Self.tileHeight + 32,
                                    margin: OrbitHomeLayout.margin, alignment: .center,
+                                   // Steven (2026-10-31: up from the Top 20, the focus landed on the
+                                   // platform above — the first one on the left — and its Top 20 then
+                                   // replaced the one he was in): coming up from the rows, the focus goes
+                                   // back to the platform whose Top 20 it is. (Down from the bar, the
+                                   // system's own landing, as before.)
+                                   lead: entries.firstIndex(where: { $0.id == selectedId }) ?? 0,
+                                   entersOnLead: inRows,
                                    width: { _ in Self.tileWidth }, ref: platformsStrip,
                                    tile: { i, isFocused in
                                        let entry = entries[i]

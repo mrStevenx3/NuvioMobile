@@ -162,9 +162,11 @@ struct OrbitSettingsView: View {
                 Button {
                     selected = section
                 } label: {
-                    OrbitSettingsSectionLabel(section: section, selected: selected == section)
+                    OrbitSettingsSectionLabel(section: section, selected: (focusedSection ?? selected) == section)
                 }
-                .buttonStyle(OrbitSettingsSectionStyle(selected: selected == section))
+                // (Steven, 2026-10-31: the old section's mark lingered a moment as a ghost while the
+                // cursor was already elsewhere — in the list, the mark is the cursor's own place.)
+                .buttonStyle(OrbitSettingsSectionStyle(selected: (focusedSection ?? selected) == section))
                 .focused($focusedSection, equals: section)
                 // Steven (2026-10-31: left from the settings came back to the section only when level
                 // with it — else the cursor went to the top a moment first): while the focus is
