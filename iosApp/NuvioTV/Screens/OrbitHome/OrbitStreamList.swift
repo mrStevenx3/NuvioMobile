@@ -333,10 +333,11 @@ struct OrbitStreamBackground: View {
         ZStack {
             OrbitHomeLayout.background
             if let url, !url.isEmpty {
-                // Blurred once, not live on every frame (fluidity).
-                OrbitPreBlurred(url: url, radius: 30)
-                    .scaleEffect(1.06)
-                Color.black.opacity(0.62)
+                // Steven (2026-10-31: "le même flou épais que la page de description"): the description
+                // page's ground — the film's picture down to its colour fields, made once — a little
+                // darker for the sources' text.
+                OrbitThickBlur(url: url)
+                Color.black.opacity(0.3)
             }
             LinearGradient(colors: [.black.opacity(0.35), .clear, .black.opacity(0.45)],
                            startPoint: .top, endPoint: .bottom)
@@ -758,6 +759,26 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) { followHeader() }
+
+    // Steven (2026-10-31, video: "le défilement est bizarre" — the focused source landing at the
+    // bottom one step, in the middle the next, the system aiming each time): the focused source
+    // goes down to one line (the second source's place), then stays on it, the list sliding under it.
+    private var focusedIndex: Int?
+
+    func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
+                        with coordinator: UIFocusAnimationCoordinator) {
+        if let next = context.nextFocusedIndexPath { focusedIndex = next.item }
+    }
+
+    func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
+                                   targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        guard let index = focusedIndex,
+              let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return }
+        let line = topInset + OrbitStreamCard.height + 18
+        let lowest = -topInset
+        let highest = max(lowest, collectionView.contentSize.height + collectionView.contentInset.bottom - scrollView.bounds.height)
+        targetContentOffset.pointee.y = min(highest, max(lowest, frame.minY - line))
+    }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
