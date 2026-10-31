@@ -459,6 +459,9 @@ struct OrbitStudioPage: View {
                 } else if let logo = model.logo ?? route.logo, !logo.isEmpty {
                     OrbitBalancedLogo(url: logo, area: 13_000, maxSize: OrbitStudioIntro.cornerBox,
                                       whiten: OrbitBalancedLogo.isGrey(model.name), alignment: .topTrailing)
+                        // (Steven, 2026-10-31: Disney's lower — the page's own corner logo, the one
+                        // that stays; the opening's hands over to it at the same place.)
+                        .offset(y: OrbitStudioLogos.isDisney(model.name) ? 16 : 0)
                 } else {
                     Text(model.name)
                         .font(.system(size: 36, weight: .heavy))

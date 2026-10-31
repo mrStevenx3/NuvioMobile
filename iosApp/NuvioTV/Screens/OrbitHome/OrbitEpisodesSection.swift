@@ -244,10 +244,8 @@ private struct OrbitSeasonCard: View {
             ZStack {
                 Color(white: 0.12)
                 OrbitImage(url: poster, size: size)
-                // The seasons not shown a little dimmed (the one shown stands out): a dark veil on
-                // the picture, not the card made see-through (a see-through card is drawn apart at
-                // every frame of a slide).
-                Color.black.opacity(focused || selected ? 0 : 0.35)
+                // (Steven, 2026-10-31: the seasons not shown no longer dimmed — all in their colours;
+                // the one shown keeps its light rim.)
             }
             .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -327,9 +325,18 @@ private struct OrbitEpisodeDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let episode {
-                Text(OrbitEpisodeFormat.caption(episode, rating: rating))
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.7))
+                // Steven (2026-10-31): the episode's note in yellow; the line kept bright, the synopsis
+                // under it a little more see-through, so the two read apart.
+                HStack(spacing: 0) {
+                    Text(OrbitEpisodeFormat.caption(episode, rating: nil))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                    if let note = OrbitEpisodeFormat.note(rating) {
+                        Text(" · ").foregroundStyle(Color.white.opacity(0.85))
+                        Text(note).foregroundStyle(OrbitEpisodeFormat.noteColour)
+                    }
+                }
+                .font(.system(size: 24, weight: .semibold))
+                .lineLimit(1)
                 let overview: String? = episode.overview
                 if hidesSynopsis {
                     Text(String(localized: "Résumé masqué jusqu'au visionnage"))
@@ -338,7 +345,7 @@ private struct OrbitEpisodeDetails: View {
                 } else if let overview, !overview.isEmpty {
                     Text(overview)
                         .font(.system(size: 25, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.92))
+                        .foregroundStyle(Color.white.opacity(0.62))
                         .lineSpacing(4)
                         .lineLimit(2)
                 }
@@ -361,6 +368,14 @@ enum OrbitEpisodeFormat {
     }
 
     /// "S1E3 · 6 oct. 2004 · 43 min · ★ 8,2"
+    /// The note's yellow (the sources' one).
+    static let noteColour = Color(red: 1, green: 0.84, blue: 0.3)
+
+    static func note(_ rating: Double?) -> String? {
+        guard let rating, rating > 0, let text = OrbitDetailFormat.rating(String(rating)) else { return nil }
+        return "★ \(text)"
+    }
+
     static func caption(_ episode: MetaVideo, rating: Double?) -> String {
         var parts: [String] = []
         if let s = episode.season?.value, let e = episode.episode?.value { parts.append("S\(s)E\(e)") }

@@ -164,9 +164,16 @@ struct OrbitSettingsView: View {
                 }
                 .buttonStyle(OrbitSettingsSectionStyle(selected: selected == section))
                 .focused($focusedSection, equals: section)
+                // Steven (2026-10-31: left from the settings came back to the section only when level
+                // with it — else the cursor went to the top a moment first): while the focus is
+                // elsewhere, the section being read is the list's only way in.
+                .disabled(focusedSection == nil && section != selected)
             }
         }
-        .frame(width: 470, alignment: .leading)
+        // The whole height (Left from anywhere on the right enters the list).
+        .frame(width: 470, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .contentShape(Rectangle())
         .focusSection()
         .onChange(of: focusedSection) { old, section in
             guard let section else { return }

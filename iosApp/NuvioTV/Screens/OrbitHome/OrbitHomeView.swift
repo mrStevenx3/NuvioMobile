@@ -463,10 +463,13 @@ struct OrbitRowsBackdrop: View {
             // more reactive again, 250 ms, and the headings' bar with the wash, on its curve.
             // (Steven, 2026-10-31, video: Home black ~1 s down from the hero, and every colour
             // slow — two waits in a row: the row's, then this one again.)
+            // (Steven, 2026-10-31: Découvrir slower to change colour than Home — Home's colours are
+            // worked out ahead; here the colour is now worked out during the wait, not after it.)
+            async let worked = OrbitDominantColor.color(for: url)
             if rest > 0 {
                 do { try await Task.sleep(for: .milliseconds(rest)) } catch { return }
             }
-            if let color = await OrbitDominantColor.color(for: url), !Task.isCancelled {
+            if let color = await worked, !Task.isCancelled {
                 show(color)
                 // (Only the Home on screen: the hidden one's colour no longer reaches the headings.)
                 if opaque, mirror != nil {

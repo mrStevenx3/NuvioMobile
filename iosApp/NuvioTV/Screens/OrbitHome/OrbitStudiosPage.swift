@@ -236,7 +236,7 @@ struct OrbitStudiosPage: View {
                 if ArtworkStore.cached(best, decode: request) == nil {
                     _ = try? await ArtworkStore.fetch(best, decode: request)
                 }
-                await OrbitPreBlurred.prepare(raw, radius: 24)
+                await OrbitStudiosBlurFoot.prepare(raw)
             }
         }
     }
@@ -807,25 +807,23 @@ private struct OrbitStudiosBackdrop: View {
         let seam = band * 0.96
         Group {
             ZStack(alignment: .top) {
-                // The same image blurred, at the very place of the sharp one (its centre on the
-                // banner's), stretched down from the seam to reach the screen's bottom.
-                // (Steven, 2026-10-30: a bar at the bottom — drawn a little larger again, and
-                // stretched enough to reach the screen's foot.)
-                OrbitPreBlurred(url: url, radius: 24)
-                    .scaleEffect(1.1)
-                    .offset(y: band / 2 - H / 2)
-                    .frame(width: W, height: H)
-                    .scaleEffect(x: 1, y: 1.55, anchor: UnitPoint(x: 0.5, y: seam / H))
-                    .overlay(Color.black.opacity(0.22))
+                // Steven (2026-10-31: "l'effet de fondu un peu saccadé" — measured on his video, frames
+                // missed in the change): the sharp image was masked and the blurred one darkened on
+                // the screen, both worked out again at every frame of their fades. Now two plain
+                // pictures: the sharp one whole, and over it the blurred one, see-through above the
+                // seam and darkened — all baked into it once — fading on the same curve.
                 OrbitSwapImage(url: url, fallback: nil, size: full, shiftY: spare * lift)
                     .frame(width: full.width, height: full.height)
                     .frame(width: full.width, height: band)
                     .clipped()
-                    .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                                 .init(color: .black, location: 0.88),
-                                                 .init(color: .clear, location: 1)],
-                                         startPoint: .top, endPoint: .bottom))
                     .frame(width: W, height: band)
+                // The same image blurred, at the very place of the sharp one (its centre on the
+                // banner's), stretched down from the seam to reach the screen's bottom.
+                OrbitStudiosBlurFoot(url: url)
+                    .scaleEffect(OrbitStudiosBlurFoot.grow)
+                    .offset(y: band / 2 - H / 2)
+                    .frame(width: W, height: H)
+                    .scaleEffect(x: 1, y: OrbitStudiosBlurFoot.stretch, anchor: UnitPoint(x: 0.5, y: seam / H))
             }
             .frame(width: W, height: H, alignment: .top)
         }
@@ -856,5 +854,103 @@ enum OrbitStudioLogos {
     static func isDisney(_ title: String) -> Bool {
         let key = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         return key.contains("disney") && !key.contains("+") && !key.contains("plus")
+    }
+}
+
+
+/// The Studios banner's blurred continuation, as one plain picture: the banner's image blurred,
+/// darkened (the 22 % veil) and see-through where the sharp image shows — from 88 % of the banner's
+/// height it comes in, whole at the banner's foot — worked out for where it is drawn (grown 1.1×,
+/// centred on the banner, stretched 1.55× down from the seam).
+struct OrbitStudiosBlurFoot: View {
+    let url: String?
+    @State private var image: UIImage?
+    @State private var shown: String?
+
+    static let grow: CGFloat = 1.1
+    static let stretch: CGFloat = 1.55
+
+    nonisolated(unsafe) static let made: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 40
+        return cache
+    }()
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .id(shown ?? "-")
+                    // (The sharp image's own fade: the two change together.)
+                    .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.24)),
+                                            removal: .opacity.animation(.linear(duration: 0.01).delay(0.26))))
+                    .zIndex(1)
+            }
+        }
+        .frame(width: OrbitHomeLayout.screenWidth, height: OrbitHomeLayout.screenHeight)
+        .clipped()
+        .task(id: url ?? "-") {
+            guard let url else { image = nil; shown = nil; return }
+            if let ready = Self.made.object(forKey: url as NSString) {
+                image = ready
+                shown = url
+                return
+            }
+            guard let made = await Self.prepare(url), !Task.isCancelled else { return }
+            image = made
+            shown = url
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// Made once per image (the Studios page makes them all as it opens).
+    @discardableResult
+    static func prepare(_ url: String) async -> UIImage? {
+        if let ready = made.object(forKey: url as NSString) { return ready }
+        guard let blurred = await OrbitPreBlurred.prepare(url, radius: 24), let cg = blurred.cgImage else { return nil }
+        let H = OrbitHomeLayout.screenHeight
+        let band = OrbitStudioFrame.bannerSize.height
+        let seam = band * 0.96
+        // A place on the screen → the same place in the picture (as drawn: grown about its centre,
+        // moved to the banner's centre, stretched from the seam).
+        func picture(_ y3: CGFloat) -> CGFloat {
+            let y2 = seam + (y3 - seam) / stretch
+            let y1 = y2 - (band / 2 - H / 2)
+            let y0 = H / 2 + (y1 - H / 2) / grow
+            return min(1, max(0, y0 / H))
+        }
+        let from = picture(band * 0.88), to = picture(band)
+        let finished = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            finish(cg, clearAbove: from, wholeFrom: to)
+        }.value
+        if let finished { made.setObject(finished, forKey: url as NSString) }
+        return finished
+    }
+
+    nonisolated private static func finish(_ cg: CGImage, clearAbove from: CGFloat, wholeFrom to: CGFloat) -> UIImage? {
+        let size = CGSize(width: cg.width, height: cg.height)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            let c = ctx.cgContext
+            let rect = CGRect(origin: .zero, size: size)
+            UIImage(cgImage: cg).draw(in: rect)
+            // The veil.
+            c.setFillColor(UIColor.black.withAlphaComponent(0.22).cgColor)
+            c.fill(rect)
+            // See-through above the seam.
+            c.setBlendMode(.destinationIn)
+            let space = CGColorSpaceCreateDeviceGray()
+            let colours = [CGColor(gray: 0, alpha: 0), CGColor(gray: 0, alpha: 0),
+                           CGColor(gray: 0, alpha: 1), CGColor(gray: 0, alpha: 1)] as CFArray
+            let stops: [CGFloat] = [0, from, max(from + 0.001, to), 1]
+            if let gradient = CGGradient(colorsSpace: space, colors: colours, locations: stops) {
+                c.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+            }
+        }
     }
 }
