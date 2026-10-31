@@ -512,6 +512,7 @@ struct OrbitCollectionGrid: View {
             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+            OrbitGrain().ignoresSafeArea()
             // Steven (2026-10-24): no "Plateformes" title — the bar already says it, and the
             // Studios page has none.
             ScrollViewReader { proxy in

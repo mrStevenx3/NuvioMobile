@@ -274,12 +274,15 @@ struct OrbitNativeHome: View {
                 // at the page's foot: the system's own landing sometimes came after 1.2 s, when the
                 // hero was in reach again, and a hero is no row to be sent back from. The hero stays
                 // out of reach for the whole way back now, until the viewer's own first press.)
+                // (Steven, 2026-10-31, video: back from a saga, the focus came to the row above — then
+                // to its neighbour: after 1.2 s the other rows were in reach again and the system's
+                // late landing went there. The other rows too stay out of reach for the whole way back,
+                // until the viewer's own first press.)
                 let since = returnSince
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    returnRow = nil
-                    if ViewerInputClock.shared.hasInput(since: since + 0.3) { heroLocked = false }
+                    if ViewerInputClock.shared.hasInput(since: since + 0.3) { returnRow = nil; heroLocked = false }
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { returnTarget = nil; heroLocked = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { returnTarget = nil; returnRow = nil; heroLocked = false }
             } else {
                 OrbitNativeRow.reopen = nil
                 heroDefaultStrong = true
@@ -295,7 +298,9 @@ struct OrbitNativeHome: View {
         }
         // The viewer's own press during a way back: the hero in reach again at once.
         .onReceive(NotificationCenter.default.publisher(for: ViewerInputClock.didRecord)) { _ in
-            if heroLocked, returnRow == nil, ProcessInfo.processInfo.systemUptime - returnSince > 0.3 { heroLocked = false }
+            guard heroLocked || returnRow != nil, ProcessInfo.processInfo.systemUptime - returnSince > 0.3 else { return }
+            heroLocked = false
+            returnRow = nil
         }
         .onDisappear {
             onScreen = false

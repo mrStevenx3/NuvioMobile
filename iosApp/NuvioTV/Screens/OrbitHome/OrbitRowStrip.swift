@@ -129,6 +129,7 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
     /// The way back from a title: only its card can take the focus a moment.
     private var onlyIndex: Int?
     private var onlyUntil: TimeInterval = 0
+    private var onlySince: TimeInterval = 0
     /// Where the focus goes when the row is asked for it.
     private var preferredIndex: Int?
 
@@ -266,7 +267,10 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
         let start = ProcessInfo.processInfo.systemUptime
         preferredIndex = index
         onlyIndex = index
-        onlyUntil = start + 1.2
+        // (Steven, 2026-10-31: the system's landing can come as late as 2 s — the row's other titles
+        // out of reach until then, or until the viewer's own first press.)
+        onlyUntil = start + 2.4
+        onlySince = start
         lastFocusedIndex = index
         // (Steven, 2026-10-31: the system's landing can come as late as 2 s — asked until then.)
         for delay in [0.0, 0.15, 0.35, 0.6, 0.9, 1.3, 1.8, 2.4] {
@@ -336,7 +340,8 @@ final class OrbitRowStripController: UIViewController, UICollectionViewDataSourc
 
     func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
         guard enabled else { return false }
-        if let only = onlyIndex, ProcessInfo.processInfo.systemUptime < onlyUntil { return indexPath.item == only }
+        if let only = onlyIndex, ProcessInfo.processInfo.systemUptime < onlyUntil,
+           !ViewerInputClock.shared.hasInput(since: onlySince + 0.3) { return indexPath.item == only }
         return true
     }
 

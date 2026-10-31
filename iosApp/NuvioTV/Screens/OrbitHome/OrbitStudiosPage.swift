@@ -94,6 +94,7 @@ struct OrbitStudiosPage: View {
                 // (Darker towards the bottom, for the tiles.)
                 LinearGradient(colors: [.clear, .black.opacity(0.32)],
                                startPoint: UnitPoint(x: 0.5, y: 0.6), endPoint: .bottom)
+                OrbitGrain()
             }
             .ignoresSafeArea()
             .animation(.easeInOut(duration: OrbitRowsBackdrop.fade), value: groundId)

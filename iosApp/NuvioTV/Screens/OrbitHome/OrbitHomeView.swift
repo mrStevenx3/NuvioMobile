@@ -1,6 +1,7 @@
 import Combine
 import SharedCore
 import SwiftUI
+import UIKit
 
 // Orbit Home (Steven's fork, 2026-10-23): Home's Films and Séries pages rebuilt from scratch after
 // Steven's reference video, independent of the Stage / Classic layouts.
@@ -399,6 +400,7 @@ struct OrbitMirroredWash: View {
             wash(mirror.colourB).opacity(mirror.showsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
+            OrbitGrain()
         }
         .compositingGroup()
         .frame(width: L.screenWidth, height: L.screenHeight)
@@ -445,6 +447,7 @@ struct OrbitRowsBackdrop: View {
             wash(colourB).opacity(showsB ? 1 : 0)
             // Steven (2026-10-29, trying it): the even wash a little darker towards the bottom.
             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
+            OrbitGrain()
         }
         // (Steven, 2026-10-30, slow-motion video: the TV still missed frames near the end of each
         // step, as the colour changed — the whole screen redrawn off-screen every frame of the fade.
@@ -610,4 +613,45 @@ final class OrbitRowsMemo<Value> {
         value = built
         return built
     }
+}
+
+
+/// Steven (2026-10-31, on trial: "on enlèvera si ça me va pas"): a grain too fine to see over the
+/// large soft gradients — each pixel nudged a level or two lighter or darker at random, which breaks
+/// the steps (bands) a smooth gradient shows on a large panel. One small picture made once, tiled at
+/// the screen's own pixels, drawn as it is (no filter, no blending pass).
+struct OrbitGrain: View {
+    /// Off: no grain anywhere (Steven's trial).
+    static let enabled = true
+
+    var body: some View {
+        if Self.enabled, let tile = Self.tile {
+            Image(uiImage: tile)
+                .resizable(resizingMode: .tile)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// 128×128 screen pixels of white or black dots, each at 0 to ~1.6 % opacity.
+    private static let tile: UIImage? = {
+        let side = 128
+        var bytes = [UInt8](repeating: 0, count: side * side * 4)
+        var seed: UInt32 = 0x9E3779B9
+        for i in 0..<(side * side) {
+            seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5
+            let alpha = UInt8(seed % 5)            // 0…4 of 255
+            let white = (seed >> 8) & 1 == 1
+            // Premultiplied: a white dot carries its alpha in its colour, a black one none.
+            let c: UInt8 = white ? alpha : 0
+            bytes[i * 4] = c; bytes[i * 4 + 1] = c; bytes[i * 4 + 2] = c; bytes[i * 4 + 3] = alpha
+        }
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData),
+              let cg = CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: side * 4,
+                               space: CGColorSpaceCreateDeviceRGB(),
+                               bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                               provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else { return nil }
+        return UIImage(cgImage: cg, scale: UIScreen.main.scale, orientation: .up)
+    }()
 }

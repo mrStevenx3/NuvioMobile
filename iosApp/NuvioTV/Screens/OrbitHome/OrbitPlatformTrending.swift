@@ -191,6 +191,8 @@ struct OrbitPlatformTrendingRow: View {
     @State private var pushed: TitleRoute?
     /// The focused title's id in the rows ("row/title"), as `focused` was.
     @State private var stripFocused: String?
+    /// Bumped at each platform's Top 20 (the newest drawn over the one going).
+    @State private var generation = 0
     /// When the focus last left the rows (the platforms keep their own landing when coming back up).
     @MainActor static var lostAt: TimeInterval = 0
     /// Steven (device: back from a title opened in these rows, the focus went to the platform's
@@ -249,6 +251,7 @@ struct OrbitPlatformTrendingRow: View {
             }
         }
         .onAppear { restoreFocus() }
+        .onChange(of: model.title) { _, _ in generation &+= 1 }
         .navigationDestination(item: $pushed) { route in DetailView(preview: route.preview) }
         .onChange(of: focused) { old, id in
             guard let id else {
@@ -372,10 +375,13 @@ struct OrbitPlatformTrendingRow: View {
                 .id("\(key)-line")
         }
         .id(key)
-        // (Steven, 2026-10-31, video: changing platform, the two Top 20s were seen over each other a
-        // moment — ghost posters. The old one now goes at once, the new one comes once it has gone.)
-        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.1)),
-                                removal: .opacity.animation(.easeIn(duration: 0.1))))
+        // (Steven, 2026-10-31, videos: changing platform, the two Top 20s were seen over each other a
+        // moment — ghost posters; then, the old one gone before the new one, "c'est brutal". The new
+        // one now fades in over the old one, which stays whole under it until covered — as the
+        // banners change: no ghost, nothing empty.)
+        .zIndex(Double(generation))
+        .transition(.asymmetric(insertion: .opacity.animation(.easeInOut(duration: 0.3)),
+                                removal: .opacity.animation(.linear(duration: 0.01).delay(0.32))))
         .focusSection()
     }
 }
