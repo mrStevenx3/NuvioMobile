@@ -1407,6 +1407,18 @@ struct OrbitNativeOpenRow: View {
                                // waits for the move to end, the vertical one too.)
                                if v != lead {
                                    lead = v
+                                   // (Steven, 2026-10-31, simulator videos: in Nouveaux films the colour came
+                                   // ~0.9 s after each move — the row waited for its slide, then the wash its
+                                   // 0.45 s again — so with a press a second the previous title's colour
+                                   // arrived over the next one: "en deux fois". A move inside the row now
+                                   // tells the page its title at once, as the poster rows do; the trailer
+                                   // and the look-ahead still wait for the slide. Not on entering, nor on a
+                                   // way back.)
+                                   if !entered, OrbitNativeRow.reopen == nil, count > 0 {
+                                       let told = self.card(v)
+                                       OrbitNativeHomeState.shared.art = told.landscape ?? metaStore.meta(for: told.preview)?.backdrop
+                                       OrbitTrace.log("wash art[open.focus] \(row.id) → \(OrbitNativeHomeState.shared.art ?? "nil")")
+                                   }
                                    leadChanged()
                                } else if entered, OrbitNativeRow.reopen == nil {
                                    // (Steven, 2026-10-31: back from Nouveaux films / Films recommandés,

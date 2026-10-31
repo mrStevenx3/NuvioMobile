@@ -559,7 +559,7 @@ struct OrbitRowsBackdrop: View {
         }
         waiting = nil
         if (topIsB ? colourB : colourA) == color { return }
-        fadingUntil = now + Self.fade + 0.05
+        fadingUntil = now + Self.fade + 0.1
         // The new colour goes into the wash underneath, made the one on top at nothing (no
         // animation), then it fades in over the old one, which stays whole until covered.
         let intoB = !topIsB
@@ -577,8 +577,9 @@ struct OrbitRowsBackdrop: View {
             }
         }
         // (Steven, 2026-10-31: a colour sometimes came in dark, then lit at once — the hidden wash,
-        // drawn into its own picture, was not drawn yet as the fade began. The fade waits one beat.)
-        DispatchQueue.main.async {
+        // drawn into its own picture, was not drawn yet as the fade began. The fade waits a few frames
+        // — one beat was not always enough: its first frame jumped a third of the way.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             withAnimation(.easeInOut(duration: Self.fade)) {
                 if intoB { opacityB = 1 } else { opacityA = 1 }
                 if intoB { mirror?.opacityB = 1 } else { mirror?.opacityA = 1 }
