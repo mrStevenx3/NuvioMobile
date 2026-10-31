@@ -63,8 +63,8 @@ struct OrbitStudiosPage: View {
     }
 
     private func tint(_ folder: CollectionFolder) -> Color {
-        OrbitPlatformBrand.known(title: folder.title) ?? tints[folder.id] ?? OrbitStudioTints.remembered(folder.id)
-            ?? OrbitPlatformBrand.color(title: folder.title)
+        OrbitPlatformBrand.known(title: folder.title) ?? OrbitStudioTints.fixed(folder.title) ?? tints[folder.id]
+            ?? OrbitStudioTints.remembered(folder.id) ?? OrbitPlatformBrand.color(title: folder.title)
     }
 
     @Environment(\.orbitPushStudio) private var pushStudio
@@ -553,6 +553,20 @@ struct OrbitBalancedLogo: View {
 /// a studio without a brand colour takes its backdrop's, worked out after the page's pictures —
 /// the colour found is kept (from one visit, and one launch, to the next) and shown at once.
 enum OrbitStudioTints {
+    /// Steven (2026-10-31: "pas moyen que tout soit direct ?"): Lucasfilm, DC and Ghibli get a colour
+    /// of their own, as Disney, Pixar, DreamWorks and Marvel — at once, from the very first visit
+    /// (in the range of the colours worked out from their pictures: Home's wash brightness).
+    static func fixed(_ title: String) -> Color? {
+        let t = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .replacingOccurrences(of: " ", with: "")
+        if t.contains("lucasfilm") { return Color(red: 0.30, green: 0.40, blue: 0.55) }
+        if t == "dc" || t.hasPrefix("dccomics") || t.hasPrefix("dcstudios") || t.hasPrefix("dcfilms") {
+            return Color(red: 0.08, green: 0.30, blue: 0.55)
+        }
+        if t.contains("ghibli") { return Color(red: 0.22, green: 0.44, blue: 0.55) }
+        return nil
+    }
+
     private static let key = "orbit.studios.tints"
     private static var memory: [String: Color] = {
         guard let stored = UserDefaults.standard.dictionary(forKey: key) as? [String: [Double]] else { return [:] }
