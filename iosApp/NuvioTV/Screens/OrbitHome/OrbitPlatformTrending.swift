@@ -372,7 +372,10 @@ struct OrbitPlatformTrendingRow: View {
                 .id("\(key)-line")
         }
         .id(key)
-        .transition(.opacity)
+        // (Steven, 2026-10-31, video: changing platform, the two Top 20s were seen over each other a
+        // moment — ghost posters. The old one now goes at once, the new one comes once it has gone.)
+        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.1)),
+                                removal: .opacity.animation(.easeIn(duration: 0.1))))
         .focusSection()
     }
 }
