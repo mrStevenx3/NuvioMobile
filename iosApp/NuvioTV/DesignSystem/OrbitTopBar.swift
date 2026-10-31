@@ -548,6 +548,7 @@ struct OrbitCollectionGrid: View {
                                        let entry = entries[i]
                                        let route = FolderRoute(collectionId: entry.collection.id, folder: entry.folder)
                                        if let pushFolder {
+                                           OrbitIntroSound.play(title: route.folderTitle)
                                            OrbitPlatformCurtain.shared.drop(look: OrbitPlatformLook.of(route)) { pushFolder(route) }
                                        }
                                    })

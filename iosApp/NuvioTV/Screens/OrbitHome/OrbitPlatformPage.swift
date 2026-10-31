@@ -822,6 +822,8 @@ struct OrbitPlatformIntro: View {
         // can show a closed page's view again for a moment on the next visit, intro already done.
         // Closed (no title opened over it), the intro goes back to its black start.
         .onDisappear {
+            // (The page left, or a title opened over it: the opening's sound does not follow.)
+            OrbitIntroSound.fadeOut(0.3)
             let left = ProcessInfo.processInfo.systemUptime
             leftAt = left
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -838,6 +840,8 @@ struct OrbitPlatformIntro: View {
             // Steven: a press skips the intro (the page is used often) — not the press that opened
             // the page, which lands just after it appears (the catalogue showed before the intro).
             guard phase != .settled, Date().timeIntervalSince(appearedAt) > 0.8 else { return }
+            // (The opening skipped: its sound goes too.)
+            OrbitIntroSound.fadeOut(0.3)
             glide?.cancel()
             withAnimation(.easeOut(duration: 0.3)) { phase = .settled; dim = 0; glow = 0 }
         }
@@ -864,6 +868,8 @@ struct OrbitPlatformIntro: View {
 
     private func play() {
         guard phase == .hidden else { OrbitPlatformCurtain.shared.lift(); return }
+        // (Opened without the Plateformes page's curtain: its sound starts with this opening.)
+        if !reduceMotion { OrbitIntroSound.play(title: title) }
         if reduceMotion {
             phase = .settled
             dim = 0; glow = 0

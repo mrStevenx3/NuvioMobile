@@ -96,6 +96,7 @@ struct OrbitPlaybackSection: View {
     @ObservedObject var model: SettingsViewModel
     @AppStorage(OrbitHomeSetting.trailersKey) private var previews = true
     @AppStorage(OrbitHomeSetting.trailerSoundKey) private var previewSound = false
+    @AppStorage(OrbitIntroSound.enabledKey) private var introSound = true
     @AppStorage(EpisodeSpoilerRules.defaultsKey) private var hideSpoilers = false
     @AppStorage(TrailerStartDelay.storageKey) private var previewDelay = TrailerStartDelay.automatic.rawValue
     @AppStorage(OrbitPlayerSettings.objectAudioKey) private var objectAudio = true
@@ -145,6 +146,10 @@ struct OrbitPlaybackSection: View {
                                         }
                                     })
             }
+            // Steven (2026-10-31): the platforms' own opening sounds.
+            OrbitSettingsToggle(title: String(localized: "Son d'ouverture des plateformes"),
+                                subtitle: String(localized: "Le son de chaque plateforme (Netflix, Disney+…) à l'ouverture de sa page."),
+                                isOn: $introSound)
             OrbitSettingsToggle(title: String(localized: "Masquer les spoilers"),
                                 subtitle: String(localized: "Floute les images et cache le résumé des épisodes pas encore vus."),
                                 isOn: $hideSpoilers)

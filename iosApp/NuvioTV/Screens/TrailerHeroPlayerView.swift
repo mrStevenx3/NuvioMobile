@@ -83,6 +83,10 @@ final class TrailerPlayerUIView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         layer.addSublayer(playerLayer)
+        // A trailer with its sound starting: a platform's opening sound gives way (Steven, 2026-10-31).
+        if UserDefaults.standard.bool(forKey: OrbitHomeSetting.trailerSoundKey) {
+            OrbitIntroSound.fadeOut(0.6)
+        }
         if TrailerProbe.enabled {
             let snap = TrailerPipelineCounters.shared.viewCreated()
             NSLog("[TrailerPipeline] view created live=%d players=%d", snap.liveViews, snap.livePlayers)
