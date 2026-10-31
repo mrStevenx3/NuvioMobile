@@ -649,7 +649,8 @@ struct OrbitPrimePage: View {
         trailerKey = nil
         withAnimation(.easeInOut(duration: 0.25)) {
             search = OrbitPlatformSearchModel(tabs: model.tabs, platformKey: "\(route.collectionId)|\(route.folderId)",
-                                              landscape: true)
+                                              landscape: false)  // Steven: results in posters, landscape cut them
+
         }
     }
 

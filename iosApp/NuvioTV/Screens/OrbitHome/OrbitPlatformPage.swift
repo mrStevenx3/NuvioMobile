@@ -389,9 +389,8 @@ struct OrbitPlatformPage: View {
     private func openSearch() {
         trailer.reset()
         trailerKey = nil
-        // Steven: Prime Video's and Paramount+'s art is landscape: so are their results.
-        let shapes = rows.prefix(6).map(\.shape)
-        let landscape = shapes.filter { $0 == .landscape }.count * 2 > max(1, shapes.count)
+        // Steven (2026-10-31): the results are posters on every platform (landscape cut them).
+        let landscape = false
         withAnimation(.easeInOut(duration: 0.25)) {
             search = OrbitPlatformSearchModel(tabs: model.tabs, platformKey: "\(route.collectionId)|\(route.folderId)",
                                               landscape: landscape)
