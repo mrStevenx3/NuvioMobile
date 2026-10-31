@@ -342,6 +342,10 @@ struct OrbitStudiosPage: View {
                 if let url = Self.logoURL(folder) {
                     OrbitBalancedLogo(url: url, area: 72_000, maxSize: Self.logoSize,
                                       whiten: OrbitBalancedLogo.isGrey(folder?.title ?? ""), alignment: .bottomLeading)
+                        // (Steven, 2026-10-31: the Disney signature sat a little high on the Studios
+                        // page — its "y" hangs below its line, so its line stood above the others'.
+                        // Lowered by that hang.)
+                        .offset(y: OrbitStudioLogos.isDisney(folder?.title ?? "") ? 24 : 0)
                         .shadow(color: .black.opacity(0.45), radius: 18, y: 4)
                         .id(url)
                         .transition(slide)
