@@ -623,6 +623,20 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
         } else if let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: next, section: 0))?.frame {
             let rest = revealOffset(for: next) ?? (aimedOffset ?? collectionView.contentOffset.x)
             focusAtMargin = frame.minX - rest <= margin + 2
+            OrbitTrace.log("strip focus \(previous.map(String.init) ?? "nil")->\(next) x=\(Int(frame.minX)) offset=\(Int(collectionView.contentOffset.x)) rest=\(Int(rest)) margin=\(Int(margin)) atMargin=\(focusAtMargin)")
+            // Steven (2026-10-31, simulator: in the middle of a row, the heading rose only after a
+            // press Left): coming in from another row, the system scrolls the row itself, after this —
+            // where it really rests is checked once it has, and the row told again if it differs.
+            let told = focusAtMargin
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+                guard let self, self.focusedIndex == next,
+                      let now = self.collectionView.layoutAttributesForItem(at: IndexPath(item: next, section: 0))?.frame else { return }
+                let atMargin = now.minX - self.collectionView.contentOffset.x <= self.margin + 2
+                OrbitTrace.log("strip rest \(next) x=\(Int(now.minX)) offset=\(Int(self.collectionView.contentOffset.x)) atMargin=\(atMargin) told=\(told)")
+                guard atMargin != self.focusAtMargin else { return }
+                self.focusAtMargin = atMargin
+                self.onFocus(next)
+            }
         }
         onFocus(next)
         if pinned {
