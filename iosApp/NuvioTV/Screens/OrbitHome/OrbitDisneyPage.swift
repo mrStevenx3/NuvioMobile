@@ -1457,7 +1457,10 @@ struct OrbitDisneyBrand {
         .init(name: "Marvel", keys: ["marvel"], company: "420",
               colours: [Color(red: 0.62, green: 0.06, blue: 0.08), Color(red: 0.22, green: 0.02, blue: 0.04)],
               tagline: String(localized: "L'univers Marvel"), logoInColour: true),
-        .init(name: "Star Wars", keys: ["star wars", "lucasfilm"], company: "1",
+        // (Steven, 2026-10-31: Star Wars opened his Lucasfilm folder — "je veux une vraie page Star Wars":
+        // its own page from TMDB's Star Wars keyword, films and series; his own Star Wars folder first
+        // if he makes one.)
+        .init(name: "Star Wars", keys: ["star wars"], company: "kw:star wars",
               // (Steven: the band read as gone on Star Wars — a deep space blue, no longer near black.)
               colours: [Color(red: 0.16, green: 0.22, blue: 0.40), Color(red: 0.03, green: 0.05, blue: 0.13)],
               tagline: String(localized: "Il y a bien longtemps, dans une galaxie lointaine…"), asset: "StarWarsLogo"),
@@ -1490,7 +1493,8 @@ struct OrbitDisneyBrand {
 
     func route() -> OrbitStudioRoute {
         if let found = folder { return .folder(collectionId: found.collectionId, folder: found.folder) }
-        return OrbitStudioRoute(name: name, companies: company, isNetwork: false, logo: nil, collectionId: nil, folderId: nil)
+        return OrbitStudioRoute(name: name, companies: company, isNetwork: false,
+                                logo: OrbitStudioLogos.url(forTitle: name), collectionId: nil, folderId: nil)
     }
 }
 

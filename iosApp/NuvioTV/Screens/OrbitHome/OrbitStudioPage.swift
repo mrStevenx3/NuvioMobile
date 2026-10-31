@@ -1741,7 +1741,7 @@ final class OrbitStudioModel: ObservableObject {
                 return
             }
             // The logo first, on its own (the opening waits for it; the rows take longer).
-            if route.logo == nil, self?.logo == nil {
+            if route.logo == nil, self?.logo == nil, !ids.hasPrefix("kw:") {
                 let firstId = ids.split(whereSeparator: { $0 == "|" || $0 == "," }).first.map(String.init) ?? ids
                 let entity: EntityResponse? = await Self.decode(
                     "https://api.themoviedb.org/3/\(route.isNetwork ? "network" : "company")/\(firstId)?api_key=\(key)")
@@ -1913,7 +1913,22 @@ final class OrbitStudioModel: ObservableObject {
         let belongs_to_collection: Collection?
     }
 
+    /// A page built on a TMDB keyword instead of a company (`companies` = "kw:<words>"): Steven
+    /// (2026-10-31: "je veux une vraie page Star Wars sur Disney+" — TMDB has no Star Wars company).
+    nonisolated private struct KeywordSearch: Decodable {
+        nonisolated struct Hit: Decodable { let id: Int; let name: String? }
+        let results: [Hit]?
+    }
+
     nonisolated private static func resolveIds(route: OrbitStudioRoute, apiKey: String) async -> String? {
+        if let ids = route.companies, ids.hasPrefix("kw:") {
+            let words = String(ids.dropFirst(3))
+            let query = words.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? words
+            guard let found: KeywordSearch = await decode("https://api.themoviedb.org/3/search/keyword?api_key=\(apiKey)&query=\(query)"),
+                  let hits = found.results, !hits.isEmpty else { return nil }
+            let exact = hits.first { ($0.name ?? "").caseInsensitiveCompare(words) == .orderedSame }
+            return "kw:\((exact ?? hits[0]).id)"
+        }
         if let ids = route.companies, !ids.isEmpty { return ids }
         let query = route.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? route.name
         let kind = route.isNetwork ? "network" : "company"
@@ -1930,7 +1945,8 @@ final class OrbitStudioModel: ObservableObject {
         let lang = language.isEmpty ? "fr-FR" : language
         let media = network ? "tv" : "movie"
         let dateField = network ? "first_air_date" : "primary_release_date"
-        let filter = network ? "&with_networks=\(ids)" : "&with_companies=\(ids)"
+        let keyword = ids.hasPrefix("kw:") ? String(ids.dropFirst(3)) : nil
+        let filter = keyword.map { "&with_keywords=\($0)" } ?? (network ? "&with_networks=\(ids)" : "&with_companies=\(ids)")
         let base = "https://api.themoviedb.org/3/discover/\(media)?api_key=\(apiKey)&language=\(lang)" + filter
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -1942,7 +1958,9 @@ final class OrbitStudioModel: ObservableObject {
 
         // The logo (the first id's), the figures, the main rows, all at once.
         let firstId = ids.split(whereSeparator: { $0 == "|" || $0 == "," }).first.map(String.init) ?? ids
-        async let entity: EntityResponse? = decode("https://api.themoviedb.org/3/\(network ? "network" : "company")/\(firstId)?api_key=\(apiKey)")
+        async let entity: EntityResponse? = keyword != nil ? nil
+            : decode("https://api.themoviedb.org/3/\(network ? "network" : "company")/\(firstId)?api_key=\(apiKey)")
+
         async let oldest = discover(base + "&sort_by=\(dateField).asc&\(dateField).lte=\(today)&vote_count.gte=5", tv: network)
         async let best = discover(base + "&sort_by=vote_average.desc&vote_count.gte=300&with_runtime.gte=60", tv: network)
         async let popular = discover(base + "&sort_by=popularity.desc", tv: network)
@@ -1966,6 +1984,12 @@ final class OrbitStudioModel: ObservableObject {
         if bestValue.items.count >= 5 { rows.append(("best", String(localized: "Les incontournables"), bestValue.items)) }
         let popularItems = popularValue.items + popular2Value.items
         if popularItems.count >= 5 { rows.append(("popular", String(localized: "Les plus populaires"), popularItems)) }
+        // A keyword's page: its series too (Star Wars: The Mandalorian, Andor…).
+        if let keyword {
+            let series = await discover("https://api.themoviedb.org/3/discover/tv?api_key=\(apiKey)&language=\(lang)"
+                                        + "&with_keywords=\(keyword)&sort_by=popularity.desc", tv: true)
+            if series.items.count >= 3 { rows.append(("series", String(localized: "Les séries"), series.items)) }
+        }
 
         // The sagas: the collections the best-known films belong to (one card per saga, its art,
         // it opens the saga's first film met).

@@ -1082,6 +1082,8 @@ enum OrbitStudioLogos {
         guard let title else { return nil }
         let key = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         if key.contains("pixar") { return base + "pixar.png" }
+        // (Star Wars's own page, from Disney+: the app's Star Wars logo, in white.)
+        if key.contains("star wars") { return base + "starwars.png" }
         // (Disney's studio — not Disney+, the platform.)
         if isDisney(title) { return base + "disney.png" }
         return nil
