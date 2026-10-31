@@ -652,7 +652,7 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
     private var topInset: CGFloat = 0
     private var focusFirst = 0
     private var preferFirst = false
-    private var registration: UICollectionView.CellRegistration<UICollectionViewCell, String>!
+    private var registration: UICollectionView.CellRegistration<OrbitDiscoverCell, String>!
 
     init(scroll: OrbitStreamScroll) {
         self.scroll = scroll
@@ -692,7 +692,11 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
         collectionView.dataSource = self
         collectionView.delegate = self
         view.addSubview(collectionView)
-        registration = UICollectionView.CellRegistration<UICollectionViewCell, String> { [weak self] cell, _, key in
+        // Steven (2026-10-31, photo: the sources at the top and the bottom of the screen over their
+        // neighbours): a hosting configuration keeps the TV's safe area — the lines near the screen's
+        // edges had their card pushed in and grown over the next ones. Découvrir's cell (a hosting
+        // controller that ignores it) instead, as Découvrir had the very same trouble.
+        registration = UICollectionView.CellRegistration<OrbitDiscoverCell, String> { [weak self] cell, _, key in
             cell.backgroundConfiguration = .clear()
             cell.configurationUpdateHandler = { [weak self] cell, state in
                 guard let self, let row = self.rows.first(where: { $0.key == key }) else { return }
@@ -700,8 +704,7 @@ final class OrbitStreamCollectionController: UIViewController, UICollectionViewD
                 // scrolling): the lines coming in at the edges were filled inside the scroll's own
                 // animation — the new card animated in over the old one. Filled at once now.
                 UIView.performWithoutAnimation {
-                    cell.contentConfiguration = UIHostingConfiguration { self.card(row, state.isFocused) }
-                        .margins(.all, 0)
+                    (cell as? OrbitDiscoverCell)?.show(self.card(row, state.isFocused))
                     cell.layoutIfNeeded()
                 }
             }
