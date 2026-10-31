@@ -56,6 +56,8 @@ final class OrbitLeadBox: ObservableObject {
     /// One of the row's titles holds the focus (told by the row itself, as the focus moves — not
     /// the page's idea of its current row).
     @Published var hasFocus = false
+    /// The focused title is the first on screen, at the row's margin (under its heading).
+    @Published var leadAtMargin = true
 }
 
 /// The rows' leads, read by the page (never observed by it: a lead change redraws only its row).
@@ -495,6 +497,8 @@ struct OrbitNativeTileStrip<Tile: View>: View {
             return
         }
         if !box.hasFocus { box.hasFocus = true }
+        let atMargin = strip.controller?.focusAtMargin ?? (new == 0)
+        if box.leadAtMargin != atMargin { box.leadAtMargin = atMargin }
         if !holds {
             holds = true
             onEnter()

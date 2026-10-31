@@ -185,6 +185,9 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
     /// a move to the right, the title left behind shrinks back over the new one — kept above it
     /// until it has (else its overhang went under at once, the rest shrinking after).
     private var shrinkingOnTop: Int?
+    /// The focused title sits at the row's left margin (first on screen, under the row's heading),
+    /// where the row will rest after this move. Told before `onFocus`.
+    private(set) var focusAtMargin = true
     /// When the focus last moved from one title of the row to another (only such a move slides a
     /// room open: arriving on the row or leaving it, the rooms are at once what they will be —
     /// Steven's video, Disney+: a room growing under a frame already open while the page moved).
@@ -611,8 +614,15 @@ final class OrbitStripController: UIViewController, UICollectionViewDataSource, 
             } completion: { [weak self] _ in
                 if let generation { self?.leaving.done(generation) }
             }
+            focusAtMargin = true
             onFocus(next)
             return
+        }
+        if pinned {
+            focusAtMargin = true
+        } else if let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: next, section: 0))?.frame {
+            let rest = revealOffset(for: next) ?? (aimedOffset ?? collectionView.contentOffset.x)
+            focusAtMargin = frame.minX - rest <= margin + 2
         }
         onFocus(next)
         if pinned {

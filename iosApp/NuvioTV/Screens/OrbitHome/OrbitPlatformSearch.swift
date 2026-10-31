@@ -8,7 +8,7 @@ import UIKit
 // (Apple's field and keyboard at once, Siri dictation, typing from an iPhone), the results as the
 // same poster grid (`OrbitSearchResultsController`: a title shows once its poster has loaded, no
 // grey squares), and the same remote: Menu in the results goes to their first line, then to the
-// keyboard; Menu or Up from the keyboard closes the search; back from a title, the poster it was
+// keyboard; Menu from the keyboard closes the search; back from a title, the poster it was
 // opened from takes the focus again.
 //
 // What is searched is unchanged: the platform add-on's « Tous les films / Toutes les séries »
@@ -200,7 +200,7 @@ private struct OrbitPlatformSearchContainer: UIViewControllerRepresentable {
 }
 
 /// The remote, as on the general Search: Menu in the results goes to their first line (same
-/// column), then to the keyboard; Menu or Up from the keyboard closes the search. Back from a
+/// column), then to the keyboard; Menu from the keyboard closes the search. Back from a
 /// title, the poster it was opened from.
 private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecognizerDelegate {
     private weak var upRecognizer: UIGestureRecognizer?
@@ -215,13 +215,7 @@ private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecogniz
         let menu = UITapGestureRecognizer(target: self, action: #selector(menuPressed))
         menu.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
         view.addGestureRecognizer(menu)
-        let up = UITapGestureRecognizer(target: self, action: #selector(upPressed))
-        up.allowedPressTypes = [NSNumber(value: UIPress.PressType.upArrow.rawValue)]
-        up.delegate = self
-        // (The focus engine still gets the press: Up moves within the keyboard as usual.)
-        up.cancelsTouchesInView = false
-        view.addGestureRecognizer(up)
-        upRecognizer = up
+        // (No Up recognizer any more: Up is the keyboard's own — see `upPressed`.)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -261,21 +255,11 @@ private final class OrbitPlatformSearchHost: UIViewController, UIGestureRecogniz
         }
     }
 
-    /// Steven (2026-10-31: "la fenêtre de recherche se ferme toute seule quand je tape du texte"):
-    /// every Up outside the results closed the search — Up from the keyboard's lower lines too, while
-    /// typing. Now Up closes it only when it moves nothing: from the keyboard's (or the field's) top.
-    @objc private func upPressed() {
-        let before = view.window?.windowScene?.focusSystem?.focusedItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            guard let self else { return }
-            let now = self.view.window?.windowScene?.focusSystem?.focusedItem
-            // (Up that took the focus out of the search, behind it: closed too.)
-            if let moved = now as? UIView, !moved.isDescendant(of: self.view) { self.onClose?(); return }
-            guard let before, let now, before === now else { return }
-            if let results = self.results, let focused = now as? UIView, focused.isDescendant(of: results.view) { return }
-            self.onClose?()
-        }
-    }
+    /// Steven (2026-10-31: "la fenêtre de recherche se ferme toute seule au bout d'un moment quand
+    /// je tape du texte", still so once Up closed it only from the keyboard's top): the keyboard is
+    /// the system's — Up inside it could not be told from Up at its top. Up no longer closes the
+    /// search: Menu does (from the keyboard; from the results, Menu goes back to the keyboard first).
+    @objc private func upPressed() {}
 
     func gestureRecognizer(_ recognizer: UIGestureRecognizer,
                            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
